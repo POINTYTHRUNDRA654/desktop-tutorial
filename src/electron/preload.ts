@@ -3888,6 +3888,12 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:set-enabled', enabled),
     revealOutput: (outputDir: string): Promise<any> =>
       ipcRenderer.invoke('creative-director:reveal-output', outputDir),
+    listAssets: (relativePath: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:list-assets', relativePath),
+    readGuide: (outputDir: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:read-guide', outputDir),
+    enhanceGuide: (outputDir: string, assetPaths: string[], userNotes: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:enhance-guide', outputDir, assetPaths, userNotes),
   },
 
   // Personal R&D Network (dev-only) - proxies to the user's own separate local

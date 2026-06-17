@@ -17316,6 +17316,107 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
+  // ── Asset Browser — F:\FO4 WORKING FLODER ─────────────────────────────────
+  // Lets the renderer browse the extracted vanilla FO4 assets so the user can
+  // attach real mesh/texture paths to a handoff project's BUILD_GUIDE.
+
+  const FO4_ASSETS_ROOT = 'F:\\FO4 WORKING FLODER';
+
+  registerHandler('creative-director:list-assets', async (_event, relativePath: string) => {
+    try {
+      const safeRel = (relativePath || '').replace(/\.\./g, '').replace(/^[\\/]+/, '');
+      const fullPath = safeRel ? path.join(FO4_ASSETS_ROOT, safeRel) : FO4_ASSETS_ROOT;
+      if (!fs.existsSync(fullPath)) return { success: false, error: 'Path not found', items: [] };
+      const stat = fs.statSync(fullPath);
+      if (!stat.isDirectory()) return { success: false, error: 'Not a directory', items: [] };
+      const raw = fs.readdirSync(fullPath);
+      const items = raw.map(name => {
+        const childPath = path.join(fullPath, name);
+        let isDir = false;
+        try { isDir = fs.statSync(childPath).isDirectory(); } catch { /* skip */ }
+        const ext = path.extname(name).toLowerCase();
+        const type = isDir ? 'dir'
+          : ['.nif', '.bgsm', '.bgem'].includes(ext) ? 'mesh'
+          : ['.dds', '.png', '.tga'].includes(ext) ? 'texture'
+          : ['.wav', '.xwm', '.fuz'].includes(ext) ? 'sound'
+          : ['.psc', '.pex'].includes(ext) ? 'script'
+          : ext === '.esp' || ext === '.esm' || ext === '.esl' ? 'plugin'
+          : 'file';
+        return { name, rel: safeRel ? `${safeRel}\\${name}` : name, isDir, type, ext };
+      }).sort((a, b) => {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      return { success: true, items, currentPath: safeRel, fullPath };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error), items: [] };
+    }
+  });
+
+  registerHandler('creative-director:read-guide', async (_event, outputDir: string) => {
+    try {
+      if (!outputDir) return { success: false, error: 'No outputDir', content: '' };
+      const guidePath = path.join(outputDir, 'BUILD_GUIDE.md');
+      if (!fs.existsSync(guidePath)) return { success: false, error: 'BUILD_GUIDE.md not found', content: '' };
+      const content = fs.readFileSync(guidePath, 'utf-8');
+      return { success: true, content };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error), content: '' };
+    }
+  });
+
+  registerHandler('creative-director:enhance-guide', async (_event, outputDir: string, assetPaths: string[], userNotes: string) => {
+    try {
+      if (!outputDir) return { success: false, error: 'No outputDir' };
+      const guidePath = path.join(outputDir, 'BUILD_GUIDE.md');
+      const existingGuide = fs.existsSync(guidePath) ? fs.readFileSync(guidePath, 'utf-8') : '(no guide yet)';
+      const assetList = (assetPaths || []).slice(0, 30).join('\n');
+
+      const systemPrompt = `You are a senior Fallout 4 mod author and Creation Kit expert. You write clear, actionable BUILD_GUIDE.md documents that a modder can follow step-by-step to build a FO4 mod.
+Your task: take an existing BUILD_GUIDE or concept and rewrite it as a complete, technically precise build guide.
+Each section must be buildable — meaning it specifies real CK record types (WEAP, ARMO, NPC_, QUST, CELL, etc), real EditorID naming conventions, navmesh requirements, Papyrus script patterns, and references the provided vanilla asset paths.
+Use these extracted vanilla FO4 asset paths where relevant:\n${assetList || '(none selected)'}
+${userNotes ? `\nUser notes: ${userNotes}` : ''}
+Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by-Step, Papyrus Scripts, Testing Checklist.`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Here is the existing guide to enhance:\n\n${existingGuide.slice(0, 6000)}` }
+      ];
+
+      const backend = getBackendConfig();
+      let enhanced = '';
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 2500 }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) enhanced = String(json?.text || '');
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          console.warn('[enhance-guide] backend fetch failed:', fetchErr);
+        }
+      }
+      if (!enhanced) return { success: false, error: 'AI unavailable — check Render backend connection' };
+
+      const header = `<!-- Enhanced by Mossy Asset Picker — ${new Date().toISOString()} -->\n\n`;
+      fs.writeFileSync(guidePath, header + enhanced, 'utf-8');
+      return { success: true, content: header + enhanced };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // ── Personal R&D Network (dev-only, never required for the shipped product) ──
   // Proxies to the user's own separate local stack (AI Helper / VirtualModLab /
   // a Python "Creative Director" REST hub at localhost:8767) if they happen to

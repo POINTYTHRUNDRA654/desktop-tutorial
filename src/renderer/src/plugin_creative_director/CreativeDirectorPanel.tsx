@@ -5,6 +5,8 @@ import {
   Search, Pin, Download,
   Cpu, Zap, FileText,
   Play, AlertTriangle, Info, Copy, FlaskConical,
+  Folder, FolderOpen, File, Image, Volume2, Code2, Package,
+  Sparkles, Eye, EyeOff, ChevronRight, ChevronDown, X, FolderSearch,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -850,7 +852,339 @@ const NarrativeDebug: React.FC<{ backendOnline: boolean }> = ({ backendOnline })
   );
 };
 
+// ─── Asset Browser ────────────────────────────────────────────────────────────
+
+type AssetItem = { name: string; rel: string; isDir: boolean; type: string; ext: string };
+
+const ASSET_TYPE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  dir: Folder, mesh: Package, texture: Image, sound: Volume2, script: Code2, plugin: File, file: File,
+};
+
+const ASSET_TYPE_COLOR: Record<string, string> = {
+  dir: 'text-amber-400', mesh: 'text-blue-400', texture: 'text-purple-400',
+  sound: 'text-emerald-400', script: 'text-cyan-400', plugin: 'text-red-400', file: 'text-slate-400',
+};
+
+const AssetBrowser: React.FC<{
+  selected: string[];
+  onToggle: (rel: string) => void;
+  compact?: boolean;
+}> = ({ selected, onToggle, compact = false }) => {
+  const [path, setPath] = useState('');
+  const [items, setItems] = useState<AssetItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [breadcrumbs, setBreadcrumbs] = useState<{ label: string; rel: string }[]>([]);
+
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
+
+  const browse = useCallback(async (rel: string) => {
+    setLoading(true); setError('');
+    try {
+      const res = await api()?.creativeDirectorTeam?.listAssets?.(rel);
+      if (!res?.success) { setError(res?.error || 'Browse failed'); setLoading(false); return; }
+      setItems(res.items || []);
+      setPath(rel);
+      const parts = rel ? rel.split('\\').filter(Boolean) : [];
+      setBreadcrumbs([{ label: 'FO4 Assets', rel: '' }, ...parts.map((p, i) => ({
+        label: p, rel: parts.slice(0, i + 1).join('\\'),
+      }))]);
+    } catch (e: any) { setError(String(e)); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { browse(''); }, [browse]);
+
+  const filtered = items.filter(i => !search || i.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className={`space-y-2 ${compact ? '' : 'border border-slate-700 rounded p-3 bg-slate-900/40'}`}>
+      {/* Breadcrumbs */}
+      <div className="flex items-center gap-1 flex-wrap">
+        {breadcrumbs.map((b, i) => (
+          <React.Fragment key={b.rel}>
+            {i > 0 && <ChevronRight className="w-3 h-3 text-slate-600 flex-shrink-0" />}
+            <button onClick={() => browse(b.rel)}
+              className="text-xs text-amber-400 hover:text-amber-300 transition-colors truncate max-w-[120px]">{b.label}</button>
+          </React.Fragment>
+        ))}
+      </div>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          className="w-full bg-slate-800 border border-slate-700 rounded pl-7 pr-3 py-1.5 text-xs text-white focus:border-amber-500 outline-none"
+          placeholder="Filter assets..." />
+      </div>
+      {/* List */}
+      {loading && <div className="text-center py-4"><Loader2 className="w-4 h-4 animate-spin text-slate-500 mx-auto" /></div>}
+      {error && <div className="text-xs text-red-400 px-2 py-1 bg-red-400/10 rounded">{error}</div>}
+      {!loading && filtered.length === 0 && !error && (
+        <div className="text-center text-slate-600 text-xs py-3">No items</div>
+      )}
+      <div className={`space-y-0.5 ${compact ? 'max-h-48' : 'max-h-64'} overflow-y-auto`}>
+        {filtered.map(item => {
+          const Icon = ASSET_TYPE_ICON[item.type] || File;
+          const color = ASSET_TYPE_COLOR[item.type] || 'text-slate-400';
+          const isSelected = selected.includes(item.rel);
+          return (
+            <div key={item.rel}
+              className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-colors ${isSelected ? 'bg-amber-400/10' : 'hover:bg-slate-800'}`}
+              onClick={() => item.isDir ? browse(item.rel) : onToggle(item.rel)}>
+              <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${color}`} />
+              <span className={`text-xs flex-1 truncate ${item.isDir ? 'text-amber-300 font-medium' : 'text-slate-300'}`}>{item.name}</span>
+              {!item.isDir && isSelected && <CheckCircle2 className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+              {item.isDir && <ChevronRight className="w-3 h-3 text-slate-600 flex-shrink-0" />}
+            </div>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <div className="text-xs text-amber-400 px-1">{selected.length} asset{selected.length !== 1 ? 's' : ''} selected</div>
+      )}
+    </div>
+  );
+};
+
+// ─── Buildability Assessor ────────────────────────────────────────────────────
+
+function assessBuildability(guide: string): { score: number; checks: { pass: boolean; label: string }[] } {
+  const checks = [
+    { pass: /WEAP|ARMO|NPC_|QUST|CELL|LVLI|MISC|BOOK|AMMO|CONT/i.test(guide), label: 'CK record types specified' },
+    { pass: /EditorID|editorid|Editor ID/i.test(guide), label: 'EditorIDs defined' },
+    { pass: /Papyrus|\.psc|Scriptname|extends Quest/i.test(guide), label: 'Papyrus script included' },
+    { pass: /navmesh|NavMesh/i.test(guide), label: 'Navmesh requirements addressed' },
+    { pass: /\.nif|\.dds|Meshes\\|Textures\\/i.test(guide), label: 'Asset paths referenced' },
+    { pass: /Step [0-9]|##.*Step|Creation Kit|xEdit|FO4Edit/i.test(guide), label: 'Step-by-step instructions' },
+    { pass: /Test|play-test|in-game|load order/i.test(guide), label: 'Testing checklist present' },
+  ];
+  const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 5);
+  return { score, checks };
+}
+
 // ─── Lab Handoff ──────────────────────────────────────────────────────────────
+
+const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, onRefresh }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [guideContent, setGuideContent] = useState('');
+  const [guideLoading, setGuideLoading] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [showAssets, setShowAssets] = useState(false);
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceNotes, setEnhanceNotes] = useState('');
+  const [enhanceError, setEnhanceError] = useState('');
+  const [buildability, setBuildability] = useState<{ score: number; checks: { pass: boolean; label: string }[] } | null>(null);
+
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
+
+  const loadGuide = useCallback(async () => {
+    if (!c.outputDir) return;
+    setGuideLoading(true);
+    try {
+      const res = await api()?.creativeDirectorTeam?.readGuide?.(c.outputDir);
+      if (res?.success) {
+        setGuideContent(res.content);
+        setBuildability(assessBuildability(res.content));
+      } else {
+        setGuideContent('(no BUILD_GUIDE.md found)');
+        setBuildability(null);
+      }
+    } catch { setGuideContent('(error reading guide)'); }
+    setGuideLoading(false);
+  }, [c.outputDir]);
+
+  useEffect(() => { loadGuide(); }, [loadGuide]);
+
+  const reveal = async () => {
+    await api()?.creativeDirectorTeam?.revealOutput?.(c.outputDir);
+  };
+
+  const toggleAsset = (rel: string) =>
+    setSelectedAssets(prev => prev.includes(rel) ? prev.filter(a => a !== rel) : [...prev, rel]);
+
+  const enhance = async () => {
+    setEnhancing(true); setEnhanceError('');
+    try {
+      const res = await api()?.creativeDirectorTeam?.enhanceGuide?.(c.outputDir, selectedAssets, enhanceNotes);
+      if (res?.success) {
+        setGuideContent(res.content);
+        setBuildability(assessBuildability(res.content));
+        setShowGuide(true);
+        onRefresh();
+      } else {
+        setEnhanceError(res?.error || 'Enhancement failed');
+      }
+    } catch (e: any) { setEnhanceError(String(e)); }
+    setEnhancing(false);
+  };
+
+  const score = buildability?.score ?? 0;
+  const scoreColor = score >= 4 ? 'text-emerald-400' : score >= 2 ? 'text-amber-400' : 'text-red-400';
+  const scoreBg = score >= 4 ? 'bg-emerald-400/10' : score >= 2 ? 'bg-amber-400/10' : 'bg-red-400/10';
+
+  return (
+    <div className="bg-slate-800/60 border border-slate-700 rounded overflow-hidden">
+      {/* Header row */}
+      <div className="p-3 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold text-white truncate">{c.title}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.incomplete ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
+                {c.incomplete ? 'INCOMPLETE' : 'READY'}
+              </span>
+              {buildability && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${scoreBg} ${scoreColor}`}>
+                  Buildability {score}/5
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button onClick={reveal}
+              className="flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 px-2 py-1.5 rounded transition-colors">
+              <Download className="w-3 h-3" /> Reveal
+            </button>
+            <button onClick={() => setExpanded(!expanded)}
+              className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700 transition-colors">
+              {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-400 leading-relaxed">{c.summary}</p>
+
+        {/* Buildability checks (collapsed to top 3 fails) */}
+        {buildability && (
+          <div className="space-y-1">
+            {buildability.checks.filter(ch => !ch.pass).slice(0, 3).map((ch, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs text-amber-400/80">
+                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                <span>Missing: {ch.label}</span>
+              </div>
+            ))}
+            {buildability.checks.every(c => c.pass) && (
+              <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                <CheckCircle2 className="w-3 h-3" /> All buildability checks pass
+              </div>
+            )}
+          </div>
+        )}
+
+        {c.incomplete && Array.isArray(c.missingSections) && c.missingSections.length > 0 && (
+          <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-amber-400/10 text-amber-400">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            Ran out of rounds before covering: {c.missingSections.join(', ')}
+          </div>
+        )}
+
+        {c.verification && (
+          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${c.verification.compiled ? 'bg-emerald-400/10 text-emerald-400' : c.verification.attempted ? 'bg-red-400/10 text-red-400' : 'bg-slate-700/60 text-slate-400'}`}>
+            {c.verification.compiled ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+            {c.verification.detail || 'Not verified'}
+          </div>
+        )}
+      </div>
+
+      {/* Expanded section */}
+      {expanded && (
+        <div className="border-t border-slate-700 p-3 space-y-3">
+          {/* Full buildability checklist */}
+          {buildability && (
+            <div>
+              <div className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Buildability Checklist</div>
+              <div className="grid grid-cols-1 gap-1">
+                {buildability.checks.map((ch, i) => (
+                  <div key={i} className={`flex items-center gap-2 text-xs ${ch.pass ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {ch.pass ? <CheckCircle2 className="w-3 h-3 flex-shrink-0" /> : <AlertCircle className="w-3 h-3 flex-shrink-0 text-amber-400/60" />}
+                    {ch.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Enhance with assets */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Enhance Build Guide
+              </div>
+              <button onClick={() => setShowAssets(!showAssets)}
+                className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors">
+                <FolderSearch className="w-3.5 h-3.5" />
+                {showAssets ? 'Hide' : 'Pick'} Assets ({selectedAssets.length})
+              </button>
+            </div>
+
+            {showAssets && (
+              <div className="mb-3">
+                <div className="text-xs text-slate-500 mb-1.5">Browse F:\FO4 WORKING FLODER — click files to attach them to the enhanced guide</div>
+                <AssetBrowser selected={selectedAssets} onToggle={toggleAsset} compact />
+                {selectedAssets.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {selectedAssets.map(a => (
+                      <span key={a} className="flex items-center gap-1 bg-amber-400/10 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full font-mono">
+                        {a.split('\\').slice(-2).join('\\')}
+                        <button onClick={() => toggleAsset(a)} className="hover:text-red-300"><X className="w-2.5 h-2.5" /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <textarea value={enhanceNotes} onChange={e => setEnhanceNotes(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:border-amber-500 outline-none resize-none mb-2"
+              rows={2} placeholder="Optional notes: specific CK workflow, extra requirements, complexity target..." />
+
+            {enhanceError && (
+              <div className="text-xs text-red-400 bg-red-400/10 rounded px-2 py-1 mb-2">{enhanceError}</div>
+            )}
+
+            <button onClick={enhance} disabled={enhancing || guideLoading}
+              className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-700 disabled:text-slate-500 text-black font-semibold py-2 rounded text-sm transition-colors">
+              {enhancing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {enhancing ? 'Enhancing with AI...' : 'Enhance Guide with AI + Assets'}
+            </button>
+          </div>
+
+          {/* Guide viewer */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5" /> BUILD_GUIDE.md
+              </div>
+              <button onClick={() => setShowGuide(!showGuide)}
+                className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors">
+                {showGuide ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showGuide ? 'Hide' : 'View'}
+              </button>
+            </div>
+            {showGuide && (
+              <div className="relative">
+                {guideLoading ? (
+                  <div className="flex items-center justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-slate-500" /></div>
+                ) : (
+                  <>
+                    <button onClick={() => navigator.clipboard.writeText(guideContent)}
+                      className="absolute top-2 right-2 text-xs text-slate-500 hover:text-white flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded z-10">
+                      <Copy className="w-3 h-3" /> Copy
+                    </button>
+                    <pre className="bg-slate-950 border border-slate-700 rounded p-3 text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed">{guideContent}</pre>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const HandoffPanel: React.FC = () => {
   const [completed, setCompleted] = useState<any[]>([]);
@@ -873,16 +1207,11 @@ const HandoffPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, [refresh]);
 
-  const reveal = async (outputDir: string) => {
-    const res = await api()?.creativeDirectorTeam?.revealOutput?.(outputDir);
-    if (!res?.success) console.warn('[Lab Handoff] reveal failed:', res?.error);
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-slate-500 leading-relaxed">
-          This is an idea station, not an asset factory: the team designs the full idea and writes a complete BUILD_GUIDE.md telling you exactly how to bring it to life yourself in Creation Kit/xEdit/Blender — plus any real script and notes they wrote along the way.
+          Each project gets a buildability score (1–5) based on what's in its BUILD_GUIDE. Expand any card to see the full checklist, view the guide, pick assets from your extracted F4 files, and hit Enhance to have AI rewrite the guide with step-by-step CK instructions and real asset paths.
         </p>
         <button onClick={refresh} disabled={loading}
           className="flex items-center gap-1 text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded transition-colors flex-shrink-0">
@@ -894,52 +1223,24 @@ const HandoffPanel: React.FC = () => {
         <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
           <FlaskConical className="w-8 h-8 text-slate-700 mx-auto mb-3" />
           <div className="text-slate-500 text-sm font-semibold">No finished projects yet</div>
-          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">Enable the AI Team tab — when they decide a project is done, it shows up here automatically.</div>
+          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">Enable the AI Team tab — when the team finishes a project it appears here with a buildability assessment.</div>
         </div>
       )}
 
-      {completed.map((c) => (
-        <div key={c.id} className="bg-slate-800/60 border border-slate-700 rounded p-3 space-y-2">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="text-sm font-semibold text-white">{c.title}</div>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.incomplete ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
-                  {c.incomplete ? 'INCOMPLETE' : 'IDEA + BUILD GUIDE READY'}
-                </span>
-                {c.hasBuildGuide && !c.incomplete && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-sky-400/10 text-sky-400">BUILD_GUIDE.md</span>
-                )}
-              </div>
-              <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
-            </div>
-            <button onClick={() => reveal(c.outputDir)}
-              className="flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 px-2 py-1.5 rounded transition-colors flex-shrink-0">
-              <Download className="w-3 h-3" /> Reveal
-            </button>
-          </div>
-          <p className="text-xs text-slate-400">{c.summary}</p>
-          {c.incomplete && Array.isArray(c.missingSections) && c.missingSections.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-amber-400/10 text-amber-400">
-              <AlertCircle className="w-3 h-3 flex-shrink-0" />
-              Ran out of rounds before covering: {c.missingSections.join(', ')} — treat as a rough draft.
-            </div>
-          )}
-          <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded ${c.verification?.compiled ? 'bg-emerald-400/10 text-emerald-400' : c.verification?.attempted ? 'bg-red-400/10 text-red-400' : 'bg-slate-700/60 text-slate-400'}`}>
-            {c.verification?.compiled ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-            {c.verification?.detail || 'Not verified'}
-          </div>
-        </div>
-      ))}
+      <div className="space-y-3">
+        {completed.map(c => (
+          <HandoffProjectCard key={c.id} c={c} onRefresh={refresh} />
+        ))}
+      </div>
 
       <div className="bg-slate-800/40 border border-slate-700/50 rounded p-3">
         <div className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1"><Info className="w-3 h-3" /> How This Works</div>
         <ul className="space-y-1 text-xs text-slate-500">
-          <li>The team can't place objects in Creation Kit, build meshes, or pack an ESP — every project is an idea, fully designed, plus a step-by-step BUILD_GUIDE.md for you to follow</li>
-          <li>Any Papyrus script the team wrote is verified against your real installed PapyrusCompiler.exe and is yours to paste in directly</li>
-          <li>Full in-game testing is NOT automated — always load and play-test in FO4/MO2 yourself before release</li>
-          <li>Click Reveal to open BUILD_GUIDE.md directly (falls back to the project folder if no guide was produced)</li>
-          <li>Once you've built it for real, point Local Mod Packaging (Packaging & Release Hub) at your finished files to release</li>
+          <li><span className="text-amber-400 font-semibold">Buildability score</span> — checks the guide for CK record types, EditorIDs, Papyrus scripts, navmesh notes, asset paths, step-by-step instructions, and a testing checklist</li>
+          <li><span className="text-amber-400 font-semibold">Pick Assets</span> — browse F:\FO4 WORKING FLODER to select real vanilla mesh/texture paths and attach them to the enhanced guide</li>
+          <li><span className="text-amber-400 font-semibold">Enhance</span> — AI rewrites the BUILD_GUIDE with full CK steps, the selected assets, and a testing checklist you can follow</li>
+          <li>The team still can't place objects in CK or pack ESPs — every project is a design + guide, you build it</li>
+          <li>Click Reveal to open the project folder in Explorer</li>
         </ul>
       </div>
     </div>
