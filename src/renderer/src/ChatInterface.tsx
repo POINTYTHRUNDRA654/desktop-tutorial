@@ -1345,7 +1345,12 @@ export const ChatInterface: React.FC = () => {
                                 audioSize: audioBlob.size
                             });
 
-                            toast.error(`Voice transcription failed: ${resp?.error || 'Unknown error'}`);
+                            const errorText = String(resp?.error || 'Unknown error');
+                            if (/401|incorrect[_\s-]?api[_\s-]?key|unauthorized|invalid[_\s-]?api[_\s-]?key|backend authentication failed/i.test(errorText)) {
+                                toast.error('Voice transcription authentication failed. Check the configured token, or switch to local Whisper in Settings.');
+                            } else {
+                                toast.error(`Voice transcription failed: ${errorText}`);
+                            }
                         }
                     }
                 } catch (err) {

@@ -215,8 +215,8 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             
             // Check if it's an auth error or missing local whisper
             const errorMsg = error.message || '';
-            if (errorMsg.includes('401') || errorMsg.includes('Incorrect API key')) {
-                toast.error(`Video transcription failed. Your OpenAI API key has an issue (401 error). Solutions: 1. LOCAL (Recommended): Download whisper.cpp.exe and ggml-base.en.bin, place both in: external/whisper/, try uploading the video again (no API key needed!). 2. CLOUD: Get a fresh API key from platform.openai.com/api-keys, make sure billing is set up, update key in Privacy Settings`);
+            if (/401|incorrect[_\s-]?api[_\s-]?key|unauthorized|invalid[_\s-]?api[_\s-]?key/i.test(errorMsg)) {
+                toast.error(`Video transcription authentication failed. Check your configured token, or use local Whisper by placing whisper.cpp.exe and ggml-base.en.bin in external/whisper/.`);
             } else if (errorMsg.includes('whisper') || errorMsg.includes('not found')) {
                 toast.error(`Video transcription failed. Missing local transcription files. To transcribe videos offline: 1. Download whisper.cpp.exe. 2. Download ggml-base.en.bin (~150MB). 3. Create folder: external/whisper/. 4. Place both files there. 5. Try again! Or add an OpenAI API key in Privacy Settings for cloud transcription.`);
             } else {
