@@ -399,7 +399,7 @@ const TheBlueprint: React.FC = () => {
 
     const handleCopyStructure = async () => {
         const structureText = selectedTemplate.structure
-            .map(item => `${item.type === 'folder' ? '📁' : '📄'} ${item.path} — ${item.description}`)
+            .map(item => `${item.type === 'folder' ? '[folder]' : '[file]'} ${item.path} — ${item.description}`)
             .join('\n');
         navigator.clipboard.writeText(structureText);
         setCopiedPath('all');

@@ -841,7 +841,7 @@ export const TheScribe: React.FC = () => {
         const res = await api.installScript('xedit', base, body);
         if (res?.success) {
           scriptPath = String(res.path || '');
-          addXeditLog(`[1/3] ✓ Installed to: ${scriptPath}`);
+          addXeditLog(`[1/3] Installed to: ${scriptPath}`);
         } else {
           addXeditLog(`[1/3] Install failed: ${res?.error || 'unknown'} — running from temp file.`);
         }
@@ -858,7 +858,7 @@ export const TheScribe: React.FC = () => {
     try {
       if (typeof api?.writeLoadOrderUserDataFile === 'function') {
         tempPath = await api.writeLoadOrderUserDataFile(filename, body);
-        addXeditLog(`[2/3] ✓ Temp file: ${tempPath}`);
+        addXeditLog(`[2/3] Temp file: ${tempPath}`);
       } else {
         addXeditLog('[2/3] writeLoadOrderUserDataFile not available.');
       }
@@ -1467,7 +1467,7 @@ print("Batch processing complete")`,
         </div>
 
         <div className="mt-5 bg-slate-950/50 border border-slate-700 rounded-lg p-4">
-          <div className="text-sm font-bold text-purple-300 mb-2">🧰 Tools / Install / Verify (No Guesswork)</div>
+          <div className="text-sm font-bold text-purple-300 mb-2">Tools / Install / Verify (No Guesswork)</div>
           <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
             <li><strong>Papyrus:</strong> Creation Kit installed (for compiling <span className="font-mono">.psc → .pex</span>).</li>
             <li><strong>xEdit scripts:</strong> FO4Edit installed (to run scripts and patch records).</li>

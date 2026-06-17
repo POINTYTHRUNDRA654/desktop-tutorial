@@ -46,7 +46,7 @@ const openUrl = (url: string) => {
   void openExternal(url);
 };
 
-export const BlenderAnimationGuide: React.FC = () => {
+export const BlenderAnimationGuide: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [expandedStep, setExpandedStep] = useState<string>('reference');
 
   const sections: Section[] = [
@@ -418,23 +418,25 @@ export const BlenderAnimationGuide: React.FC = () => {
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-cyan-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-white">Animation Pipeline (All-in-One)</h1>
-              <p className="text-sm text-slate-400">Reference, rigging, animation, export, and validation in one ordered flow</p>
+      {!embedded && (
+        <div className="p-6 border-b border-slate-700 bg-slate-800/50">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-8 h-8 text-cyan-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Animation Pipeline (All-in-One)</h1>
+                <p className="text-sm text-slate-400">Reference, rigging, animation, export, and validation in one ordered flow</p>
+              </div>
             </div>
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-cyan-500/30 text-[10px] font-black uppercase tracking-widest text-cyan-200 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors"
+            >
+              Help
+            </Link>
           </div>
-          <Link
-            to="/reference"
-            className="px-3 py-2 border border-cyan-500/30 text-[10px] font-black uppercase tracking-widest text-cyan-200 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors"
-          >
-            Help
-          </Link>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-3">
@@ -519,7 +521,7 @@ export const BlenderAnimationGuide: React.FC = () => {
 
       <div className="p-4 bg-cyan-900/20 border-t border-slate-700">
         <p className="text-xs text-cyan-300">
-          💡 Pro Tip: Start with simple looping idle animations before attempting complex combat animations. Practice
+          Pro Tip: Start with simple looping idle animations before attempting complex combat animations. Practice
           the pipeline with vanilla animations first.
         </p>
       </div>

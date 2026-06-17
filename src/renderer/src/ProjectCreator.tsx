@@ -360,12 +360,12 @@ export const ProjectCreator: React.FC<ProjectCreatorProps> = ({
         const paths = collectPaths(folderStructure, formData.path.trim());
         setScaffoldStatus(['Creating folder structure…']);
         await (window.electronAPI as any).createDirectories(paths);
-        setScaffoldStatus(paths.map(p => '✓ ' + p.split('/').slice(-1)[0]));
+        setScaffoldStatus(paths.map(p => p.split('/').slice(-1)[0]));
       } else if ((window.electronAPI as any)?.ensureDir) {
         // Fallback: create one at a time
         const paths = collectPaths(folderStructure, formData.path.trim());
         for (const p of paths) {
-          setScaffoldStatus(prev => [...prev, '✓ ' + p.split('/').slice(-1)[0]]);
+          setScaffoldStatus(prev => [...prev, p.split('/').slice(-1)[0]]);
           await (window.electronAPI as any).ensureDir(p);
         }
       }
@@ -410,7 +410,7 @@ export const ProjectCreator: React.FC<ProjectCreatorProps> = ({
         }
       } else {
         // Dev / browser fallback — simulate success
-        setScaffoldStatus(prev => [...prev, '✓ Project record created']);
+        setScaffoldStatus(prev => [...prev, 'Project record created']);
         setTimeout(() => {
           if (onClose) onClose();
           else navigate('/dashboard');

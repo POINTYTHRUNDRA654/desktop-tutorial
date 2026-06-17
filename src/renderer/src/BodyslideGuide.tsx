@@ -14,7 +14,7 @@ interface Section {
   content: React.ReactNode;
 }
 
-const BodyslideGuide: React.FC = () => {
+const BodyslideGuide: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>('quickstart');
 
   const toggleSection = (id: string) => {
@@ -45,7 +45,7 @@ const BodyslideGuide: React.FC = () => {
   const sections: Section[] = [
     {
       id: 'quickstart',
-      title: '⚡ Quick Start (5 minutes)',
+      title: 'Quick Start (5 minutes)',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-[#00ff00] font-mono text-sm">
@@ -71,14 +71,14 @@ const BodyslideGuide: React.FC = () => {
             </ol>
           </div>
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <p className="text-[#00d000]">💚 Your outfit now has custom body shape!</p>
+            <p className="text-[#00d000]">Your outfit now has custom body shape!</p>
           </div>
         </div>
       )
     },
     {
       id: 'installation',
-      title: '⚙️ Installation & Setup',
+      title: 'Installation &amp; Setup',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -87,7 +87,7 @@ const BodyslideGuide: React.FC = () => {
             <div className="text-xs space-y-1 text-[#008000]">
               <p><span className="text-[#00ff00]">Fallout 4:</span> &lt;game folder&gt;/Data/Tools/BodySlide</p>
               <p><span className="text-[#00ff00]">Skyrim:</span> &lt;game folder&gt;/Data/CalienteTools/BodySlide</p>
-              <p className="text-[#00d000] mt-2">⚠️ Always point to REAL game folder, not mod manager folders!</p>
+              <p className="text-[#00d000] mt-2">Always point to REAL game folder, not mod manager folders!</p>
             </div>
           </div>
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
@@ -119,7 +119,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'downloads',
-      title: '📦 Download Links',
+      title: 'Download Links',
       icon: <ExternalLink className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm">
@@ -149,7 +149,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'interface',
-      title: '🎮 Interface Guide',
+      title: 'Interface Guide',
       icon: <AlertCircle className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm text-[#00ff00] font-mono">
@@ -180,7 +180,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'advanced',
-      title: '🔧 Advanced Techniques',
+      title: 'Advanced Techniques',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -214,7 +214,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'verify-troubleshoot',
-      title: '🧪 Verify & Troubleshoot (First Test Loop)',
+      title: 'Verify &amp; Troubleshoot (First Test Loop)',
       icon: <AlertCircle className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -257,7 +257,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'sliders',
-      title: '🎚️ Sliders & Customization',
+      title: 'Sliders &amp; Customization',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -294,7 +294,7 @@ const BodyslideGuide: React.FC = () => {
             </ol>
           </div>
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">⚠️ Common Mistakes</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Common Mistakes</h4>
             <ul className="list-disc list-inside space-y-1 text-[#008000] text-xs">
               <li>Maxing all sliders (unrealistic proportions)</li>
               <li>Ignoring bone structure (affects clothing fit)</li>
@@ -307,13 +307,13 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'workflows',
-      title: '📋 Workflows & Tutorials',
+      title: 'Workflows &amp; Tutorials',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
           {/* Conversion References */}
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-3">🔄 Converting Outfits Between Body Types</h4>
+            <h4 className="text-[#00d000] font-bold mb-3">Converting Outfits Between Body Types</h4>
             <p className="text-[#008000] text-xs mb-3">
               Use <span className="text-[#00ff00]">Conversion References</span> in Outfit Studio to morph meshes from one body type to another.
             </p>
@@ -335,7 +335,7 @@ const BodyslideGuide: React.FC = () => {
 
           {/* Creating Projects */}
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-3">🛠️ Creating BodySlide Projects</h4>
+            <h4 className="text-[#00d000] font-bold mb-3">Creating BodySlide Projects</h4>
             <p className="text-[#008000] text-xs mb-3">
               Turn converted outfits into BodySlide projects with slider support.
             </p>
@@ -364,7 +364,7 @@ const BodyslideGuide: React.FC = () => {
 
           {/* Copying Bone Weights */}
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-3">🦴 Copying Bone Weights</h4>
+            <h4 className="text-[#00d000] font-bold mb-3">Copying Bone Weights</h4>
             <p className="text-[#008000] text-xs mb-3">
               Bone weights control how meshes animate. Copy from reference to ensure correct movement.
             </p>
@@ -382,7 +382,7 @@ const BodyslideGuide: React.FC = () => {
 
           {/* Adding Zaps */}
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-3">✂️ Adding Zaps (Remove Parts)</h4>
+            <h4 className="text-[#00d000] font-bold mb-3">Adding Zaps (Remove Parts)</h4>
             <p className="text-[#008000] text-xs mb-3">
               <span className="text-[#00ff00]">Zaps</span> remove mesh parts during builds. Use for optional parts (hoods, sleeves) or hidden body cleanup.
             </p>
@@ -397,13 +397,13 @@ const BodyslideGuide: React.FC = () => {
               <li>Save project</li>
             </ol>
             <p className="text-[#00d000] text-xs mt-2">
-              📌 Zaps only preview in Outfit Studio—BodySlide actually removes parts during builds
+              Note: Zaps only preview in Outfit Studio — BodySlide actually removes parts during builds
             </p>
           </div>
 
           {/* Quick Reference */}
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">⚡ Quick Reference</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Quick Reference</h4>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-[#00ff00] font-bold">Slider → Conform All</p>
@@ -436,7 +436,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'settings',
-      title: '⚙️ Settings & Configuration',
+      title: 'Settings &amp; Configuration',
       icon: <AlertCircle className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm text-[#00ff00] font-mono">
@@ -479,7 +479,7 @@ const BodyslideGuide: React.FC = () => {
             <div className="text-xs text-[#008000]">
               <p className="text-[#00ff00]">SliderMinimum/Maximum:</p>
               <p>Extend slider range beyond 0-100. Causes clipping—not supported!</p>
-              <p className="text-[#00d000] mt-2">⚠️ Edit Config.xml directly for these options</p>
+              <p className="text-[#00d000] mt-2">Edit Config.xml directly for these options</p>
             </div>
           </div>
         </div>
@@ -559,7 +559,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'brushes',
-      title: '🖌️ Brushes & Tools',
+      title: 'Brushes &amp; Tools',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -631,7 +631,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'advanced-editing',
-      title: '🔬 Advanced Mesh Editing',
+      title: 'Advanced Mesh Editing',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -740,12 +740,12 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'troubleshooting',
-      title: '🔨 Troubleshooting',
+      title: 'Troubleshooting',
       icon: <AlertCircle className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm">
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">❌ Texture Problems on Clothes</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Texture Problems on Clothes</h4>
             <div className="text-[#008000] space-y-1 text-xs font-mono">
               <p><span className="text-[#00ff00]">Body-Outfit Mismatch:</span> Use same body type for both</p>
               <p><span className="text-[#00ff00]">Missing Body Mod:</span> Install required body mod first</p>
@@ -755,7 +755,7 @@ const BodyslideGuide: React.FC = () => {
             </div>
           </div>
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">❌ Program Won't Launch</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Program Won't Launch</h4>
             <ul className="list-disc list-inside text-[#008000] space-y-1 text-xs font-mono">
               <li>Reinstall Bodyslide program via Vortex</li>
               <li>Verify Fallout 4 selected in initial setup</li>
@@ -763,7 +763,7 @@ const BodyslideGuide: React.FC = () => {
             </ul>
           </div>
           <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-3">
-            <h4 className="text-[#00d000] font-bold mb-2">❌ Changes Not in Game</h4>
+            <h4 className="text-[#00d000] font-bold mb-2">Changes Not in Game</h4>
             <ul className="list-disc list-inside text-[#008000] space-y-1 text-xs font-mono">
               <li>Verify "Build Morphs" is checked ✓</li>
               <li>Verify "Meshes\Actors\..." is checked ✓</li>
@@ -776,7 +776,7 @@ const BodyslideGuide: React.FC = () => {
     },
     {
       id: 'tips',
-      title: '💡 Pro Tips',
+      title: 'Pro Tips',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="bg-[#0a0e0a] border border-[#00d000] rounded p-4 space-y-2 text-[#00ff00] font-mono text-sm">
@@ -823,10 +823,12 @@ const BodyslideGuide: React.FC = () => {
   return (
     <div className="w-full h-full overflow-y-auto bg-[#0a0e0a]" style={{ color: '#00ff00' }}>
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-b from-[#1a3a1a] to-[#0a0e0a] border-b-2 border-[#00d000] px-6 py-4">
-        <h1 className="text-2xl font-bold font-mono tracking-wider mb-1">BODYSLIDE FOR FALLOUT 4</h1>
-        <p className="text-[#008000] text-sm font-mono">Complete guide to customizing body shapes and outfits</p>
-      </div>
+      {!embedded && (
+        <div className="sticky top-0 z-10 bg-gradient-to-b from-[#1a3a1a] to-[#0a0e0a] border-b-2 border-[#00d000] px-6 py-4">
+          <h1 className="text-2xl font-bold font-mono tracking-wider mb-1">BODYSLIDE FOR FALLOUT 4</h1>
+          <p className="text-[#008000] text-sm font-mono">Complete guide to customizing body shapes and outfits</p>
+        </div>
+      )}
 
       {/* Intro */}
       <div className="max-w-4xl mx-auto px-6 py-6">
@@ -835,7 +837,7 @@ const BodyslideGuide: React.FC = () => {
             Bodyslide is an essential tool for customizing body shapes and proportions in Fallout 4. This guide covers installation, usage, and troubleshooting.
           </p>
           <p className="text-[#008000] font-mono text-xs">
-            📖 Guide by Lindeboombier | Updated January 2026
+            Guide by Lindeboombier | Updated January 2026
           </p>
         </div>
 
@@ -876,7 +878,7 @@ const BodyslideGuide: React.FC = () => {
 
         {/* FAQ */}
         <div className="mt-8 bg-[#1a3a1a] border border-[#00d000] rounded p-6">
-          <h3 className="text-lg font-bold font-mono text-[#00d000] mb-4">❓ FAQ</h3>
+          <h3 className="text-lg font-bold font-mono text-[#00d000] mb-4">FAQ</h3>
           <div className="space-y-4 text-sm text-[#00ff00] font-mono">
             <div>
               <p className="text-[#00d000] font-bold">Do I need CBBE specifically?</p>
@@ -915,7 +917,7 @@ const BodyslideGuide: React.FC = () => {
 
         {/* Documentation Links */}
         <div className="mt-8 bg-[#0a0e0a] border border-[#00d000] rounded p-6">
-          <h3 className="text-lg font-bold font-mono text-[#00d000] mb-4">📚 Full Documentation</h3>
+          <h3 className="text-lg font-bold font-mono text-[#00d000] mb-4">Full Documentation</h3>
           <div className="space-y-2 text-sm font-mono">
             <p className="text-[#00ff00]">For complete details, see:</p>
             <ul className="list-disc list-inside text-[#008000] space-y-1">

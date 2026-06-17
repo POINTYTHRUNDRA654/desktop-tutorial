@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Code, Wand2, BookOpen, Zap, FileSearch, Copy, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Code, Wand2, BookOpen, Zap, FileSearch, Copy, CheckCircle2, X } from 'lucide-react';
 import { ScriptAnalyzer } from './ScriptAnalyzer';
 import { TemplateGenerator } from './TemplateGenerator';
 
@@ -186,7 +186,7 @@ ${stepXml}
                                     <option value="SelectAny">Select Any</option>
                                     <option value="SelectAll">Select All</option>
                                 </select>
-                                <button onClick={() => removeStep(si)} className="text-red-500 hover:text-red-400 text-xs px-1">✕</button>
+                                <button onClick={() => removeStep(si)} className="text-red-500 hover:text-red-400 p-1"><X className="w-3 h-3" /></button>
                             </div>
                             <input value={step.groupName} onChange={e => updateStep(si, 'groupName', e.target.value)} className="w-full bg-slate-900 border border-slate-700/50 rounded px-2 py-1 text-[11px] text-slate-400 focus:outline-none focus:border-emerald-500" placeholder="Group name (shown in installer)" />
 
@@ -195,7 +195,7 @@ ${stepXml}
                                     <div key={oi} className="space-y-1">
                                         <div className="flex gap-1">
                                             <input value={opt.name} onChange={e => updateOption(si, oi, 'name', e.target.value)} className="flex-1 bg-slate-900 border border-slate-700/50 rounded px-2 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500" placeholder="Option name" />
-                                            <button onClick={() => removeOption(si, oi)} className="text-slate-600 hover:text-red-400 text-xs px-1">✕</button>
+                                            <button onClick={() => removeOption(si, oi)} className="text-slate-600 hover:text-red-400 p-1"><X className="w-3 h-3" /></button>
                                         </div>
                                         <div className="grid grid-cols-2 gap-1">
                                             <input value={opt.sourceFolder} onChange={e => updateOption(si, oi, 'sourceFolder', e.target.value)} className="bg-slate-900 border border-slate-700/40 rounded px-2 py-0.5 text-[10px] text-slate-400 font-mono focus:outline-none" placeholder="Source folder in archive" />

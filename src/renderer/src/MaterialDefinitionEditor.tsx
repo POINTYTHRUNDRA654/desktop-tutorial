@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { FileText, Check, Pencil, Save, Eye, Package, Image, ArrowUp, Sparkles, Layers, Circle, Minus } from 'lucide-react';
 import './MaterialDefinitionEditor.css';
 
 interface TextureMap {
@@ -154,7 +155,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
   return (
     <div className="material-editor-container">
       <div className="editor-header">
-        <h1>📋 Material Definitions</h1>
+        <h1 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FileText style={{ width: '1.1em', height: '1.1em', flexShrink: 0 }} /> Material Definitions</h1>
         {manifest && <span className="mod-name">{manifest.modName}</span>}
       </div>
 
@@ -233,7 +234,10 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                 className={`btn-edit ${editMode ? 'active' : ''}`}
                 onClick={() => setEditMode(!editMode)}
               >
-                {editMode ? '✓ Done' : '✎ Edit'}
+                {editMode
+                  ? <><Check style={{ width: '0.85em', height: '0.85em', display: 'inline', marginRight: '3px' }} />Done</>
+                  : <><Pencil style={{ width: '0.85em', height: '0.85em', display: 'inline', marginRight: '3px' }} />Edit</>
+                }
               </button>
             </div>
 
@@ -438,14 +442,14 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
             <div className="detail-actions">
               {isDirty && (
                 <button className="btn-save" onClick={handleSaveChanges}>
-                  💾 Save Changes
+                  <Save style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Save Changes
                 </button>
               )}
               <button className="btn-preview">
-                👁️ Preview in Blender
+                <Eye style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Preview in Blender
               </button>
               <button className="btn-export">
-                📦 Export Material
+                <Package style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Export Material
               </button>
             </div>
           </div>
@@ -493,12 +497,12 @@ const TextureMapCard: React.FC<{
   return (
     <div className={`map-card ${type}`}>
       <div className="map-icon">
-        {type === 'diffuse' && '🎨'}
-        {type === 'normal' && '⬆️'}
-        {type === 'specular' && '✨'}
-        {type === 'metallic' && '🔩'}
-        {type === 'ao' && '🌑'}
-        {type === 'cavity' && '〰️'}
+        {type === 'diffuse'   && <Image    style={{ width: '1em', height: '1em' }} />}
+        {type === 'normal'    && <ArrowUp  style={{ width: '1em', height: '1em' }} />}
+        {type === 'specular'  && <Sparkles style={{ width: '1em', height: '1em' }} />}
+        {type === 'metallic'  && <Layers   style={{ width: '1em', height: '1em' }} />}
+        {type === 'ao'        && <Circle   style={{ width: '1em', height: '1em' }} />}
+        {type === 'cavity'    && <Minus    style={{ width: '1em', height: '1em' }} />}
       </div>
 
       <div className="map-info">

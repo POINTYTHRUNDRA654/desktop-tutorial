@@ -10,17 +10,22 @@ interface OllamaStatus {
   error?: string;
 }
 
-// Popular models suitable for FO4 modding assistance
-const OLLAMA_RECOMMENDED = [
-  { value: 'llama3', label: 'Llama 3 8B — best all-round, fast on most GPUs' },
-  { value: 'llama3:70b', label: 'Llama 3 70B — best quality, needs 48GB+ VRAM' },
-  { value: 'mistral', label: 'Mistral 7B — lightweight, great for scripting' },
-  { value: 'mixtral', label: 'Mixtral 8x7B — 32K context, strong reasoning' },
-  { value: 'deepseek-coder:6.7b', label: 'DeepSeek Coder 6.7B — optimised for code/Papyrus' },
-  { value: 'deepseek-coder:33b', label: 'DeepSeek Coder 33B — best local code model' },
-  { value: 'phi3', label: 'Phi-3 Mini — very fast, runs on CPU' },
-  { value: 'gemma2:9b', label: 'Gemma 2 9B — Google, compact & capable' },
+// Models sized for 2x RTX 2070 (8GB VRAM per card). 70B+ need 40GB+ — keep those on Groq.
+const OLLAMA_RECOMMENDED_CHAT = [
+  { value: 'gemma2:9b',      label: 'Gemma 2 9B — Google, fast general chat, 2070-safe (~6GB)' },
+  { value: 'phi4:14b',       label: 'Phi-4 14B — Microsoft, best reasoning at 4-bit (~7GB)' },
+  { value: 'mistral:7b',     label: 'Mistral 7B — reliable all-rounder, 2070-safe (~5GB)' },
+  { value: 'llama3.2:3b',    label: 'Llama 3.2 3B — tiny, CPU fallback, always fits' },
 ];
+
+const OLLAMA_RECOMMENDED_CODE = [
+  { value: 'qwen2.5-coder:7b',  label: 'Qwen2.5-Coder 7B — best local coding model, 2070-safe (~5GB)' },
+  { value: 'qwen2.5-coder:14b', label: 'Qwen2.5-Coder 14B — tighter fit, limited context headroom (~8GB)' },
+  { value: 'deepseek-coder:6.7b', label: 'DeepSeek Coder 6.7B — solid legacy code model (~5GB)' },
+  { value: 'phi4:14b',           label: 'Phi-4 14B — strong for structured output at 4-bit (~7GB)' },
+];
+
+const OLLAMA_RECOMMENDED = [...OLLAMA_RECOMMENDED_CHAT, ...OLLAMA_RECOMMENDED_CODE];
 
 export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const api: ElectronAPI | undefined = (window.electron?.api ?? (window as unknown as { electronAPI?: ElectronAPI }).electronAPI);
@@ -29,7 +34,8 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
   const [loading, setLoading] = useState(false);
   const [baseUrl, setBaseUrl] = useState('http://127.0.0.1:11434');
   const [selectedModel, setSelectedModel] = useState('llama3');
-  const [downloadModel, setDownloadModel] = useState('mistral');
+  const [selectedCodeModel, setSelectedCodeModel] = useState('qwen2.5-coder:7b');
+  const [downloadModel, setDownloadModel] = useState('qwen2.5-coder:7b');
   const [downloadingModel, setDownloadingModel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -41,6 +47,7 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         const s = await (api as any)?.getSettings?.();
         if (s?.ollamaBaseUrl) setBaseUrl(s.ollamaBaseUrl);
         if (s?.ollamaModel) setSelectedModel(s.ollamaModel);
+        if (s?.ollamaCodeModel) setSelectedCodeModel(s.ollamaCodeModel);
         setSettingsLoaded(true);
       } catch {
         setSettingsLoaded(true);
@@ -73,7 +80,7 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await (api as any)?.setSettings?.({ ollamaBaseUrl: baseUrl, ollamaModel: selectedModel });
+      await (api as any)?.setSettings?.({ ollamaBaseUrl: baseUrl, ollamaModel: selectedModel, ollamaCodeModel: selectedCodeModel });
       toast.success('Ollama settings saved');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save Ollama settings');
@@ -203,35 +210,64 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         )}
       </div>
 
-      {/* Active Model */}
-      <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-3">
-        <div className="font-semibold text-slate-200 text-xs">Active Model (used by Mossy)</div>
+      {/* Per-Role Model Assignment */}
+      <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-5">
+        <div className="font-semibold text-slate-200 text-xs">Model Assignment by Role</div>
         <p className="text-xs text-slate-400">
-          This is the model Mossy will use when the AI Engine provider is set to Ollama.
+          Pin different models to different tasks. With 2x RTX 2070 (8GB each), run one model
+          per GPU simultaneously for best throughput.
         </p>
-        <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
-          className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-600 transition-colors"
-        >
-          {OLLAMA_RECOMMENDED.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-          {/* Allow custom model not in the list */}
-          {!OLLAMA_RECOMMENDED.some((m) => m.value === selectedModel) && (
-            <option value={selectedModel}>{selectedModel} (custom)</option>
-          )}
-        </select>
-        <div className="text-[11px] text-slate-500">
-          Or type any Ollama model name directly:{' '}
+
+        {/* Coding / Papyrus model */}
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-emerald-300">Coding / Papyrus Studio</div>
+          <p className="text-[11px] text-slate-500">Used by the Papyrus AI generator and Mod Builder Hub. Run on GPU 0.</p>
+          <select
+            value={selectedCodeModel}
+            onChange={(e) => setSelectedCodeModel(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-600 transition-colors"
+          >
+            {OLLAMA_RECOMMENDED_CODE.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+            {!OLLAMA_RECOMMENDED_CODE.some((m) => m.value === selectedCodeModel) && (
+              <option value={selectedCodeModel}>{selectedCodeModel} (custom)</option>
+            )}
+          </select>
+          <input
+            type="text"
+            value={selectedCodeModel}
+            onChange={(e) => setSelectedCodeModel(e.target.value)}
+            placeholder="e.g. qwen2.5-coder:7b"
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
+          />
+        </div>
+
+        {/* General chat model */}
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-sky-300">General Chat / Fallback</div>
+          <p className="text-[11px] text-slate-500">Used when provider is set to Ollama for general AI chat. Run on GPU 1.</p>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-600 transition-colors"
+          >
+            {OLLAMA_RECOMMENDED_CHAT.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+            {!OLLAMA_RECOMMENDED_CHAT.some((m) => m.value === selectedModel) && (
+              <option value={selectedModel}>{selectedModel} (custom)</option>
+            )}
+          </select>
           <input
             type="text"
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
-            placeholder="e.g. llama3, mistral, deepseek-coder:6.7b"
-            className="inline-block ml-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono w-48"
+            placeholder="e.g. gemma2:9b"
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
           />
         </div>
+
         <button
           type="button"
           onClick={handleSave}
@@ -239,8 +275,36 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold text-xs transition-colors"
         >
           <Save className="w-3 h-3" />
-          {saving ? 'Saving…' : 'Save Ollama Settings'}
+          {saving ? 'Saving…' : 'Save Model Settings'}
         </button>
+      </div>
+
+      {/* Two-GPU Guide */}
+      <div className="rounded-md border border-amber-700/30 bg-amber-900/10 p-4 space-y-3">
+        <div className="font-semibold text-amber-300 text-xs">Two-GPU Setup (Advanced)</div>
+        <p className="text-xs text-slate-400">
+          Run two Ollama instances simultaneously — one per RTX 2070 — so both models stay loaded
+          and respond without swapping. Open two terminals:
+        </p>
+        <div className="space-y-2">
+          <div className="text-[11px] text-slate-400">Terminal 1 — GPU 0 (coding model, port 11434):</div>
+          <pre className="bg-black/40 border border-slate-700 rounded px-3 py-2 text-xs text-emerald-300 font-mono overflow-x-auto">
+{`set CUDA_VISIBLE_DEVICES=0
+set OLLAMA_HOST=127.0.0.1:11434
+ollama serve`}
+          </pre>
+          <div className="text-[11px] text-slate-400 mt-2">Terminal 2 — GPU 1 (chat model, port 11435):</div>
+          <pre className="bg-black/40 border border-slate-700 rounded px-3 py-2 text-xs text-sky-300 font-mono overflow-x-auto">
+{`set CUDA_VISIBLE_DEVICES=1
+set OLLAMA_HOST=127.0.0.1:11435
+ollama serve`}
+          </pre>
+        </div>
+        <p className="text-[11px] text-slate-500">
+          Then set the Base URL above to <code className="font-mono text-emerald-400">http://127.0.0.1:11434</code> for
+          the coding model and update it to port 11435 in chat settings if you want per-port routing.
+          For most uses a single Ollama instance on 11434 works fine — Ollama auto-assigns GPUs.
+        </p>
       </div>
 
       {/* Download a model */}

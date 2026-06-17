@@ -465,13 +465,13 @@ const GuidesHub: React.FC = () => {
 
       {/* Guide content panels */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'animation'      && <PanelLoader><BlenderAnimationGuide /></PanelLoader>}
-        {activeTab === 'quest'          && <PanelLoader><QuestModAuthoringGuide /></PanelLoader>}
+        {activeTab === 'animation'      && <PanelLoader><BlenderAnimationGuide embedded /></PanelLoader>}
+        {activeTab === 'quest'          && <PanelLoader><QuestModAuthoringGuide embedded /></PanelLoader>}
         {activeTab === 'lod'            && <PanelLoader><Lorekeeper /></PanelLoader>}
-        {activeTab === 'textures'       && <PanelLoader><TextureMaterialsHub /></PanelLoader>}
-        {activeTab === 'papyrus'        && <PanelLoader><PaperScriptFallout4Guide /></PanelLoader>}
-        {activeTab === 'simsettlements' && <PanelLoader><SimSettlementsGuide /></PanelLoader>}
-        {activeTab === 'bodyslide'      && <PanelLoader><BodyslideGuide /></PanelLoader>}
+        {activeTab === 'textures'       && <PanelLoader><TextureMaterialsHub embedded /></PanelLoader>}
+        {activeTab === 'papyrus'        && <PanelLoader><PaperScriptFallout4Guide embedded /></PanelLoader>}
+        {activeTab === 'simsettlements' && <PanelLoader><SimSettlementsGuide embedded /></PanelLoader>}
+        {activeTab === 'bodyslide'      && <PanelLoader><BodyslideGuide embedded /></PanelLoader>}
       </div>
 
       {/* Contextual footer tip per active guide */}

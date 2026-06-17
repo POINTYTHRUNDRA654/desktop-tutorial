@@ -138,16 +138,16 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
   return (
     <div className={containerClassName}>
       <div className="max-w-6xl mx-auto flex flex-col flex-1 min-h-0">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - Platforms</div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">Modding Platforms</h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
-              A practical map of the tools and workflows modders actually use. Each platform links to a guided flow with downloads, install steps, verification, and troubleshooting.
-            </p>
-          </div>
+        {!embedded && (
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - Platforms</div>
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">Modding Platforms</h1>
+              <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+                A practical map of the tools and workflows modders actually use. Each platform links to a guided flow with downloads, install steps, verification, and troubleshooting.
+              </p>
+            </div>
 
-          {!embedded && (
             <div className="flex items-center gap-2">
               <Link
                 to="/reference"
@@ -156,8 +156,8 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
                 Help
               </Link>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"

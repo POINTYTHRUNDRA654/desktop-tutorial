@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Rocket, FolderOpen, Search, Sparkles, Loader2, Package, Download, RefreshCw, Upload, BarChart3, Info, CheckCircle, XCircle } from 'lucide-react';
 import './BethelUploader.css';
 
 interface BethelJob {
@@ -165,15 +166,16 @@ export const BethelUploader: React.FC = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactNode => {
+    const s: React.CSSProperties = { width: '1em', height: '1em', display: 'inline', flexShrink: 0 };
     switch (status) {
-      case 'uploading': return '📤';
-      case 'analyzing': return '🔍';
-      case 'enhancing': return '✨';
-      case 'packaging': return '📦';
-      case 'complete': return '✅';
-      case 'error': return '❌';
-      default: return '⏳';
+      case 'uploading': return <Upload style={s} />;
+      case 'analyzing': return <Search style={s} />;
+      case 'enhancing': return <Sparkles style={s} />;
+      case 'packaging': return <Package style={s} />;
+      case 'complete': return <CheckCircle style={{ ...s, color: '#4CAF50' }} />;
+      case 'error': return <XCircle style={{ ...s, color: '#F44336' }} />;
+      default: return <Loader2 style={s} />;
     }
   };
 
@@ -192,7 +194,7 @@ export const BethelUploader: React.FC = () => {
   return (
     <div className="bethel-uploader-container">
       <div className="bethel-header">
-        <h1>🚀 Bethel - Auto Mod Enhancement</h1>
+        <h1><Rocket style={{ width: '1em', height: '1em', display: 'inline', marginRight: '6px' }} />Bethel - Auto Mod Enhancement</h1>
         <p className="subtitle">Upload mod → Enhance textures → Download enhanced</p>
       </div>
 
@@ -205,14 +207,14 @@ export const BethelUploader: React.FC = () => {
         onDrop={handleDrop}
       >
         <div className="upload-content">
-          <div className="upload-icon">📁</div>
+          <div className="upload-icon"><FolderOpen style={{ width: '3rem', height: '3rem' }} /></div>
           <h2>Drop Mod Folder Here</h2>
           <p>or</p>
           <button
             className="btn-primary"
             onClick={handleCreateSession}
           >
-            📂 Create Upload Session
+            <FolderOpen style={{ width: '1em', height: '1em', display: 'inline', marginRight: '4px' }} />Create Upload Session
           </button>
           <p className="upload-hint">
             Upload a Fallout 4 mod folder to automatically enhance all textures
@@ -289,7 +291,7 @@ export const BethelUploader: React.FC = () => {
 
                 {job.textureStats && (
                   <div className="texture-stats">
-                    <span>📊 {job.textureStats.totalTextures} textures</span>
+                    <span><BarChart3 style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '3px' }} />{job.textureStats.totalTextures} textures</span>
                     <span>• {job.textureStats.diffuseCount} diffuse</span>
                     <span>• {job.textureStats.normalCount} normal</span>
                     <span>• {job.textureStats.specularCount} specular</span>
@@ -302,7 +304,7 @@ export const BethelUploader: React.FC = () => {
                       className="btn-secondary"
                       onClick={() => handleAnalyze(job.jobId)}
                     >
-                      🔍 Analyze
+                      <Search style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Analyze
                     </button>
                   )}
 
@@ -311,16 +313,16 @@ export const BethelUploader: React.FC = () => {
                       className="btn-secondary"
                       onClick={() => handleEnhance(job.jobId)}
                     >
-                      ✨ Start Enhancement
+                      <Sparkles style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Start Enhancement
                     </button>
                   )}
 
                   {job.status === 'enhancing' && (
-                    <span className="processing">⏳ Processing...</span>
+                    <span className="processing"><Loader2 style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Processing...</span>
                   )}
 
                   {job.status === 'packaging' && (
-                    <span className="processing">📦 Packaging...</span>
+                    <span className="processing"><Package style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Packaging...</span>
                   )}
 
                   {job.status === 'complete' && (
@@ -329,13 +331,13 @@ export const BethelUploader: React.FC = () => {
                         className="btn-success"
                         onClick={() => handleExport(job.jobId, 'zip')}
                       >
-                        ⬇️ Download (ZIP)
+                        <Download style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Download (ZIP)
                       </button>
                       <button
                         className="btn-secondary"
                         onClick={() => handleExport(job.jobId, 'fomod')}
                       >
-                        📦 FOMOD Package
+                        <Package style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />FOMOD Package
                       </button>
                     </div>
                   )}
@@ -345,7 +347,7 @@ export const BethelUploader: React.FC = () => {
                       className="btn-danger"
                       onClick={() => handleAnalyze(job.jobId)}
                     >
-                      🔄 Retry
+                      <RefreshCw style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Retry
                     </button>
                   )}
                 </div>
@@ -353,7 +355,7 @@ export const BethelUploader: React.FC = () => {
                 {job.downloadUrl && (
                   <div className="download-info">
                     <a href={job.downloadUrl} className="download-link">
-                      📥 Download Enhanced Mod
+                      <Download style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Download Enhanced Mod
                     </a>
                     <span className="expires">
                       Available for 7 days
@@ -368,7 +370,7 @@ export const BethelUploader: React.FC = () => {
 
       {/* Info Panel */}
       <div className="info-panel">
-        <h3>ℹ️ How Bethel Works</h3>
+        <h3><Info style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />How Bethel Works</h3>
         <ol>
           <li><strong>Upload:</strong> Select your Fallout 4 mod folder</li>
           <li><strong>Analyze:</strong> Scan textures (diffuse, normal, specular, etc.)</li>
@@ -377,7 +379,7 @@ export const BethelUploader: React.FC = () => {
           <li><strong>Download:</strong> Get your enhanced mod ready to install</li>
         </ol>
         <p className="note">
-          💡 All processing happens on your computer. Enhanced mods are stored locally.
+          <Info style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px', flexShrink: 0 }} />All processing happens on your computer. Enhanced mods are stored locally.
         </p>
       </div>
     </div>
