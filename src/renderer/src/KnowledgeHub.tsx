@@ -106,20 +106,20 @@ const KnowledgeHub: React.FC = () => {
       </div>
 
       {/* Tab Content */}
-      <div className={`flex-1 overflow-hidden ${activeTab === 'vanilla' ? '' : 'overflow-y-auto p-6'}`}>
+      <div className={`flex-1 ${activeTab === 'vanilla' ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>
         {activeTab === 'reference' && (
           <PanelLoader>
-            <QuickReference />
+            <QuickReference embedded />
           </PanelLoader>
         )}
         {activeTab === 'search' && (
           <PanelLoader>
-            <KnowledgeSearch />
+            <KnowledgeSearch embedded />
           </PanelLoader>
         )}
         {activeTab === 'community' && (
           <PanelLoader>
-            <CommunityLearning />
+            <CommunityLearning embedded />
           </PanelLoader>
         )}
         {activeTab === 'vanilla' && (
