@@ -24,8 +24,13 @@ export function requireApiToken(req: Request, res: Response, next: NextFunction)
   // If a token is configured server-side, accept it when provided, but do not
   // require it. This supports "works on download" clients.
   //
-  // If a client *does* send a token and it's wrong, reject it (helps catch misconfig).
-  if (provided && provided !== expected) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  // When a client sends a token that doesn't match, log a warning but still allow
+  // the request through. This prevents a stale/regenerated MOSSY_BACKEND_TOKEN on
+  // the desktop from completely breaking connectivity — the service already accepts
+  // no-token requests, so blocking mismatched tokens adds no real security.
+  if (provided && provided !== expected) {
+    console.warn('[auth] Token mismatch — proceeding in works-on-download mode. Update MOSSY_BACKEND_TOKEN to match MOSSY_API_TOKEN on Render to silence this warning.');
+  }
 
   return next();
 }

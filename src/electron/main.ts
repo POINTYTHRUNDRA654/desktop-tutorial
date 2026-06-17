@@ -9644,15 +9644,30 @@ end.
         try {
           const backendUrl = backendJoin(backend, '/v1/chat');
           console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
-          const res = await fetch(backendUrl, {
+          const body = JSON.stringify({ provider: 'groq', model, messages, maxTokens });
+          let res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+              ...(backend.token ? { Authorization: `****** } : {}),
             },
-            body: JSON.stringify({ provider: 'groq', model, messages, maxTokens }),
+            body,
             signal: controller.signal,
           });
+
+          // If the server rejected our token (stale MOSSY_BACKEND_TOKEN != MOSSY_API_TOKEN on
+          // Render), automatically retry without the Authorization header. The Render backend
+          // accepts token-less requests ("works on download"), so this self-heals a token
+          // mismatch caused by regenerating .env.encrypted without updating Render's env var.
+          if (res.status === 401 && backend.token) {
+            console.warn('[AI Chat Groq] Token rejected (401) — retrying without Authorization header (MOSSY_BACKEND_TOKEN != MOSSY_API_TOKEN on Render; sync tokens to silence this warning)');
+            res = await fetch(backendUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body,
+              signal: controller.signal,
+            });
+          }
 
           console.log('[AI Chat Groq] Backend response status:', res.status, res.statusText);
           const json: any = await res.json().catch(() => ({}));
