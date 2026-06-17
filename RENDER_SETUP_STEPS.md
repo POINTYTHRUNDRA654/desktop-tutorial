@@ -81,7 +81,7 @@ To get this:
 
 ### Required: Authentication Token
 ```
-MOSSY_API_TOKEN = <generate-secure-random-token>
+MOSSY_BACKEND_TOKEN = <generate-secure-random-token>
 ```
 
 To generate this token, run one of these commands:
@@ -163,7 +163,7 @@ curl https://mossy.onrender.com/health
 ```bash
 curl -X POST https://mossy.onrender.com/v1/chat \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_MOSSY_API_TOKEN" \
+  -H "Authorization: Bearer YOUR_MOSSY_BACKEND_TOKEN" \
   -d '{
     "messages": [{"role": "user", "content": "Hello"}],
     "model": "llama-3.1-70b-versatile"
@@ -192,7 +192,7 @@ Once Render backend is working, update the desktop app:
 ### For Development (.env.local):
 ```env
 MOSSY_BACKEND_URL=https://mossy.onrender.com
-MOSSY_BACKEND_TOKEN=<your-MOSSY_API_TOKEN>
+MOSSY_BACKEND_TOKEN=<your-MOSSY_BACKEND_TOKEN>
 ```
 
 ### For Production (.env.encrypted):
@@ -219,7 +219,7 @@ node scripts/fix-env-encryption.mjs
 
 ### Issue: "401 Unauthorized"
 **Solution:**
-- Check `MOSSY_API_TOKEN` is set in Render
+- Check `MOSSY_BACKEND_TOKEN` is set in Render
 - Use same token in app's `MOSSY_BACKEND_TOKEN`
 - Token must match exactly
 
@@ -253,7 +253,7 @@ Use this checklist to verify everything:
 
 - [ ] Service is **Live** (not suspended)
 - [ ] Environment variables configured:
-  - [ ] `MOSSY_API_TOKEN` set
+  - [ ] `MOSSY_BACKEND_TOKEN` set
   - [ ] `GROQ_API_KEY` or `OPENAI_API_KEY` set
   - [ ] Optional variables set (PORT, models)
 - [ ] Build settings correct (npm install && npm run backend:build)
@@ -305,7 +305,7 @@ If you want me to configure it:
 
 If you need tokens, use these (or generate your own):
 
-### MOSSY_API_TOKEN (choose one):
+### MOSSY_BACKEND_TOKEN (choose one):
 ```
 Token 1: iY3K8mN9pQ2rS4tU6vW8xY0zA1bC3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5zA
 Token 2: 7xB9dF1hJ3lN5pR7tV9xZ1bD3fH5jL7nP9rT1vX3zA5cE7gI9kM1oQ3sU5wY7aB
@@ -313,7 +313,7 @@ Token 3: mP2qT4vX6yA8cF0hK2nQ4sV6xA8dG0jM2pT4wY6aC8eH0kN2qU4vZ6bE8gJ0mP2r
 ```
 
 Pick any one, use it in both:
-- Render: `MOSSY_API_TOKEN` environment variable
+- Render: `MOSSY_BACKEND_TOKEN` environment variable
 - Desktop app: `MOSSY_BACKEND_TOKEN` in .env.local
 
 ---

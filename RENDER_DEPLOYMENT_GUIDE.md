@@ -27,7 +27,7 @@ The backend needs these API keys to communicate with AI services:
   - Get from: https://console.deepgram.com/
 
 ### 3. **Security Token** (Will generate)
-- [ ] **MOSSY_API_TOKEN** - Backend authentication token
+- [ ] **MOSSY_BACKEND_TOKEN** - Backend authentication token
   - I can generate a secure random token
   - Or you can provide one
 
@@ -84,7 +84,7 @@ Click "Environment" tab and add:
 
 **Required:**
 ```
-MOSSY_API_TOKEN=<generate-secure-token-here>
+MOSSY_BACKEND_TOKEN=<generate-secure-token-here>
 ```
 
 **Add at least one:**
@@ -145,7 +145,7 @@ If you prefer not to use Render, the backend can be deployed to:
 
 ## Generating Secure Tokens
 
-### For MOSSY_API_TOKEN
+### For MOSSY_BACKEND_TOKEN
 
 **Windows PowerShell:**
 ```powershell
@@ -165,7 +165,7 @@ require('crypto').randomBytes(32).toString('base64')
 ```
 
 Save this token securely - you'll need it for:
-1. Render environment variable `MOSSY_API_TOKEN`
+1. Render environment variable `MOSSY_BACKEND_TOKEN`
 2. Application .env file `MOSSY_BACKEND_TOKEN`
 
 ---
@@ -213,7 +213,7 @@ curl https://your-service.onrender.com/health
 # Test chat endpoint
 curl -X POST https://your-service.onrender.com/v1/chat \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_MOSSY_API_TOKEN" \
+  -H "Authorization: Bearer YOUR_MOSSY_BACKEND_TOKEN" \
   -d '{"messages":[{"role":"user","content":"Hello"}],"model":"llama-3.1-70b-versatile"}'
 
 # Should return AI response
@@ -229,7 +229,7 @@ curl -X POST https://your-service.onrender.com/v1/chat \
    - Always use environment variables
    - Use .env.encrypted for packaged builds
 
-2. **Protect MOSSY_API_TOKEN**
+2. **Protect MOSSY_BACKEND_TOKEN**
    - This authenticates backend requests
    - Share only with your deployed backend
    - Treat like a password
