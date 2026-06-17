@@ -1,0 +1,45 @@
+{
+  "packId": "fo4-enemies-creatures-v1",
+  "packName": "Fallout 4 — Complete Enemy & Creature Database",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Full Fallout 4 bestiary covering all enemies, creatures, robots, and named bosses with stats, weaknesses, loot, and mod-relevant data.",
+  "items": [
+    {
+      "id": "fo4-enemies-animals",
+      "title": "Fallout 4 — Animals & Mutated Wildlife",
+      "content": "RADSCORPION: Irradiated giant scorpion. Attack: claws + tail sting (poison damage + rads). Variants: Radscorpion (level 1+), Glowing Radscorpion (level 25+, radiates area), Deathskull Radscorpion (level 50+, skull coloring, highest HP). Weakness: fire, legs. Burrows underground and surprises players. Loot: Radscorpion Gland (crafting). YAO GUAI: Mutated black bear. Fast, high melee damage. Variants: Yao Guai (normal), Glowing Yao Guai (radioactive), Albino Yao Guai (Far Harbor), Dusky Yao Guai. Weakness: energy weapons. Loot: Yao Guai Meat (cook for significant healing). MIRELURK: Mutated horseshoe crab/soft-shell crab hybrid. Variants: Mirelurk (basic, claws), Mirelurk Hunter (bipedal, spits acid), Mirelurk King (fully bipedal, sonic screech), Mirelurk Queen (massive, spawns eggs, most dangerous). Weakness: head is highly vulnerable (unarmored). Loot: Mirelurk Egg, Mirelurk Meat, Softshell Mirelurk Meat. DEATHCLAW: Apex predator. Extremely fast, massive melee damage. Most deadly standard enemy. Variants: Deathclaw (level 20-30+), Albino Deathclaw (rare, higher stats), Glowing Deathclaw, Chameleon Deathclaw (briefly invisible), Savage Deathclaw, Mythic Deathclaw (level 91+). Weaknesses: belly (underside), legs to cripple and slow, VATS limb targeting. Loot: Deathclaw Hand (Deathclaw Gauntlet recipe), Deathclaw Meat. BLOATFLY: Giant mutated fly. Weak but causes 'Bloatfly Larva' disease (larvae burst from SS on death). Loot: Bloatfly Meat, Bloatfly Gland. RAD STAG: Mutated deer with radiation emitting antlers. Passive unless attacked. Multiple variants with increasing strength. Loot: Radstag Meat, Radstag Hide. MOLE RAT: Small burrowing rodent. Variants: Mole Rat, Glowing Mole Rat. Can cause disease (mole rat disease — reduces max HP permanently unless cured). Loot: Mole Rat Meat, Mole Rat Chunk. BLOODBUG: Giant mutated mosquito. Injects blood/disease on hit. Variants: Bloodbug, Red Widow Bloodbug, Infected Bloodbug. RADROACH: Giant cockroach. Weakest enemy. Variants: Radroach, Glowing Radroach. GASOPOD: Coastal creature, releases gas clouds. ANGLER (Far Harbor): Fish/plant hybrid ambush predator. Lures with glowing appendage. HERMIT CRAB (Far Harbor): Giant crab living in a boat hull. Rare, acts as mini-boss. GATORCLAW (Nuka-World): Deathclaw + Alligator hybrid. Fast and deadly. Safari Adventure zone.",
+      "source": "Mossy Team — Fallout 4 bestiary data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["enemies", "creatures", "deathclaw", "mirelurk", "radscorpion", "yao-guai", "mole-rat", "bloatfly", "rad-stag", "bloodbug", "gatorclaw", "bestiary", "wildlife"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-enemies-humans-mutants",
+      "title": "Fallout 4 — Human Enemies, Super Mutants & Ghouls",
+      "content": "RAIDERS: Most common human enemy. No faction affiliation. Wear improvised armor. Variants: Raider (low level), Raider Veteran (mid), Raider Survivalist (heavy armor, high level). Sub-types include: Scavengers, Marauders, Outlaws. GUNNERS: Mercenary faction. Military equipment (Combat Armor, Assault Rifles, Power Armor at higher levels). Shoot on sight regardless of faction. Variants: Gunner (basic), Gunner Corporal/Sergeant/Lieutenant/Major/Colonel (rank-based scaling). SUPER MUTANTS: FEV-mutated humans. High HP, high melee and ranged damage. Types: Super Mutant (basic), Super Mutant Brute (mid-level), Super Mutant Master (high), Super Mutant Warlord (very high), Super Mutant Behemoth (giant, boss-tier, throws large boulders, 5 named behemoths in Commonwealth). Weaknesses: head crits. Loot: Super Mutant blood, random weapons. NAMED BEHEMOTHS: Swan (Boston Common, level 50, named), Trinity Tower Behemoth, Behemoth at Fallon's Department, Gwinnett Brewery behemoth, Jamaica Plain behemoth. GHOULS: Radiation-mutated humans. Feral Ghouls attack on sight; non-feral ghouls (like Hancock) are sentient. FERAL GHOUL TYPES: Feral Ghoul (basic), Feral Ghoul Roamer (mid), Glowing One (radioactive, emits radiation aura, can 'revive' nearby ghouls by irradiating corpses), Putrid Glowing One (strongest). Can run fast and leap. Weakness: fire damage, headshots. TRIGGERMEN: Ghoul mobsters, dress in pre-war suits, use various weapons. FORGED: Raider sub-faction at Saugus Ironworks, fire/forge theme. CHILDREN OF ATOM (hostile ones): Melee monks and guards at their various facilities. INSTITUTE SYNTHS: Gen 1 (skeletal robots, melee/laser), Gen 2 (humanoid robots, laser/plasma), Coursers (Gen 3 synths with extreme combat ability — toughest humanoid enemy), Generation 1 Synths are immune to poison. TURRETS: Variants from tripod laser to heavy missile turrets. EMP grenades and pulse weapons deal extra damage to them.",
+      "source": "Mossy Team — Fallout 4 human/mutant enemy data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["raiders", "gunners", "super-mutants", "ghouls", "behemoth", "institute-synths", "courser", "glowing-one", "triggermen", "forged", "enemies"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-enemies-robots",
+      "title": "Fallout 4 — Robots & Mechanical Enemies",
+      "content": "PROTECTRON: Bipedal security robot. Slow, low damage. Uses laser or claws. Common in pre-war facilities and hospitals. Variants: Protectron (basic), Protectron Guardian (armored), Assaultron Dominator. ASSAULTRON: Fast humanoid robot. Has a claw melee attack AND a head-laser that charges before firing for massive damage. HEAD-LASER: Get out of line-of-sight when the Assaultron charges its head laser — it deals very high damage. Variants: Assaultron (basic), Assaultron Dominator. SENTRY BOT: Heavily armored, multi-weapon platform. Extremely dangerous. Has gatling laser and/or missile launchers. Weakness: Fusion Core exposed on back — shooting the core causes it to go critical and explode (or you can pick it up as it dies). Variants: Sentry Bot, Annihilator Sentry Bot Mk II. MR. HANDY / MR. GUTSY: Mr. Handy (domestic servant, rotary blades, fire) and Mr. Gutsy (militarized version with plasma guns and militant personality). Notable: Mr. Handy enemy variants in some factories; Codsworth is a friendly Mr. Handy. EYEBOT: Flying scout droid. Low damage. Broadcasts radio signals. Drops Eyebot Pods (used in robot crafting). ROBOBRAIN: Robot with a human/animal brain in a tank. Highly aggressive. Can use grenades. Shoots pulse of energy that stuns. TURRETS: Combat Turret (tripod mounted), Defense Turret (wall-mounted), Protectron Guard Turret, Laser Turret, Missile Turret. EMP WEAKNESS: All robots take 50% extra damage from electromagnetic attacks (pulse grenades, Robotics Expert perk, electric weapons). Robots are immune to poison and radiation. ALIEN ROBOTS (Automatron DLC): Various Mechanist robots — Robobrain variants, custom Assaultrons, unique Mechanist's robot models. LIBERTY PRIME (BoS): Massive military robot, level 85+, not an enemy in the game proper — allies with the Brotherhood. Destroyed at Fort Strong and then rebuilt for the final assault.",
+      "source": "Mossy Team — Fallout 4 robot enemy data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["robots", "protectron", "assaultron", "sentry-bot", "mr-handy", "mr-gutsy", "robobrain", "eyebot", "liberty-prime", "EMP", "enemies"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

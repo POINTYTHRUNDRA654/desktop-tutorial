@@ -1,0 +1,69 @@
+{
+  "packId": "fo4-dlc-complete-v1",
+  "packName": "Fallout 4 — Complete DLC Guide (All 6 DLCs)",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Complete coverage of all six Fallout 4 DLCs: Automatron, Wasteland Workshop, Far Harbor, Contraptions Workshop, Vault-Tec Workshop, and Nuka-World.",
+  "items": [
+    {
+      "id": "fo4-dlc-automatron",
+      "title": "Fallout 4 DLC — Automatron (Robot Building & Story)",
+      "content": "AUTOMATRON DLC (released March 2016): Triggered at level 15+ by radio signal 'Caravan Distress Frequency.' THE MECHANIST: A villain named Isabel Cruz (The Mechanist) has programmed robots to 'help' the Commonwealth but with deadly overreach. The Mechanist is found in The Mechanist's Lair (RobCo Sales & Service Center). STORYLINE: Ada (friendly robot companion) lost her caravan to Mechanist robots. Track The Mechanist through multiple robot encounters. Resolution: Mechanist is sympathetic — was trying to help. Can convince her to stop or let her continue reformed. ADA: New robot companion. Customizable. Unique dialogue. ROBOT CRAFTING SYSTEM: Main feature of DLC. At the Robot Workbench, build/modify robots from scratch. Parts: Eyebot pod, Assaultron Head, Mr. Handy Head, Sentry Bot Head, Protectron Head; Torso: Assaultron, Sentry, Protectron, Mr. Handy, Robobrain; Legs: various robot legs; Arms: various. Each part affects stats (health, damage, movement speed). Can add weapons to arms: Laser, Tesla Arc, Flamer, Saw, Buzz Saw, Syringe. Voice box selection changes robot personality. PERKS NEEDED: Robotics Expert (INT 8) for advanced robot pacification. Science! perk for advanced robot mods. KEY REWARDS: Jezebel (robot head NPC who assists investigation), X-42 Giant Robo-Scorpion (boss encounter), Tesla Rifle (unique weapon — Automatron exclusive, chains lightning between targets). UNIQUE ITEMS: Tesla Rifle, Tesla Armor paint, Mechanist's Armor (The Mechanist's costume, power armor-style). ROBOT ARMOR: Robots can be equipped with different body materials affecting defense. Notable: Robobrain armor has high DR but limits mobility.",
+      "source": "Mossy Team — Fallout 4 Automatron DLC data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["automatron", "DLC", "robot-building", "mechanist", "ada", "tesla-rifle", "robot-workbench", "robot-companion", "sentry-bot", "assaultron"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-dlc-wasteland-workshop",
+      "title": "Fallout 4 DLC — Wasteland Workshop (Settlement Additions)",
+      "content": "WASTELAND WORKSHOP DLC (released April 2016): Small content DLC — adds new settlement building objects, no story content. KEY ADDITIONS: Cages (trap live creatures for your settlement — Mongrel cage, Bloatfly cage, Radscorpion cage, Raider cage, Ghoul cage, Super Mutant cage, Deathclaw cage, Brahmin cage, Gorilla cage). Arena system (create gladiator-style arenas within settlements — can pit caged creatures against each other or settlers). Beta Wave Emitter (pacify captured creatures so they live peacefully in your settlement if you keep them caged until they 'become tame'). NEW BUILD OBJECTS: Neon Signs (large glowing letters and symbols for custom signage), Taxidermy (display mounts of killed creatures), Concrete structures (domed rooms, bunker-style buildings), Letter/Number displays, new light varieties, new power-junction objects. ARENA SETUP: Build an arena cage enclosure → add a Beta Wave Emitter in the arena area → capture creatures → set creatures to 'hostile' if you want them to fight settlers or each other. CREATURE TAMING: Requires Animal Friend perk (CHR 5, Rank 2 for 'taming') or the Beta Wave Emitter. Tamed creatures can guard settlements (Deathclaw guard!). USEFUL NEW ITEMS: Concrete foundations are flat and level — excellent for building on uneven terrain. Neon signs allow creative settlement names and decoration. NOTE: This DLC is the smallest of the six — mostly a creative toolkit expansion.",
+      "source": "Mossy Team — Fallout 4 Wasteland Workshop DLC data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["wasteland-workshop", "DLC", "settlement", "cages", "arena", "creatures", "neon-signs", "concrete", "taming", "beta-wave-emitter"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-dlc-far-harbor",
+      "title": "Fallout 4 DLC — Far Harbor (Story, Locations & Factions)",
+      "content": "FAR HARBOR DLC (released May 2016): The largest and best-received FO4 DLC. Takes place on the island of Mount Desert Island (Far Harbor, Maine). Triggered by Valentine Detective Agency quest from Nick Valentine — search for a missing girl, Kasumi Nakano, who believes she is a synth. THE ISLAND: Separate worldspace. Extremely high ambient radiation (Vim! instead of Nuka-Cola, higher radiation zones). The fog is radioactive and creeps inward — inhabited areas are fortified. THREE FACTIONS: Far Harbor (human fishing town, led by Captain Avery — revealed as a synth body with a deceased woman's memories), Acadia (synth refuge run by DiMA — a unique Gen 2 synth with an independent mind), Children of Atom (at the Nucleus submarine base). DIMA: The main character of Far Harbor's story. An early experimental synth who developed true independence, created Acadia as a haven. DiMA has suppressed memories of past actions — including killing the original Captain Avery and replacing her with a synth. KASUMI: A young human woman who became convinced she is a synth. Resolution options: convince her she's human, let her stay at Acadia either way. KEY QUESTS: Walk in the Park (reach the island), Living on the Edge (Far Harbor), The Way Life Should Be (explore Acadia), Close to Home (Far Harbor), Visions in the Fog (Children of Atom), Cleansing the Land (BoS quest if active), Best Left Forgotten (DiMA's memories), Reformation (resolve the conflict). ENDINGS: (1) All three factions peace deal (hardest — requires exposing DiMA's secret, convincing each faction to stand down, nuclear disarmament of Atom), (2) Far Harbor destroys Children of Atom + removes Acadia threat, (3) Atom destroys Far Harbor, (4) DiMA is exposed and killed. NEW ITEMS: Lever-Action Rifle (highest base damage standard rifle), Marine Armor (highest DR non-PA armor), Harpoon Gun (DLC-exclusive heavy weapon), Disciples Blade, Vim! soda, Old Longfellow companion (hunter, ranged combat speciality), USS Yangtze (Chinese submarine found off shore — complete quest for unique reward). UNIQUE LOCATIONS: Acadia (on mountaintop), Nucleus (submarine base in Atom's crater lake), Cranberry Island Bog, Echo Lake Lumber, National Park Visitor's Center.",
+      "source": "Mossy Team — Fallout 4 Far Harbor DLC data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["far-harbor", "DLC", "acadia", "DiMA", "kasumi", "children-of-atom", "nucleus", "lever-action-rifle", "marine-armor", "harpoon-gun", "old-longfellow", "fog"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-dlc-nuka-world",
+      "title": "Fallout 4 DLC — Nuka-World (Raider Theme Park)",
+      "content": "NUKA-WORLD DLC (released August 2016): Last major story DLC. Located in Nuka-World, Massachusetts (separate worldspace — a massive pre-war amusement park). Triggered at level 30+ by Nuka-World Transit Center radio signal. THE GAUNTLET: On arrival, the SS must survive a deadly obstacle course/gauntlet to prove themselves. Gage (raider companion) is met here. OVERBOSS: After defeating Colter (previous Overboss) with the Power Armor arena-fight, the SS becomes Overboss of three raider gangs. THREE RAIDER GANGS: Operators (mercenary-aesthetic, profit-driven, Mags and William Black lead them), Disciples (violent, sadistic, Nisha leads them), The Pack (animal-themed, brutal, Mason leads them). THE PARK ZONES: Galactic Zone (space theme, Star Control robots), Safari Adventure (animals: Gatorclaws, Gorillas, Yao Guai), Dry Rock Gulch (Western theme), Kiddie Kingdom (children's rides, full of feral ghouls, Oswald the Outlandish magician), Nuka-Town USA (central hub, raider town). MAIN QUEST: Overboss → The Grand Tour (clear each park zone) → Home Sweet Home (establish raider outposts in Commonwealth settlements), Better Living Underground (find the treasure of Nuka-World). POWER PLAY: After establishing raider territory, betray one gang to gain control of the other two — triggers a fight in the park. OPEN SEASON: The 'good' alternative path — kill all raider leaders instead of working with them. Unlocks Nuka-World settlements for normal use. Porter Gage: the companion. Siding with Nuka-World as the villain faction is the only way to play IF you want to be a raider-aligned character. Completing Open Season does NOT remove companion Gage — he just leaves. KEY REWARDS: Nuka-Cola Quantum weapons (crafted), Thirst Zapper (Nuka squirt gun, weak but funny), various gang-specific armor sets (Disciples Blade, Pack Cage Armor, Operator's Casual Wear), Gage as companion, Overboss Power Armor (in the gauntlet boss area), unique Nuka-themed Power Armor paint jobs. LEGENDARY FARM: Nuka-World enemies are high-level and legendary-heavy — excellent legendary farming location. NUKA-COLA FLAVOR CRAFTING: 35 unique Nuka-Cola varieties craftable at Nuka-Mixer Station after collecting recipes and ingredients throughout the park.",
+      "source": "Mossy Team — Fallout 4 Nuka-World DLC data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["nuka-world", "DLC", "raiders", "overboss", "operators", "disciples", "the-pack", "gage", "open-season", "gauntlet", "nuka-cola", "galactic-zone", "safari-adventure"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-dlc-vault-tec-contraptions",
+      "title": "Fallout 4 DLC — Vault-Tec Workshop & Contraptions Workshop",
+      "content": "CONTRAPTIONS WORKSHOP DLC (released June 2016): Small settlement building DLC. Adds: Manufacturing machines (Ammo Plant — produce any ammo type using materials; Armor Forge, Clothing Forge, Weapon Forge — produce weapons and armor pieces automatically; Robot Foundry — build robots at scale), Conveyor Belt system (sort, move, and store items between workshops automatically), Display items (weapon racks, armor mannequins, book shelves, bottle display, collection cases), Fireworks mortars (celebration items), Large greenhouse components, Track and catapult (launcher objects for physics entertainment), Ball track components. KEY FUNCTION: Ammo Plant is the most useful — build one in a settlement with enough food/power, assign a settler, and it continuously produces the ammo type you specify. Requires materials. Weapon/Armor Forge can produce mid-tier gear automatically for trading or arming settlers. VAULT-TEC WORKSHOP DLC (released July 2016): Medium settlement DLC focused on building Vault 88 (an underground vault settlement). VAULT 88 LOCATION: Southwest of Quincy, underground. Large open cavern with the Vault 88 entrance. STORYLINE: Brief questline — Overseer Barstow (existing Vault resident robot) directs the SS to build a functional Vault and recruit human test subjects (settlers). The 'experiments' are optional but unlock unique items. EXPERIMENTS: Slot Machine (test productivity vs recreation), Power Cycle (test exercise compliance), Conditioning Equipment (test food choices, unlocks unique Vault items based on outcomes). VAULT BUILD OBJECTS: Vault doors, Vault wall panels, Vault floors, Vault lighting (fluorescent), Vault cafeteria and bedroom furniture, Vault-Tec computer terminals, unique Vault-only power objects. OVERSEER'S GUARDIAN: Sold by Alexis in Vault 81 — a Two Shot Combat Rifle — considered one of the best non-legendary weapons in the game for early-mid game. Also Valery (robot vendor in Vault 88 once built) sells Vault-Tec gear.",
+      "source": "Mossy Team — Fallout 4 DLC data (Contraptions + Vault-Tec)",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["contraptions", "vault-tec-workshop", "DLC", "ammo-plant", "conveyor", "vault-88", "manufacturing", "weapon-forge", "armor-forge", "settlement-building"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
-  "version": "3.5.0",
-  "lastUpdated": "2026-06-15",
+  "version": "3.6.0",
+  "lastUpdated": "2026-06-16",
   "description": "Bundled knowledge packs that are auto-imported on first run",
   "packs": [
     {
@@ -50,6 +50,86 @@
       "file": "fo4-technical-reference.json",
       "description": "Structured technical reference: Papyrus script templates, CK record field schemas, FormID ranges, NIF block types, console commands, common error fixes, xEdit script templates.",
       "itemCount": 7,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-lore-story-factions-v1",
+      "name": "Fallout 4 — Complete Lore, Story & Factions",
+      "version": "1.0.0",
+      "file": "fo4-lore-story-factions.json",
+      "description": "Comprehensive Fallout 4 lore: pre-war history, The Great War, main story arc, all four major factions (Minutemen, Brotherhood, Railroad, Institute), other factions, key characters, and Commonwealth geography.",
+      "itemCount": 9,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-mechanics-systems-v1",
+      "name": "Fallout 4 — Complete Game Mechanics & Systems",
+      "version": "1.0.0",
+      "file": "fo4-mechanics-systems.json",
+      "description": "Complete game mechanics: full SPECIAL stat & perk chart, V.A.T.S. and combat, Survival Mode rules, settlement building & workshop system, all crafting systems, all companions with affinity, leveling & XP, Power Armor.",
+      "itemCount": 8,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-locations-complete-v1",
+      "name": "Fallout 4 — Complete Locations Database",
+      "version": "1.0.0",
+      "file": "fo4-locations-complete.json",
+      "description": "Full Commonwealth location database: north, downtown Boston, Cambridge/south, key interior cells, vaults, and all 30 settlement locations including DLC.",
+      "itemCount": 5,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-weapons-armor-items-v1",
+      "name": "Fallout 4 — Complete Weapons, Armor & Items Database",
+      "version": "1.0.0",
+      "file": "fo4-weapons-armor-items.json",
+      "description": "Complete weapon database (ballistic, energy, melee), all armor types, legendary effects, unique/named weapons, all chems and consumables.",
+      "itemCount": 6,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-quests-complete-v1",
+      "name": "Fallout 4 — Complete Quest Database",
+      "version": "1.0.0",
+      "file": "fo4-quests-complete.json",
+      "description": "Full quest database: main quest all stages with setstage IDs, major side quests, Minutemen questline, and notable misc/hidden quests.",
+      "itemCount": 4,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-dlc-complete-v1",
+      "name": "Fallout 4 — Complete DLC Guide",
+      "version": "1.0.0",
+      "file": "fo4-dlc-complete.json",
+      "description": "All six DLCs covered in depth: Automatron (robot building, Mechanist), Wasteland Workshop (cages, arena), Far Harbor (DiMA, factions, fog island), Contraptions Workshop (manufacturing), Vault-Tec Workshop (Vault 88), Nuka-World (raider gangs, Open Season).",
+      "itemCount": 5,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-enemies-creatures-v1",
+      "name": "Fallout 4 — Complete Enemy & Creature Database",
+      "version": "1.0.0",
+      "file": "fo4-enemies-creatures.json",
+      "description": "Full bestiary: all wildlife and mutated creatures, human factions (Raiders, Gunners, Super Mutants, Ghouls), all robot types with weaknesses and loot.",
+      "itemCount": 3,
+      "auto-import": true,
+      "creditName": "Mossy Team"
+    },
+    {
+      "id": "fo4-modding-advanced-v1",
+      "name": "Fallout 4 — Advanced Modding Guide",
+      "version": "1.0.0",
+      "file": "fo4-modding-advanced.json",
+      "description": "Advanced modding: Creation Kit workflows (navmesh, quests, ESL), F4SE plugin ecosystem (Buffout 4, Address Library, MCM), load order management (LOOT, MO2, xEdit), texture/BA2 modding, and common bug fixes.",
+      "itemCount": 5,
       "auto-import": true,
       "creditName": "Mossy Team"
     }
