@@ -209,6 +209,29 @@ def prepare_ao_bake(low_obj, tex_size: int = 2048) -> tuple:
 # Operators
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+# ── Mesh type constants ───────────────────────────────────────────────────────
+
+# Mesh classes that use FO4 procedural wind via vertex groups (no armature).
+# NOTE: Trees and large shrubs are VEGETATION class but still need collision in
+# their NIFs — a tree you can walk through is not a tree.  Ground-cover (grass,
+# thin mushrooms) has no NIF collision; that is controlled by fo4_collision_type.
+_VEGETATION_CLASSES = frozenset({'VEGETATION', 'FLORA'})
+
+# Mesh classes that are armature-skinned.  LOD decimation of skinned meshes
+# should be handled inside PyNifly (which can re-bind LOD vertices to bones).
+# Our Decimate-based approach strips the skin bind, so we warn and skip NIF
+# export for these types.
+_SKINNED_CLASSES = frozenset({'CHARACTER', 'CREATURE', 'SKINNED', 'ARMOR'})
+
+# fo4_collision_type values that mean "no physics collision in the NIF".
+# GRASS and MUSHROOM are thin ground-cover that the engine skips for physics.
+# The collision volume for these is authored inside the CK record, not the NIF.
+# Trees and large custom vegetation set fo4_collision_type to 'VEGETATION' or
+# leave it as 'DEFAULT' and still need a UCX_ hull in their LOD NIF.
+_NO_COLLISION_MESH_TYPES = frozenset({'GRASS', 'MUSHROOM', 'NONE'})
+
+
 class FO4_OT_GenerateLODs(Operator):
     """
     Auto-generate FO4 LOD meshes from the active object.
@@ -216,6 +239,20 @@ class FO4_OT_GenerateLODs(Operator):
     Creates LOD1, LOD2, and LOD3 copies using Blender's Decimate modifier
     at FO4-correct polygon ratios, then exports each as a separate NIF to
     your mod staging folder.
+
+    Mesh-type-aware behaviour
+    -------------------------
+    * STATIC / LOD / ARCHITECTURE / WEAPON / FURNITURE
+        Standard decimation + optional UCX_ convex-hull collision from LOD3.
+    * VEGETATION / FLORA
+        Decimation only.  FO4 vegetation uses Wind vertex-group weights for
+        procedural in-engine wind — no armature is needed or exported.  Physics
+        collision for foliage is authored in the CK ESP record, not in the NIF,
+        so the "collision from LOD3" step is skipped automatically.
+    * CHARACTER / CREATURE / SKINNED / ARMOR
+        Decimation is performed for preview, but NIF export is skipped with a
+        warning.  Skinned-mesh LODs must be re-bound to the skeleton and are
+        best generated inside PyNifly (BadDogSkyrim) directly.
 
     LOD objects are placed in a 'FO4_LODs' collection for easy management.
     """
@@ -256,24 +293,89 @@ class FO4_OT_GenerateLODs(Operator):
         default=True,
     )
 
+    # Hidden property: detected FO4 class of the source mesh.
+    # Set in invoke() so draw() and execute() can use it without re-detecting.
+    # No leading underscore — Blender's RNA system requires clean identifier names.
+    detected_source_class: StringProperty(
+        name="Detected Source Class",
+        default="STATIC",
+        options={'HIDDEN'},
+    )
+
+    @staticmethod
+    def _detect_source_class(obj) -> str:
+        """Detect the FO4 object class for *obj*, using export_helpers when available."""
+        try:
+            from . import export_helpers
+            return export_helpers.ExportHelpers.detect_fo4_object_class(obj)
+        except Exception:
+            pass
+        # Fallback: honour explicit property, then guess from vertex groups / name
+        forced = obj.get("fo4_object_type", "")
+        if forced:
+            return forced.upper()
+        if obj.vertex_groups:
+            wind_names = {'Wind', 'wind', 'WIND', 'WindWeight', 'windweight',
+                          'WINDWEIGHT', 'WindStiff', 'windstiff'}
+            if all(vg.name in wind_names for vg in obj.vertex_groups):
+                return 'VEGETATION'
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            bones = [b.name for b in obj.parent.data.bones]
+            return 'CHARACTER' if any(b.startswith("NPC ") for b in bones) else 'CREATURE'
+        return 'STATIC'
+
     def invoke(self, context, event):
         obj = context.active_object
-        if obj:
+        if obj and obj.type == 'MESH':
+            src_class = FO4_OT_GenerateLODs._detect_source_class(obj)
+            self.detected_source_class = src_class
+
             n_tris = sum(len(p.loop_indices) - 2 for p in obj.data.polygons)
             # Auto-adjust ratios so none exceed FO4 max per level
             if n_tris > 0:
                 self.lod1_ratio = min(0.30, _LOD_MAX_TRIS["LOD1"] / n_tris)
                 self.lod2_ratio = min(0.12, _LOD_MAX_TRIS["LOD2"] / n_tris)
                 self.lod3_ratio = min(0.04, _LOD_MAX_TRIS["LOD3"] / n_tris)
-        return context.window_manager.invoke_props_dialog(self, width=440)
+
+            # Auto-disable collision only for ground-cover types (GRASS, MUSHROOM).
+            # Trees and large custom vegetation (VEGETATION/FLORA) still need a
+            # UCX_ convex hull in the NIF — check fo4_collision_type, not just class.
+            ctype = obj.get("fo4_collision_type", "DEFAULT")
+            if ctype in _NO_COLLISION_MESH_TYPES:
+                self.collision_from_lod3 = False
+
+        return context.window_manager.invoke_props_dialog(self, width=460)
 
     def draw(self, context):
         layout = self.layout
-        obj = context.active_object
+        obj    = context.active_object
+        src    = self.detected_source_class
+
+        # ── Source info ───────────────────────────────────────────────────────
         if obj and obj.type == 'MESH':
             n_tris = sum(len(p.loop_indices) - 2 for p in obj.data.polygons)
-            layout.label(text=f"Source: {obj.name} (~{n_tris:,} triangles)")
+            row = layout.row(align=True)
+            row.label(text=f"Source: {obj.name}  (~{n_tris:,} triangles)")
+            icon = (
+                'OUTLINER_OB_FORCE_FIELD' if src in _VEGETATION_CLASSES else
+                'ARMATURE_DATA'           if src in _SKINNED_CLASSES      else
+                'MESH_DATA'
+            )
+            row.label(text=f"Type: {src}", icon=icon)
+
+        # ── Skinned mesh warning ──────────────────────────────────────────────
+        if src in _SKINNED_CLASSES:
+            box = layout.box()
+            box.alert = True
+            box.label(
+                text=f"{src}: LOD decimation preview only — NIF export skipped.",
+                icon='ERROR',
+            )
+            box.label(text="Use PyNifly to generate skinned-mesh LODs with bone re-binding.")
+
         layout.separator()
+
+        # ── LOD ratios ────────────────────────────────────────────────────────
         row = layout.row()
         row.prop(self, "generate_lod1")
         row.prop(self, "lod1_ratio", text="Ratio")
@@ -284,18 +386,44 @@ class FO4_OT_GenerateLODs(Operator):
         row.prop(self, "generate_lod3")
         row.prop(self, "lod3_ratio", text="Ratio")
         layout.separator()
+
+        # ── Collision ─────────────────────────────────────────────────────────
+        # Show collision UI for all mesh types.
+        # For vegetation, show an info note explaining ground-cover vs trees.
         box = layout.box()
+        if src in _VEGETATION_CLASSES:
+            box.label(
+                text=f"{src}: trees/large shrubs need collision; ground-cover (GRASS) does not.",
+                icon='INFO',
+            )
         box.prop(self, "collision_from_lod3")
         if self.collision_from_lod3:
-            box.label(
-                text="UCX_ collision built from LOD3 — no extra decimation step.",
-                icon='CHECKMARK',
-            )
+            if src in _VEGETATION_CLASSES:
+                box.label(
+                    text="UCX_ hull will be built — disable if this is thin ground-cover.",
+                    icon='CHECKMARK',
+                )
+            else:
+                box.label(
+                    text="UCX_ collision built from LOD3 — no extra decimation step.",
+                    icon='CHECKMARK',
+                )
+
         layout.separator()
-        if self.export_nifs:
+
+        # ── Texture / material note ───────────────────────────────────────────
+        if obj and obj.type == 'MESH' and obj.material_slots:
+            mat = obj.material_slots[0].material if obj.material_slots else None
+            if mat:
+                box = layout.box()
+                box.label(text=f"Material: {mat.name}", icon='MATERIAL')
+                box.label(text="LOD NIFs will reference the same textures as the source mesh.")
+
+        # ── Export options ────────────────────────────────────────────────────
+        layout.prop(self, "export_nifs")
+        if self.export_nifs and src not in _SKINNED_CLASSES:
             layout.prop(self, "mod_folder")
             layout.prop(self, "mesh_subpath")
-        layout.prop(self, "export_nifs")
 
     def execute(self, context):
         obj = context.active_object
@@ -303,7 +431,25 @@ class FO4_OT_GenerateLODs(Operator):
             self.report({'ERROR'}, "Select a mesh object.")
             return {'CANCELLED'}
 
-        # Get/create LOD collection
+        # ── Detect source mesh class ──────────────────────────────────────────
+        # Use the stored value from invoke() when available; re-detect as fallback
+        # (e.g. when the operator is called programmatically without an invoke step).
+        src_class = (
+            self.detected_source_class
+            if self.detected_source_class not in ('', 'AUTO')
+            else FO4_OT_GenerateLODs._detect_source_class(obj)
+        )
+        is_vegetation = src_class in _VEGETATION_CLASSES
+        is_skinned    = src_class in _SKINNED_CLASSES
+
+        if is_skinned:
+            self.report({'WARNING'},
+                f"Source is {src_class} (armature-skinned). "
+                "LOD decimation preview created but NIF export skipped. "
+                "Use PyNifly to generate skinned-mesh LODs with bone re-binding."
+            )
+
+        # ── Get/create LOD collection ─────────────────────────────────────────
         lod_col = bpy.data.collections.get("FO4_LODs")
         if not lod_col:
             lod_col = bpy.data.collections.new("FO4_LODs")
@@ -330,19 +476,50 @@ class FO4_OT_GenerateLODs(Operator):
                 for c in list(lod_obj.users_collection):
                     c.objects.unlink(lod_obj)
                 lod_col.objects.link(lod_obj)
-                # Tag with metadata
-                lod_obj["fo4_lod_level"] = lod_key
-                lod_obj["fo4_lod_source"] = obj.name
+                # ── Tag with metadata ────────────────────────────────────────
+                # fo4_object_type is the key that export_helpers.detect_fo4_object_class()
+                # honours first.  Setting it here means the LOD copies export with the
+                # correct shader flags (e.g. Two_Sided for VEGETATION) even if the
+                # material or vertex-group heuristics on the copy are ambiguous.
+                lod_obj["fo4_lod_level"]    = lod_key
+                lod_obj["fo4_lod_source"]   = obj.name
+                lod_obj["fo4_object_type"]  = src_class   # ← propagate type to LOD
                 lod_objects.append(lod_obj)
                 steps.append(msg)
             except Exception as e:
                 self.report({'WARNING'}, f"LOD generation failed for {lod_key}: {e}")
 
         # ── Collision from LOD3 ───────────────────────────────────────────────
-        # Use the already-generated LOD3 mesh as the convex hull source.
-        # This avoids a second decimation pass — LOD3 is already ~4% of the
-        # original poly count, which is ideal for a physics collision shape.
-        if self.collision_from_lod3 and self.generate_lod3:
+        # Rules:
+        #   GRASS / MUSHROOM (fo4_collision_type) – thin ground-cover; no NIF
+        #       collision.  Footprint is authored in the CK ESP record.
+        #   CHARACTER / CREATURE / SKINNED / ARMOR – collision is part of the
+        #       skeleton/ragdoll rig; do not create a static UCX_ hull.
+        #   VEGETATION / FLORA (trees, large shrubs, custom plants) – DO need a
+        #       UCX_ convex hull in the LOD NIF; a tree without collision is
+        #       just a decoration you walk straight through.
+        #   Everything else (STATIC, LOD, ARCHITECTURE, WEAPON…) – normal hull.
+        coll_type = obj.get("fo4_collision_type", "DEFAULT")
+        is_ground_cover = coll_type in _NO_COLLISION_MESH_TYPES
+
+        collision_possible = (
+            not is_ground_cover
+            and not is_skinned
+            and self.collision_from_lod3
+            and self.generate_lod3
+        )
+
+        if is_ground_cover:
+            steps.append(
+                f"✓ {src_class} (collision type: {coll_type}): collision skipped — "
+                "ground-cover uses no NIF physics collision"
+            )
+        elif is_skinned:
+            steps.append(
+                f"✓ {src_class}: collision skipped — "
+                "collision is part of the armature/ragdoll rig"
+            )
+        elif collision_possible:
             lod3_obj = next(
                 (o for o in lod_objects if o.get("fo4_lod_level") == "LOD3"), None
             )
@@ -381,19 +558,19 @@ class FO4_OT_GenerateLODs(Operator):
                     bm.free()
 
                     # Tag as FO4 collision
-                    ucx_obj["fo4_collision"]      = True
+                    ucx_obj["fo4_collision"]        = True
                     ucx_obj["fo4_collision_source"] = "LOD3"
-                    ucx_obj["fo4_lod_source"]     = obj.name
-                    ucx_obj.display_type          = 'WIRE'
-                    ucx_obj.hide_render           = True
-                    ucx_obj.parent                = obj
+                    ucx_obj["fo4_lod_source"]       = obj.name
+                    ucx_obj.display_type            = 'WIRE'
+                    ucx_obj.hide_render             = True
+                    ucx_obj.parent                  = obj
 
                     # Rigid body for Blender physics preview
                     try:
                         context.view_layer.objects.active = ucx_obj
                         ucx_obj.select_set(True)
                         bpy.ops.rigidbody.object_add()
-                        ucx_obj.rigid_body.type = 'PASSIVE'
+                        ucx_obj.rigid_body.type            = 'PASSIVE'
                         ucx_obj.rigid_body.collision_shape = 'CONVEX_HULL'
                     except Exception:
                         pass
@@ -409,15 +586,42 @@ class FO4_OT_GenerateLODs(Operator):
                 self.report({'WARNING'},
                     "LOD3 not generated — enable 'LOD3 (4%)' to use it as collision source.")
 
-        # Export NIFs
-        if self.export_nifs and self.mod_folder and lod_objects:
+        # ── Texture / material info ───────────────────────────────────────────
+        # Report which textures will travel into the exported LOD NIFs.
+        # The material slots are copied from the source by obj.copy(), so
+        # PyNifly / the native writer will pick them up automatically.
+        if obj.material_slots:
+            mat = obj.material_slots[0].material
+            if mat and mat.use_nodes:
+                tex_nodes = [
+                    n for n in mat.node_tree.nodes
+                    if n.type == 'TEX_IMAGE' and n.image
+                ]
+                if tex_nodes:
+                    tex_names = ", ".join(
+                        n.image.name for n in tex_nodes[:4]
+                    )
+                    steps.append(
+                        f"Textures from '{mat.name}': {tex_names}"
+                        + (" (+ more)" if len(tex_nodes) > 4 else "")
+                    )
+                else:
+                    steps.append(
+                        f"Material '{mat.name}' has no image texture nodes — "
+                        "LOD NIFs will export without embedded textures."
+                    )
+
+        # ── Export NIFs ───────────────────────────────────────────────────────
+        # Skinned meshes are excluded: the Decimate modifier strips the skin
+        # bind and the resulting NIF would be broken.  Use PyNifly for skinned LODs.
+        if self.export_nifs and self.mod_folder and lod_objects and not is_skinned:
             try:
                 from . import export_helpers
                 for lod_obj in lod_objects:
-                    lod_key = lod_obj.get("fo4_lod_level", "LOD")
-                    suffix  = f"_lod{lod_key[-1]}"   # _lod1, _lod2, _lod3
+                    lod_key  = lod_obj.get("fo4_lod_level", "LOD")
+                    suffix   = f"_lod{lod_key[-1]}"   # _lod1, _lod2, _lod3
                     nif_name = f"{obj.name}{suffix}.nif"
-                    sub  = self.mesh_subpath.strip("/\\")
+                    sub      = self.mesh_subpath.strip("/\\")
                     nif_path = os.path.normpath(os.path.join(
                         self.mod_folder, "Data", "Meshes",
                         sub, nif_name
@@ -433,19 +637,20 @@ class FO4_OT_GenerateLODs(Operator):
                     result = export_helpers.ExportHelpers.export_mesh_to_nif(
                         lod_obj, nif_path
                     )
-                    ok = result[0] if isinstance(result, tuple) else \
-                         result in ({'FINISHED'}, 'FINISHED')
+                    ok  = result[0] if isinstance(result, tuple) else \
+                          result in ({'FINISHED'}, 'FINISHED')
+                    msg = result[1] if isinstance(result, tuple) else str(result)
                     if ok:
-                        steps.append(f"Exported: {os.path.basename(nif_path)}")
+                        steps.append(f"Exported [{src_class}]: {os.path.basename(nif_path)}")
                     else:
-                        steps.append(f"⚠ Export failed for {lod_obj.name}")
+                        steps.append(f"⚠ Export failed for {lod_obj.name}: {msg}")
             except Exception as e:
                 self.report({'WARNING'}, f"NIF export error: {e}")
 
         for s in steps:
             self.report({'INFO'}, s)
         self.report({'INFO'},
-            f"Generated {len(lod_objects)} LOD mesh(es) in 'FO4_LODs' collection.")
+            f"Generated {len(lod_objects)} LOD mesh(es) [{src_class}] in 'FO4_LODs' collection.")
         return {'FINISHED'}
 
 

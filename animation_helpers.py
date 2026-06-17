@@ -210,17 +210,17 @@ class AnimationHelpers:
         l_clav.tail = Vector((0.3, 0, 1.46))
         l_clav.parent = spine2
 
-        l_upper_arm = edit_bones.new("NPC L UpperArm [LUpArm]")
+        l_upper_arm = edit_bones.new("NPC L UpperArm [LUar]")
         l_upper_arm.head = Vector((0.3, 0, 1.46))
         l_upper_arm.tail = Vector((0.6, 0, 1.4))
         l_upper_arm.parent = l_clav
 
-        l_forearm = edit_bones.new("NPC L Forearm [LForearm]")
+        l_forearm = edit_bones.new("NPC L Forearm [LLar]")
         l_forearm.head = Vector((0.6, 0, 1.4))
         l_forearm.tail = Vector((0.9, 0, 1.35))
         l_forearm.parent = l_upper_arm
 
-        l_hand = edit_bones.new("NPC L Hand [LHand]")
+        l_hand = edit_bones.new("NPC L Hand [LHnd]")
         l_hand.head = Vector((0.9, 0, 1.35))
         l_hand.tail = Vector((1.05, 0, 1.32))
         l_hand.parent = l_forearm
@@ -231,33 +231,33 @@ class AnimationHelpers:
         r_clav.tail = Vector((-0.3, 0, 1.46))
         r_clav.parent = spine2
 
-        r_upper_arm = edit_bones.new("NPC R UpperArm [RUpArm]")
+        r_upper_arm = edit_bones.new("NPC R UpperArm [RUar]")
         r_upper_arm.head = Vector((-0.3, 0, 1.46))
         r_upper_arm.tail = Vector((-0.6, 0, 1.4))
         r_upper_arm.parent = r_clav
 
-        r_forearm = edit_bones.new("NPC R Forearm [RForearm]")
+        r_forearm = edit_bones.new("NPC R Forearm [RLar]")
         r_forearm.head = Vector((-0.6, 0, 1.4))
         r_forearm.tail = Vector((-0.9, 0, 1.35))
         r_forearm.parent = r_upper_arm
 
-        r_hand = edit_bones.new("NPC R Hand [RHand]")
+        r_hand = edit_bones.new("NPC R Hand [RHnd]")
         r_hand.head = Vector((-0.9, 0, 1.35))
         r_hand.tail = Vector((-1.05, 0, 1.32))
         r_hand.parent = r_forearm
 
         # ── Left leg ────────────────────────────────────────────────────
-        l_thigh = edit_bones.new("NPC L Thigh [LThigh]")
+        l_thigh = edit_bones.new("NPC L Thigh [LThg]")
         l_thigh.head = Vector((0.18, 0, 1.0))
         l_thigh.tail = Vector((0.2, 0, 0.55))
         l_thigh.parent = pelvis
 
-        l_calf = edit_bones.new("NPC L Calf [LCalf]")
+        l_calf = edit_bones.new("NPC L Calf [LClf]")
         l_calf.head = Vector((0.2, 0, 0.55))
         l_calf.tail = Vector((0.2, 0, 0.15))
         l_calf.parent = l_thigh
 
-        l_foot = edit_bones.new("NPC L Foot [LFoot]")
+        l_foot = edit_bones.new("NPC L Foot [Lft ]")
         l_foot.head = Vector((0.2, 0, 0.15))
         l_foot.tail = Vector((0.2, 0.12, 0.05))
         l_foot.parent = l_calf
@@ -268,17 +268,17 @@ class AnimationHelpers:
         l_toe.parent = l_foot
 
         # ── Right leg ───────────────────────────────────────────────────
-        r_thigh = edit_bones.new("NPC R Thigh [RThigh]")
+        r_thigh = edit_bones.new("NPC R Thigh [RThg]")
         r_thigh.head = Vector((-0.18, 0, 1.0))
         r_thigh.tail = Vector((-0.2, 0, 0.55))
         r_thigh.parent = pelvis
 
-        r_calf = edit_bones.new("NPC R Calf [RCalf]")
+        r_calf = edit_bones.new("NPC R Calf [RClf]")
         r_calf.head = Vector((-0.2, 0, 0.55))
         r_calf.tail = Vector((-0.2, 0, 0.15))
         r_calf.parent = r_thigh
 
-        r_foot = edit_bones.new("NPC R Foot [RFoot]")
+        r_foot = edit_bones.new("NPC R Foot [Rft ]")
         r_foot.head = Vector((-0.2, 0, 0.15))
         r_foot.tail = Vector((-0.2, 0.12, 0.05))
         r_foot.parent = r_calf
@@ -395,7 +395,7 @@ class AnimationHelpers:
         # Check bone count
         if len(armature.bones) == 0:
             issues.append("Armature has no bones")
-        elif len(armature.bones) > 256:
+        elif len(armature.bones) > 80:  # FO4 limit: 80 deform bones per skinned mesh
             issues.append(f"Too many bones: {len(armature.bones)} (FO4 limit: 256)")
         
         # Check for root bone
@@ -517,6 +517,40 @@ class AnimationHelpers:
         return True, f"Wind weights ('{group_name}') generated"
 
     @staticmethod
+    def apply_vegetation_wind(mesh_obj, amplitude: float = 0.2, period: float = 60.0):
+        """Set up FO4 vegetation wind using vertex groups only — no armature.
+
+        Fallout 4 vegetation wind is fully procedural in-engine.  The game reads
+        the ``Wind`` vertex group weight to decide how much each vertex sways; no
+        bone skeleton is involved.  Using this method instead of
+        ``apply_wind_animation`` keeps the object export-clean (no orphaned bone
+        weights, no spurious armature modifier, correct ``BSTreeNode`` path).
+
+        Steps:
+        1. Generate a Z-axis linear wind-weight gradient on the ``Wind`` group.
+        2. Tag the object with ``fo4_object_type = 'VEGETATION'`` so that the
+           export helper skips the orphaned-weight check.
+        3. Store amplitude/period as custom properties for the BGSM exporter.
+
+        Returns ``(success, message)``.
+        """
+        if mesh_obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        ok, msg = AnimationHelpers.generate_wind_weights(mesh_obj, group_name="Wind")
+        if not ok:
+            return False, msg
+
+        mesh_obj["fo4_object_type"]    = "VEGETATION"
+        mesh_obj["fo4_wind_amplitude"] = amplitude
+        mesh_obj["fo4_wind_period"]    = period
+
+        return True, (
+            f"Vegetation wind weights applied to '{mesh_obj.name}' "
+            f"(amplitude={amplitude}, period={period} frames) — no armature needed"
+        )
+
+    @staticmethod
     def apply_wind_animation(mesh_obj, amplitude: float = 0.2, period: float = 60.0, axis: str = 'X'):
         """Create a minimal armature and add a wind‑bone animation.
 
@@ -594,6 +628,12 @@ class AnimationHelpers:
         scene = bpy.context.scene
         scene.frame_start = 0
         scene.frame_end = int(period)
+        # Tag the mesh as VEGETATION so detect_fo4_object_class() in
+        # export_helpers does not mis-classify it as CREATURE because of the
+        # Wind armature.  The armature itself is for authoring / preview only
+        # and will NOT be exported — the NIF exporter reads the Wind vertex
+        # group weights directly.
+        mesh_obj["fo4_object_type"] = "VEGETATION"
         return True, "Wind animation armature created"
 
     @staticmethod
@@ -686,7 +726,9 @@ class AnimationHelpers:
             bpy.data.actions.remove(bpy.data.actions[action_name])
 
         action = bpy.data.actions.new(name=action_name)
-        mat.animation_data.action = action
+        # Use the compat helper so Blender 4.4+ slot binding works for
+        # material animation data (same as armature animation data above).
+        _assign_action_to_id(mat.animation_data, action)
 
         # Mid-point between min and max; the NOISE modifier will oscillate around it.
         mid = (min_strength + max_strength) / 2.0
@@ -771,21 +813,7 @@ class AnimationHelpers:
         return False, f"No GlowPulse action found for '{mat.name}'"
 
 
-def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
-    """Apply FO4 post-processing to a mesh object (triangulate, UV, poly-cap, material)."""
-    try:
-        from . import imageto3d_helpers as _ith
-        if hasattr(_ith, 'fo4_post_process'):
-            return _ith.fo4_post_process(obj, target_polys=target_polys, name=name)
-    except Exception:
-        pass
-    return False, "imageto3d_helpers not available — install addon properly"
-
-
-def register():
-    """Register animation helper functions"""
-    pass
-
-def unregister():
-    """Unregister animation helper functions"""
+def _fo4_post_process(obj, target_polys: int = 1000):
+    """Placeholder — reserved for post-processing steps (decimation, cleanup).
+    Not yet implemented; retained to avoid import errors from callers."""
     pass

@@ -166,6 +166,8 @@ torch_path_manager = _try_import("torch_path_manager")
 # we don't add it to `modules` because it has no register()/unregister().
 tool_installers = _try_import("tool_installers")
 dsf_importer = _try_import("dsf_importer")
+daz_animation_importer = _try_import("daz_animation_importer")
+fo4_asset_pipeline = _try_import("fo4_asset_pipeline")
 
 # External tool integration helpers
 ue_importer_helpers = _try_import("ue_importer_helpers")
@@ -222,6 +224,19 @@ fo4_advanced_materials = _try_import("fo4_advanced_materials")
 # LOD generator + high-to-low texture baker
 fo4_lod_generator = _try_import("fo4_lod_generator")
 
+# UV validation and repair tools (flipped-island detection, pre-export fix)
+fo4_uv_tools = _try_import("fo4_uv_tools")
+
+# Shared canonical bone-name constants (no operators, no register() needed)
+fo4_bone_names = _try_import("fo4_bone_names")
+
+# Animation modules — NPC, creature, weapon, armor, skeleton helpers
+fo4_npc_animation      = _try_import("fo4_npc_animation")
+fo4_creature_animation = _try_import("fo4_creature_animation")
+fo4_weapon_animation   = _try_import("fo4_weapon_animation")
+fo4_armor_animation    = _try_import("fo4_armor_animation")
+fo4_skeleton_helpers   = _try_import("fo4_skeleton_helpers")
+
 # Minimal module containing the four tutorial/welcome operators that are
 # referenced unconditionally in FO4_PT_MainPanel.  Registering them before
 # the large operators.py bundle ensures they are always available in the UI
@@ -274,6 +289,7 @@ _PHASE1_MODULES = list(filter(_filter, [
     animation_helpers,
     fo4_pipeline,
     fo4_lod_generator,
+    fo4_uv_tools,
     fo4_advanced_materials,
     fo4_material_browser,
     fo4_plane_thickener,
@@ -324,7 +340,17 @@ _PHASE2_MODULES = list(filter(_filter, [
     fo4_unity_converter,
     fo4_creature_rig,
     fo4_animation_export,
+    fo4_asset_pipeline,
     fo4_plane_thickener,
+    # Animation sub-systems — operators registered in Phase 2 so startup
+    # is not delayed; all UI panels that reference them check registration
+    # status before drawing.
+    daz_animation_importer,
+    fo4_npc_animation,
+    fo4_creature_animation,
+    fo4_weapon_animation,
+    fo4_armor_animation,
+    fo4_skeleton_helpers,
 ]))
 
 # Keep a combined list for unregister()
@@ -589,32 +615,4 @@ def register():
 
 def unregister():
     """Unregister all add-on classes and handlers"""
-    # Remove the load_post handler that restores scene properties from prefs
-    try:
-        if _on_load_post in bpy.app.handlers.load_post:
-            bpy.app.handlers.load_post.remove(_on_load_post)
-        if hasattr(bpy.app.handlers, 'load_factory_startup_post'):
-            if _on_load_post in bpy.app.handlers.load_factory_startup_post:
-                bpy.app.handlers.load_factory_startup_post.remove(_on_load_post)
-    except Exception:
-        pass
-    try:
-        if advisor_helpers:
-            advisor_helpers.stop_auto_monitor()
-    except Exception:
-        pass
-    for module in reversed(modules):
-        try:
-            module.unregister()
-        except Exception as e:  # pragma: no cover
-            name = getattr(module, "__name__", str(module))
-            print(f"⚠ Error unregistering module {name}: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-    print("Mossy Industries blender addon unregistered")
-
-
-if __name__ == "__main__":
-    register()
+    # Remove the load_post handler that restores scene propert

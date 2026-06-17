@@ -410,6 +410,25 @@ def deferred_startup():
     # used for the AI-tool availability checks (Step 6b) and the Mossy bridge
     # check (Step 7) below.
     def _background_tool_downloads():
+        # ── PyNifly (bundled, unconditional) ──────────────────────────────────
+        # PyNifly (by BadDog / BadDogSkyrim) is bundled in bundled/ with
+        # BadDog's permission.  Install silently on first load so the armor,
+        # creature, and NPC export pipelines work out of the box.
+        try:
+            import bpy as _bpy
+            if not hasattr(_bpy.ops.export_scene, "pynifly"):
+                from . import tool_installers as _ti_pyn
+                if _ti_pyn and hasattr(_ti_pyn, "install_pynifly"):
+                    _ok, _msg = _ti_pyn.install_pynifly()
+                    if _ok:
+                        print(f"\u2713 PyNifly auto-installed (bundled): {_msg}")
+                    else:
+                        print(f"  PyNifly bundled install failed: {_msg}")
+            else:
+                print("[Startup] PyNifly already installed - skipping bundled install")
+        except Exception as _pyn_e:
+            print(f"  PyNifly auto-install skipped: {_pyn_e}")
+
         # Migrate ML packages from lib/ to lib/ml/ (avoids extension policy warnings)
         try:
             from . import tool_installers as _ti_mig
@@ -417,6 +436,18 @@ def deferred_startup():
                 _ti_mig._migrate_ml_packages()
         except Exception:
             pass
+
+        # Step 5+: other tool downloads — only when user has opted in ──────────
+        # (PyNifly above runs unconditionally since it is bundled)
+        _do_auto = False
+        try:
+            from . import preferences as _prefs_gate2
+            _pg = _prefs_gate2.get_preferences() if _prefs_gate2 else None
+            _do_auto = bool(_pg and getattr(_pg, 'auto_install_tools', False))
+        except Exception:
+            pass
+        if not _do_auto:
+            return
 
         # Step 5: auto-download UModel if missing and auto-install enabled ─────
         # Runs only when the user has 'Auto-install missing tools' turned on and
@@ -525,21 +556,12 @@ def deferred_startup():
         except Exception as _e_tools:
             print(f"Tool auto-download step skipped: {_e_tools}")
 
-    # Only run tool downloads when the user has opted in AND we haven't
-    # already checked this session (prevents hammering the network every
-    # time Blender opens a new file or reloads the addon).
+    # Always run _background_tool_downloads — it handles PyNifly (bundled,
+    # no network needed) unconditionally, and gates the other tool downloads
+    # on the auto_install_tools preference internally.
     import threading as _thr
-    try:
-        from . import preferences as _prefs_gate
-        _p_gate = _prefs_gate.get_preferences() if _prefs_gate else None
-        if _p_gate and getattr(_p_gate, 'auto_install_tools', False):
-            _thr.Thread(target=_background_tool_downloads, daemon=True,
-                        name="MossyToolDownloads").start()
-        else:
-            print("[Startup] auto_install_tools off — skipping tool downloads")
-    except Exception:
-        # Preferences not yet ready; skip downloads rather than crashing
-        pass
+    _thr.Thread(target=_background_tool_downloads, daemon=True,
+                name="MossyToolDownloads").start()
 
     # ── Step 6: deferred tutorial-operator safety check ──────────────────────
     # A 2-second window after startup is enough time for other extensions

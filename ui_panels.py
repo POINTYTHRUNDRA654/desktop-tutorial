@@ -842,7 +842,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
         pipe_box = layout.box()
         pipe_box.label(text="Full FO4 Pipeline", icon='SHADERFX')
         row = pipe_box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.scale_y = 1.5
         row.operator(
             "fo4.convert_to_fallout4",
@@ -850,14 +850,14 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             icon='ARROW_LEFTRIGHT',
         )
         row = pipe_box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator(
             "fo4.quick_prepare_export",
             text="Quick Prepare for Export",
             icon='CHECKMARK',
         )
         row = pipe_box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator(
             "fo4.auto_fix_issues",
             text="Auto-Fix Common Issues",
@@ -897,7 +897,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
         # ── Third-party mesh conversion ───────────────────────────────────
         action_box.separator()
         conv_row = action_box.row()
-        conv_row.enabled = has_mesh
+        conv_row.enabled = bool(has_mesh)
         conv_row.operator(
             "fo4.prepare_third_party_mesh",
             text="Prepare External Mesh for FO4",
@@ -911,7 +911,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
         unified = getattr(scene, "fo4_mesh_panel_unified", False)
 
         obj = context.active_object
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
         prefs = preferences.get_preferences() if preferences else None
 
         # ── Game Asset Paths – always shown at the top of the Mesh panel ──
@@ -926,7 +926,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             box.label(text="Mesh Helpers", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             if scene:
                 opt_sub = box.box()
@@ -940,10 +940,10 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                     opt_sub.prop(scene, "fo4_opt_doubles")
                     opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
             box.separator()
 
@@ -952,13 +952,13 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             if has_mesh:
                 box.prop(obj, "fo4_collision_type", text="Type")
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = box.row()
             row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
 
@@ -971,36 +971,36 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
             box.separator()
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.scale_y = 1.3
             row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
             box.separator()
 
             # ── Advanced Mesh Tools ─────────────────────────────────────
             box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
 
             # ── UV & Texture Workflow ────────────────────────────────────
@@ -1027,7 +1027,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             # Step 1 - one-click setup (UV + texture + material in one go)
             uv_box.label(text="Step 1 - Setup UV + Bind Texture:", icon='FORWARD')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator(
                 "fo4.setup_uv_with_texture",
                 text="Setup UV + Texture (All-in-One)",
@@ -1041,14 +1041,14 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 icon='QUESTION',
             )
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator(
                 "fo4.scan_uv_complexity",
                 text="Scan UV Complexity",
                 icon='VIEWZOOM',
             )
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator(
                 "fo4.smart_seam_mark",
                 text="Scan & Mark Seams",
@@ -1074,7 +1074,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 )
             # Foliage / leaf-card mesh UV — shows for all meshes
             row_fol = uv_box.row()
-            row_fol.enabled = has_mesh
+            row_fol.enabled = bool(has_mesh)
             row_fol.operator(
                 "fo4.foliage_uv_unwrap",
                 text="Foliage UV Unwrap (leaf cards)",
@@ -1085,7 +1085,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             # Step 2 - face-picking for selective unwrap
             uv_box.label(text="Step 2 - Select faces to unwrap:", icon='FORWARD')
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator(
                 "fo4.pick_faces_for_unwrap",
                 text="Pick Faces to Unwrap",
@@ -1101,14 +1101,14 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             # Step 3 - re-unwrap if needed
             uv_box.label(text="Step 3 - Adjust UV Map if needed:", icon='FORWARD')
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.re_unwrap_uv", text="Re-Unwrap UV", icon='UV_SYNC_SELECT')
             row.operator("fo4.optimize_uvs",  text="Pack Islands", icon='UV_FACESEL')
 
             # Step 4 - interactive UV editing
             uv_box.label(text="Step 4 - Fine-tune in UV Editor:", icon='FORWARD')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
 
             # Ask Mossy
@@ -1123,7 +1123,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             uv_box.separator()
             uv_box.label(text="Step 5 - Export as Fallout 4 NIF:", icon='FORWARD')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
             # ── Smart Presets ────────────────────────────────────────────
@@ -1139,7 +1139,7 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             box.label(text="Mesh Creation", icon='MESH_CUBE')
             box.operator("fo4.create_base_mesh", text="Create Base Mesh", icon='MESH_DATA')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.optimize_mesh", text="Optimize for FO4", icon='MOD_DECIM')
             if scene:
                 opt_sub = box.box()
@@ -1153,10 +1153,10 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                     opt_sub.prop(scene, "fo4_opt_doubles")
                     opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             row = box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.validate_export", text="Validate Before Export", icon='CHECKMARK')
 
             col_box = layout.box()
@@ -1164,13 +1164,13 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             if has_mesh:
                 col_box.prop(obj, "fo4_collision_type", text="Type")
             row = col_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
             row = col_box.row()
             row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = col_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
             lod_box = layout.box()
@@ -1182,67 +1182,67 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
             lod_box.separator()
             row = lod_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.scale_y = 1.3
             row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
             row = lod_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
             row = lod_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
             row = lod_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
 
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
             row = adv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.analyze_mesh_quality", text="Analyze Quality", icon='INFO')
             row = adv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.auto_repair_mesh", text="Auto-Repair", icon='TOOL_SETTINGS')
             row = adv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.mossy_auto_fix", text="AI Auto-Fix (Mossy)", icon='LIGHT_HEMI')
             row = adv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.smart_decimate", text="Smart Decimate", icon='MOD_DECIM')
             row = adv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.split_mesh_poly_limit", text="Split at Poly Limit", icon='MOD_BOOLEAN')
 
             uv_box = layout.box()
             uv_box.label(text="UV & Texture Workflow", icon='UV')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.setup_uv_with_texture", text="Setup UV + Texture", icon='TEXTURE')
             # Hybrid workflow for complex / organic meshes
             uv_box.label(text="Complex Mesh? (plants, foliage, armor) →", icon='QUESTION')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.scan_uv_complexity", text="Scan Complexity", icon='VIEWZOOM')
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.smart_seam_mark", text="Mark Seams", icon='MOD_EDGESPLIT')
             row.operator("fo4.hybrid_unwrap",   text="Hybrid Unwrap", icon='UV_SYNC_SELECT')
             # Face-selective unwrap
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.pick_faces_for_unwrap", text="Pick Faces", icon='UV_FACESEL')
             row.operator("fo4.unwrap_selected_faces", text="Unwrap Selected", icon='UV_SYNC_SELECT')
             row = uv_box.row(align=True)
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
             row.operator("fo4.optimize_uvs",  text="Pack Islands",  icon='UV_FACESEL')
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
             uv_box.operator("fo4.ask_mossy_uv_advice", text="Ask Mossy", icon='LIGHT_HEMI')
             uv_box.separator()
             row = uv_box.row()
-            row.enabled = has_mesh
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh", text="Export Mesh (.nif)", icon='EXPORT')
 
             self._draw_smart_presets_box(layout)
@@ -1260,16 +1260,16 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
 
         box = layout.box()
         box.label(text="Texture Setup", icon='TEXTURE')
         row = box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator("fo4.setup_textures", text="Setup FO4 Materials", icon='MATERIAL')
         # HD variant: full PBR with glow-map flags, 4K-compatible, BC7 guidance.
         row_hd = box.row()
-        row_hd.enabled = has_mesh
+        row_hd.enabled = bool(has_mesh)
         row_hd.operator(
             "fo4.setup_hd_material",
             text="Setup HD Material (4K + Glow)",
@@ -1309,10 +1309,10 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
             ai_box.label(text="→ Install from Setup & Status panel", icon='INFO')
         ai_box.operator("fo4.check_realesrgan_installation", text="Check Status", icon='SYSTEM')
         row = ai_box.row()
-        row.enabled = esrgan_available
+        row.enabled = bool(esrgan_available)
         row.operator("fo4.upscale_texture", text="Upscale Texture", icon='FULLSCREEN_ENTER')
         row = ai_box.row()
-        row.enabled = esrgan_available
+        row.enabled = bool(esrgan_available)
         row.operator("fo4.upscale_object_textures", text="Upscale Object Textures", icon='OBJECT_DATA')
 
         # KREA AI Legacy upscaling - own self-contained upscaler, no subscription
@@ -1345,11 +1345,11 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         bgsm_box.label(text="BGSM Material Files", icon='MATERIAL')
         bgsm_box.label(text="Export Blender materials as .bgsm for the Creation Kit", icon='INFO')
         row = bgsm_box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator("fo4.export_bgsm", text="Export Active Object .bgsm(s)", icon='EXPORT')
         bgsm_box.operator("fo4.batch_export_bgsm", text="Batch Export All Scene .bgsm(s)", icon='EXPORT')
         row2 = bgsm_box.row()
-        row2.enabled = has_mesh
+        row2.enabled = bool(has_mesh)
         row2.operator("fo4.import_bgsm", text="Import .bgsm → Material", icon='IMPORT')
 
         # ── Glowing Plants ────────────────────────────────────────────────────
@@ -1362,7 +1362,7 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         hint_col.label(text="Pulse: NOISE animation → NifSkope FloatController.", icon='DOT')
 
         col = glow_box.column(align=True)
-        col.enabled = has_mesh
+        col.enabled = bool(has_mesh)
         col.operator(
             "fo4.setup_glowing_plant_material",
             text="Setup Glowing Plant (BGSM)",
@@ -1375,7 +1375,7 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         )
         glow_box.separator(factor=0.4)
         pulse_col = glow_box.column(align=True)
-        pulse_col.enabled = has_mesh
+        pulse_col.enabled = bool(has_mesh)
         pulse_col.operator(
             "fo4.apply_emittance_pulse",
             text="Apply Emittance Pulse (Animate)",
@@ -1471,7 +1471,7 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
             depth_box.label(text="→ Install from Setup & Status panel", icon='INFO')
 
         row = depth_box.row()
-        row.enabled = available
+        row.enabled = bool(available)
         row.operator("fo4.estimate_depth", text="Estimate Depth & Create Mesh", icon='MESH_GRID')
 
         depth_box.operator("fo4.show_zoedepth_info", text="Manual Instructions", icon='INFO')
@@ -1489,19 +1489,19 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
 
         # Generation buttons (enabled when available)
         row = triposr_box.row()
-        row.enabled = triposr_available
+        row.enabled = bool(triposr_available)
         row.operator("fo4.generate_triposr_light", text="Quick Generate (Light)", icon='MESH_CUBE')
         row = triposr_box.row()
-        row.enabled = triposr_available
+        row.enabled = bool(triposr_available)
         row.operator("fo4.generate_triposr_texture", text="Generate with Textures", icon='TEXTURE')
         row = triposr_box.row()
-        row.enabled = triposr_available
+        row.enabled = bool(triposr_available)
         row.operator("fo4.bake_triposr_textures", text="Bake TripoSR Textures", icon='RENDER_STILL')
         row = triposr_box.row()
-        row.enabled = triposr_available
+        row.enabled = bool(triposr_available)
         row.operator("fo4.use_pythonic_triposr", text="Use Pythonic TripoSR", icon='SCRIPT')
         row = triposr_box.row()
-        row.enabled = triposr_available
+        row.enabled = bool(triposr_available)
         row.operator("fo4.generate_from_stereo", text="Generate from Stereo Images", icon='CAMERA_STEREO')
 
         # TripoSR variant checks
@@ -1538,13 +1538,13 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
             ngp_box.prop(context.scene, "fo4_instantngp_path", text="Path")
         ngp_box.operator("fo4.check_instantngp_installation", text="Check Installation", icon='SYSTEM')
         row = ngp_box.row()
-        row.enabled = ngp_available
+        row.enabled = bool(ngp_available)
         row.operator("fo4.reconstruct_from_images", text="Reconstruct from Images", icon='MESH_GRID')
         row = ngp_box.row()
-        row.enabled = ngp_available
+        row.enabled = bool(ngp_available)
         row.operator("fo4.import_instantngp_mesh", text="Import Instant-NGP Mesh", icon='IMPORT')
         row = ngp_box.row()
-        row.enabled = ngp_available
+        row.enabled = bool(ngp_available)
         row.operator("fo4.optimize_nerf_mesh", text="Optimize NeRF Mesh for FO4", icon='MOD_DECIM')
         ngp_box.operator("fo4.show_instantngp_info", text="About Instant-NGP", icon='INFO')
 
@@ -1796,13 +1796,13 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
 
         box = layout.box()
         box.label(text="Animation Setup", icon='ANIM')
         box.operator("fo4.setup_armature", text="Setup FO4 Armature", icon='ARMATURE_DATA')
         row = box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator("fo4.auto_weight_paint", text="Auto Weight Paint", icon='AUTO')
         box.operator("fo4.validate_animation", text="Validate Animation", icon='CHECKMARK')
         row = box.row()
@@ -1818,42 +1818,69 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         hint.label(text="Cross Card = best for leaves & foliage.", icon='DOT')
         hint.label(text="Solidify  = best for signs, fences, thin props.", icon='DOT')
         row = thick_box.row(align=True)
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.scale_y = 1.3
         row.operator("fo4.thicken_flat_plane", text="Thicken Selected Plane", icon='MOD_SOLIDIFY')
         row2 = thick_box.row()
         row2.operator("fo4.thicken_selected_planes", text="Batch — All Selected", icon='MOD_ARRAY')
 
-        # ── One-click wind setup ──────────────────────────────────────────────
+        # ── Wind / Animation Setup ────────────────────────────────────────────
         wind_box = layout.box()
-        wind_box.label(text="Wind Setup (Vegetation)", icon='FORCE_WIND')
+        wind_box.label(text="Wind & Animation Setup", icon='FORCE_WIND')
+
+        # Show detected object type when a mesh is active
+        active = context.active_object
+        _export_helpers = _safe_import("export_helpers")
+        if active and active.type == 'MESH' and _export_helpers:
+            try:
+                obj_class = _export_helpers.ExportHelpers.detect_fo4_object_class(active)
+            except Exception:
+                obj_class = active.get("fo4_object_type", "UNKNOWN")
+            type_row = wind_box.row()
+            type_row.label(text=f"Detected type: {obj_class}", icon='OBJECT_DATA')
+
         hint_col = wind_box.column(align=True)
         hint_col.scale_y = 0.75
-        hint_col.label(text="Click to auto-detect profile and apply wind settings.", icon='INFO')
-        hint_col.label(text="Grass: engine-side via GRAS record (no bones).", icon='DOT')
-        hint_col.label(text="Shrub/Tree: wind-weight group + armature animation.", icon='DOT')
-        smart_row = wind_box.row()
-        smart_row.enabled = has_mesh
-        smart_row.scale_y = 1.4
-        smart_row.operator(
-            "fo4.smart_prepare_wind_mesh",
-            text="Smart Wind + FO4 Export Prep",
-            icon='FORCE_WIND',
-        )
-        wind_box.separator(factor=0.4)
-        wind_box.label(text="Manual wind controls:", icon='PREFERENCES')
-        row = wind_box.row()
-        row.enabled = has_mesh
-        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='FORCE_WIND')
-        row = wind_box.row()
-        row.enabled = has_mesh
-        row.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
+        hint_col.label(text="Vegetation: vertex group wind — no armature needed.", icon='DOT')
+        hint_col.label(text="Creature/Character: bone armature animation.", icon='DOT')
+
+        # Smart auto-detect button (large)
+        auto_row = wind_box.row()
+        auto_row.enabled = bool(has_mesh)
+        auto_row.scale_y = 1.4
+        auto_row.operator("fo4.smart_wind_setup",
+                          text="Smart Wind Setup (Auto-Detect)", icon='FORCE_WIND')
+
+        wind_box.separator(factor=0.3)
+
+        # Type-specific buttons
+        type_col = wind_box.column(align=True)
+        type_col.enabled = bool(has_mesh)
+        type_col.label(text="Vegetation (no armature):", icon='PARTICLE_POINT')
+        veg_row = type_col.row(align=True)
+        veg_row.operator("fo4.vegetation_wind_setup",
+                         text="Vegetation Wind (Vertex Groups)", icon='FORCE_WIND')
+        veg_row.operator("fo4.generate_wind_weights",
+                         text="", icon='WPAINT_HLT')
+
+        type_col.separator(factor=0.4)
+        type_col.label(text="Creatures / Characters (armature):", icon='ARMATURE_DATA')
+        arm_row = type_col.row(align=True)
+        arm_row.operator("fo4.apply_wind_animation",
+                         text="Wind Bone Animation", icon='ANIM')
+        arm_row.operator("fo4.auto_weight_paint",
+                         text="Auto Weight Paint", icon='WPAINT_HLT')
+
+        type_col.separator(factor=0.4)
+        type_col.operator("fo4.detect_object_type",
+                          text="Tag Object Type", icon='OBJECT_DATA')
+
         wind_box.separator()
         wind_box.label(text="Batch Operations", icon='SEQ_SEQUENCER')
         row = wind_box.row()
         row.operator("fo4.batch_generate_wind_weights", text="Batch Wind Weights")
         row.operator("fo4.batch_apply_wind_animation", text="Batch Wind Anim")
-        wind_box.operator("fo4.batch_auto_weight_paint", text="Batch Auto‑Weight")
+        wind_box.operator("fo4.batch_auto_weight_paint", text="Batch Auto-Weight")
         wind_box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
 
         # Motion Generation section
@@ -1981,7 +2008,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
         row.operator("fo4.prepare_for_rignet", text="1. Prepare Mesh", icon='MODIFIER')
 
         row = rignet_box.row()
-        row.enabled = is_available
+        row.enabled = bool(is_available)
         row.operator("fo4.auto_rig_mesh", text="2. Auto-Rig", icon='ARMATURE_DATA')
 
         row = rignet_box.row()
@@ -1992,7 +2019,7 @@ class FO4_PT_RigNetPanel(_FO4SubPanel):
         libigl_op_box.label(text="libigl (BBW Skinning)", icon='MOD_SKIN')
 
         row = libigl_op_box.row()
-        row.enabled = libigl_available
+        row.enabled = bool(libigl_available)
         row.operator("fo4.compute_bbw_skinning", text="Compute BBW Weights", icon='WPAINT_HLT')
 
         libigl_op_box.label(text="(Requires existing armature)", icon='INFO')
@@ -2432,7 +2459,7 @@ class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
         layout = self.layout
         scene  = context.scene
         obj = context.active_object
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
 
         # ── Convert to Fallout 4 (prominent) ────────────────────────────────
         if has_mesh:
@@ -2651,7 +2678,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         obj = context.active_object
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
 
         # ── Fallout 4 game version ────────────────────────────────────────────
         ver_box = layout.box()
@@ -2863,7 +2890,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         # One-click prep button: auto-detects wind profile, fixes diagnostics,
         # sets vegetation flags, and confirms the mesh is CK-ready.
         prep_row = act_box.row(align=True)
-        prep_row.enabled = has_mesh
+        prep_row.enabled = bool(has_mesh)
         prep_row.scale_y = 1.2
         prep_row.operator(
             "fo4.smart_prepare_wind_mesh",
@@ -2874,12 +2901,12 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         act_box.separator(factor=0.4)
 
         row = act_box.row(align=True)
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.scale_y = 1.4
         row.operator("fo4.export_mesh", text="Export Mesh  (.nif)", icon='MESH_DATA')
 
         row2 = act_box.row(align=True)
-        row2.enabled = has_mesh
+        row2.enabled = bool(has_mesh)
         row2.scale_y = 1.2
         row2.operator(
             "fo4.export_mesh_with_collision",
@@ -2889,7 +2916,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
 
         act_box.separator(factor=0.5)
         row = act_box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator("fo4.validate_export", text="Validate Mesh Before Export", icon='CHECKMARK')
 
         row3 = act_box.row(align=True)
@@ -3034,7 +3061,7 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="One-Click Preparation", icon='TOOL_SETTINGS')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.quick_prepare_export", text="Quick Prepare for Export", icon='CHECKMARK')
         row.scale_y = 1.5
 
@@ -3042,7 +3069,7 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Auto-Fix Issues", icon='MODIFIER')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.auto_fix_issues", text="Auto-Fix Common Issues", icon='TOOL_SETTINGS')
 
         # Collision mesh
@@ -3051,18 +3078,18 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         if obj and obj.type == 'MESH':
             box.prop(obj, "fo4_collision_type", text="Type")
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         op = row.operator("fo4.set_collision_type", text="Change Type (Selected)", icon='PRESET')
         if op is not None:
             op.apply_to_all = True
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH' and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM')
+        row.enabled = bool(obj and obj.type == 'MESH' and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE','GRASS','MUSHROOM'))
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
         # Multi-piece convex collision
@@ -3073,7 +3100,7 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         mc_col.label(text="One convex hull per mesh island (V-HACD-style)", icon='INFO')
         mc_col.label(text="Names pieces UCX_Name_00, UCX_Name_01 …", icon='BLANK1')
         mc_row = mc_box.row(align=True)
-        mc_row.enabled = obj and obj.type == 'MESH'
+        mc_row.enabled = bool(obj and obj.type == 'MESH')
         mc_row.scale_y = 1.2
         mc_row.operator(
             "fo4.generate_multi_convex_collision",
@@ -3088,14 +3115,14 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         nav_col.scale_y = 0.8
         nav_col.label(text="Check navmesh for CK import compatibility", icon='INFO')
         nav_row = nav_box.row(align=True)
-        nav_row.enabled = obj and obj.type == 'MESH'
+        nav_row.enabled = bool(obj and obj.type == 'MESH')
         nav_row.operator("fo4.validate_navmesh", text="Validate NavMesh", icon='CHECKMARK')
 
         # Smart material
         box = layout.box()
         box.label(text="Smart Material", icon='MATERIAL')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.smart_material_setup", text="Auto-Load Textures", icon='FILE_FOLDER')
 
         # What it does
@@ -3207,7 +3234,7 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
             action_name = obj.animation_data.action.name
             export_box.label(text=f"Action: {action_name}", icon='ACTION')
         col = export_box.column()
-        col.enabled = armature_ok
+        col.enabled = bool(armature_ok)
         col.scale_y = 1.4
         if ckcmd_path and skel_abs and os.path.isfile(skel_abs):
             label = "Export Animation → HKX (ck-cmd)"
@@ -3246,7 +3273,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         layout = self.layout
         scene  = context.scene
         obj    = context.active_object
-        has_mesh = obj is not None and obj.type == 'MESH'
+        has_mesh = bool(obj is not None and obj.type == 'MESH')
 
         # ── Workflow guide + guide mod link ──────────────────────────────────
         top_box = layout.box()
@@ -3289,7 +3316,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         s1_col.label(text="3. Import the FBX - it will look crumpled. That is normal.")
         s1_col.label(text="4. Click 'Remove Malformed Armature' below to fix it.")
         row = s1_box.row(align=True)
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator(
             "fo4.clean_imported_armature",
             text="Remove Malformed Armature",
@@ -3300,7 +3327,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         s1_col2.scale_y = 0.78
         s1_col2.label(text="5. Set body origin to (0, 0, 120) - required by FO4.")
         row2 = s1_box.row(align=True)
-        row2.enabled = has_mesh
+        row2.enabled = bool(has_mesh)
         row2.operator("fo4.set_armor_origin", text="Set Origin (0, 0, 120)", icon='OBJECT_ORIGIN')
 
         # ── Step 2 helpers ────────────────────────────────────────────────────
@@ -3312,7 +3339,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         s2_col.label(text="Select your armor (active) + reference body (shift-click).")
         s2_col.label(text="Then click Transfer Weights to copy bone weights.")
         row3 = s2_box.row(align=True)
-        row3.enabled = has_mesh
+        row3.enabled = bool(has_mesh)
         row3.operator(
             "fo4.transfer_armor_weights",
             text="Transfer Weights from Body",
@@ -3333,7 +3360,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         s3_col.label(text="IMPORTANT: split UV seam edges before FBX export.")
         s3_col.label(text="Without this, UV coords are corrupted in Outfit Studio.")
         row4 = s3_box.row(align=True)
-        row4.enabled = has_mesh
+        row4.enabled = bool(has_mesh)
         row4.operator(
             "fo4.split_uv_seam_edges",
             text="Split UV Seam Edges",
@@ -4079,7 +4106,7 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         if prefs is not None:
             mon_box.prop(prefs, "advisor_auto_monitor_enabled",  text="Enable background checks")
             row = mon_box.row()
-            row.enabled = prefs.advisor_auto_monitor_enabled
+            row.enabled = bool(prefs.advisor_auto_monitor_enabled)
             row.prop(prefs, "advisor_auto_monitor_interval", text="Interval (seconds)")
         else:
             mon_box.prop(scene, "fo4_advisor_monitor",  text="Enable background checks")
@@ -4516,7 +4543,7 @@ class FO4_PT_NPCAnimPanel(_FO4SubPanel):
         box.separator(factor=0.4)
         btn = box.column(align=True); btn.scale_y = 1.3
         btn.operator("fo4.npc_full_pipeline", text="Full Pipeline (Build Skeleton + Animate)", icon='PLAY')
-        sub = btn.row(); sub.enabled = has_arm
+        sub = btn.row(); sub.enabled = bool(has_arm)
         sub.operator("fo4.generate_npc_animations", text="Generate Animations", icon='OUTLINER_DATA_ARMATURE')
 
 
@@ -4563,12 +4590,12 @@ class FO4_PT_WeaponPanel(_FO4SubPanel):
             col.label(text=line)
         box.separator(factor=0.4)
         btn = box.column(align=True); btn.scale_y = 1.3
-        full = btn.row(); full.enabled = has_mesh
+        full = btn.row(); full.enabled = bool(has_mesh)
         full.operator("fo4.weapon_full_pipeline", text="Full Pipeline: Rig + Animate", icon='PLAY')
         btn.separator(factor=0.3)
-        sub = btn.row(align=True); sub.enabled = has_mesh
+        sub = btn.row(align=True); sub.enabled = bool(has_mesh)
         sub.operator("fo4.auto_rig_weapon", text="Auto-Rig Only", icon='BONE_DATA')
-        sub2 = btn.row(); sub2.enabled = has_arm
+        sub2 = btn.row(); sub2.enabled = bool(has_arm)
         sub2.operator("fo4.generate_weapon_animations", text="Generate Animations", icon='OUTLINER_DATA_ARMATURE')
 
 
@@ -4602,9 +4629,9 @@ class FO4_PT_GlowEffectsPanel(_FO4SubPanel):
         out = box.box(); out.label(text="Output (Papyrus/baked textures):", icon='FILE_FOLDER')
         out.prop(scene, "fo4_glow_output", text="")
         btn = box.column(align=True); btn.scale_y = 1.3
-        go = btn.row(); go.enabled = has_mesh
+        go = btn.row(); go.enabled = bool(has_mesh)
         go.operator("fo4.apply_glow_from_description", text="Apply Glow Effect", icon='PLAY')
-        sub = btn.row(align=True); sub.enabled = has_mesh
+        sub = btn.row(align=True); sub.enabled = bool(has_mesh)
         sub.operator("fo4.apply_glow_effect",   text="Manual Settings", icon='PREFERENCES')
         sub.operator("fo4.bake_glow_sequence",  text="Bake _g Sequence", icon='RENDER_STILL')
 

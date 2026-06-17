@@ -967,6 +967,9 @@ class MeshHelpers:
         # and return to Object Mode even if an exception occurs mid-unwrap.
         prev_active = bpy.context.view_layer.objects.active
         bpy.context.view_layer.objects.active = obj
+        # Initialised here so it's always bound even if an exception fires
+        # before the assignment inside the try block.
+        skip_unwrap = (unwrap_method == 'EXISTING' and uv_already_exists)
         try:
             bpy.ops.object.mode_set(mode='EDIT')
             bpy.ops.mesh.select_all(action='SELECT')
@@ -1509,20 +1512,39 @@ class SmartPresets:
 
     @staticmethod
     def import_game_nif(filepath: str):
-        """Import a NIF file using the Niftools operator if available.
+        """Import a NIF file using PyNifly or Niftools, whichever is available.
+
+        Tries PyNifly (import_scene.pynifly) first — it is bundled with this
+        add-on and supports FO4 correctly.  Falls back to legacy Niftools
+        (import_scene.nif) if PyNifly is somehow absent.
 
         Returns ``(success, message)``.  On success, the newly-imported objects
         are selected and the active object is set by Blender's import operator.
         """
         from pathlib import Path as _P
         filename = _P(filepath).name
-        if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+        import_scene = getattr(bpy.ops, 'import_scene', None)
+
+        # Prefer PyNifly (bundled, supports FO4 NIF 20.2.0.7 / BSver 130)
+        if import_scene is not None and hasattr(import_scene, 'pynifly'):
+            try:
+                bpy.ops.import_scene.pynifly(filepath=filepath)
+                return True, f"Imported game mesh via PyNifly: {filename}"
+            except Exception as e:
+                return False, f"PyNifly NIF import error: {e}"
+
+        # Fallback: legacy Niftools add-on
+        if import_scene is not None and hasattr(import_scene, 'nif'):
             try:
                 bpy.ops.import_scene.nif(filepath=filepath)
-                return True, f"Imported game mesh: {filename}"
+                return True, f"Imported game mesh via Niftools: {filename}"
             except Exception as e:
-                return False, f"NIF import error: {e}"
-        return False, "Niftools add-on not installed - install it to import .nif files directly"
+                return False, f"Niftools NIF import error: {e}"
+
+        return False, (
+            "No NIF importer found. PyNifly should be installed automatically "
+            "on Blender startup — restart Blender and try again."
+        )
 
     @staticmethod
     def auto_apply_textures_from_game_asset(nif_path: str):
@@ -1687,3 +1709,112 @@ class SmartPresets:
                     c for c in context.active_object.children_recursive
                     if c.type == 'MESH'
                 ]
+        except Exception:
+            pass
+
+        for obj in selected:
+            if obj.type != 'MESH':
+                continue
+            try:
+                obj.fo4_mesh_type = mesh_type
+            except Exception:
+                pass
+            try:
+                obj.fo4_collision_type = coll_type
+            except Exception:
+                pass
+            obj['nif_version'] = '20.2.0.7'
+            obj['nif_user_version'] = 12
+            obj['nif_bs_version'] = 130
+            obj['nif_target_game'] = 'FO4'
+            obj['nif_export_modifiers'] = True
+            obj['nif_export_collision'] = True
+            obj['nif_rename_bones'] = True
+            obj['nif_blender_xf'] = False
+
+        # Default scene game version to FO4 if not yet set
+        try:
+            if not getattr(context.scene, 'fo4_game_version', None):
+                context.scene.fo4_game_version = 'FO4'
+        except Exception:
+            pass
+
+    @staticmethod
+    def apply_textures_to_active(texture_paths: list, root):
+        """Apply provided texture paths (relative to root) to the active mesh."""
+        import os
+        from . import texture_helpers
+
+        obj = bpy.context.active_object
+        if not obj or obj.type != 'MESH' or not texture_paths:
+            return
+
+        abs_paths = []
+        for t in texture_paths:
+            p = os.path.join(root, t) if root else t
+            if os.path.exists(p):
+                abs_paths.append(p)
+        if not abs_paths:
+            return
+
+        mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+        for tex in abs_paths:
+            tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(tex)
+            texture_helpers.TextureHelpers.install_texture(obj, tex, tex_type)
+
+
+class FO4_OT_AddCompoundCollision(bpy.types.Operator):
+    """Add compound (multi-part) convex collision hulls to the active mesh."""
+    bl_idname = "fo4.add_compound_collision"
+    bl_label = "Add Compound Collision"
+    bl_description = (
+        "Generate multiple convex collision hull parts (UCX_) for the active "
+        "mesh using trimesh VHACD (if installed) or bounding-box splitting."
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    num_parts: bpy.props.IntProperty(
+        name="Number of Parts",
+        description="Maximum number of convex hull parts to generate",
+        default=4,
+        min=1,
+        max=16,
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        ok, msg, ucx_objs = MeshHelpers.add_compound_collision(obj, self.num_parts)
+        if ok:
+            self.report({'INFO'}, msg)
+            return {'FINISHED'}
+        self.report({'ERROR'}, msg)
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+_CLASSES = [
+    FO4_OT_AddCompoundCollision,
+]
+
+
+def register():
+    """Register mesh helper functions"""
+    for cls in _CLASSES:
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            print(f"[Mesh Helpers] Could not register {cls.__name__}: {e}")
+
+
+def unregister():
+    """Unregister mesh helper functions"""
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass

@@ -1016,7 +1016,11 @@ def install_pynifly() -> tuple[bool, str]:
         ``(True, message)`` on success, ``(False, reason)`` otherwise.
     """
     # ── 1. Look for an existing local zip ────────────────────────────────────
-    search_dirs = [get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
+    # The bundled/ folder ships io_scene_nifly directly with the addon (with
+    # BadDog's permission — see bundled/README.md).  Check it first so
+    # PyNifly works offline and without any user action.
+    _BUNDLED_DIR = ADDON_ROOT / "bundled"
+    search_dirs = [_BUNDLED_DIR, get_tools_root(), SIBLING_TOOLS_ROOT, DEFAULT_TOOLS_ROOT, FALLBACK_TOOLS_ROOT]
     # deduplicate while preserving priority order
     _seen_dirs: set[str] = set()
     _deduped_dirs: list[Path] = []
@@ -1032,7 +1036,7 @@ def install_pynifly() -> tuple[bool, str]:
         if not directory.exists():
             continue
         # Accept any PyNifly zip; alphabetically last = newest cached version.
-        for pattern in ("PyNifly*.zip", "pynifly*.zip"):
+        for pattern in ("io_scene_nifly*.zip", "PyNifly*.zip", "pynifly*.zip"):
             matches = sorted(directory.glob(pattern))
             if matches:
                 zip_path = matches[-1]

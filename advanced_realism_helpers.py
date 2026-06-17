@@ -1308,7 +1308,7 @@ class FO4_PT_AdvancedRealismPanel(Panel):
         op = row.operator("fo4.run_material_intelligence", text="Audit", icon="VIEWZOOM")
         op.auto_fix = False
         row = material_box.row(align=True)
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         op = row.operator("fo4.run_material_intelligence", text="Auto-Fix Selected", icon="TOOL_SETTINGS")
         op.auto_fix = True
         material_box.operator("fo4.run_material_response_tester", text="Lighting Sweep", icon="LIGHT_SUN")

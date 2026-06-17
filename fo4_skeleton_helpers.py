@@ -22,15 +22,27 @@ try:
 except ImportError:
     pref_module = None  # type: ignore[assignment]
 
-# Known FO4 vanilla skeleton bone names (subset — commonly used for armor)
-FO4_SKELETON_BONES = [
-    "COM", "Pelvis", "Spine1", "Spine2", "Chest",
-    "Neck", "Head",
-    "Clavicle_L", "UpperArm_L", "ForeArm_L", "Hand_L",
-    "Clavicle_R", "UpperArm_R", "ForeArm_R", "Hand_R",
-    "Thigh_L", "Calf_L", "Foot_L",
-    "Thigh_R", "Calf_R", "Foot_R",
-]
+# Canonical FO4 vanilla NPC skeleton bone names sourced from fo4_bone_names.py.
+# These match HumanRace skeleton.nif exactly, including trailing spaces where
+# the game uses them (e.g. "NPC COM [COM ]", "NPC L Foot [Lft ]").
+try:
+    from . import fo4_bone_names as _bn
+    FO4_SKELETON_BONES = list(_bn.NPC.values())
+except ImportError:
+    # Fallback hard-coded list (canonical abbreviations)
+    FO4_SKELETON_BONES = [
+        "NPC Root [Root]", "NPC COM [COM ]", "NPC Pelvis [Pelv]",
+        "NPC Spine [Spn0]", "NPC Spine1 [Spn1]", "NPC Spine2 [Spn2]",
+        "NPC Neck [Neck]", "NPC Head [Head]",
+        "NPC L Clavicle [LClv]", "NPC L UpperArm [LUar]",
+        "NPC L Forearm [LLar]", "NPC L Hand [LHnd]",
+        "NPC R Clavicle [RClv]", "NPC R UpperArm [RUar]",
+        "NPC R Forearm [RLar]", "NPC R Hand [RHnd]",
+        "NPC L Thigh [LThg]", "NPC L Calf [LClf]",
+        "NPC L Foot [Lft ]", "NPC L Toe0 [LToe]",
+        "NPC R Thigh [RThg]", "NPC R Calf [RClf]",
+        "NPC R Foot [Rft ]", "NPC R Toe0 [RToe]",
+    ]
 
 
 class SkeletonAlignmentWizard:
@@ -206,11 +218,11 @@ _CLASSES = [
 # ---------------------------------------------------------------------------
 
 # FO4 hard limits
-_FO4_MAX_BONES       = 128   # max active bones per skinned mesh
+_FO4_MAX_BONES       = 80    # max deform bones per single skinned mesh (NIF loader limit)
 _FO4_MAX_INFLUENCES  = 4     # max bone influences per vertex
 
-# Expected FO4 skeleton root bone names
-_FO4_ROOT_BONES = {"COM", "NPC Root [Root]", "Root", "NPC Root"}
+# Expected FO4 skeleton root bone names (only the true root — COM is a child)
+_FO4_ROOT_BONES = {"NPC Root [Root]"}
 
 
 def _validate_fo4_rig(armature_obj) -> list:
@@ -240,7 +252,7 @@ def _validate_fo4_rig(armature_obj) -> list:
         issues.append({
             "severity": "warning",
             "message": f"No standard FO4 root bone found (roots: {root_names})",
-            "fix_hint": "Rename root bone to 'COM' or use fo4_skeleton.nif as base",
+            "fix_hint": "Rename root bone to 'NPC Root [Root]' or import fo4_skeleton.nif",
         })
 
     # Check for bones with spaces (NIF exporter issues)
@@ -261,7 +273,7 @@ def _check_vertex_influences(mesh_obj, armature_obj) -> list:
     if mesh_obj is None or mesh_obj.type != 'MESH':
         return issues
     try:
-        import bpy
+        import bpy as _bpy
         me = mesh_obj.data
         for v in me.vertices:
             if len(v.groups) > _FO4_MAX_INFLUENCES:
@@ -269,20 +281,35 @@ def _check_vertex_influences(mesh_obj, armature_obj) -> list:
                     "severity": "error",
                     "message": (
                         f"Vertex {v.index} has {len(v.groups)} bone influences "
-                        f"— FO4 max is {_FO4_MAX_INFLUENCES}"
+                        f"\u2014 FO4 max is {_FO4_MAX_INFLUENCES}"
                     ),
                     "fix_hint": "Use Weights > Limit Total (4) in Weight Paint mode",
                 })
                 if len(issues) >= 5:
-                    issues.append({"severity": "info",
-                                   "message": "… (more vertices affected)",
-                                   "fix_hint": "Run Weights > Limit Total on all vertices"})
+                    issues.append({
+                        "severity": "info",
+                        "message": "\u2026 (more vertices affected)",
+                        "fix_hint": "Run Weights > Limit Total on all vertices",
+                    })
                     break
     except Exception as exc:
-        issues.append({"severity": "error",
-                        "message": f"Could not check vertex influences: {exc}",
-                        "fix_hint": ""})
+        issues.append({
+            "severity": "error",
+            "message": f"Could not check vertex influences: {exc}",
+            "fix_hint": "Ensure the mesh has an armature modifier with valid bone weights",
+        })
     return issues
+
+
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
+
+_CLASSES = (
+    FO4_OT_ImportFO4Skeleton,
+    FO4_OT_AlignMeshToSkeleton,
+    FO4_OT_ValidateSkeletonWeights,
+)
 
 
 def register():
@@ -291,9 +318,8 @@ def register():
     for cls in _CLASSES:
         try:
             bpy.utils.register_class(cls)
-        except Exception as e:
-            print(f"[FO4 Skeleton] Could not register {cls.__name__}: {e}")
-    print("[FO4 Skeleton] Skeleton alignment wizard registered.")
+        except Exception as exc:
+            print(f"fo4_skeleton_helpers: Could not register {cls.__name__}: {exc}")
 
 
 def unregister():

@@ -59,7 +59,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Scatter & Distribute", icon='PARTICLE_DATA')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.scatter_vegetation", text="Scatter Vegetation", icon='PARTICLES')
 
         # Combine meshes
@@ -74,7 +74,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="FPS Optimization", icon='SORTTIME')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.optimize_vegetation_fps", text="Optimize for FPS", icon='TIME')
 
         # LOD generation
@@ -86,11 +86,11 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         sub.label(text="Source = LOD0. Creates LOD1–LOD3 copies.", icon='INFO')
         box.separator()
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.scale_y = 1.3
         row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
         row2 = box.row()
-        row2.enabled = obj and obj.type == 'MESH'
+        row2.enabled = bool(obj and obj.type == 'MESH')
         row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
 
         # Collision for vegetation
@@ -101,17 +101,17 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
         sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
         box.separator()
-        has_mesh = obj and obj.type == 'MESH'
+        has_mesh = bool(obj and obj.type == 'MESH')
         if has_mesh:
             box.prop(obj, "fo4_collision_type", text="Type")
         row = box.row()
         row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
         row = box.row()
         can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
-        row.enabled = can_collide
+        row.enabled = bool(can_collide)
         row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
         row = box.row()
-        row.enabled = has_mesh
+        row.enabled = bool(has_mesh)
         row.operator("fo4.generate_lod_and_collision",
                      text="Generate LOD + Collision", icon='SHADERFX')
 
@@ -119,10 +119,10 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Wind Animation", icon='FORCE_WIND')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='WPAINT_HLT')
         row2 = box.row()
-        row2.enabled = obj and obj.type == 'MESH'
+        row2.enabled = bool(obj and obj.type == 'MESH')
         row2.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
         row3 = box.row()
         row3.enabled = bool([o for o in context.selected_objects if o.type == 'MESH'])
@@ -132,7 +132,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Vegetation Material", icon='MATERIAL')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.setup_vegetation_material",
                      text="Setup Vegetation Material", icon='NODE_MATERIAL')
         sub = box.column(align=True)
@@ -144,7 +144,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Export", icon='EXPORT')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.export_vegetation_as_nif",
                      text="Export Vegetation NIF", icon='FILE_BLEND')
 
@@ -152,7 +152,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Baking", icon='RENDER_STILL')
         row = box.row()
-        row.enabled = obj and obj.type == 'MESH'
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.bake_vegetation_ao", text="Bake Ambient Occlusion", icon='SHADING_RENDERED')
 
         # Tips

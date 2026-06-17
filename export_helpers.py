@@ -10,7 +10,81 @@ import traceback
 
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
-    
+
+    # Vertex group names used exclusively for FO4 procedural wind on vegetation.
+    # Meshes whose groups are all in this set don't need an armature to export.
+    _WIND_GROUP_NAMES = frozenset({
+        'Wind', 'wind', 'WIND',
+        'WindWeight', 'windweight', 'WINDWEIGHT',
+        'WindStiff', 'windstiff',
+    })
+
+    @staticmethod
+    def _is_vegetation_object(obj):
+        """Return True if *obj* is a vegetation/plant asset.
+
+        Vegetation in FO4 uses procedural in-engine wind driven by the Wind
+        vertex group — no armature skeleton is needed or wanted.  The check
+        looks for three signals in priority order:
+        1. ``fo4_object_type == 'VEGETATION'`` custom property on the object.
+        2. ``fo4_shader_type == 'vegetation'`` or ``fo4_core_profile == 'foliage'``
+           on any of the object's materials.
+        3. All vertex groups are recognised wind-weight group names.
+        """
+        if obj.get("fo4_object_type", "").upper() == "VEGETATION":
+            return True
+        for slot in getattr(obj, 'material_slots', []):
+            mat = slot.material
+            if not mat:
+                continue
+            if (mat.get("fo4_shader_type") == "vegetation"
+                    or mat.get("fo4_core_profile") == "foliage"):
+                return True
+        if obj.vertex_groups:
+            if all(vg.name in ExportHelpers._WIND_GROUP_NAMES
+                   for vg in obj.vertex_groups):
+                return True
+        return False
+
+    @staticmethod
+    def detect_fo4_object_class(obj):
+        """Detect the FO4 object class for *obj*.
+
+        Returns one of:
+        - ``'VEGETATION'``  – trees, plants, shrubs (vertex-group wind, no armature)
+        - ``'CHARACTER'``   – player / NPC (armature with "NPC " bone names)
+        - ``'CREATURE'``    – creature / animal (armature, non-NPC bone names)
+        - ``'STATIC'``      – static prop / architecture (no armature)
+        - ``'WEAPON'``      – weapon (explicit override or naming convention)
+
+        An explicit ``fo4_object_type`` custom property on the object always
+        wins over auto-detection.
+        """
+        forced = obj.get("fo4_object_type", "")
+        if forced:
+            return forced.upper()
+
+        if ExportHelpers._is_vegetation_object(obj):
+            return 'VEGETATION'
+
+        # Locate armature (parent or modifier)
+        arm = None
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            arm = obj.parent
+        else:
+            for mod in getattr(obj, 'modifiers', []):
+                if mod.type == 'ARMATURE' and getattr(mod, 'object', None):
+                    arm = mod.object
+                    break
+
+        if arm:
+            bone_names = [b.name for b in arm.data.bones]
+            if any(b.startswith("NPC ") for b in bone_names):
+                return 'CHARACTER'
+            return 'CREATURE'
+
+        return 'STATIC'
+
     @staticmethod
     def _is_collision_mesh(obj):
         """Return True if *obj* is a collision or occlusion mesh.
@@ -381,11 +455,10 @@ class ExportHelpers:
 
         # 0. Fix unweighted vertices ------------------------------------------
         #    Vertices with zero total bone weight cause NIF exporters to produce
-        #    corrupted or missing geometry.  Auto-assign them to the nearest
-        #    bone before any other prep step runs.
-        if obj.vertex_groups:
-            from . import mesh_helpers as _mh_prep
-            _mh_prep.MeshHelpers.fix_unweighted_vertices(obj)
+        #    corrupted or missing geometry.  For skinned meshes: assign to nearest
+        #    bone.  For vegetation (no armature): generate a Wind weight gradient.
+        from . import mesh_helpers as _mh_prep
+        _mh_prep.MeshHelpers.fix_unweighted_vertices(obj)
 
         # 1. Apply scale and rotation -----------------------------------------
         #    Unapplied scale causes geometry to arrive at the wrong size in FO4;
@@ -403,8 +476,15 @@ class ExportHelpers:
                 pass  # context may not support transform_apply; continue anyway
 
         # 2. Ensure UV map -------------------------------------------------------
-        #    Both Niftools v0.1.1 and PyNifly require at least one UV map;
-        #    auto-create one (smart-unwrapped) when the mesh has none.
+        #    Both Niftools v0.1.1 and PyNifly require at least one UV map.
+        #
+        #    If the mesh already has a UV map (e.g. imported from an existing NIF
+        #    with textures assigned), we keep it and repair it instead of
+        #    overwriting it with a smart-project that won't align to the texture.
+        #
+        #    If there truly is no UV map, create one via smart_project as a
+        #    placeholder so the exporter doesn't crash; the user should unwrap
+        #    properly before final export.
         if not obj.data.uv_layers:
             obj.data.uv_layers.new(name="UVMap")
             try:
@@ -412,11 +492,28 @@ class ExportHelpers:
                 bpy.ops.mesh.select_all(action='SELECT')
                 bpy.ops.uv.smart_project(angle_limit=66.0)
                 bpy.ops.object.mode_set(mode='OBJECT')
+                print(
+                    f"[FO4 Add-on] '{obj.name}' had no UV map — created one via "
+                    "smart_project. For textured meshes, unwrap manually and align "
+                    "UVs to the existing texture before exporting."
+                )
             except Exception:
                 try:
                     bpy.ops.object.mode_set(mode='OBJECT')
                 except Exception:
                     pass
+        else:
+            # Mesh already has UVs — silently repair any flipped islands.
+            # Flipped UV islands (CW winding in Blender space) become CCW after
+            # the NIF V-flip, inverting the tangent basis and making those faces
+            # appear black or invisible in the Creation Kit preview / in-game.
+            try:
+                from . import fo4_uv_tools as _uv
+                uv_warnings = _uv.auto_fix_uv_before_export(obj)
+                for w in uv_warnings:
+                    print(f"[FO4 UV] {obj.name}: {w}")
+            except Exception as _uv_err:
+                print(f"[FO4 UV] UV auto-fix skipped for '{obj.name}': {_uv_err}")
 
         # 3. Triangulate ---------------------------------------------------------
         #    FO4 BSTriShape / BSSubIndexTriShape nodes only store triangles.
@@ -507,9 +604,18 @@ class ExportHelpers:
             return False, "Collision meshes are not intended for export; select the source mesh instead"
         # ...existing code...
 
-        # reject meshes with orphaned weights
+        # Reject meshes with orphaned weights — but allow vegetation wind groups.
+        # Vegetation uses Wind/WindWeight vertex groups for procedural in-engine
+        # wind without any armature; blocking those would always fail foliage export.
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
-            return False, "Mesh has vertex groups but no armature – remove weights or parent to an armature before exporting"
+            if not ExportHelpers._is_vegetation_object(obj):
+                non_wind = [vg.name for vg in obj.vertex_groups
+                            if vg.name not in ExportHelpers._WIND_GROUP_NAMES]
+                if non_wind:
+                    return False, (
+                        f"Mesh has vertex group(s) {non_wind[:3]} but no armature "
+                        "– remove weights or parent to an armature before exporting"
+                    )
 
         exporter, nif_available, nif_message = ExportHelpers.get_nif_exporter_info()
         from . import mesh_helpers as _mh
@@ -905,6 +1011,7 @@ class ExportHelpers:
 # Mossy AI export delegation
 # ---------------------------------------------------------------------------
 
+
 def _delegate_to_mossy(operator_id: str, params: dict = None) -> tuple:
     """Delegate a heavy export operation to Mossy via the bridge operator call.
 
@@ -938,4 +1045,10 @@ def _safe_subprocess(cmd: list, timeout: int = 120, cwd: str = None) -> tuple:
             timeout=timeout, cwd=cwd,
         )
         output = (result.stdout or "") + (result.stderr or "")
-        return result.returncod
+        return result.returncode == 0, output, result.returncode
+    except subprocess.TimeoutExpired:
+        return False, f"Process timed out after {timeout}s", -1
+    except FileNotFoundError:
+        return False, f"Executable not found: {cmd[0]}", -1
+    except Exception as exc:
+        return False, str(exc), -1

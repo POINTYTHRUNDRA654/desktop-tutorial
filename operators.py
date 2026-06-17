@@ -1504,6 +1504,146 @@ class FO4_OT_ApplyWindAnimation(Operator):
             notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
             return {'CANCELLED'}
 
+class FO4_OT_DetectObjectType(Operator):
+    """Detect and tag this object's FO4 class (vegetation / character / creature / static)"""
+    bl_idname = "fo4.detect_object_type"
+    bl_label  = "Detect FO4 Object Type"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type not in ('MESH', 'ARMATURE'):
+            self.report({'ERROR'}, "Select a mesh or armature object")
+            return {'CANCELLED'}
+        if not export_helpers:
+            self.report({'ERROR'}, "Export helpers not available")
+            return {'CANCELLED'}
+        obj_class = export_helpers.ExportHelpers.detect_fo4_object_class(obj)
+        obj["fo4_object_type"] = obj_class
+        self.report({'INFO'}, f"Object '{obj.name}' tagged as: {obj_class}")
+        return {'FINISHED'}
+
+
+class FO4_OT_VegetationWindSetup(Operator):
+    """Apply FO4 vegetation wind using vertex groups only — no armature needed.
+
+    This is the correct setup for trees, shrubs, and plants.  FO4 drives
+    vegetation sway through a procedural in-engine wind system that reads the
+    'Wind' vertex group weight directly.  No bone skeleton is involved.
+    """
+    bl_idname  = "fo4.vegetation_wind_setup"
+    bl_label   = "Vegetation Wind Setup"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: EnumProperty(
+        name="Preset",
+        items=[
+            ('NONE',        'Custom',        ''),
+            ('GRASS',       'Grass',         'Light, fast sway (amp=0.10, period=40)'),
+            ('SHRUB',       'Shrub',         'Medium sway     (amp=0.15, period=80)'),
+            ('TREE',        'Tree',          'Slow, heavy sway(amp=0.30, period=120)'),
+            ('SHRUB_STORM', 'Shrub (Storm)', 'Aggressive sway (amp=0.24, period=55)'),
+            ('TREE_STORM',  'Tree (Storm)',  'Heavy storm sway(amp=0.42, period=85)'),
+        ],
+        default='NONE',
+    )
+    amplitude: FloatProperty(name="Wind Amplitude", default=0.2, min=0.0, max=2.0,
+                             description="How much vertices sway (stored as custom prop for BGSM)")
+    period: FloatProperty(name="Wind Period", default=60.0, min=1.0,
+                          description="Animation loop length in frames")
+    apply_all_selected: BoolProperty(name="Apply to All Selected", default=False)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "preset")
+        if self.preset == 'NONE':
+            layout.prop(self, "amplitude")
+            layout.prop(self, "period")
+        layout.prop(self, "apply_all_selected")
+
+    def execute(self, context):
+        # Resolve preset
+        amp, per = self.amplitude, self.period
+        preset_map = {
+            'GRASS':       (0.10,  40.0),
+            'SHRUB':       (0.15,  80.0),
+            'TREE':        (0.30, 120.0),
+            'SHRUB_STORM': (0.24,  55.0),
+            'TREE_STORM':  (0.42,  85.0),
+        }
+        if self.preset in preset_map:
+            amp, per = preset_map[self.preset]
+
+        targets = (
+            [o for o in context.selected_objects if o.type == 'MESH']
+            if self.apply_all_selected
+            else ([context.active_object]
+                  if context.active_object and context.active_object.type == 'MESH'
+                  else [])
+        )
+        if not targets:
+            self.report({'ERROR'}, "Select at least one mesh object")
+            return {'CANCELLED'}
+
+        ok_count = 0
+        for obj in targets:
+            ok, msg = animation_helpers.AnimationHelpers.apply_vegetation_wind(obj, amp, per)
+            if ok:
+                ok_count += 1
+                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            else:
+                self.report({'WARNING'}, f"{obj.name}: {msg}")
+
+        self.report({'INFO'}, f"Vegetation wind applied to {ok_count}/{len(targets)} mesh(es)")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_SmartWindSetup(Operator):
+    """Auto-detect object type and apply the correct wind or animation setup.
+
+    - VEGETATION (trees, plants) → vertex group wind weights (no armature)
+    - CHARACTER / CREATURE       → bone-based wind armature for Blender preview
+    - STATIC                     → no wind setup needed; reports the detected class
+    """
+    bl_idname  = "fo4.smart_wind_setup"
+    bl_label   = "Smart Wind Setup (Auto)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+        if not export_helpers:
+            self.report({'ERROR'}, "Export helpers not available")
+            return {'CANCELLED'}
+
+        obj_class = export_helpers.ExportHelpers.detect_fo4_object_class(obj)
+
+        if obj_class == 'VEGETATION':
+            ok, msg = animation_helpers.AnimationHelpers.apply_vegetation_wind(obj)
+            label = "VEGETATION"
+        elif obj_class in ('CHARACTER', 'CREATURE'):
+            ok, msg = animation_helpers.AnimationHelpers.apply_wind_animation(obj)
+            label = obj_class
+        else:
+            # STATIC or WEAPON — no wind needed
+            obj["fo4_object_type"] = obj_class
+            self.report({'INFO'}, f"[{obj_class}] '{obj.name}' is a static/weapon — no wind setup needed")
+            return {'FINISHED'}
+
+        if ok:
+            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            self.report({'INFO'}, f"[{label}] {msg}")
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+
 # RigNet Auto-Rigging Operators
 
 class FO4_OT_CheckRigNetInstallation(Operator):
@@ -3977,6 +4117,9 @@ class FO4_OT_MossyAutoFix(Operator):
               "missing specular", "texture node",
               "no material", "diffuse texture node",
               "normal texture node"),                          "SETUP_FO4_MATERIAL"),
+            (("wind", "vegetation", "plant", "tree",
+              "shrub", "foliage", "vertex group",
+              "orphaned weight", "no armature"),               "VEGETATION_WIND_SETUP"),
         ]
 
         actions = []
@@ -6902,7 +7045,8 @@ class FO4_OT_ExportVegetationAsNif(Operator):
         # Warn if the material is not set up for alpha clip (but don't block).
         has_alpha_mat = False
         for mat in (obj.data.materials or []):
-            if mat and mat.blend_mode in ('CLIP', 'BLEND'):
+            _bmode = getattr(mat, 'blend_method', None) or getattr(mat, 'blend_mode', None)
+            if mat and _bmode in ('CLIP', 'BLEND'):
                 has_alpha_mat = True
                 break
         if not has_alpha_mat:
@@ -11241,6 +11385,9 @@ classes = (
     FO4_OT_GenerateWindWeights,
     FO4_OT_AutoWeightPaint,
     FO4_OT_ApplyWindAnimation,
+    FO4_OT_DetectObjectType,
+    FO4_OT_VegetationWindSetup,
+    FO4_OT_SmartWindSetup,
     FO4_OT_BatchGenerateWindWeights,
     FO4_OT_BatchApplyWindAnimation,
     FO4_OT_BatchAutoWeightPaint,

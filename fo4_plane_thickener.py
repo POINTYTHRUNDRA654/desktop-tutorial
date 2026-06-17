@@ -16,6 +16,11 @@ unrealistic when viewed from the side.  These operators fix that:
 
   BOTH        — Solidify + Cross Card combined for maximum depth illusion.
                 Great for thick leaf clusters on tree branches.
+
+  VEGETATION  — Full pipeline for combined vegetation meshes (trunk + leaf
+                cards in one object).  Separates loose islands, classifies
+                each as flat (leaf card) or 3-D (trunk), thickens flat ones,
+                then re-merges.  Existing UVs and textures are preserved.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ try:
         EnumProperty, FloatProperty, IntProperty, BoolProperty,
     )
     import bmesh
-    from mathutils import Matrix, Vector
+    from mathutils import Vector
 except ImportError:
     bpy = None
 
@@ -61,7 +66,7 @@ def _apply_cross_card(context, obj, card_count: int):
     The local Z axis is the face normal of a default Blender plane, so this
     works correctly regardless of how the object is oriented in world space.
     """
-    angle_step = math.pi / card_count   # e.g. 90° for 2 cards, 60° for 3
+    angle_step = math.pi / card_count   # e.g. 90 deg for 2 cards, 60 deg for 3
     copies = []
 
     for i in range(1, card_count):
@@ -93,6 +98,27 @@ def _apply_cross_card(context, obj, card_count: int):
     except AttributeError:
         bpy.ops.mesh.remove_doubles(threshold=0.0001)
     bpy.ops.object.mode_set(mode='OBJECT')
+
+
+def _face_normal_variance(bm_faces) -> float:
+    """Return the mean angular deviation (radians) of face normals from their
+    mean direction.  A perfectly flat mesh returns 0.0; a 3-D mesh returns
+    > 0.26 rad (~15 deg)."""
+    normals = [f.normal.copy() for f in bm_faces if f.normal.length > 0.5]
+    if not normals:
+        return 0.0
+    mean = Vector((0.0, 0.0, 0.0))
+    for n in normals:
+        mean += n
+    if mean.length < 1e-6:
+        # Normals cancel — sphere-like distribution, definitely 3-D.
+        return math.pi
+    mean.normalize()
+    variance = sum(
+        math.acos(max(-1.0, min(1.0, mean.dot(n.normalized()))))
+        for n in normals
+    ) / len(normals)
+    return variance
 
 
 # ── Main Operator ─────────────────────────────────────────────────────────────
@@ -178,9 +204,9 @@ leaves/grass), or both combined."""
             box.prop(self, "card_count")
             col = box.column()
             col.scale_y = 0.7
-            labels = {2: "X shape  (90° apart) — classic leaf card",
-                      3: "Star     (60° apart) — bushy foliage",
-                      4: "Dense X  (45° apart) — thick canopy"}
+            labels = {2: "X shape  (90 deg apart) — classic leaf card",
+                      3: "Star     (60 deg apart) — bushy foliage",
+                      4: "Dense X  (45 deg apart) — thick canopy"}
             col.label(text=labels.get(self.card_count, ""), icon='INFO')
 
         layout.separator()
@@ -284,11 +310,233 @@ class FO4_OT_ThickenSelectedPlanes(Operator):
         return {'FINISHED'}
 
 
+# ── Vegetation plane separator ────────────────────────────────────────────────
+
+class FO4_OT_SeparateAndThickenVegetation(Operator):
+    """Separate leaf-card planes from a combined vegetation mesh, thicken
+them for a 3-D illusion, then merge everything back.
+
+The active object should be a combined FO4 vegetation mesh where the
+trunk/branches form a proper 3-D mesh and the leaves/needles are flat
+alpha-cutout quads.  The operator:
+
+  1. Separates the mesh into loose-part islands.
+  2. Classifies each island as FLAT (leaf card) or 3-D (trunk/branch) by
+     measuring face-normal variance.
+  3. Applies the chosen technique to every flat island.
+  4. Joins all islands back into one object.
+
+Existing UVs and textures are fully preserved — Blender's Solidify
+modifier keeps front/back UVs intact, and Cross Card only copies the
+existing UV layout to each rotated duplicate."""
+    bl_idname  = "fo4.separate_and_thicken_vegetation"
+    bl_label   = "Separate & Thicken Vegetation Planes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    technique: EnumProperty(
+        name="Technique",
+        description="How to add depth to each flat leaf-card island",
+        items=[
+            ('SOLIDIFY',   "Solidify",          "Add real geometry thickness — flat slabs"),
+            ('CROSS_CARD', "Cross Card",         "Intersecting copies — leaves, needles, foliage"),
+            ('BOTH',       "Solidify + Cross",   "Both combined — thick leaf clusters"),
+        ],
+        default='CROSS_CARD',
+    )
+
+    thickness: FloatProperty(
+        name="Thickness",
+        description="Depth added by the Solidify step (Blender / FO4 units)",
+        default=0.04,
+        min=0.001,
+        max=2.0,
+        step=1,
+        precision=3,
+    )
+
+    fill_rim: BoolProperty(
+        name="Fill Rim",
+        description="Cap the open edges of the solidified plane (adds extra geometry)",
+        default=False,
+    )
+
+    even_thickness: BoolProperty(
+        name="Even Thickness",
+        description="Maintain uniform thickness around curved/angled edges",
+        default=True,
+    )
+
+    card_count: IntProperty(
+        name="Card Count",
+        description="Number of intersecting planes for Cross Card (2=X, 3=star, 4=dense)",
+        default=2,
+        min=2,
+        max=4,
+    )
+
+    flat_threshold_deg: FloatProperty(
+        name="Flat Threshold (deg)",
+        description=(
+            "Face-normal variance below this angle is treated as a flat "
+            "leaf-card island.  Raise if some branches are being thickened; "
+            "lower if leaf cards are not detected."
+        ),
+        default=15.0,
+        min=1.0,
+        max=45.0,
+        step=100,
+        precision=1,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        obj = context.active_object
+        return obj is not None and obj.type == 'MESH'
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=360)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "technique")
+        layout.prop(self, "flat_threshold_deg")
+        layout.separator()
+
+        if self.technique in ('SOLIDIFY', 'BOTH'):
+            box = layout.box()
+            box.label(text="Solidify Settings", icon='MOD_SOLIDIFY')
+            box.prop(self, "thickness")
+            row = box.row()
+            row.prop(self, "fill_rim")
+            row.prop(self, "even_thickness")
+
+        if self.technique in ('CROSS_CARD', 'BOTH'):
+            box = layout.box()
+            box.label(text="Cross Card Settings", icon='OUTLINER_OB_MESH')
+            box.prop(self, "card_count")
+
+        layout.separator()
+        layout.label(text="Existing UVs and textures are preserved", icon='INFO')
+
+    def execute(self, context):
+        source_obj = context.active_object
+        if not source_obj or source_obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        _ensure_object_mode(context)
+
+        threshold_rad = math.radians(self.flat_threshold_deg)
+        orig_name = source_obj.name
+
+        # ── 1. Separate by loose parts ────────────────────────────────────────
+        bpy.ops.object.select_all(action='DESELECT')
+        source_obj.select_set(True)
+        context.view_layer.objects.active = source_obj
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # All separated objects are selected after the operator.
+        all_parts = [o for o in context.selected_objects if o.type == 'MESH']
+
+        if len(all_parts) <= 1:
+            self.report(
+                {'WARNING'},
+                "Mesh has only one loose part — nothing to separate. "
+                "Leaf cards must be disconnected islands (no shared vertices "
+                "with the trunk)."
+            )
+            return {'CANCELLED'}
+
+        # ── 2. Classify each island ───────────────────────────────────────────
+        flat_parts = []
+        solid_parts = []
+
+        for part in all_parts:
+            bm = bmesh.new()
+            bm.from_mesh(part.data)
+            bm.faces.ensure_lookup_table()
+            variance = _face_normal_variance(bm.faces)
+            bm.free()
+            if variance < threshold_rad:
+                flat_parts.append(part)
+            else:
+                solid_parts.append(part)
+
+        if not flat_parts:
+            # Nothing flat — rejoin and report.
+            bpy.ops.object.select_all(action='DESELECT')
+            for p in all_parts:
+                p.select_set(True)
+            context.view_layer.objects.active = all_parts[0]
+            bpy.ops.object.join()
+            context.active_object.name = orig_name
+            self.report(
+                {'WARNING'},
+                f"No flat leaf-card islands detected "
+                f"(threshold {self.flat_threshold_deg:.0f} deg). "
+                "Try raising the Flat Threshold value."
+            )
+            return {'CANCELLED'}
+
+        # ── 3. Thicken each flat island ───────────────────────────────────────
+        ok_count = fail_count = 0
+
+        for obj in flat_parts:
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            try:
+                if self.technique in ('SOLIDIFY', 'BOTH'):
+                    _apply_solidify(obj, self.thickness, self.fill_rim, self.even_thickness)
+                if self.technique in ('CROSS_CARD', 'BOTH'):
+                    _apply_cross_card(context, obj, self.card_count)
+                ok_count += 1
+            except Exception as exc:
+                print(f"[VegThicken] Failed on '{obj.name}': {exc}")
+                fail_count += 1
+
+        # ── 4. Rejoin all parts ───────────────────────────────────────────────
+        # After Cross Card joins copies into each flat_part, some former
+        # flat_part references may now be the join target (still valid) while
+        # the copies were consumed.  Collect live objects by iterating
+        # bpy.data.objects to avoid stale references.
+        live_names = {p.name for p in all_parts}
+        live_parts = [o for o in bpy.data.objects if o.name in live_names and o.type == 'MESH']
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for part in live_parts:
+            part.select_set(True)
+
+        # Prefer source_obj as join target so name / custom props are kept.
+        target = source_obj if source_obj.name in {p.name for p in live_parts} else live_parts[0]
+        context.view_layer.objects.active = target
+        bpy.ops.object.join()
+
+        result = context.active_object
+        result.name = orig_name
+
+        msg = (
+            f"Thickened {ok_count} leaf-card island(s); "
+            f"{len(solid_parts)} 3-D part(s) left untouched"
+        )
+        if fail_count:
+            msg += f" — {fail_count} island(s) failed (see console)"
+            self.report({'WARNING'}, msg)
+        else:
+            self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
 # ── Registration ──────────────────────────────────────────────────────────────
 
 _CLASSES = [
     FO4_OT_ThickenFlatPlane,
     FO4_OT_ThickenSelectedPlanes,
+    FO4_OT_SeparateAndThickenVegetation,
 ]
 
 

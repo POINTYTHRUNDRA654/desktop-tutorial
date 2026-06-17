@@ -504,10 +504,25 @@ class FO4_OT_BuildCarnivorousPlantRig(Operator):
 
 
 class FO4_OT_BuildFloraRig(Operator):
-    """Create a simple swaying flora skeleton (shrub / fern / grass)."""
+    """Create a simple swaying flora skeleton (shrub / fern / grass).
+
+    WARNING — FOR AUTHORING / PREVIEW ONLY.
+    Standard FO4 foliage (grass, ferns, shrubs, non-carnivorous plants) does
+    NOT use a skeleton or HKX animation.  The game reads the 'Wind' vertex
+    group weight to drive procedural in-engine sway — no armature is needed or
+    exported.  This rig is intended for visual reference and weight-painting
+    preview inside Blender.  You MUST remove this armature and run
+    'Apply Vegetation Wind' (fo4.apply_vegetation_wind) before NIF export so
+    the mesh is classified correctly as VEGETATION rather than CREATURE.
+    Only carnivorous / interactive plants need a real creature rig — use
+    'Create Carnivorous Plant Skeleton' for those.
+    """
     bl_idname  = "fo4.build_flora_rig"
-    bl_label   = "Create Flora Skeleton (Sway)"
-    bl_description = "Build a simple swaying plant skeleton with branches and leaf bones."
+    bl_label   = "Create Flora Skeleton (Preview Only)"
+    bl_description = (
+        "Preview armature for weight painting. "
+        "Remove before NIF export — FO4 wind vegetation uses vertex groups, not skeletons."
+    )
     bl_options = {'REGISTER', 'UNDO'}
 
     name: StringProperty(name="Name", default="FloraRig")
@@ -516,7 +531,11 @@ class FO4_OT_BuildFloraRig(Operator):
 
     def execute(self, context):
         obj = build_generic_flora(self.name, self.height, self.branch_count)
-        self.report({'INFO'}, f"✓ Flora skeleton '{obj.name}' created ({len(obj.pose.bones)} bones).")
+        self.report(
+            {'WARNING'},
+            f"Flora skeleton '{obj.name}' created for PREVIEW only. "
+            "Remove armature and use 'Apply Vegetation Wind' before NIF export.",
+        )
         return {'FINISHED'}
 
 

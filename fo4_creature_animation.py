@@ -585,18 +585,31 @@ def export_animations_hkx(arm_obj, actions: List[bpy.types.Action],
             continue
 
         # Convert FBX → HKX via ck-cmd
+        # Correct invocation: ck-cmd importanimation <fbx> --game fo4
+        #   --platform WIN64 --dest <output_dir>
+        # ck-cmd writes <basename>.hkx into the dest directory; we then move
+        # it to the requested hkx_path.
         if ckcmd and os.path.isfile(ckcmd):
+            import tempfile as _tempfile
+            import shutil as _shutil
             try:
-                result = subprocess.run(
-                    [ckcmd, "importanimation", fbx_path, hkx_path],
-                    capture_output=True, text=True, timeout=120,
-                )
-                if result.returncode == 0 and os.path.isfile(hkx_path):
-                    results.append((True, hkx_path))
-                    continue
-                else:
-                    results.append((False, f"ck-cmd failed: {result.stderr.strip()}"))
-                    continue
+                with _tempfile.TemporaryDirectory() as _tmp:
+                    result = subprocess.run(
+                        [ckcmd, "importanimation", fbx_path,
+                         "--game", "fo4",
+                         "--platform", "WIN64",
+                         "--dest", _tmp],
+                        capture_output=True, text=True, timeout=120,
+                    )
+                    _base = os.path.splitext(os.path.basename(fbx_path))[0]
+                    _hkx_tmp = os.path.join(_tmp, _base + ".hkx")
+                    if result.returncode == 0 and os.path.isfile(_hkx_tmp):
+                        _shutil.move(_hkx_tmp, hkx_path)
+                        results.append((True, hkx_path))
+                        continue
+                    else:
+                        results.append((False, f"ck-cmd failed: {result.stderr.strip()}"))
+                        continue
             except Exception as exc:
                 results.append((False, f"ck-cmd error: {exc}"))
                 continue
@@ -875,29 +888,14 @@ _CLASSES = [
 
 
 def register():
-
-    # Scene property for the animation description text field
-    try:
-        bpy.types.Scene.fo4_anim_description = bpy.props.StringProperty(
-            name="Animation Description",
-            description="Describe what your object does — e.g. 'plant whips tentacles forward to attack'",
-            default="plant sways gently in the wind",
-        )
-    except Exception:
-        pass
-
     for cls in _CLASSES:
         try:
             bpy.utils.register_class(cls)
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"fo4_creature_animation: Could not register {cls.__name__}: {exc}")
 
 
 def unregister():
-    try:
-        del bpy.types.Scene.fo4_anim_description
-    except Exception:
-        pass
     for cls in reversed(_CLASSES):
         try:
             bpy.utils.unregister_class(cls)

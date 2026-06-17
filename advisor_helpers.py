@@ -325,6 +325,21 @@ class AdvisorHelpers:
                 return True, f"Set up FO4 material with texture nodes on {fixed} object(s)"
             return True, "FO4 material nodes already present"
 
+        if action == 'VEGETATION_WIND_SETUP':
+            from . import animation_helpers as _ah
+            from . import export_helpers as _eh
+            fixed = 0
+            for obj in objs:
+                # Auto-detect: only apply if object looks like vegetation OR has no armature
+                obj_class = _eh.ExportHelpers.detect_fo4_object_class(obj)
+                if obj_class in ('VEGETATION', 'STATIC'):
+                    ok, _ = _ah.AnimationHelpers.apply_vegetation_wind(obj)
+                    if ok:
+                        fixed += 1
+            if fixed:
+                return True, f"Vegetation wind vertex groups applied to {fixed} object(s)"
+            return True, "No vegetation objects found to set up"
+
         if action == 'TRIANGULATE':
             try:
                 bpy.ops.object.mode_set(mode='EDIT')
@@ -651,7 +666,10 @@ class AdvisorHelpers:
             f"{obj.name}':\n{json.dumps(issues, indent=2)}\n\n"
             "Respond ONLY with a valid JSON array of action strings to fix these issues. "
             "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
-            "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH']. "
+            "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH', "
+            "'SETUP_FO4_MATERIAL', 'VEGETATION_WIND_SETUP']. "
+            "Use VEGETATION_WIND_SETUP when the mesh is a plant, tree, shrub, or foliage "
+            "that needs wind vertex groups instead of an armature. "
             "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
         )
         context_data = {"issues": issues, "mesh": obj.name}

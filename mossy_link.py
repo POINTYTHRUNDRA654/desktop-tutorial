@@ -39,10 +39,6 @@ import time
 from urllib import error as _url_error
 from urllib import request as _url_request
 
-# ── Context-push throttle state ───────────────────────────────────────────────
-_last_context_push = 0.0
-_PUSH_THROTTLE_SECONDS = 2.0
-
 # ── Internal state ─────────────────────────────────────────────────────────────
 _server_thread: "threading.Thread | None" = None
 _server_socket: "socket.socket | None" = None
@@ -1120,6 +1116,236 @@ def get_connection_status() -> dict:
     }
 
 
+# ── Scene watcher: push live Blender context to Mossy ─────────────────────────
+#
+# The depsgraph_update_post handler fires after every change in Blender
+# (mesh edit, mode switch, modifier apply, object move, etc.).  It is
+# throttled by _last_context_push / _PUSH_THROTTLE_SECONDS so Mossy
+# receives at most one update every 2 seconds during active editing.
+#
+# Two things happen on each push:
+#   1. push_blender_context()    — sends structured scene state to Mossy bridge
+#      so the desktop app always knows what object is active, its stats, and
+#      any custom properties (fo4_mesh_type, fo4_collision_type, etc.).
+#   2. _auto_validate_and_advise() — runs validate_mesh() on the active mesh
+#      and, if new issues are detected, queries the Mossy AI for specific fix
+#      advice which is cached for the AI Advisor panel to display.
+#
+# Validation is throttled more aggressively (10 s) and only runs when the
+# vertex count changes (i.e. the mesh geometry actually changed).
+#
+# The watcher can be started/stopped independently of the TCP server so
+# users can run the bridge without live scene monitoring if desired.
+
+_last_context_push: float = 0.0        # module-level (replaces the stub above)
+_PUSH_THROTTLE_SECONDS: float = 2.0    # max 1 push per N seconds
+_last_validation_time: float = 0.0
+_VALIDATE_THROTTLE_SECONDS: float = 10.0
+_last_validated_vert_count: int = -1
+_last_ai_advice: dict = {}             # {object_name: advice_string}
+_scene_watcher_active: bool = False
+
+
+def push_blender_context(obj=None) -> bool:
+    """POST the current Blender scene state to the Mossy Bridge.
+
+    Sends to ``POST http://localhost:21337/blender_context``.  Mossy uses
+    this to keep its UI, AI prompts, and tool suggestions in sync with
+    whatever the user is working on in Blender.
+
+    :param obj: Active Blender object (resolved from bpy.context if None).
+    :returns:   True if the push was accepted by the bridge, else False.
+    """
+    try:
+        import bpy as _bpy
+        if obj is None:
+            obj = _bpy.context.active_object
+    except Exception:
+        return False
+
+    ctx: dict = {
+        "source":    "blender_addon",
+        "domain":    "fallout4_modding",
+        "timestamp": time.monotonic(),
+    }
+
+    if obj is not None:
+        ctx["object_name"] = obj.name
+        ctx["object_type"] = obj.type
+        if obj.type == 'MESH':
+            me = obj.data
+            ctx["vertex_count"]    = len(me.vertices)
+            ctx["poly_count"]      = len(me.polygons)
+            ctx["uv_layers"]       = [uv.name for uv in me.uv_layers]
+            ctx["material_slots"]  = len(obj.material_slots)
+            ctx["modifiers"]       = [m.name for m in obj.modifiers]
+            ctx["has_armature"]    = any(m.type == 'ARMATURE' for m in obj.modifiers)
+            ctx["fo4_mesh_type"]   = obj.get("fo4_mesh_type", "")
+            ctx["fo4_collision"]   = obj.get("fo4_collision_type", "")
+            ctx["fo4_object_type"] = obj.get("fo4_object_type", "")
+            ctx["scale_applied"]   = all(abs(s - 1.0) < 1e-4 for s in obj.scale)
+            # Flag common problems directly so Mossy can highlight them
+            ctx["issues"] = _last_ai_advice.get(obj.name + "_issues", [])
+        ctx["mode"]            = getattr(obj, "mode", "OBJECT")
+        ctx["custom_props"]    = {
+            k: v for k, v in obj.items()
+            if not k.startswith("_") and k not in ("cycles", "cycles_visibility")
+        }
+    else:
+        ctx["object_name"] = None
+        ctx["object_type"] = None
+
+    payload = json.dumps(ctx).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/blender_context",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=0.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _auto_validate_and_advise(obj) -> None:
+    """Validate *obj* (mesh only) and request AI advice when issues are found.
+
+    Results are stored in ``_last_ai_advice`` keyed by object name so the
+    AI Advisor panel can display them without blocking the main thread.
+    The actual AI query runs on a background thread to keep Blender responsive.
+    """
+    global _last_validation_time, _last_validated_vert_count
+
+    if obj is None or obj.type != 'MESH':
+        return
+
+    now = time.monotonic()
+    if now - _last_validation_time < _VALIDATE_THROTTLE_SECONDS:
+        return
+
+    vert_count = len(obj.data.vertices)
+    if vert_count == _last_validated_vert_count and _last_validation_time > 0:
+        return  # geometry did not change — skip
+
+    _last_validation_time = now
+    _last_validated_vert_count = vert_count
+
+    # Capture what we need from the main thread before handing off.
+    obj_name = obj.name
+
+    def _bg_validate():
+        try:
+            from . import mesh_helpers as _mh
+            ok, issues = _mh.MeshHelpers.validate_mesh(obj)
+            _last_ai_advice[obj_name + "_issues"] = issues if not ok else []
+
+            if not ok and _bridge_online:
+                # Build a concise query describing the actual issues
+                issue_list = "; ".join(issues[:5])
+                query = (
+                    f"The active object \"{obj_name}\" has these issues: {issue_list}. "
+                    "What is the fastest way to fix each one in Blender so the mesh "
+                    "is ready for Fallout 4 NIF export?"
+                )
+                advice = ask_mossy(query, fo4_context=True, max_tokens=400, timeout=15)
+                if advice:
+                    _last_ai_advice[obj_name] = advice
+                    print(f"[Mossy Link] AI advice cached for \"{obj_name}\": {len(advice)} chars")
+        except Exception as exc:
+            print(f"[Mossy Link] Auto-validate error: {exc}")
+
+    threading.Thread(target=_bg_validate, daemon=True,
+                     name="MossyAutoValidate").start()
+
+
+@bpy.app.handlers.persistent
+def _depsgraph_handler(scene, depsgraph) -> None:
+    """bpy.app.handlers.depsgraph_update_post handler.
+
+    Throttled to fire at most once every _PUSH_THROTTLE_SECONDS seconds.
+    Pushes context to Mossy bridge and triggers background validation.
+    Heavy work (HTTP, LLM queries) runs on daemon threads so Blender stays
+    responsive.
+    """
+    global _last_context_push
+
+    if not _scene_watcher_active:
+        return
+
+    now = time.monotonic()
+    if now - _last_context_push < _PUSH_THROTTLE_SECONDS:
+        return
+    _last_context_push = now
+
+    try:
+        import bpy as _bpy
+        obj = _bpy.context.active_object
+    except Exception:
+        return
+
+    # Push context on a background thread so HTTP never blocks main thread.
+    def _bg_push():
+        push_blender_context(obj)
+        _auto_validate_and_advise(obj)
+
+    threading.Thread(target=_bg_push, daemon=True,
+                     name="MossyContextPush").start()
+
+
+def get_last_ai_advice(obj_name: str) -> "str | None":
+    """Return the most recent Mossy AI advice for *obj_name*, or None.
+
+    Called by the AI Advisor panel to display proactive fix suggestions
+    without triggering a new LLM query on every UI redraw.
+    """
+    return _last_ai_advice.get(obj_name)
+
+
+def get_last_validation_issues(obj_name: str) -> "list[str]":
+    """Return the last validation issues detected for *obj_name*."""
+    return _last_ai_advice.get(obj_name + "_issues", [])
+
+
+def start_scene_watcher() -> tuple:
+    """Register the depsgraph handler so Mossy can watch Blender in real time.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _scene_watcher_active
+    try:
+        import bpy as _bpy
+        if _depsgraph_handler not in _bpy.app.handlers.depsgraph_update_post:
+            _bpy.app.handlers.depsgraph_update_post.append(_depsgraph_handler)
+        _scene_watcher_active = True
+        return True, "Scene watcher started — Mossy is now watching Blender"
+    except Exception as exc:
+        return False, f"Could not start scene watcher: {exc}"
+
+
+def stop_scene_watcher() -> tuple:
+    """Unregister the depsgraph handler.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _scene_watcher_active
+    _scene_watcher_active = False
+    try:
+        import bpy as _bpy
+        handlers = _bpy.app.handlers.depsgraph_update_post
+        if _depsgraph_handler in handlers:
+            handlers.remove(_depsgraph_handler)
+        return True, "Scene watcher stopped"
+    except Exception as exc:
+        return False, f"Could not stop scene watcher: {exc}"
+
+
+def is_scene_watcher_running() -> bool:
+    """Return True when the depsgraph scene watcher is active."""
+    return _scene_watcher_active
+
+
 # ── Blender register / unregister ─────────────────────────────────────────────
 
 def register() -> None:
@@ -1149,9 +1375,22 @@ def register() -> None:
     except Exception as exc:
         print(f"[Mossy Link] Could not start health monitor: {exc}")
 
+    # Start the scene watcher so Mossy can see what the user is doing
+    try:
+        from . import preferences as _prefs_sw
+        prefs = _prefs_sw.get_preferences()
+        # Default on; users can disable via preferences if desired
+        watch = getattr(prefs, "scene_watcher_enabled", True) if prefs else True
+        if watch:
+            ok_w, msg_w = start_scene_watcher()
+            print(f"[Mossy Link] {msg_w}")
+    except Exception as exc:
+        print(f"[Mossy Link] Could not start scene watcher: {exc}")
+
 
 def unregister() -> None:
-    """Called by the add-on unregister().  Stops the server and monitor."""
+    """Called by the add-on unregister().  Stops the server, monitor, and watcher."""
+    stop_scene_watcher()
     try:
         import bpy as _bpy
         if _bpy.app.timers.is_registered(_health_monitor):

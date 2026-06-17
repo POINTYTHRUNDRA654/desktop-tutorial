@@ -9,7 +9,10 @@ Core Contributors
 - (Add your name here) — role/contribution
 
 Third-party projects and libraries
-- PyNifly / Niftools — NIF export support
+- **PyNifly** (io_scene_nifly) by **BadDog (BadDogSkyrim)** — primary NIF import/export for Blender 4.x/5.x.
+  Bundled with this addon with BadDog's explicit permission. Full credit and thanks to BadDog for this
+  essential tool. Repository: https://github.com/BadDogSkyrim/PyNifly — License: MIT.
+- Niftools — NIF export fallback support
 - RealESRGAN — texture upscaling (optional)
 - RigNet — auto-rigging utilities (optional)
 - Shape-E / Point-E — model/mesh helpers (optional)
