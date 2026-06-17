@@ -98,9 +98,9 @@ const buildNotesText = (n: ReleaseNotesState): string => {
   lines.push('');
 
   const saveLabels = {
-    safe: '✅ Safe to add/remove mid-save.',
-    'not-safe': '⚠️ Do NOT add or remove mid-save. This can corrupt your save file.',
-    'clean-save-needed': '⚠️ Requires a clean save or new game when updating from a previous version.',
+    safe: '[Safe] Safe to add/remove mid-save.',
+    'not-safe': '[Warning] Do NOT add or remove mid-save. This can corrupt your save file.',
+    'clean-save-needed': '[Clean Save Required] Requires a clean save or new game when updating from a previous version.',
   };
   lines.push('## Save Compatibility');
   lines.push(saveLabels[n.saveCompatibility]);
@@ -248,12 +248,12 @@ const ReleaseExportPanel: React.FC = () => {
                 </select>
                 {notes.gameVersion === 'NG' && notes.ba2Header === 'V1' && (
                   <p className="mt-1 text-[10px] text-red-400 font-bold">
-                    ⚠️ V1 archives CTD on NG. Switch to V2 or ship dual archives.
+                    <AlertCircle className="inline w-3 h-3 mr-1 flex-shrink-0" />V1 archives CTD on NG. Switch to V2 or ship dual archives.
                   </p>
                 )}
                 {notes.gameVersion === 'OG' && notes.ba2Header === 'V2' && (
                   <p className="mt-1 text-[10px] text-amber-400 font-bold">
-                    ⚠️ V2 archives require NG. Pre-NG users need V1.
+                    <AlertCircle className="inline w-3 h-3 mr-1 flex-shrink-0" />V2 archives require NG. Pre-NG users need V1.
                   </p>
                 )}
               </div>

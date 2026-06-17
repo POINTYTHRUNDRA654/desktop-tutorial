@@ -703,7 +703,7 @@ export interface ElectronAPI {
   // Vault
   runTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
   /** Workflow Runner: run a user-configured tool/command and capture output (no Vault allowlist) */
-  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string; timeoutMs?: number }) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
   saveVaultManifest: (assets: unknown) => Promise<{ ok: boolean; file?: string; error?: string }>;
   loadVaultManifest: () => Promise<unknown[]>;
   getDdsDimensions: (filePath: string) => Promise<{ width: number; height: number }>;

@@ -337,7 +337,7 @@ export const BA2Manager: React.FC = () => {
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="text-xs text-slate-300">
-                  <p className="font-bold text-amber-300 mb-1">⚠️ BA2 Header Version (NG/AE)</p>
+                  <p className="font-bold text-amber-300 mb-1">BA2 Header Version (NG/AE)</p>
                   <p>• <strong>Pre-NG (1.10.163):</strong> BA2 Header V1 — compatible with all versions</p>
                   <p>• <strong>NG/AE (1.10.984+, 1.11.x):</strong> requires BA2 Header V2 — V1 archives CTD on NG</p>
                   <p>• Build V2 archives with <strong>CAO (Cathedral Assets Optimizer)</strong> or <strong>Archive2 v2+</strong></p>
@@ -742,7 +742,7 @@ export const BA2Manager: React.FC = () => {
                 <button
                   onClick={async () => {
                     try {
-                      const picked = await (window as any).electronAPI?.pickFolder?.();
+                      const picked = await (window as any).electronAPI?.pickDirectory?.();
                       if (picked) setPackSourcePath(picked);
                     } catch {
                       toast.error('Folder picker unavailable.');

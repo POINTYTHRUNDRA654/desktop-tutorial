@@ -23,7 +23,8 @@ import {
   BarChart3,
   Cpu,
   HardDrive,
-  Zap
+  Zap,
+  X,
 } from 'lucide-react';
 import {
   ConflictPrediction,
@@ -262,10 +263,10 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
           </button>
           {onClose && (
             <button
-              className="px-2 py-1.5 text-[11px] rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all"
+              className="p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all"
               onClick={onClose}
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

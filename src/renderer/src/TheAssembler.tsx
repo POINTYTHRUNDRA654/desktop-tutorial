@@ -624,8 +624,8 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
                                                     {selectedNode.files && selectedNode.files.length > 0 && (
                                                         <div className="space-y-1 max-h-24 overflow-y-auto bg-slate-900/50 border border-slate-700 rounded p-2">
                                                             {selectedNode.files.map((file, i) => (
-                                                                <div key={i} className="text-xs text-slate-300 font-mono truncate">
-                                                                    📄 {file.source}
+                                                                <div key={i} className="text-xs text-slate-300 font-mono truncate flex items-center gap-1">
+                                                                    <FileText className="w-3 h-3 flex-shrink-0" />{file.source}
                                                                 </div>
                                                             ))}
                                                         </div>

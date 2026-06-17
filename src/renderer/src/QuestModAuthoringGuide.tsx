@@ -22,7 +22,7 @@ type HubStep = {
   blocks?: React.ReactNode[];
 };
 
-export const QuestModAuthoringGuide: React.FC = () => {
+export const QuestModAuthoringGuide: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const [expandedSection, setExpandedSection] = useState<string>('setup');
 
   const openUrl = (url: string) => {
@@ -99,13 +99,13 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
-            <h4 className="font-bold text-blue-300 mb-2">📋 Definition</h4>
+            <h4 className="font-bold text-blue-300 mb-2">Definition</h4>
             <p className="text-slate-300 text-sm leading-relaxed">
               A quest mod adds new story-driven content to Fallout 4. It can be a simple fetch quest, a multi-stage main quest, or a branching narrative with custom characters, locations, and rewards.
             </p>
           </div>
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
-            <h4 className="font-bold text-green-300 mb-2">💡 Lore-Friendly Recommendation</h4>
+            <h4 className="font-bold text-green-300 mb-2">Lore-Friendly Recommendation</h4>
             <p className="text-slate-300 text-sm leading-relaxed">
               For best player experience, keep your quest lore-friendly: respect Fallout's world, factions, and tone. Use existing lore as a foundation for your story, or clearly explain any creative departures.
             </p>
@@ -157,7 +157,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">📝 Story Planning</h4>
+            <h4 className="font-bold text-white mb-2">Story Planning</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Define the quest's main goal and motivation</li>
               <li>Break story into logical stages (start, middle, end)</li>
@@ -183,7 +183,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">🎯 Quest Objectives</h4>
+            <h4 className="font-bold text-white mb-2">Quest Objectives</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Define clear objectives for each quest stage</li>
               <li>Use quest markers to guide the player</li>
@@ -201,7 +201,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">💬 Dialogue Implementation</h4>
+            <h4 className="font-bold text-white mb-2">Dialogue Implementation</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Write all dialogue for each stage and branch</li>
               <li>Use voice acting or silent subtitles (lore-friendly voice is best)</li>
@@ -219,7 +219,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">⚙️ Papyrus Scripting</h4>
+            <h4 className="font-bold text-white mb-2">Papyrus Scripting</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Use scripts to control quest flow, triggers, and outcomes</li>
               <li>Handle player choices and consequences</li>
@@ -228,7 +228,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
-            <h4 className="font-bold text-blue-300 mb-2">🧠 Engine Hooks with F4SE (C++)</h4>
+            <h4 className="font-bold text-blue-300 mb-2">Engine Hooks with F4SE (C++)</h4>
             <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
               <li>Use Papyrus for quest-facing triggers, state changes, and object events inside CK</li>
               <li>Use F4SE C++ plugins for engine-level behavior the base engine cannot expose cleanly</li>
@@ -237,7 +237,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
-            <h4 className="font-bold text-green-300 mb-2">🔗 Papyrus → F4SE Bridge Pattern</h4>
+            <h4 className="font-bold text-green-300 mb-2">Papyrus → F4SE Bridge Pattern</h4>
             <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
               <li>Expose a narrow native function from your F4SE plugin, then call it from Papyrus events</li>
               <li>Example trigger shape: OnLoad or quest-stage events activate weather/FX logic for your area</li>
@@ -254,7 +254,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">🌎 Integrating Into the World</h4>
+            <h4 className="font-bold text-white mb-2">Integrating Into the World</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Place quest givers and objectives in logical locations</li>
               <li>Use map markers and fast travel points</li>
@@ -272,7 +272,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">🎨 High-Fidelity Asset Pipeline</h4>
+            <h4 className="font-bold text-white mb-2">High-Fidelity Asset Pipeline</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Author textures with a PBR workflow (Substance Painter / Quixel Mixer) and export Fallout-safe DDS sets</li>
               <li>Build custom meshes in Blender, export clean NIFs, and avoid relying only on vanilla mesh fidelity</li>
@@ -281,7 +281,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-blue-900/20 border border-blue-700/30 rounded p-4">
-            <h4 className="font-bold text-blue-300 mb-2">🌤️ Worldspace Lighting & Distance Quality</h4>
+            <h4 className="font-bold text-blue-300 mb-2">Worldspace Lighting &amp; Distance Quality</h4>
             <ul className="list-disc list-inside text-blue-200 text-xs space-y-1">
               <li>Create custom climate/weather profiles for your quest worldspace (sun, fog, volumetric color mood)</li>
               <li>Generate LOD for your custom landscape and flora so distant views stay coherent and crisp</li>
@@ -290,7 +290,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-green-900/20 border border-green-700/30 rounded p-4">
-            <h4 className="font-bold text-green-300 mb-2">🧩 Engine-Extended Layer</h4>
+            <h4 className="font-bold text-green-300 mb-2">Engine-Extended Layer</h4>
             <ul className="list-disc list-inside text-green-200 text-xs space-y-1">
               <li>Use F4SE-powered logic only for features vanilla CK cannot do cleanly (dynamic weather/camera/FX triggers)</li>
               <li>Design lighting to be ENB/ReShade-aware, but keep a good non-ENB baseline so the quest still looks intentional</li>
@@ -299,7 +299,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-purple-900/20 border border-purple-700/30 rounded p-4">
-            <h4 className="font-bold text-purple-300 mb-2">🛠️ 2026 Engine Modernization Checklist</h4>
+            <h4 className="font-bold text-purple-300 mb-2">2026 Engine Modernization Checklist</h4>
             <ul className="list-disc list-inside text-purple-200 text-xs space-y-1">
               <li>Choose your runtime target up front (OG 1.10.163, NG 1.10.980 to 1.10.984, or 1.11.x Creations-era runtime) before building any DLL features</li>
               <li>For serious F4SE plugins, plan versioned builds and address-library-safe hooks rather than hard-coded offsets</li>
@@ -308,7 +308,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-cyan-900/20 border border-cyan-700/30 rounded p-4">
-            <h4 className="font-bold text-cyan-300 mb-2">📘 2026 Effect Playbooks (Real, Reproducible)</h4>
+            <h4 className="font-bold text-cyan-300 mb-2">2026 Effect Playbooks (Real, Reproducible)</h4>
             <ul className="list-disc list-inside text-cyan-200 text-xs space-y-1">
               <li>Build effect recipes for wet materials, cinematic fog, dense biome lighting, skin/hair realism, and decal depth</li>
               <li>Each recipe must include: required tools, runtime target (OG/NG/1.11.x), hard prerequisites, validation checkpoints, and known failure signatures</li>
@@ -317,7 +317,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-indigo-900/20 border border-indigo-700/30 rounded p-4">
-            <h4 className="font-bold text-indigo-300 mb-2">📊 Per-Effect Compatibility Matrix</h4>
+            <h4 className="font-bold text-indigo-300 mb-2">Per-Effect Compatibility Matrix</h4>
             <ul className="list-disc list-inside text-indigo-200 text-xs space-y-1">
               <li>Track runtime support per effect (OG / NG / 1.11.x), not just global mod support</li>
               <li>Document required extender stack (F4SE, Address Library, shader chain, optional plugin dependencies)</li>
@@ -326,7 +326,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-emerald-900/20 border border-emerald-700/30 rounded p-4">
-            <h4 className="font-bold text-emerald-300 mb-2">✅ 2026 Quality Bar (Photoreal Rubric)</h4>
+            <h4 className="font-bold text-emerald-300 mb-2">2026 Quality Bar (Photoreal Rubric)</h4>
             <ul className="list-disc list-inside text-emerald-200 text-xs space-y-1">
               <li>Score each build on: material response, lighting coherence, LOD continuity, animation/physics believability, and performance stability</li>
               <li>Do not greenlight a setup until all rubric categories pass your minimum quality threshold</li>
@@ -335,7 +335,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
           </div>
 
           <div className="bg-rose-900/20 border border-rose-700/30 rounded p-4">
-            <h4 className="font-bold text-rose-300 mb-2">🧪 Validation-First + Recovery-First Teaching Mode</h4>
+            <h4 className="font-bold text-rose-300 mb-2">Validation-First + Recovery-First Teaching Mode</h4>
             <ul className="list-disc list-inside text-rose-200 text-xs space-y-1">
               <li>Always validate in this order: vanilla baseline → asset-only test → extender-enabled test → performance + crash pass</li>
               <li>Tag recommendations as Free Required, Free Optional, or Paid Optional, and always provide a free working path</li>
@@ -353,7 +353,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">👥 Custom NPCs & Faction Use</h4>
+            <h4 className="font-bold text-white mb-2">Custom NPCs &amp; Faction Use</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Create memorable, lore-friendly NPCs</li>
               <li>Assign appropriate factions and AI packages</li>
@@ -371,7 +371,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">🏆 Rewards & Endings</h4>
+            <h4 className="font-bold text-white mb-2">Rewards &amp; Endings</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Offer meaningful, lore-friendly rewards (gear, caps, perks, etc.)</li>
               <li>Provide multiple endings if possible</li>
@@ -389,7 +389,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">🧪 Testing Checklist</h4>
+            <h4 className="font-bold text-white mb-2">Testing Checklist</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Test every quest stage and branch</li>
               <li>Check for bugs, dead ends, and logic errors</li>
@@ -407,7 +407,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-slate-800 border border-slate-700 rounded p-4">
-            <h4 className="font-bold text-white mb-2">📄 Documentation</h4>
+            <h4 className="font-bold text-white mb-2">Documentation</h4>
             <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
               <li>Write a README with quest summary, features, and known issues</li>
               <li>Document all custom assets, scripts, and credits</li>
@@ -425,7 +425,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       content: (
         <div className="space-y-4">
           <div className="bg-orange-900/20 border border-orange-700/30 rounded p-4">
-            <h4 className="font-bold text-orange-300 mb-2">⚠️ Common Pitfalls</h4>
+            <h4 className="font-bold text-orange-300 mb-2">Common Pitfalls</h4>
             <ul className="list-disc list-inside text-orange-200 text-xs space-y-1">
               <li>Breaking lore or contradicting canon</li>
               <li>Unclear objectives or missing quest markers</li>
@@ -522,23 +522,25 @@ export const QuestModAuthoringGuide: React.FC = () => {
   return (
     <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-blue-400" />
-            <div>
-              <h1 className="text-2xl font-bold text-white">Creation Kit Hub (All-in-One)</h1>
-              <p className="text-sm text-slate-400">Quest authoring, CK workflows, leveled lists, and precombines in one ordered flow</p>
+      {!embedded && (
+        <div className="p-6 border-b border-slate-700 bg-slate-800/50">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-8 h-8 text-blue-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Creation Kit Hub (All-in-One)</h1>
+                <p className="text-sm text-slate-400">Quest authoring, CK workflows, leveled lists, and precombines in one ordered flow</p>
+              </div>
             </div>
+            <Link
+              to="/reference"
+              className="px-3 py-2 border border-blue-500/30 text-[10px] font-black uppercase tracking-widest text-blue-200 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+            >
+              Help
+            </Link>
           </div>
-          <Link
-            to="/reference"
-            className="px-3 py-2 border border-blue-500/30 text-[10px] font-black uppercase tracking-widest text-blue-200 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
-          >
-            Help
-          </Link>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
@@ -595,7 +597,7 @@ export const QuestModAuthoringGuide: React.FC = () => {
       {/* Footer */}
       <div className="p-4 bg-blue-900/20 border-t border-slate-700">
         <p className="text-xs text-blue-300 text-center">
-          💡 Tip: Plan your quest, keep it lore-friendly, and test every branch before release!
+          Tip: Plan your quest, keep it lore-friendly, and test every branch before release.
         </p>
       </div>
     </div>

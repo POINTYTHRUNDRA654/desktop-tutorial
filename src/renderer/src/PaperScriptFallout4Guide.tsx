@@ -149,7 +149,7 @@ const PaperScriptFallout4Guide: React.FC<PaperScriptFallout4GuideProps> = ({ emb
           onClick={() => toggleSection('fo4-features')}
           style={sectionHeaderStyle(expandedSection === 'fo4-features')}
         >
-          <span>🎮 Fallout 4 Specific Features</span>
+          <span>Fallout 4 Specific Features</span>
           <span>{expandedSection === 'fo4-features' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'fo4-features' && (
@@ -238,7 +238,7 @@ var name = "Reward"         // String`}</pre>
           onClick={() => toggleSection('installation')}
           style={sectionHeaderStyle(expandedSection === 'installation')}
         >
-          <span>📦 Installation Guide (All Platforms)</span>
+          <span>Installation Guide (All Platforms)</span>
           <span>{expandedSection === 'installation' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'installation' && (
@@ -288,7 +288,7 @@ var name = "Reward"         // String`}</pre>
           onClick={() => toggleSection('cli')}
           style={sectionHeaderStyle(expandedSection === 'cli')}
         >
-          <span>⚙️ CLI Reference</span>
+          <span>CLI Reference</span>
           <span>{expandedSection === 'cli' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'cli' && (
@@ -346,7 +346,7 @@ echo Done!`}</pre>
           onClick={() => toggleSection('examples')}
           style={sectionHeaderStyle(expandedSection === 'examples')}
         >
-          <span>📝 Complete Example Scripts</span>
+          <span>Complete Example Scripts</span>
           <span>{expandedSection === 'examples' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'examples' && (
@@ -462,13 +462,13 @@ script RewardDistributor : ObjectReference {
           onClick={() => toggleSection('best-practices')}
           style={sectionHeaderStyle(expandedSection === 'best-practices')}
         >
-          <span>✨ Best Practices & Optimization</span>
+          <span>Best Practices &amp; Optimization</span>
           <span>{expandedSection === 'best-practices' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'best-practices' && (
           <div style={contentStyle}>
             <div style={{...featureBoxStyle, borderLeft: '4px solid #ff4444'}}>
-              <h4 style={{color: '#ff4444', marginBottom: '0.5rem'}}>⚠️ Anti-Pattern: RegisterForUpdate Polling</h4>
+              <h4 style={{color: '#ff4444', marginBottom: '0.5rem'}}>Anti-Pattern: RegisterForUpdate Polling</h4>
               <p style={{color: '#ffcccc', fontSize: '0.85rem', marginBottom: '0.5rem'}}>
                 <strong>Never</strong> use <code>RegisterForUpdate()</code> as a polling loop. It runs
                 a script every N seconds regardless of need, burns Papyrus VM budget, and causes
@@ -528,7 +528,7 @@ script RewardDistributor : ObjectReference {
           onClick={() => toggleSection('issues')}
           style={sectionHeaderStyle(expandedSection === 'issues')}
         >
-          <span>🐛 Common Issues & Solutions</span>
+          <span>Common Issues &amp; Solutions</span>
           <span>{expandedSection === 'issues' ? '▼' : '▶'}</span>
         </button>
         {expandedSection === 'issues' && (

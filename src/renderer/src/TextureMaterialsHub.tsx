@@ -445,22 +445,25 @@ const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </Suspense>
 );
 
-const TextureMaterialsHub: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<HubTab>('dds');
+const TextureMaterialsHub: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+  const [activeTab, setActiveTab] = useState<HubTab>(embedded ? 'guide' : 'dds');
 
-  // Persist last-used tab across navigation
+  // Persist last-used tab across navigation (only for standalone usage)
   useEffect(() => {
+    if (embedded) return;
     const saved = sessionStorage.getItem('textures_hub_tab') as HubTab | null;
     if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
-  }, []);
+  }, [embedded]);
   useEffect(() => {
+    if (embedded) return;
     sessionStorage.setItem('textures_hub_tab', activeTab);
-  }, [activeTab]);
+  }, [activeTab, embedded]);
 
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
-      {/* Hub Header */}
-      <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
+      {/* Hub Header — hidden when embedded inside GuidesHub */}
+      {!embedded && (
+      <div className="flex-shrink-0 px-6 pt-6 pb-0 border-b border-slate-800/60">
         <div className="flex items-center gap-3 mb-1">
           <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-2">
             <Image className="h-5 w-5 text-emerald-300" />
@@ -492,6 +495,7 @@ const TextureMaterialsHub: React.FC = () => {
           ))}
         </div>
       </div>
+      )}
 
       {/* Tab Content */}
       <div className="flex-1 overflow-y-auto p-6">

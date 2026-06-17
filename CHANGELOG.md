@@ -4,7 +4,18 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.62] — Latest
+## [5.4.68] — Latest
+
+### Fixed — Platform Deep Scans: Wizards Hub, Textures & Materials, Packaging & Release
+
+- **Embedded header fix (Wizards Hub — 3 components)**: CKQuestDialogueWizard, InstallWizard, and PRPPatchBuilderWizard all rendered their full page header (breadcrumb, h1, description, Help/Reset buttons) even when embedded inside the Wizards Hub. Wrapped each component's entire header block in `{!embedded && (...)}` — matching the CrashTriageWizard reference implementation.
+- **Emoji violations removed (MaterialDefinitionEditor)**: Replaced 8 emoji characters in the Textures & Materials hub with proper Lucide icon components (`FileText`, `Check`, `Pencil`, `Save`, `Eye`, `Package`, `Image`, `ArrowUp`, `Sparkles`, `Layers`, `Circle`, `Minus`).
+- **pickFolder → pickDirectory fix (BA2Manager)**: The folder-picker button in the Packaging & Release hub silently did nothing because it called the non-existent `electronAPI.pickFolder` method. Corrected to `electronAPI.pickDirectory` (the actual preload-exposed method).
+- **Emoji violations removed (Packaging & Release — 3 components)**: Replaced all emoji in TheAssembler (file list icon → `FileText`), ReleaseExportPanel (warning icons → `AlertCircle`, save-compatibility labels reworded), and BethelUploader (16 emoji → Lucide icons; `getStatusIcon()` return type changed from `string` to `React.ReactNode`).
+
+---
+
+## [5.4.62]
 
 ### Improved — Platform 19: External Integrations Hub Deep Scan
 - **Platform naming aligned to Fallout 4 context**: user-facing Platform 19 labels now use **FO4 External Integrations Hub** across sidebar, hub header, locale nav key, command palette, search, and discovery references.
