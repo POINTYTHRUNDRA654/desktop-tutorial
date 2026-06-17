@@ -53,7 +53,7 @@ const badgeText = (kind: ExternalToolLink['kind']) => {
 };
 
 export const ToolsInstallVerifyPanel: React.FC<ToolsInstallVerifyPanelProps> = ({
-  title = '🧰 Tools / Install / Verify (No Guesswork)',
+  title = 'Tools / Install / Verify (No Guesswork)',
   description,
   tools,
   verify,

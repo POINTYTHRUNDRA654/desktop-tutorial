@@ -164,6 +164,9 @@ const WizardsHub: React.FC = () => {
       const prog = wizardProgress(key);
       if (prog.total > 0 && prog.checked === prog.total) return 'done';
       if (prog.checked > 0) return 'started';
+      // Fallback for wizards that store form fields instead of a checked[] map
+      // (e.g. PRPPatchBuilderWizard uses yourModName + boolean flags, not checked[])
+      if (wizardHasProgress(key)) return 'started';
     }
     if (id === 'packaging' && visitedSections.has('packaging')) return 'started';
     if (id === 'platforms' && visitedSections.has('platforms')) return 'started';

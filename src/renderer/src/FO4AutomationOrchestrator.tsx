@@ -1,8 +1,8 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   User, MapPin, Users, Scroll, Hammer, Terminal, Package, Shield,
   Copy, Check, Zap, BookOpen, Code,
-  Activity, Plus, Minus, Search
+  Activity, Plus, Minus, Search, Star, X, Wrench, Wand2, Loader2, Cpu
 } from 'lucide-react';
 
 // ─── localStorage helpers ─────────────────────────────────────────────────
@@ -645,6 +645,70 @@ const FO4AutomationOrchestrator: React.FC = () => {
   const [psName, setPsName] = useState('');
   const [psOutput, setPsOutput] = useState('');
 
+  // AI generation via local Ollama
+  const [aiDesc, setAiDesc] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [ollamaCodeModel, setOllamaCodeModel] = useState('qwen2.5-coder:7b');
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState('http://127.0.0.1:11434');
+
+  const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
+
+  useEffect(() => {
+    const loadOllamaSettings = async () => {
+      try {
+        const s = await api()?.getSettings?.();
+        if (s?.ollamaCodeModel) setOllamaCodeModel(s.ollamaCodeModel);
+        if (s?.ollamaBaseUrl) setOllamaBaseUrl(s.ollamaBaseUrl);
+      } catch { /* settings unavailable, use defaults */ }
+    };
+    void loadOllamaSettings();
+  }, []);
+
+  const generateWithAI = useCallback(async () => {
+    if (!aiDesc.trim()) { setAiError('Describe what the script should do first.'); return; }
+    setAiGenerating(true);
+    setAiError('');
+    const typeHints: Record<string, string> = {
+      quest_stage: 'extends Quest, uses OnInit + Quest.OnStageSet event',
+      item_give: 'extends ObjectReference, uses OnTriggerEnter event',
+      perk_effect: 'extends ActiveMagicEffect, uses OnEffectStart/OnEffectFinish',
+      timer_event: 'extends ObjectReference, uses OnInit + StartTimer + OnTimer',
+      menu_msg: 'extends Quest, shows a Message box and branches on button choice',
+    };
+    const prompt = `You are a Fallout 4 Papyrus scripting expert. Write a complete, compilable Papyrus script.
+
+Script name: ${psName || 'MyScript'}
+Script base type: ${typeHints[psType] || psType}
+What it should do: ${aiDesc}
+
+Rules:
+- Correct FO4 Papyrus syntax (Scriptname, Extends, Property ... Auto, events, functions)
+- Only use vanilla FO4 Papyrus API (Actor, ObjectReference, Quest, Debug, Utility, Game, etc.)
+- Declare all properties with proper types and Auto keyword
+- Make the script complete and ready to compile in Creation Kit
+- Output ONLY the Papyrus source code — no markdown, no explanation, no triple backticks
+
+Output the complete .psc file:`;
+
+    try {
+      const result = await api()?.ml?.mlLlmGenerate?.({
+        provider: 'ollama',
+        model: ollamaCodeModel,
+        prompt,
+        baseUrl: ollamaBaseUrl,
+      });
+      if (result?.ok && result.text) {
+        setPsOutput(result.text.trim());
+      } else {
+        setAiError(result?.error || 'Ollama returned no output. Make sure it is running and the model is pulled.');
+      }
+    } catch (e: any) {
+      setAiError(String(e?.message || 'Failed to reach Ollama.'));
+    }
+    setAiGenerating(false);
+  }, [aiDesc, psName, psType, ollamaCodeModel, ollamaBaseUrl]);
+
   const switchTab = (id: string) => { setActiveTab(id); LS.set('tab', id); };
 
   const spUsed = sp.reduce((a,b)=>a+b,0);
@@ -812,8 +876,8 @@ const FO4AutomationOrchestrator: React.FC = () => {
                   <div key={f.name} className="bg-slate-700/50 rounded p-3">
                     <div className="font-bold text-sm text-slate-100">{f.name}</div>
                     <div className="text-xs text-slate-400 mt-1 leading-snug">{f.desc}</div>
-                    <div className="text-xs text-green-400 mt-2 font-mono">⚑ {f.leader}</div>
-                    <div className="text-xs text-slate-500 font-mono">📍 {f.base}</div>
+                    <div className="text-xs text-green-400 mt-2 font-mono flex items-center gap-1"><User className="w-3 h-3 shrink-0"/>{f.leader}</div>
+                    <div className="text-xs text-slate-500 font-mono flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0"/>{f.base}</div>
                   </div>
                 ))}
               </div>
@@ -931,7 +995,7 @@ const FO4AutomationOrchestrator: React.FC = () => {
                   <h4 className="font-black text-green-400 text-base">{c.name}</h4>
                   <span className="text-xs text-slate-400 font-mono">{c.location}</span>
                 </div>
-                <div className="text-xs text-yellow-300 font-semibold mb-2">🌟 {c.perk}</div>
+                <div className="text-xs text-yellow-300 font-semibold mb-2 flex items-center gap-1"><Star className="w-3 h-3 shrink-0 fill-yellow-300"/>{c.perk}</div>
                 <div className="flex items-center gap-2 mb-2">
                   <button onClick={()=>updAffinity(c.id,-50)} className={filterBtn(false)}>−50</button>
                   <button onClick={()=>updAffinity(c.id,-10)} className={filterBtn(false)}>−10</button>
@@ -945,15 +1009,15 @@ const FO4AutomationOrchestrator: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <div className="text-green-400 font-bold mb-0.5">LIKED</div>
-                    {c.liked.map(l=><div key={l} className="text-slate-400">✓ {l}</div>)}
+                    {c.liked.map(l=><div key={l} className="flex items-start gap-1 text-slate-400"><Check className="w-3 h-3 shrink-0 mt-0.5 text-green-500"/><span>{l}</span></div>)}
                   </div>
                   <div>
                     <div className="text-red-400 font-bold mb-0.5">HATED</div>
-                    {c.hated.map(h=><div key={h} className="text-slate-400">✗ {h}</div>)}
+                    {c.hated.map(h=><div key={h} className="flex items-start gap-1 text-slate-400"><X className="w-3 h-3 shrink-0 mt-0.5 text-red-400"/><span>{h}</span></div>)}
                   </div>
                 </div>
                 <div className="mt-2 text-xs font-mono text-slate-500">
-                  {c.affinity>=1000?'★ MAX AFFINITY — Perk Unlocked!':c.affinity>=500?'◆ High — Getting close to perk':c.affinity>0?'◇ Building affinity…':'○ Neutral — interact to build affinity'}
+                  {c.affinity>=1000?'MAX AFFINITY — Perk Unlocked!':c.affinity>=500?'◆ High — Getting close to perk':c.affinity>0?'◇ Building affinity…':'○ Neutral — interact to build affinity'}
                 </div>
               </div>
             ))}
@@ -1005,8 +1069,8 @@ const FO4AutomationOrchestrator: React.FC = () => {
                         <span className="font-semibold text-sm text-slate-200">{r.name}</span>
                         <span className={`${tag('bg-slate-600 text-slate-300')}`}>{r.cat}</span>
                       </div>
-                      <div className="text-xs text-slate-400">📍 {r.station}</div>
-                      <div className="text-xs text-yellow-300 mt-0.5">⚙ {r.components}</div>
+                      <div className="text-xs text-slate-400 flex items-center gap-1"><MapPin className="w-3 h-3 shrink-0"/>{r.station}</div>
+                      <div className="text-xs text-yellow-300 mt-0.5 flex items-start gap-1"><Wrench className="w-3 h-3 shrink-0 mt-0.5"/>{r.components}</div>
                       <div className="text-xs text-green-400 mt-0.5">→ {r.output}</div>
                     </div>
                   </div>
@@ -1112,14 +1176,14 @@ const FO4AutomationOrchestrator: React.FC = () => {
                   </thead>
                   <tbody>
                     {[
-                      ['Minutemen','✓ Survives','✗ Destroyed','✓ Survives','✗ Destroyed'],
-                      ['Brotherhood','✗ Destroyed','✓ Survives','✗ Destroyed','✗ Destroyed'],
-                      ['Railroad','✓ Survives','✗ Destroyed','✓ Survives','✗ Destroyed'],
-                      ['Institute','✗ Destroyed','✗ Destroyed','✗ Destroyed','✓ Survives'],
+                      ['Minutemen','Survives','Destroyed','Survives','Destroyed'],
+                      ['Brotherhood','Destroyed','Survives','Destroyed','Destroyed'],
+                      ['Railroad','Survives','Destroyed','Survives','Destroyed'],
+                      ['Institute','Destroyed','Destroyed','Destroyed','Survives'],
                     ].map(row=>(
                       <tr key={row[0]} className="border-b border-slate-700/50">
                         {row.map((cell,i)=>(
-                          <td key={i} className={`py-2 pr-4 ${cell.startsWith('✓')?'text-green-400':cell.startsWith('✗')?'text-red-400':'text-slate-300'} font-bold`}>{cell}</td>
+                          <td key={i} className={`py-2 pr-4 ${cell==='Survives'?'text-green-400':cell==='Destroyed'?'text-red-400':'text-slate-300'} font-bold`}>{cell}</td>
                         ))}
                       </tr>
                     ))}
@@ -1177,7 +1241,7 @@ const FO4AutomationOrchestrator: React.FC = () => {
               <div className={card}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-bold text-green-400 font-mono">OUTPUT</h3>
-                  {mbOutput&&<button onClick={()=>copy(mbOutput,'mb')} className={filterBtn(false)}>{copiedId==='mb'?'✓ Copied!':'Copy All'}</button>}
+                  {mbOutput&&<button onClick={()=>copy(mbOutput,'mb')} className={filterBtn(false)}>{copiedId==='mb'?'Copied!':'Copy All'}</button>}
                 </div>
                 {mbOutput
                   ? <pre className="text-xs text-green-300 font-mono bg-slate-900 rounded p-3 overflow-auto max-h-[60vh] whitespace-pre-wrap leading-relaxed">{mbOutput}</pre>
@@ -1218,20 +1282,66 @@ const FO4AutomationOrchestrator: React.FC = () => {
                   </div>
                   <button onClick={()=>setPsOutput((PAPYRUS_TEMPLATES[psType]||PAPYRUS_TEMPLATES.quest_stage)(psName))}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-bold rounded transition-colors">
-                    <Code className="w-4 h-4"/> Generate .psc Script
+                    <Code className="w-4 h-4"/> Generate Template
                   </button>
                 </div>
               </div>
+
               <div className={card}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-bold text-green-400 font-mono">GENERATED PAPYRUS (.psc)</h3>
-                  {psOutput&&<button onClick={()=>copy(psOutput,'ps')} className={filterBtn(false)}>{copiedId==='ps'?'✓ Copied!':'Copy .psc'}</button>}
+                  {psOutput&&<button onClick={()=>copy(psOutput,'ps')} className={filterBtn(false)}>{copiedId==='ps'?'Copied!':'Copy .psc'}</button>}
                 </div>
                 {psOutput
                   ? <pre className="text-xs text-green-300 font-mono bg-slate-900 rounded p-3 overflow-auto max-h-[55vh] whitespace-pre-wrap leading-relaxed">{psOutput}</pre>
                   : <div className="text-slate-500 text-sm text-center py-16">Select a type, name your script, click Generate →</div>
                 }
               </div>
+            </div>
+
+            {/* AI Papyrus Generator — full width, below the template picker */}
+            <div className={`${card} border-purple-500/20 bg-purple-900/5`}>
+              <div className="flex items-center gap-2 mb-3">
+                <Wand2 className="w-4 h-4 text-purple-400"/>
+                <h3 className="text-sm font-bold text-purple-300 font-mono">AI PAPYRUS GENERATOR</h3>
+                <div className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <Cpu className="w-3 h-3"/>
+                  <span className="font-mono">{ollamaCodeModel}</span>
+                  <span className="text-slate-600">· Ollama local</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                Describe your script in plain English — the AI writes the full Papyrus source and sends it to the output panel above.
+                Requires Ollama running with <span className="font-mono text-purple-300">{ollamaCodeModel}</span> pulled.
+                Configure model in <span className="text-purple-300">Settings → Ollama</span>.
+              </p>
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className={lbl}>Describe what the script should do</label>
+                  <textarea
+                    value={aiDesc}
+                    onChange={e=>setAiDesc(e.target.value)}
+                    rows={3}
+                    placeholder={`e.g. "When the player enters a trigger volume, spawn 3 Raiders and start combat music. Only trigger once per game session."`}
+                    className={`${inp} w-full resize-none leading-relaxed`}
+                  />
+                </div>
+                <button
+                  onClick={generateWithAI}
+                  disabled={aiGenerating || !aiDesc.trim()}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-purple-700 hover:bg-purple-600 disabled:bg-slate-700 disabled:text-slate-500 text-white text-sm font-bold rounded transition-colors shrink-0 self-end">
+                  {aiGenerating ? <Loader2 className="w-4 h-4 animate-spin"/> : <Wand2 className="w-4 h-4"/>}
+                  {aiGenerating ? 'Generating…' : 'Generate with AI'}
+                </button>
+              </div>
+              {aiError && (
+                <div className="mt-2 text-xs text-red-400 bg-red-900/20 border border-red-700/30 rounded px-3 py-2">
+                  {aiError}
+                  {aiError.includes('Ollama') && (
+                    <span className="block mt-1 text-slate-500">Go to Settings → Ollama to configure and pull the model.</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className={card}>

@@ -4412,7 +4412,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // --- Workflow Runner: run a user-configured command and capture output ---
   // Unlike VAULT_RUN_TOOL, this channel has no tool allowlist because the
   // user has deliberately configured the commands inside their own workflow.
-  registerHandler(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string }) => {
+  registerHandler(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string; timeoutMs?: number }) => {
     try {
       if (!payload || typeof payload.cmd !== 'string' || !payload.cmd.trim()) {
         return { exitCode: -1, stdout: '', stderr: 'Invalid command: cmd must be a non-empty string' };
@@ -4428,16 +4428,32 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
 
           let stdout = '';
           let stderr = '';
+          let settled = false;
+
+          const done = (result: { exitCode: number; stdout: string; stderr: string }) => {
+            if (settled) return;
+            settled = true;
+            if (killTimer) clearTimeout(killTimer);
+            resolve(result);
+          };
+
+          let killTimer: ReturnType<typeof setTimeout> | null = null;
+          if (typeof payload.timeoutMs === 'number' && payload.timeoutMs > 0) {
+            killTimer = setTimeout(() => {
+              try { child.kill(); } catch { /* ignore */ }
+              done({ exitCode: -1, stdout, stderr: `Process killed after timeout (${payload.timeoutMs}ms)` });
+            }, payload.timeoutMs);
+          }
 
           child.on('error', (err) => {
-            resolve({ exitCode: -1, stdout: '', stderr: `Failed to execute: ${err.message}` });
+            done({ exitCode: -1, stdout: '', stderr: `Failed to execute: ${err.message}` });
           });
 
           if (child.stdout) child.stdout.on('data', (d: Buffer) => (stdout += d.toString()));
           if (child.stderr) child.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
 
           child.on('close', (code: number | null) => {
-            resolve({ exitCode: code ?? -1, stdout, stderr });
+            done({ exitCode: code ?? -1, stdout, stderr });
           });
         } catch (err: any) {
           resolve({ exitCode: -1, stdout: '', stderr: `Error spawning process: ${err.message}` });
@@ -16930,7 +16946,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '"## Site & Access Design" (exactly where this is in the Commonwealth, how the player physically gets there, the route/landmarks), ' +
         '"## Art Direction" (concrete visual direction for an artist: color palettes, material call-outs like rusted metal/glass/foliage, lighting mood, reference comparisons), ' +
         'and "## Creature & Object Concepts" (a detailed written description of the appearance of every new plant/creature/object/NPC, detailed enough that an artist could draw it from your description alone - you cannot create the meshes/textures yourself, but you must fully describe what they should look like). ' +
-        'Put your notes in a fenced code block tagged ```text under the matching heading.',
+        'Put your notes in a fenced code block tagged ```text under the matching heading. ' +
+        'After writing your Art Direction and Creature & Object Concepts sections, add ONE fenced code block tagged concept-art containing a JSON array of Stable Diffusion image generation prompts for the human modder to use as visual reference. Each object must have: "id" (short-kebab-case slug), "label" (display name, e.g. "Location Overview"), "category" ("location"|"architecture"|"creature"|"vegetation"), "prompt" (detailed SD prompt, 50-100 words, always include style keywords: "fallout 4 concept art, digital painting, detailed, atmospheric, post-apocalyptic"), "negative" (default: "blurry, low quality, watermark, text, signature, modern buildings, cars, sci-fi"). Generate 4-8 prompts covering: the location exterior, key architectural features, any new creatures or NPCs, and the atmosphere/mood.',
     },
   };
 
@@ -17145,6 +17162,24 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
     if (dialogueBlocks.length) fs.writeFileSync(path.join(outputDir, 'dialogue_and_lore.md'), dialogueBlocks.join('\n\n---\n\n'), 'utf-8');
     if (worldBlocks.length) fs.writeFileSync(path.join(outputDir, 'world_and_npc_notes.md'), worldBlocks.join('\n\n---\n\n'), 'utf-8');
+
+    // Extract concept art prompts from world agent turns — written by the World & NPC Builder
+    // as a concept-art fenced block. Stored as a standalone JSON so the UI can load them quickly.
+    const conceptArtPrompts: any[] = [];
+    for (const t of project.turns) {
+      if (t.agent === 'world') {
+        const caMatch = t.message.match(/```concept-art\s*([\s\S]*?)```/);
+        if (caMatch) {
+          try {
+            const parsed = JSON.parse(caMatch[1].trim());
+            if (Array.isArray(parsed)) conceptArtPrompts.push(...parsed);
+          } catch { /* ignore malformed JSON from model */ }
+        }
+      }
+    }
+    if (conceptArtPrompts.length > 0) {
+      fs.writeFileSync(path.join(outputDir, 'concept_art_prompts.json'), JSON.stringify(conceptArtPrompts, null, 2), 'utf-8');
+    }
 
     // The Build Guide is the actual point of this team (idea + how-to-build-it,
     // not an attempt to ship finished assets) - pull it from the Director's
@@ -17414,6 +17449,355 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
       return { success: true, content: header + enhanced };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── Scaffold Mod — generate real file artifacts from a BUILD_GUIDE.md ─────────
+  // Turns a Creative Director "design doc" into actual Papyrus scripts, FOMOD
+  // installer skeleton, and correct Data/ folder structure that the user can
+  // open in CK and immediately start populating.
+
+  // ── Reopen incomplete project — put it back in the team's queue ────────────
+  // Takes a completedProject marked incomplete, wraps its full transcript as
+  // a single context turn, and makes it the currentProject so the team picks
+  // up exactly where it ran out of rounds, only filling in the missing sections.
+
+  registerHandler('creative-director:reopen-project', async (
+    _event,
+    completedProjectId: string,
+    userNotes: string = '',
+  ) => {
+    try {
+      const idx = cdTeamState.completedProjects.findIndex((p) => p.id === completedProjectId);
+      if (idx < 0) return { success: false, error: 'Project not found in completed list' };
+      const completed = cdTeamState.completedProjects[idx];
+
+      if (cdTeamState.currentProject) {
+        return { success: false, error: `Team is already working on "${cdTeamState.currentProject.title}" — wait for it to finish first` };
+      }
+
+      const transcriptPath = path.join(completed.outputDir, 'transcript.md');
+      const transcript = fs.existsSync(transcriptPath)
+        ? fs.readFileSync(transcriptPath, 'utf-8')
+        : `# ${completed.title}\n\n${completed.summary}`;
+
+      const notesClean = userNotes.trim();
+      const isIncomplete = completed.incomplete && completed.missingSections.length > 0;
+      const stillMissing = isIncomplete ? completed.missingSections : [];
+
+      // If the user left notes, those become the top-level directive — the team
+      // treats them as explicit owner feedback that overrides prior decisions.
+      let contextMessage: string;
+      if (notesClean) {
+        contextMessage =
+          `REVISION SESSION — the project owner has reviewed this design and sent it back with specific feedback.\n\n` +
+          `═══ OWNER FEEDBACK (highest priority — address ALL of it) ═══\n${notesClean}\n` +
+          `════════════════════════════════════════════════════════════\n\n` +
+          (isIncomplete ? `Also still missing from the previous run: ${stillMissing.join(', ')}.\n\n` : '') +
+          `Prior transcript for context — build on it, revise what the owner flagged:\n\n` +
+          `--- PRIOR TRANSCRIPT START ---\n${transcript.slice(0, 13000)}\n--- PRIOR TRANSCRIPT END ---\n\n` +
+          `Required sections: ${CD_REQUIRED_SECTIONS.map((s) => `"## ${s}"`).join(', ')}.`;
+      } else {
+        contextMessage =
+          `REVISION SESSION — this project previously ran out of rounds before completing.\n` +
+          `STILL MISSING: ${stillMissing.join(', ')}.\n\n` +
+          `Below is the full prior team transcript. Treat it as the existing design foundation — ` +
+          `DO NOT rewrite sections that already have solid content. Only fill in what is genuinely absent.\n\n` +
+          `--- PRIOR TRANSCRIPT START ---\n${transcript.slice(0, 14000)}\n--- PRIOR TRANSCRIPT END ---\n\n` +
+          `Required sections check: ${CD_REQUIRED_SECTIONS.map((s) => `"## ${s}"`).join(', ')}.\n` +
+          `Focus only on the missing ones: ${stillMissing.join(', ')}.`;
+      }
+
+      const newId = `cdproj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const project: CdProject = {
+        id: newId,
+        title: completed.title,
+        brief: completed.summary || `Revision of: ${completed.title}`,
+        status: 'in_progress',
+        turns: [{ agent: 'director' as CdAgentRole, message: contextMessage, timestamp: Date.now() }],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      cdTeamState.completedProjects.splice(idx, 1);
+      cdTeamState.currentProject = project;
+      cdTeamState.enabled = true;
+      saveCdTeamState();
+      void runCreativeDirectorTick();
+
+      return { success: true, projectTitle: project.title, missingSections: stillMissing, hadUserNotes: Boolean(notesClean) };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── Scaffold Mod — generate real file artifacts from a BUILD_GUIDE.md ─────────
+  // Turns a Creative Director "design doc" into actual Papyrus scripts, FOMOD
+  // installer skeleton, and correct Data/ folder structure that the user can
+  // open in CK and immediately start populating.
+
+  registerHandler('creative-director:scaffold-mod', async (_event, outputDir: string) => {
+    try {
+      if (!outputDir || !fs.existsSync(outputDir)) throw new Error('Project folder not found');
+      const guidePath = path.join(outputDir, 'BUILD_GUIDE.md');
+      if (!fs.existsSync(guidePath)) throw new Error('BUILD_GUIDE.md missing — enhance the guide first');
+      const guideContent = fs.readFileSync(guidePath, 'utf-8');
+
+      // Ask AI to parse the guide and return structured mod scaffold data
+      const systemPrompt = `You are a Fallout 4 modding automation system. Parse a BUILD_GUIDE.md and return ONLY valid JSON — no markdown fences, no explanation.
+
+Return exactly this schema (fill every field):
+{
+  "modName": "(PascalCase identifier, no spaces, e.g. ShadowFactionMod)",
+  "displayName": "(human-readable mod name)",
+  "author": "(author name or Unknown)",
+  "version": "1.0.0",
+  "description": "(1-2 sentence description for FOMOD)",
+  "quests": [
+    {
+      "editorId": "(e.g. SFM_MainQuest)",
+      "name": "(display name)",
+      "type": "main",
+      "stages": [{"index": 10, "description": "Quest begins"}],
+      "papyrusScript": "(complete valid Papyrus source: ScriptName declaration, properties, event handlers. Use real FO4 Papyrus syntax.)"
+    }
+  ],
+  "npcs": [
+    {
+      "editorId": "(e.g. SFM_NPC_Commander)",
+      "name": "(display name)",
+      "papyrusScript": "(minimal actor script or empty string if no script needed)"
+    }
+  ],
+  "extraFolders": ["Data/Meshes/(modName)/", "Data/Textures/(modName)/", "Data/Sound/Voice/(modName).esp/"]
+}
+
+Write real Papyrus source for each quest script. Include OnInit, at minimum 2 stage functions, and proper property declarations.
+For NPC scripts, include at least an OnInit or OnHit stub if the NPC has scripted behavior.
+Keep scripts focused and real — no placeholder comments like TODO.`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Parse this BUILD_GUIDE.md and return the JSON scaffold:\n\n${guideContent.slice(0, 8000)}` },
+      ];
+
+      const backend = getBackendConfig();
+      let scaffoldJson = '';
+      if (backend) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000);
+        try {
+          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+            },
+            body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 4000 }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          const json: any = await res.json().catch(() => ({}));
+          if (res.ok && json?.ok) scaffoldJson = String(json?.text || '');
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          console.warn('[scaffold-mod] backend fetch failed:', fetchErr);
+        }
+      }
+
+      if (!scaffoldJson) return { success: false, error: 'AI unavailable — check Render backend connection' };
+
+      // Parse the JSON response (strip any accidental markdown fences)
+      let scaffold: any;
+      try {
+        const cleaned = scaffoldJson.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+        scaffold = JSON.parse(cleaned);
+      } catch {
+        return { success: false, error: 'AI returned invalid JSON — try Enhance first to improve guide quality' };
+      }
+
+      const modName: string = (scaffold.modName || 'MyFO4Mod').replace(/[^A-Za-z0-9_]/g, '');
+      const scaffoldDir = path.join(outputDir, 'scaffold');
+      const createdFiles: string[] = [];
+
+      const writeFile = (relPath: string, content: string) => {
+        const full = path.join(scaffoldDir, relPath);
+        fs.mkdirSync(path.dirname(full), { recursive: true });
+        fs.writeFileSync(full, content, 'utf-8');
+        createdFiles.push(relPath);
+      };
+
+      // ── Papyrus scripts ─────────────────────────────────────────────────────
+      const sourceBase = `Data/Scripts/Source`;
+      for (const q of (scaffold.quests || [])) {
+        if (!q.papyrusScript) continue;
+        const scriptName = (q.editorId || `${modName}_Quest`).replace(/[^A-Za-z0-9_]/g, '');
+        writeFile(`${sourceBase}/${scriptName}.psc`, q.papyrusScript);
+      }
+      for (const n of (scaffold.npcs || [])) {
+        if (!n.papyrusScript) continue;
+        const scriptName = (n.editorId || `${modName}_NPC`).replace(/[^A-Za-z0-9_]/g, '');
+        writeFile(`${sourceBase}/${scriptName}.psc`, n.papyrusScript);
+      }
+
+      // ── Extra Data/ folders (placeholder .gitkeep files) ────────────────────
+      const defaultFolders = [
+        `Data/Meshes/${modName}/`,
+        `Data/Textures/${modName}/`,
+        `Data/Sound/Voice/${modName}.esp/`,
+        `Data/Sound/FX/${modName}/`,
+      ];
+      const allFolders = [...new Set([...defaultFolders, ...(scaffold.extraFolders || [])])];
+      for (const folder of allFolders) {
+        const cleanFolder = folder.replace(/\.\./g, '').replace(/^[\\/]+/, '');
+        const keepPath = path.join(scaffoldDir, cleanFolder, '.gitkeep');
+        fs.mkdirSync(path.dirname(keepPath), { recursive: true });
+        fs.writeFileSync(keepPath, '', 'utf-8');
+        createdFiles.push(`${cleanFolder}.gitkeep`);
+      }
+
+      // ── FOMOD installer ──────────────────────────────────────────────────────
+      const fomodInfoXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<fomod>
+  <Name>${scaffold.displayName || modName}</Name>
+  <Author>${scaffold.author || 'Unknown'}</Author>
+  <Version>${scaffold.version || '1.0.0'}</Version>
+  <Description>${(scaffold.description || '').replace(/[<>&"']/g, (c: string) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as Record<string, string>)[c] ?? c)}</Description>
+  <Website></Website>
+</fomod>`;
+
+      const fomodModuleConfigXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+  <moduleName>${scaffold.displayName || modName}</moduleName>
+  <requiredInstallFiles>
+    <files>
+      <folder source="Data" destination="" priority="0" />
+    </files>
+  </requiredInstallFiles>
+  <installSteps order="Explicit">
+    <installStep name="Install">
+      <optionalFileGroups order="Explicit">
+        <group name="Core Files" type="SelectAll">
+          <plugins order="Explicit">
+            <plugin name="${scaffold.displayName || modName}">
+              <description>${(scaffold.description || 'Main mod files').replace(/[<>&"']/g, (c: string) => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'} as Record<string, string>)[c] ?? c)}</description>
+              <files>
+                <folder source="Data" destination="" priority="0" />
+              </files>
+              <typeDescriptor><type name="Recommended" /></typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+  </installSteps>
+</config>`;
+
+      writeFile('fomod/info.xml', fomodInfoXml);
+      writeFile('fomod/ModuleConfig.xml', fomodModuleConfigXml);
+
+      // ── Scaffold manifest ────────────────────────────────────────────────────
+      const manifestLines = [
+        `# Scaffold Manifest — ${scaffold.displayName || modName}`,
+        `Generated: ${new Date().toISOString()}`,
+        `Mod name: ${modName}`,
+        '',
+        '## Generated Files',
+        ...createdFiles.filter(f => !f.endsWith('.gitkeep')).map(f => `- \`${f}\``),
+        '',
+        '## Folder Structure Created',
+        ...allFolders.map(f => `- \`${f}\``),
+        '',
+        '## Next Steps',
+        '1. Open Creation Kit and create a new plugin named `' + modName + '.esp`',
+        '2. Copy the Papyrus scripts from `Data/Scripts/Source/` into your CK Data folder',
+        '3. Compile scripts: CK → Gameplay → Papyrus Compiler → compile all scripts in `Data/Scripts/Source/`',
+        '4. Build your CK records referencing the EditorIDs in this guide:',
+        ...(scaffold.quests || []).map((q: any) => `   - Quest: \`${q.editorId}\` → "${q.name}"`),
+        ...(scaffold.npcs || []).map((n: any) => `   - NPC: \`${n.editorId}\` → "${n.name}"`),
+        '5. Pack textures/meshes with Archive2 → `' + modName + ' - Main.ba2`',
+        '6. Install using the generated FOMOD installer or drop `Data/` into Fallout 4 root',
+      ];
+      writeFile('SCAFFOLD_MANIFEST.md', manifestLines.join('\n'));
+
+      return {
+        success: true,
+        scaffoldDir,
+        modName,
+        createdFiles,
+        questCount: (scaffold.quests || []).length,
+        npcCount: (scaffold.npcs || []).length,
+        folderCount: allFolders.length,
+      };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── Concept Art — read prompts file ──────────────────────────────────────────
+  registerHandler('creative-director:read-concept-prompts', async (_event, outputDir: string) => {
+    try {
+      const promptsPath = path.join(outputDir, 'concept_art_prompts.json');
+      if (!fs.existsSync(promptsPath)) return { success: true, prompts: [] };
+      const raw = fs.readFileSync(promptsPath, 'utf-8');
+      return { success: true, prompts: JSON.parse(raw) };
+    } catch (err: any) {
+      return { success: false, prompts: [], error: err.message };
+    }
+  });
+
+  // ── Concept Art — ping SD WebUI ───────────────────────────────────────────────
+  registerHandler('creative-director:sd-status', async (_event, sdUrl?: string) => {
+    const base = (sdUrl || 'http://127.0.0.1:7860').replace(/\/$/, '');
+    try {
+      const resp = await fetch(`${base}/internal/ping`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      return { online: resp.ok || resp.status < 500 };
+    } catch {
+      return { online: false };
+    }
+  });
+
+  // ── Concept Art — generate via SD WebUI txt2img ───────────────────────────────
+  registerHandler('creative-director:generate-concept-art', async (_event, params: {
+    prompt: string;
+    negativePrompt?: string;
+    width?: number;
+    height?: number;
+    steps?: number;
+    cfgScale?: number;
+    sdUrl?: string;
+  }) => {
+    const base = (params.sdUrl || 'http://127.0.0.1:7860').replace(/\/$/, '');
+    try {
+      const body = {
+        prompt: params.prompt,
+        negative_prompt: params.negativePrompt || 'blurry, low quality, watermark, text, signature, modern buildings, cars, sci-fi',
+        width: params.width || 512,
+        height: params.height || 512,
+        steps: params.steps || 20,
+        cfg_scale: params.cfgScale || 7,
+        sampler_name: 'DPM++ 2M Karras',
+      };
+      const resp = await fetch(`${base}/sdapi/v1/txt2img`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        return { success: false, error: `SD WebUI ${resp.status}: ${errText.slice(0, 200)}` };
+      }
+      const data = await resp.json();
+      const imageData: string = data.images?.[0] ?? '';
+      if (!imageData) return { success: false, error: 'SD WebUI returned no image data.' };
+      return { success: true, imageData };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Request to SD WebUI failed.' };
     }
   });
 

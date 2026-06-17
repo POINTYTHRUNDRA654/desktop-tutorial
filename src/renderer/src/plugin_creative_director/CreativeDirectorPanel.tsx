@@ -976,6 +976,25 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
   const [enhanceNotes, setEnhanceNotes] = useState('');
   const [enhanceError, setEnhanceError] = useState('');
   const [buildability, setBuildability] = useState<{ score: number; checks: { pass: boolean; label: string }[] } | null>(null);
+  const [scaffolding, setScaffolding] = useState(false);
+  const [scaffoldError, setScaffoldError] = useState('');
+  const [scaffoldResult, setScaffoldResult] = useState<{ modName: string; createdFiles: string[]; scaffoldDir: string; questCount: number; npcCount: number; folderCount: number } | null>(null);
+  const [reopening, setReopening] = useState(false);
+  const [reopenError, setReopenError] = useState('');
+  const [reopenedToQueue, setReopenedToQueue] = useState(false);
+  const [sendBackOpen, setSendBackOpen] = useState(false);
+  const [sendBackNotes, setSendBackNotes] = useState('');
+
+  // Concept Art Studio state
+  type ConceptArtPrompt = { id: string; label: string; category: string; prompt: string; negative: string };
+  const [artPrompts, setArtPrompts] = useState<ConceptArtPrompt[]>([]);
+  const [artImages, setArtImages] = useState<Record<string, string>>({});
+  const [artErrors, setArtErrors] = useState<Record<string, string>>({});
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [artExpanded, setArtExpanded] = useState(false);
+  const [sdUrl, setSdUrl] = useState<string>(() => localStorage.getItem('cd_sd_url') || 'http://127.0.0.1:7860');
+  const [sdOnline, setSdOnline] = useState<boolean | null>(null);
+  const [sdChecking, setSdChecking] = useState(false);
 
   const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
 
@@ -996,6 +1015,52 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
   }, [c.outputDir]);
 
   useEffect(() => { loadGuide(); }, [loadGuide]);
+
+  const loadArtPrompts = useCallback(async () => {
+    if (!c.outputDir) return;
+    const res = await api()?.creativeDirectorTeam?.readConceptArtPrompts?.(c.outputDir);
+    if (res?.success && Array.isArray(res.prompts) && res.prompts.length > 0) {
+      setArtPrompts(res.prompts);
+    }
+  }, [c.outputDir]);
+
+  useEffect(() => { loadArtPrompts(); }, [loadArtPrompts]);
+
+  const checkSdStatus = async () => {
+    setSdChecking(true);
+    const res = await api()?.creativeDirectorTeam?.sdStatus?.(sdUrl);
+    setSdOnline(res?.online ?? false);
+    setSdChecking(false);
+  };
+
+  const generateArt = async (p: ConceptArtPrompt) => {
+    setGeneratingIds(prev => new Set(prev).add(p.id));
+    setArtErrors(prev => ({ ...prev, [p.id]: '' }));
+    try {
+      const res = await api()?.creativeDirectorTeam?.generateConceptArt?.({
+        prompt: p.prompt,
+        negativePrompt: p.negative,
+        width: 512,
+        height: 512,
+        steps: 20,
+        sdUrl,
+      });
+      if (res?.success && res.imageData) {
+        setArtImages(prev => ({ ...prev, [p.id]: `data:image/png;base64,${res.imageData}` }));
+      } else {
+        setArtErrors(prev => ({ ...prev, [p.id]: res?.error || 'Generation failed' }));
+      }
+    } catch (e: any) {
+      setArtErrors(prev => ({ ...prev, [p.id]: String(e) }));
+    }
+    setGeneratingIds(prev => { const n = new Set(prev); n.delete(p.id); return n; });
+  };
+
+  const generateAll = async () => {
+    for (const p of artPrompts) {
+      if (!artImages[p.id]) await generateArt(p);
+    }
+  };
 
   const reveal = async () => {
     await api()?.creativeDirectorTeam?.revealOutput?.(c.outputDir);
@@ -1018,6 +1083,39 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
       }
     } catch (e: any) { setEnhanceError(String(e)); }
     setEnhancing(false);
+  };
+
+  const reopen = async () => {
+    setReopening(true); setReopenError('');
+    try {
+      const res = await api()?.creativeDirectorTeam?.reopenProject?.(c.id, sendBackNotes);
+      if (res?.success) {
+        setReopenedToQueue(true);
+        setSendBackOpen(false);
+        onRefresh();
+      } else {
+        setReopenError(res?.error || 'Could not send back project');
+      }
+    } catch (e: any) { setReopenError(String(e)); }
+    setReopening(false);
+  };
+
+  const scaffold = async () => {
+    setScaffolding(true); setScaffoldError(''); setScaffoldResult(null);
+    try {
+      const res = await api()?.creativeDirectorTeam?.scaffoldMod?.(c.outputDir);
+      if (res?.success) {
+        setScaffoldResult(res);
+      } else {
+        setScaffoldError(res?.error || 'Scaffold failed');
+      }
+    } catch (e: any) { setScaffoldError(String(e)); }
+    setScaffolding(false);
+  };
+
+  const revealScaffold = async () => {
+    if (!scaffoldResult?.scaffoldDir) return;
+    await api()?.creativeDirectorTeam?.revealOutput?.(scaffoldResult.scaffoldDir);
   };
 
   const score = buildability?.score ?? 0;
@@ -1044,6 +1142,17 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
             <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {reopenedToQueue ? (
+              <span className="flex items-center gap-1 text-xs text-violet-300 bg-violet-500/10 px-2 py-1.5 rounded">
+                <CheckCircle2 className="w-3 h-3" /> Queued
+              </span>
+            ) : (
+              <button onClick={() => { setSendBackOpen(!sendBackOpen); setReopenError(''); }}
+                className={`flex items-center gap-1 text-xs px-2 py-1.5 rounded transition-colors ${sendBackOpen ? 'text-violet-200 bg-violet-500/25' : 'text-violet-300 bg-violet-500/10 hover:bg-violet-500/20'}`}
+                title="Send back to the AI team with your notes">
+                <RefreshCw className="w-3 h-3" /> Send Back
+              </button>
+            )}
             <button onClick={reveal}
               className="flex items-center gap-1 text-xs text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 px-2 py-1.5 rounded transition-colors">
               <Download className="w-3 h-3" /> Reveal
@@ -1054,6 +1163,40 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
             </button>
           </div>
         </div>
+
+        {/* Send Back panel — expands inline when button is clicked */}
+        {sendBackOpen && !reopenedToQueue && (
+          <div className="border border-violet-500/20 rounded-lg p-3 bg-violet-500/5 space-y-2">
+            <div className="text-xs font-semibold text-violet-300 flex items-center gap-1.5">
+              <RefreshCw className="w-3.5 h-3.5" /> Send Back to the Team
+            </div>
+            <p className="text-xs text-slate-500">
+              {c.incomplete ? 'Missing sections will be filled in. ' : ''}
+              Add your notes below — the team will treat them as top-priority feedback.
+            </p>
+            <textarea
+              value={sendBackNotes}
+              onChange={(e) => setSendBackNotes(e.target.value)}
+              placeholder="What needs work? (optional — leave blank to just finish the missing sections)"
+              rows={3}
+              className="w-full bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-400 resize-none"
+            />
+            {reopenError && (
+              <div className="text-xs text-red-400">{reopenError}</div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={reopen} disabled={reopening}
+                className="flex items-center gap-1.5 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-3 py-1.5 rounded transition-colors">
+                {reopening ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {reopening ? 'Sending...' : 'Send to Team'}
+              </button>
+              <button onClick={() => { setSendBackOpen(false); setReopenError(''); }}
+                className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded hover:bg-slate-700 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-xs text-slate-400 leading-relaxed">{c.summary}</p>
 
@@ -1152,6 +1295,52 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
             </button>
           </div>
 
+          {/* Build Mod Structure */}
+          <div className="border border-emerald-500/20 rounded-lg p-3 bg-emerald-500/5">
+            <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+              <Package className="w-3.5 h-3.5" /> Build Mod Structure
+            </div>
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              Generates real files from this guide: Papyrus <code className="text-emerald-300">.psc</code> scripts for every quest and NPC, a FOMOD installer skeleton, and the correct <code className="text-emerald-300">Data/</code> folder structure — ready to open in CK.
+            </p>
+
+            {scaffoldError && (
+              <div className="text-xs text-red-400 bg-red-400/10 rounded px-2 py-1 mb-2">{scaffoldError}</div>
+            )}
+
+            {scaffoldResult ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  Built — {scaffoldResult.modName} · {scaffoldResult.questCount} quest script{scaffoldResult.questCount !== 1 ? 's' : ''} · {scaffoldResult.npcCount} NPC script{scaffoldResult.npcCount !== 1 ? 's' : ''} · {scaffoldResult.folderCount} folders
+                </div>
+                <div className="bg-slate-900 rounded p-2 max-h-32 overflow-y-auto space-y-0.5">
+                  {scaffoldResult.createdFiles.filter(f => !f.endsWith('.gitkeep')).map((f, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                      <File className="w-2.5 h-2.5 text-emerald-400/60 flex-shrink-0" />{f}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={revealScaffold}
+                    className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 px-3 py-1.5 rounded transition-colors">
+                    <FolderOpen className="w-3 h-3" /> Open in Explorer
+                  </button>
+                  <button onClick={scaffold} disabled={scaffolding}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors">
+                    <RefreshCw className="w-3 h-3" /> Rebuild
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={scaffold} disabled={scaffolding || guideLoading}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold py-2 rounded text-sm transition-colors">
+                {scaffolding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                {scaffolding ? 'Generating mod files...' : 'Build Mod Structure'}
+              </button>
+            )}
+          </div>
+
           {/* Guide viewer */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1175,6 +1364,123 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
                       <Copy className="w-3 h-3" /> Copy
                     </button>
                     <pre className="bg-slate-950 border border-slate-700 rounded p-3 text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed">{guideContent}</pre>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Concept Art Studio */}
+          <div className="border border-sky-500/20 rounded-lg overflow-hidden bg-sky-500/5">
+            <button onClick={() => setArtExpanded(!artExpanded)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-sky-500/10 transition-colors text-left">
+              <div className="flex items-center gap-2">
+                <Image className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider">Concept Art Studio</span>
+                {artPrompts.length > 0 && (
+                  <span className="text-[10px] text-sky-500 font-normal normal-case">
+                    {artPrompts.length} prompt{artPrompts.length !== 1 ? 's' : ''}
+                    {Object.keys(artImages).length > 0 && ` · ${Object.keys(artImages).length} generated`}
+                  </span>
+                )}
+              </div>
+              {artExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+            </button>
+
+            {artExpanded && (
+              <div className="border-t border-sky-500/20 p-3 space-y-3">
+                {/* SD WebUI endpoint */}
+                <div className="flex items-center gap-2">
+                  <input
+                    value={sdUrl}
+                    onChange={e => { setSdUrl(e.target.value); localStorage.setItem('cd_sd_url', e.target.value); setSdOnline(null); }}
+                    placeholder="http://127.0.0.1:7860"
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+                  />
+                  <button onClick={checkSdStatus} disabled={sdChecking}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:text-sky-300 disabled:opacity-50 transition-colors whitespace-nowrap">
+                    {sdChecking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                    {sdOnline === null ? 'Check SD' : sdOnline ? 'Online' : 'Offline'}
+                  </button>
+                  {sdOnline === false && (
+                    <span className="text-[10px] text-red-400">SD WebUI not reachable — start AUTOMATIC1111/Forge first</span>
+                  )}
+                </div>
+
+                {artPrompts.length === 0 ? (
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    No concept art prompts yet. The AI team generates these when they write the
+                    Art Direction and Creature &amp; Object Concepts sections. Send this project
+                    back to the team or wait for a new project to include them automatically.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500">512×512 · 20 steps · DPM++ 2M Karras</span>
+                      <button onClick={generateAll}
+                        disabled={generatingIds.size > 0}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-sky-300 bg-sky-500/15 hover:bg-sky-500/25 disabled:opacity-50 px-3 py-1 rounded transition-colors">
+                        {generatingIds.size > 0 ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                        Generate All
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {artPrompts.map(p => {
+                        const isGenerating = generatingIds.has(p.id);
+                        const img = artImages[p.id];
+                        const err = artErrors[p.id];
+                        const catColor: Record<string, string> = {
+                          location: 'bg-emerald-900/40 text-emerald-300 border-emerald-500/30',
+                          architecture: 'bg-amber-900/40 text-amber-300 border-amber-500/30',
+                          creature: 'bg-red-900/40 text-red-300 border-red-500/30',
+                          vegetation: 'bg-teal-900/40 text-teal-300 border-teal-500/30',
+                        };
+                        return (
+                          <div key={p.id} className="bg-slate-900/60 border border-slate-700 rounded-lg overflow-hidden">
+                            {img ? (
+                              <img src={img} alt={p.label}
+                                className="w-full aspect-square object-cover bg-slate-800" />
+                            ) : (
+                              <div className="w-full aspect-square bg-slate-800/60 flex items-center justify-center">
+                                {isGenerating
+                                  ? <Loader2 className="w-6 h-6 text-sky-400 animate-spin" />
+                                  : <Image className="w-8 h-8 text-slate-600" />}
+                              </div>
+                            )}
+                            <div className="p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-semibold text-white">{p.label}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${catColor[p.category] || 'bg-slate-800 text-slate-400 border-slate-600'}`}>
+                                  {p.category}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">{p.prompt}</p>
+                              {err && <div className="text-[10px] text-red-400">{err}</div>}
+                              <div className="flex gap-1.5">
+                                <button onClick={() => generateArt(p)} disabled={isGenerating}
+                                  className="flex-1 flex items-center justify-center gap-1 text-xs font-semibold py-1 rounded bg-sky-600 hover:bg-sky-500 disabled:bg-slate-700 disabled:text-slate-500 text-white transition-colors">
+                                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                  {img ? 'Regenerate' : 'Generate'}
+                                </button>
+                                <button onClick={() => navigator.clipboard.writeText(p.prompt)}
+                                  className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-sky-300 transition-colors"
+                                  title="Copy prompt">
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                                {img && (
+                                  <a href={img} download={`${c.id}_${p.id}.png`}
+                                    className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-emerald-300 transition-colors"
+                                    title="Download image">
+                                    <Download className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </>
                 )}
               </div>

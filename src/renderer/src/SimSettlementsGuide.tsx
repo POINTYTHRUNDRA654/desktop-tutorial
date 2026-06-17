@@ -12,7 +12,7 @@ interface Section {
   content: React.ReactNode;
 }
 
-export default function SimSettlementsGuide() {
+export default function SimSettlementsGuide({ embedded = false }: { embedded?: boolean } = {}) {
   const [expandedSection, setExpandedSection] = useState<string | null>('tools-install-verify');
 
   const toggleSection = (id: string) => {
@@ -31,7 +31,7 @@ export default function SimSettlementsGuide() {
   const sections: Section[] = [
     {
       id: 'tools-install-verify',
-      title: '🧰 Tools / Install / Verify (No Guesswork)',
+      title: 'Tools / Install / Verify (No Guesswork)',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -91,7 +91,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'quick-start',
-      title: '⚡ Quick Start (5 Minutes)',
+      title: 'Quick Start (5 Minutes)',
       icon: <Zap className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -123,7 +123,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'what-is-ss2',
-      title: '🏘️ What is Sim Settlements 2?',
+      title: 'What is Sim Settlements 2?',
       icon: <BookOpen className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm text-[#00ff00] font-mono">
@@ -149,7 +149,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'installation',
-      title: '⚙️ Installation Methods',
+      title: 'Installation Methods',
       icon: <ArrowDownToLine className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -197,7 +197,7 @@ export default function SimSettlementsGuide() {
                 <li>Sim Settlements 2</li>
                 <li>HUD Framework</li>
               </ul>
-              <p className="text-[#ff4444] mt-2">⚠️ Limited mod space! Start with base SS2 only.</p>
+              <p className="text-[#ff4444] mt-2">Limited mod space — start with base SS2 only.</p>
             </div>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'city-manager',
-      title: '🛠️ City Manager Holotape',
+      title: 'City Manager Holotape',
       icon: <Hammer className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -246,7 +246,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'city-plans',
-      title: '🏗️ City Plans & Automation',
+      title: 'City Plans &amp; Automation',
       icon: <Hammer className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -290,7 +290,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'addons',
-      title: '📦 Addons & Expansions',
+      title: 'Addons &amp; Expansions',
       icon: <ArrowDownToLine className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -339,7 +339,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'getting-started',
-      title: '🎮 Getting Started Guide',
+      title: 'Getting Started Guide',
       icon: <CheckCircle2 className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -384,7 +384,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'prepopulation',
-      title: '🌍 Prepopulation System',
+      title: 'Prepopulation System',
       icon: <Lightbulb className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
@@ -415,7 +415,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'mod-conflicts',
-      title: '⚠️ Incompatible Mods',
+      title: 'Incompatible Mods',
       icon: <AlertCircle className="w-5 h-5 text-[#ff4444]" />,
       content: (
         <div className="space-y-3 text-sm text-[#ff4444] font-mono">
@@ -447,7 +447,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'troubleshooting',
-      title: '🔧 Troubleshooting',
+      title: 'Troubleshooting',
       icon: <AlertCircle className="w-5 h-5 text-[#ffff00]" />,
       content: (
         <div className="space-y-3 text-sm text-[#ffff00] font-mono">
@@ -505,7 +505,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'faq',
-      title: '❓ FAQ',
+      title: 'FAQ',
       icon: <HelpCircle className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-3 text-sm text-[#00ff00] font-mono">
@@ -546,7 +546,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'creator-addon-guide',
-      title: '🧱 Creator Path: Addon Creation Guide',
+      title: 'Creator Path: Addon Creation Guide',
       icon: <Hammer className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4">
@@ -556,7 +556,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'creator-units-loadouts',
-      title: '🧭 Creator Path: Units & Loadouts',
+      title: 'Creator Path: Units &amp; Loadouts',
       icon: <Users className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4">
@@ -566,7 +566,7 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'creator-toolkits',
-      title: '🧰 Creator Path: Add-On Toolkits',
+      title: 'Creator Path: Add-On Toolkits',
       icon: <BookOpen className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4">
@@ -576,16 +576,16 @@ export default function SimSettlementsGuide() {
     },
     {
       id: 'resources',
-      title: '🌐 Community & Resources',
+      title: 'Community &amp; Resources',
       icon: <Users className="w-5 h-5 text-[#00ff00]" />,
       content: (
         <div className="space-y-4 text-sm text-[#00ff00] font-mono">
           <div>
             <h4 className="text-[#00d000] font-bold mb-2">Official Resources</h4>
             <div className="text-xs space-y-1">
-              <p><span className="text-[#00d000]">📍 Official Website:</span> <span className="text-[#00d000]">simsettlements.com</span></p>
-              <p><span className="text-[#00d000]">💬 Forums:</span> Official discussion, help, suggestions, contests</p>
-              <p><span className="text-[#00d000]">🗄️ Addon Database:</span> Searchable catalog of all community content</p>
+              <p><span className="text-[#00d000]">Official Website:</span> <span className="text-[#00d000]">simsettlements.com</span></p>
+              <p><span className="text-[#00d000]">Forums:</span> Official discussion, help, suggestions, contests</p>
+              <p><span className="text-[#00d000]">Addon Database:</span> Searchable catalog of all community content</p>
             </div>
           </div>
           <div>
@@ -622,11 +622,13 @@ export default function SimSettlementsGuide() {
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-[#001a00] text-[#00ff00] font-mono rounded-lg border-2 border-[#00ff00] shadow-2xl">
       {/* Header */}
-      <div className="mb-8 pb-4 border-b-2 border-[#00ff00]">
-        <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements Hub (All-in-One)</h1>
-        <p className="text-sm text-[#008000]">Player setup, core concepts, and creator paths in one ordered flow</p>
-        <p className="text-xs text-[#004400] mt-2">Version 1.1 | Updated February 9, 2026</p>
-      </div>
+      {!embedded && (
+        <div className="mb-8 pb-4 border-b-2 border-[#00ff00]">
+          <h1 className="text-3xl font-bold text-[#00d000] mb-2">Sim Settlements Hub (All-in-One)</h1>
+          <p className="text-sm text-[#008000]">Player setup, core concepts, and creator paths in one ordered flow</p>
+          <p className="text-xs text-[#004400] mt-2">Version 1.1 | Updated February 9, 2026</p>
+        </div>
+      )}
 
       <div className="mb-6 bg-[#001a00] border border-[#00ff00] rounded p-4 text-xs text-[#00d000]">
         <p className="font-bold text-[#00ff00]">Flow (Read in Order)</p>

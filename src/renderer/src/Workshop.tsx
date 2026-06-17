@@ -641,7 +641,7 @@ const Workshop: React.FC = () => {
                         <div>
                           <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Last Compile</div>
                           <div className={`text-xs px-2 py-1.5 rounded font-bold ${compileResult.exitCode === 0 ? 'bg-emerald-900/30 text-emerald-300' : 'bg-red-900/30 text-red-300'}`}>
-                            {compileResult.exitCode === 0 ? '✓ Success' : '✗ Failed'}
+                            {compileResult.exitCode === 0 ? 'Success' : 'Failed'}
                           </div>
                         </div>
                       )}

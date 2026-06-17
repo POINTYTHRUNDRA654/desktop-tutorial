@@ -712,7 +712,7 @@ const WorkflowRunner: React.FC = () => {
   const [completedStepIds, setCompletedStepIds] = useState<Set<string>>(new Set());
   const [failedStepIds, setFailedStepIds] = useState<Set<string>>(new Set());
   const [logs, setLogs] = useState<RunnerLog[]>([]);
-  const [stepStartMs, setStepStartMs] = useState<number>(0);
+  const stepStartMsRef = useRef<number>(0);
   const [runElapsedMs, setRunElapsedMs] = useState<number>(0);
   const runStartMsRef = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -943,7 +943,7 @@ const WorkflowRunner: React.FC = () => {
         const stepContinue = step.continueOnError ?? globalContinueOnError;
 
         setActiveStepId(step.id);
-        setStepStartMs(Date.now());
+        stepStartMsRef.current = Date.now();
         const meta = STEP_TYPE_META[step.type];
         log(`[${i + 1}/${selected.steps.length}] ${meta.label} — ${step.label}`);
 
@@ -1080,7 +1080,7 @@ const WorkflowRunner: React.FC = () => {
             log('Wait complete.', 'success');
           }
 
-          const elapsed = Date.now() - (stepStartMs || Date.now());
+          const elapsed = Date.now() - (stepStartMsRef.current || Date.now());
           log(`✓ Step complete (${formatDuration(elapsed)})`, 'success');
           setCompletedStepIds(prev => new Set([...prev, step.id]));
 

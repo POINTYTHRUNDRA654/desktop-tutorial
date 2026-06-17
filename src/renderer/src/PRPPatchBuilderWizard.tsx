@@ -270,18 +270,18 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
   return (
     <div className={containerClassName}>
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - PRP Patching</div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">PRP Patch Builder</h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
-              Generate a clear patch target (mods + load order) and a ready-to-post README for PRP compatibility patches.
-              This is designed to avoid the common mistake of shipping "just an ESP" without merged precombine files.
-            </p>
-          </div>
+        {!embedded && (
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor - PRP Patching</div>
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">PRP Patch Builder</h1>
+              <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+                Generate a clear patch target (mods + load order) and a ready-to-post README for PRP compatibility patches.
+                This is designed to avoid the common mistake of shipping "just an ESP" without merged precombine files.
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            {!embedded && (
+            <div className="flex items-center gap-2">
               <Link
                 to="/reference"
                 className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
@@ -289,20 +289,20 @@ export const PRPPatchBuilderWizard: React.FC<PRPPatchBuilderWizardProps> = ({ em
               >
                 Help
               </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem(STORAGE_KEY);
-                setState(DEFAULT_STATE);
-              }}
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
-              title="Reset"
-            >
-              Reset
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem(STORAGE_KEY);
+                  setState(DEFAULT_STATE);
+                }}
+                className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
+                title="Reset"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"

@@ -666,7 +666,7 @@ const electronAPI = {
    * Uses a dedicated channel that is not subject to the Vault allowlist so that
    * any executable the user has configured in their workflow can be launched.
    */
-  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string }): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+  workflowRunnerRunTool: (payload: { cmd: string; args?: string[]; cwd?: string; timeoutMs?: number }): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, payload);
   },
 
@@ -3894,6 +3894,16 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:read-guide', outputDir),
     enhanceGuide: (outputDir: string, assetPaths: string[], userNotes: string): Promise<any> =>
       ipcRenderer.invoke('creative-director:enhance-guide', outputDir, assetPaths, userNotes),
+    scaffoldMod: (outputDir: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:scaffold-mod', outputDir),
+    reopenProject: (projectId: string, userNotes?: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:reopen-project', projectId, userNotes ?? ''),
+    readConceptArtPrompts: (outputDir: string): Promise<{ success: boolean; prompts: any[]; error?: string }> =>
+      ipcRenderer.invoke('creative-director:read-concept-prompts', outputDir),
+    sdStatus: (sdUrl?: string): Promise<{ online: boolean }> =>
+      ipcRenderer.invoke('creative-director:sd-status', sdUrl),
+    generateConceptArt: (params: { prompt: string; negativePrompt?: string; width?: number; height?: number; steps?: number; cfgScale?: number; sdUrl?: string }): Promise<{ success: boolean; imageData?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:generate-concept-art', params),
   },
 
   // Personal R&D Network (dev-only) - proxies to the user's own separate local

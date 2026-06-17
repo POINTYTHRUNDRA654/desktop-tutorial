@@ -197,17 +197,17 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
   return (
     <div className={containerClass}>
       <div className={bodyClass}>
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-          <div>
-            <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Creation Kit</div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">CK Quest & Dialogue</h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-2xl">
-              A minimal-first workflow for quests and dialogue: get one boring test line working, then expand safely with verification.
-            </p>
-          </div>
+        {!embedded && (
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+            <div>
+              <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Creation Kit</div>
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white mt-2">CK Quest & Dialogue</h1>
+              <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+                A minimal-first workflow for quests and dialogue: get one boring test line working, then expand safely with verification.
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            {!embedded && (
+            <div className="flex items-center gap-2">
               <Link
                 to="/reference"
                 className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-900/20 border border-emerald-500/30 text-emerald-100 hover:bg-emerald-900/30 transition-colors"
@@ -215,20 +215,20 @@ export const CKQuestDialogueWizard: React.FC<CKQuestDialogueWizardProps> = ({ em
               >
                 Help
               </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem(STORAGE_KEY);
-                setState(DEFAULT_STATE);
-              }}
-              className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
-              title="Reset wizard progress"
-            >
-              Reset
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem(STORAGE_KEY);
+                  setState(DEFAULT_STATE);
+                }}
+                className="px-3 py-2 text-xs font-bold rounded-lg bg-red-900/20 border border-red-500/30 text-red-200 hover:bg-red-900/30 transition-colors"
+                title="Reset wizard progress"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"

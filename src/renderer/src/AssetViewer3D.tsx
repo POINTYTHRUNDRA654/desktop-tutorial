@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Box, RotateCw, Eye, Info, Layers, Triangle, Upload, FolderOpen } from 'lucide-react';
+import { Box, RotateCw, Eye, Info, Layers, Triangle, Upload, FolderOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface AssetInfo {
   name: string;
@@ -87,7 +87,7 @@ export const AssetViewer3D: React.FC = () => {
           hasLOD:    false,
           bounds:    { x: 1, y: 1, z: 1 },
         });
-        toast('NIF metadata parsed from filename — full binary parsing requires native module.', { icon: 'ℹ️' });
+        toast('NIF metadata parsed from filename — full binary parsing requires native module.', { icon: <Info className="w-4 h-4 text-sky-400" /> });
       }
     } catch (error) {
       console.error('Failed to load NIF:', error);
@@ -509,25 +509,25 @@ export const AssetViewer3D: React.FC = () => {
                 <div className="space-y-2">
                   {asset.triangles > 30000 && (
                     <div className="flex gap-2 text-xs text-amber-300">
-                      <span className="shrink-0">⚠</span>
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       High poly count ({asset.triangles.toLocaleString()} tris). Consider LOD generation.
                     </div>
                   )}
                   {!asset.hasLOD && (
                     <div className="flex gap-2 text-xs text-amber-300">
-                      <span className="shrink-0">⚠</span>
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       No LOD chain detected. Visible at all distances — impacts outdoor performance.
                     </div>
                   )}
                   {!asset.collision && (
                     <div className="flex gap-2 text-xs text-slate-400">
-                      <span className="shrink-0">ℹ</span>
+                      <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       No collision mesh. Acceptable for decorative or LOD meshes.
                     </div>
                   )}
                   {asset.triangles <= 30000 && asset.hasLOD && asset.collision && (
                     <div className="flex gap-2 text-xs text-emerald-300">
-                      <span className="shrink-0">✓</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       Mesh meets FO4 performance guidelines.
                     </div>
                   )}
