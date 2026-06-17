@@ -1,0 +1,69 @@
+{
+  "packId": "fo4-modding-advanced-v1",
+  "packName": "Fallout 4 — Advanced Modding Guide (CK, F4SE, Tools, Techniques)",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Advanced Fallout 4 modding knowledge: Creation Kit workflows, F4SE plugins, popular tools, mod installation, load order, common issues, and best practices for mod authors.",
+  "items": [
+    {
+      "id": "fo4-ck-advanced-workflows",
+      "title": "Fallout 4 — Creation Kit Advanced Workflows & Common Tasks",
+      "content": "CREATION KIT BASICS: Bethesda's official tool for creating FO4 mods. Access via Steam (Tools tab). IMPORTANT: CK for FO4 is version CK64 (64-bit). Download separately from Steam. NAVMESH: Navmeshes are 3D walkable surfaces used by NPC pathfinding. For any new room or outdoor area, you must generate navmesh. In CK: World > Generate Navmesh in Cell and wait. For cells with doors to exterior, ensure navmesh connects across cell boundaries. Common issue: NPCs stuck = broken/missing navmesh. CELL SETUP: Interior cells need at minimum a floor mesh, lighting (ImageSpace), navmesh, and at least one door linked to an exterior 'door marker'. Recommended: also set the cell's location data (for OnLocationChange Papyrus events). LOAD ORDER IN CK: Load your master plugins (Fallout4.esm + DLC ESMs) as masters. Then load your ESL/ESP as the active file. CK will save changes to the active file only. ESL: ESL-flagged plugins use 'FE' prefix FormIDs and don't count against the 256-plugin limit. To create ESL in CK: check the 'ESL' flag in Plugin properties. Max records per ESL: 4096 (0x000-0xFFF). SCRIPT COMPILATION: CK includes a built-in Papyrus compiler. Script source files go in Data/Scripts/Source/. Compiled PEX files go in Data/Scripts/. When distributing a mod, include the compiled PEX files (not just .psc source). QUEST SETUP: Create a QUST record → add stages → add objectives → add script → add aliases (actor/location/ref). Set priority (higher = more important in player's journal). Set to 'Start Game Enabled' if the quest should auto-start. For radiant quests, set the quest to be repeatable and use Alias Fill Type = 'References from location' for randomized targets. DIALOGUE: Use the Dialogue Views editor. Create branches and topics. Link to conditions (GetQuestStage, IsInFaction, etc.). All dialogue must be connected to a quest. Voice type determines which voice set is used. WORKSHOP OBJECTS: Must be tagged with keyword 'WorkshopItem' and referenced in WorkshopItemKeyword list to appear in workshop menu. FURNITURE RECORDS: Need markers for where NPCs sit/stand. IDLE ANIMATIONS: Use furnMarker type. PACKAGE AI: Each NPC needs AIPackage records to function. Common packages: Patrol, Guard, Wander, Sandbox, Eat, Sleep.",
+      "source": "Mossy Team — Fallout 4 Creation Kit workflow documentation",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["creation-kit", "CK", "navmesh", "cells", "ESL", "ESP", "ESM", "quests", "dialogue", "papyrus", "compiler", "modding", "workflow", "workshop"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-f4se-plugins",
+      "title": "Fallout 4 — F4SE, Plugins & Script Extender Ecosystem",
+      "content": "F4SE (FALLOUT 4 SCRIPT EXTENDER): Created by SKSE team. Extends Papyrus scripting API beyond vanilla capabilities. Required by hundreds of major mods. INSTALLATION: Extract F4SE to the Fallout 4 root directory (same as Fallout4.exe). Launch game via f4se_loader.exe. Verify with GetVersionCode() in console — returns version number. F4SE PLUGINS (.dll): C++ DLLs that hook into the game engine at runtime. Located in Data/F4SE/Plugins/. Can add new functions to Papyrus, hook game events, modify in-memory game state. Popular F4SE plugins: Buffout 4 (crash logger + memory fixes), Address Library (makes plugins version-independent using offsets), MCM (Mod Configuration Menu — requires MCM.esp), Bullet Counted Reload (reload animation improvements), High FPS Physics Fix (decouples physics from framerate). BUFFOUT 4: Crash log analyzer. When the game CTDs, generates a log in Documents/My Games/Fallout4/F4SE/ named crash-[datetime].log. Reading the crash log: look for 'PROBABLE CALL STACK' section; topmost non-trivial entry often indicates the culprit. Common crash signatures: 'BA2 limit' (too many archive files), 'NULL pointer dereference' (often a script error or missing mesh), 'navmesh corruption'. ADDRESS LIBRARY: Required by most modern F4SE plugins. Provides game-version-independent function offsets. Must match game version exactly (regular or Next Gen/NG). POPULAR MOD FRAMEWORKS: Sim Settlements 2 (settlement building overhaul, requires F4SE), Workshop Framework (modular settlement system), Extended Dialogue Interface (larger dialogue options), Looks Menu (character appearance customization + F4SE cosmetic framework), Armor Keywords Community Resource (AKWCR — shared keyword library for armor modders).",
+      "source": "Mossy Team — Fallout 4 F4SE and modding ecosystem data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["F4SE", "script-extender", "plugins", "DLL", "buffout", "address-library", "MCM", "mod-frameworks", "sim-settlements", "crash-log", "modding"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-load-order-management",
+      "title": "Fallout 4 — Load Order, Conflicts & Mod Management",
+      "content": "LOAD ORDER BASICS: Fallout 4 loads plugins in order: Fallout4.esm → DLC ESMs → all other ESPs/ESMs/ESLs. The last plugin to define a record 'wins' (overwrites earlier). ESL files are loaded in a special compressed range (FExxx FormIDs) after all ESMs. PLUGIN LIMIT: 255 standard (ESM+ESP) plugins maximum. ESL-flagged plugins do NOT count toward this limit (they use the compressed FE range). BA2 archives: Each plugin can reference up to 2 BA2 archives (one for general assets, one for textures). Game limit for BA2 files is around 255. CONFLICT TYPES: Record-level conflicts (both mods change the same WEAP, ARMO, or other record — last one wins), Script conflicts (both mods attach scripts to the same object — both usually work, but order matters for OnInit firing), Overwrite conflicts (one mod's loose file overwrites another's). LOAD ORDER TOOLS: LOOT (Load Order Optimisation Tool) — automatically sorts plugins based on community-maintained masterlist. MO2 (Mod Organizer 2) — virtual file system, profile-based mod management, left pane (install order) and right pane (load order) are separate concepts. Nexus Mod Manager (legacy, less recommended). XEDIT / FO4EDIT: The standard tool for conflict resolution. Shows all records from all mods, highlights conflicts in red/orange, allows creation of patch plugins that merge changes. BASH TAGS: Wrye Bash uses tags in plugin headers to intelligently merge leveled lists. Common tags: Delev (remove entries from leveled lists), Relev (use this mod's version), Invent (merge inventory changes). LOOT METADATA: LOOT can be extended with custom masterlist entries for user-specific sort rules. F4EDIT QUICKCLEAN: Run FO4Edit on a plugin in 'QuickAutoClean' mode to remove deleted records (ITMs — Identical to Master records, and UDRs — Undeleted and Disabled References). KEY RULES: Masters before dependents (plugin A.esp can require B.esm to be loaded first). F4SE plugins load before game plugins. Patches go last.",
+      "source": "Mossy Team — Fallout 4 load order and conflict resolution data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["load-order", "conflicts", "LOOT", "MO2", "xedit", "FO4edit", "plugins", "ESL", "ESP", "BA2", "bash-tags", "mod-management", "patch"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-texture-material-modding",
+      "title": "Fallout 4 — Texture Modding, BA2 Archives & Material Swaps",
+      "content": "TEXTURE FORMATS: FO4 uses DDS (DirectDraw Surface) textures. Format: BC1/DXT1 (diffuse, no alpha, best compression), BC3/DXT5 (diffuse with alpha — hair, foliage), BC5 (normals — 2-channel red+green, FO4 reconstructs blue), BC7 (high quality, larger). Tools: Nvidia Texture Tools (NTT), Intel Texture Works, Photoshop with DDS plugin, GIMP. Always include mipmaps for in-game textures. TEXTURE NAMING CONVENTIONS: _d.dds (diffuse/albedo), _n.dds (normal map), _s.dds (specular), _g.dds (emissive/glow), _e.dds (environment mask). FO4 uses the same texture slots as Skyrim but with different emphasis: normals use BC5 (not BC7), metalness is in the specular channel. BA2 ARCHIVES: Bethesda Archive 2 format. Two types: General (meshes, scripts, other files) and Texture (texture files — significantly higher compression for DDS). Create with Archive2.exe (comes with CK) or BAE (Bethesda Archive Extractor). ARCHIVE2 USAGE: Launch Archive2.exe from CK directory → File > New → Add files → Save as .ba2 → Name it [PluginName] - Main.ba2 (general) or [PluginName] - Textures.ba2 (textures). Plugin header must reference the archive name (CK does this automatically if you name the BA2 correctly). BAE (BETHESDA ARCHIVE EXTRACTOR): Drag-and-drop BA2 extractor. Free, community tool. Use to extract vanilla assets for reference. MATERIAL SWAP RECORDS: FO4 uses BGSM/BGEM material files (.bgem for emissive materials, .bgsm for standard). These control which textures are applied to a mesh at runtime without requiring a new NIF. Material Record (MSWP in CK): swaps one material for another on a specific NIF path. Useful for color variants of the same mesh. NIFSKOPE TEXTURE WORKFLOW: Open NIF → find BSShaderTextureSet block → update texture paths to point to your new textures → save NIF. Texture paths must be relative to the Data/ folder and use backslashes.",
+      "source": "Mossy Team — Fallout 4 texture and material modding data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["textures", "DDS", "BA2", "Archive2", "material-swap", "BGSM", "BGEM", "nifskope", "normal-maps", "BC5", "texture-modding", "BAE"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-common-mod-bugs-fixes",
+      "title": "Fallout 4 — Common Mod Issues, Bug Fixes & Troubleshooting",
+      "content": "CTD ON LOAD/STARTUP: Common causes — corrupted save (use ReSaver to clean), missing master plugin (a mod requires a DLC or another mod you don't have), BA2 archive limit exceeded (>255 BA2 files), engine memory issue (install Buffout 4). INVISIBLE OBJECTS: Mesh or texture path is wrong; the NIF references a texture that isn't in the BA2 or loose files; or the NIF itself is missing from the Data folder. Fix: check NIF texture paths in NifSkope, verify BA2 contains the file, check file path capitalization. MISSING TEXTURES (pink/magenta): FO4 shows pink/magenta for missing textures. The NIF is loading but the texture is not found. Check BA2, check texture path in NIF, ensure material file points to correct DDS. ESP NOT LOADING: Missing master — the ESP was built with a DLC as a master that you don't have. Remove the DLC dependency in FO4Edit or install the DLC. NAVMESH CRASH: Navmesh corruption can cause CTD when NPCs try to pathfind. Use FO4Edit to check for unresolved references in navmesh records. Run CK navmesh finalize for your cells. PAPYRUS SCRIPT ERRORS: Open Documents/My Games/Fallout4/Logs/Script/Papyrus.0.log. Lines starting with 'error' show script failures. Common: 'Property ... on script ... is undefined' = property not filled in CK; 'Cannot call ... on a None object' = the script has an uninitialized reference. FPS PHYSICS ISSUES: FO4 physics are tied to framerate. Above 60 FPS, physics can behave incorrectly (doors fly off, power armor jetpack is broken). Fix: install 'High FPS Physics Fix' F4SE plugin — uncouples physics from framerate. MOD ORGANIZER 2 CONFLICTS: In MO2's left pane, lower mods override upper ones for loose files. In the right pane (load order), lower ESPs override upper ones for record data. These are independent — you can have a texture mod low on the left (overrides visual) but its ESP high on the right (overridden by later changes). SAVE BLOAT: Papyrus scripts can cause save file bloat if they attach to large numbers of objects or fail to clean up. Use ReSaver (from FallrimTools) to analyze and clean saves.",
+      "source": "Mossy Team — Fallout 4 modding troubleshooting data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["troubleshooting", "CTD", "crash", "invisible", "pink-texture", "navmesh", "papyrus-errors", "MO2", "save-bloat", "buffout", "common-bugs", "fixes", "modding"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}
