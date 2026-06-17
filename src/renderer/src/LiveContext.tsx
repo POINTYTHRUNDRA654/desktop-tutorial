@@ -545,10 +545,23 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [sttErrors, setSttErrors] = useState(0);
   const sttErrorsRef = useRef(0);
   const sttFallbackErrorPattern = /backend|deepgram|transcribe|network|invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key|unauthorized|401/i;
+  const sttAuthErrorPattern = /401|unauthorized|invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key|forbidden|auth(?:entication)? failed/i;
 
   const handleVoiceError = (error: string) => {
     setStatus(`Voice Error: ${error}`);
     setMode('idle');
+
+    if (sttAuthErrorPattern.test(error)) {
+      console.warn('[LiveContext] Authentication failure detected; stopping voice session without retry:', error);
+      sttErrorsRef.current = 0;
+      setSttErrors(0);
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.stopListening();
+      }
+      setIsActive(false);
+      setIsDisconnecting(false);
+      return;
+    }
 
     const currentProvider = voiceServiceRef.current?.getSttProvider?.();
     const browserSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
