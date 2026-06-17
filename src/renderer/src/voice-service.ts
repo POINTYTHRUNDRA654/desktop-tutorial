@@ -271,7 +271,7 @@ export class VoiceService {
   }
 
   private fallbackToBrowserStt(reason?: string): boolean {
-    if (!this.canUseBrowserStt() || this.isUsingBrowserStt) {
+    if (!this.canUseBrowserStt() || this.isUsingBrowserStt || this.isAuthFailure(reason)) {
       return false;
     }
     console.warn('[VoiceService] Falling back to browser STT:', reason);
@@ -279,6 +279,52 @@ export class VoiceService {
     this.isUsingBrowserStt = true;
     this.startBrowserSTT();
     return true;
+  }
+
+  private isAuthFailure(message?: string): boolean {
+    return /401|unauthorized|invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key|forbidden|auth(?:entication)? failed/i.test(String(message || ''));
+  }
+
+  private stopForAuthFailure(message: string): void {
+    console.error('[VoiceService] Authentication failure - stopping voice pipeline:', message);
+    this.shouldStop = true;
+    this.isListening = false;
+    this.isUsingBrowserStt = false;
+    this.isBrowserSttActive = false;
+    this.isBrowserSttStarting = false;
+    this.isRecording = false;
+    this.audioChunks = [];
+
+    if (this.mediaRecorder) {
+      try {
+        this.mediaRecorder.stop();
+      } catch (error) {
+        console.warn('[VoiceService] Failed to stop MediaRecorder after auth failure:', error);
+      }
+    }
+
+    if (this.activeStream) {
+      this.activeStream.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (error) {
+          console.warn('[VoiceService] Failed to stop media track after auth failure:', error);
+        }
+      });
+      this.activeStream = null;
+    }
+
+    if (this.recognition) {
+      try {
+        this.recognition.abort();
+      } catch (error) {
+        console.warn('[VoiceService] Failed to abort browser STT after auth failure:', error);
+      }
+      this.recognition = null;
+    }
+
+    this.onModeChange?.('idle');
+    this.onError?.(`Speech recognition authentication failed: ${message}`);
   }
 
   private async startBrowserSTT(): Promise<void> {
@@ -621,6 +667,10 @@ export class VoiceService {
             if (!this.shouldStop) {
               const errorMessage = error?.message || 'Unknown error';
               console.error(`[VoiceService] ❌ Transcription failed: ${errorMessage}. Duration: ${recordingDuration}ms, Size: ${fileSizeKB} KB`);
+              if (this.isAuthFailure(errorMessage)) {
+                this.stopForAuthFailure(errorMessage);
+                return;
+              }
               if (this.fallbackToBrowserStt(errorMessage)) {
                 return;
               }

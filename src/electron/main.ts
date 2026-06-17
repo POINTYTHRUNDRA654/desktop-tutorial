@@ -125,7 +125,7 @@ app.commandLine.appendSwitch('disable-background-media-suspend');
 app.setName('mossy-desktop');
 app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 
-// Load environment variables - use encrypted version for packaged builds.
+// Load environment variables.
 // process.cwd() is unreliable in packaged Electron apps (can be the system dir on Windows).
 // We search multiple candidate paths so the file is always found regardless of how the app
 // was launched. Electron patches `fs` to read from inside asar archives, so app.getAppPath()
@@ -143,6 +143,10 @@ const envPath = app.isPackaged
   : findEnvFile([
     path.join(process.cwd(), '.env.local'),
     path.join(app.getAppPath(), '.env.local'),
+    path.join(process.cwd(), '.env.encrypted'),
+    path.join(app.getAppPath(), '.env.encrypted'),
+    path.join(process.cwd(), '.env'),
+    path.join(app.getAppPath(), '.env'),
   ]);
 
 console.log('[Main] Loading .env from:', envPath);
@@ -156,47 +160,42 @@ console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execP
 const result = dotenv.config({ path: envPath, quiet: true });
 console.log('[Main] dotenv result:', result);
 
-// Decrypt encrypted environment variables if in packaged mode
+const decryptEnvVar = (key: string) => {
+  const value = process.env[key];
+  if (!value || !value.startsWith('enc:')) return;
+
+  try {
+    const encrypted = value.slice('enc:'.length);
+    const parts = encrypted.split(':');
+    if (parts.length === 2) {
+      const iv = Buffer.from(parts[0], 'hex');
+      const encryptedText = parts[1];
+      const cryptoKey = crypto.scryptSync('mossy-2026-packaging-key-change-in-production', 'salt', 32);
+      const decipher = crypto.createDecipheriv('aes-256-cbc', cryptoKey, iv);
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      process.env[key] = decrypted;
+      console.log(`[Main] ✓ Decrypted ${key}`);
+    }
+  } catch (e) {
+    console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
+  }
+};
+
+// Decrypt encrypted secrets whenever they are present, regardless of build mode.
+decryptEnvVar('OPENAI_API_KEY');
+decryptEnvVar('GROQ_API_KEY');
+decryptEnvVar('DEEPGRAM_API_KEY');
+decryptEnvVar('MOSSY_BACKEND_TOKEN');
+decryptEnvVar('MOSSY_BRIDGE_TOKEN');
+
+if (!process.env.MOSSY_BACKEND_URL) {
+  process.env.MOSSY_BACKEND_URL = 'https://mossy.onrender.com';
+  console.log('[Main] ℹ️  Setting default MOSSY_BACKEND_URL');
+}
+
 if (app.isPackaged) {
   console.log('[Main] Packaged build detected - checking for encrypted env vars...');
-  const crypto = require('crypto');
-  const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
-
-  const decryptEnvVar = (key: string) => {
-    const value = process.env[key];
-    if (!value || !value.startsWith('enc:')) return;
-
-    try {
-      const encrypted = value.slice('enc:'.length);
-      const parts = encrypted.split(':');
-      if (parts.length === 2) {
-        const iv = Buffer.from(parts[0], 'hex');
-        const encryptedText = parts[1];
-        const cryptoKey = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const decipher = crypto.createDecipheriv('aes-256-cbc', cryptoKey, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        process.env[key] = decrypted;
-        console.log(`[Main] ✓ Decrypted ${key}`);
-      }
-    } catch (e) {
-      console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
-    }
-  };
-
-  // Decrypt all API keys and load backend config
-  decryptEnvVar('OPENAI_API_KEY');
-  decryptEnvVar('GROQ_API_KEY');
-  decryptEnvVar('DEEPGRAM_API_KEY');
-  decryptEnvVar('MOSSY_BACKEND_TOKEN');
-  decryptEnvVar('MOSSY_BRIDGE_TOKEN');
-  
-  // Ensure backend URL is available (not encrypted, just loaded from env)
-  if (!process.env.MOSSY_BACKEND_URL) {
-    process.env.MOSSY_BACKEND_URL = 'https://mossy.onrender.com';
-    console.log('[Main] ℹ️  Setting default MOSSY_BACKEND_URL');
-  }
-
   // Log which keys are loaded (for debugging)
   if (process.env.MOSSY_BACKEND_TOKEN) {
     console.log('[Main] ✓ MOSSY_BACKEND_TOKEN loaded from environment (length:', process.env.MOSSY_BACKEND_TOKEN.length, ')');
@@ -1556,6 +1555,17 @@ const loadSettings = (): any => {
           console.log('[Settings] Refreshed backend token from process.env');
         }
       }
+
+      const backendBaseUrlFromEnv = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
+      let forcedBackendUrlUpdate = false;
+      if (backendBaseUrlFromEnv) {
+        const currentBackendBaseUrl = String(next?.backendBaseUrl || '').trim();
+        if (!currentBackendBaseUrl) {
+          next.backendBaseUrl = backendBaseUrlFromEnv;
+          forcedBackendUrlUpdate = true;
+          console.log('[Settings] Seeded backend URL from process.env');
+        }
+      }
       
       const seeded =
         seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
@@ -1569,7 +1579,7 @@ const loadSettings = (): any => {
         tokenInitialized = true;
       }
 
-      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate) {
+      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
           if (migrated) {
@@ -1583,6 +1593,9 @@ const loadSettings = (): any => {
           }
           if (tokenInitialized) {
             console.log('[Settings] 🔐 Generated Blender Link token on first connection');
+          }
+          if (forcedBackendUrlUpdate) {
+            console.log('[Settings] Seeded backend URL from environment');
           }
         } catch (e) {
           console.warn('[Settings] Failed to persist migrated settings:', e);
@@ -2497,8 +2510,8 @@ function setupIpcHandlers() {
       let transcription = '';
 
       // If a backend proxy is configured, try it. Backend-only architecture - no fallbacks.
-      const backendBaseUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
-      const backendToken = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
+      const backendBaseUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || '').trim();
+      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
       const backend = backendBaseUrl
         ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
         : null;
@@ -2518,7 +2531,7 @@ function setupIpcHandlers() {
         const extraHeaders: Record<string, string> = {};
         if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
 
-        const tryBackendTranscribe = async (fieldName: 'audio' | 'file') => {
+        const tryBackendTranscribe = async (fieldName: 'audio' | 'file', authHeaders: Record<string, string>) => {
           const form = new FormData();
           form.append(fieldName, audioBuffer, {
             filename: 'audio.mp3',
@@ -2526,17 +2539,33 @@ function setupIpcHandlers() {
           });
           form.append('model', 'whisper-1');
           if (sttLang) form.append('language', sttLang);
-          return postFormData(backendJoin(backend, '/v1/transcribe'), form, extraHeaders, 60000);
+          return postFormData(backendJoin(backend, '/v1/transcribe'), form, authHeaders, 60000);
         };
 
-        let resp = await tryBackendTranscribe('audio');
+        let resp = await tryBackendTranscribe('audio', extraHeaders);
         if (!resp.ok) {
           const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
           const shouldRetry =
             (resp.status === 400 || resp.status === 422) &&
             (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
           if (shouldRetry) {
-            resp = await tryBackendTranscribe('file');
+            resp = await tryBackendTranscribe('file', extraHeaders);
+          }
+        }
+
+        // Some backends are configured for optional/no auth and reject arbitrary Bearer headers.
+        // If that happens, retry once without Authorization.
+        if (!resp.ok && resp.status === 401 && Boolean(extraHeaders.Authorization)) {
+          console.warn('[Transcription] Backend rejected Authorization header; retrying without auth header once');
+          resp = await tryBackendTranscribe('audio', {});
+          if (!resp.ok) {
+            const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
+            const shouldRetry =
+              (resp.status === 400 || resp.status === 422) &&
+              (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
+            if (shouldRetry) {
+              resp = await tryBackendTranscribe('file', {});
+            }
           }
         }
 
@@ -2547,6 +2576,18 @@ function setupIpcHandlers() {
 
         const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
         console.error('[Transcription] Backend proxy failed:', msg);
+        if (resp.status === 401 || resp.status === 403) {
+          return {
+            success: false,
+            error: `Backend token rejected (HTTP ${resp.status} at ${backend.baseUrl}/v1/transcribe). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`,
+          };
+        }
+        if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
+          return {
+            success: false,
+            error: 'Render backend provider key is invalid or missing (server-side OPENAI_API_KEY). This is not your Mossy backend token.',
+          };
+        }
         return { success: false, error: msg };
       } catch (e: any) {
         console.error('[Transcription] Backend proxy error:', e?.message || e);
@@ -3350,10 +3391,10 @@ function setupIpcHandlers() {
   // can use per-user settings without exposing secrets to the renderer.
   const getBackendConfig = (): BackendConfig | null => {
     const s = loadSettings();
-    const rawUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
+    const rawUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || 'https://mossy.onrender.com').trim();
     if (!rawUrl) return null;
     const baseUrl = rawUrl.replace(/\/+$/, '');
-    const tokenRaw = getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN');
+    const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
     return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
   };
 
@@ -9502,12 +9543,16 @@ end.
 
       // Try backend proxy first (Render or self-hosted)
       let content = '';
+      let backendAttempted = false;
+      let backendError = '';
       const backend = getBackendConfig();
       if (backend) {
+        backendAttempted = true;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
         try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          const backendChatUrl = backendJoin(backend, '/v1/chat');
+          let res = await fetch(backendChatUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -9517,20 +9562,51 @@ end.
             signal: controller.signal,
           });
 
-          const json: any = await res.json().catch(() => ({}));
+          let json: any = await res.json().catch(() => ({}));
+
+          if ((res.status === 401 || res.status === 403) && backend.token) {
+            console.warn('[AI Chat OpenAI] Backend rejected Authorization header; retrying without auth header once');
+            res = await fetch(backendChatUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ provider: 'openai', model, messages }),
+              signal: controller.signal,
+            });
+            json = await res.json().catch(() => ({}));
+          }
+
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
           } else {
-            console.warn('[AI Chat OpenAI] Backend proxy failed:', json?.message || json?.error || res.status);
+            const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+            console.warn('[AI Chat OpenAI] Backend proxy failed:', msg);
+            if (res.status === 401 || res.status === 403) {
+              backendError = `Backend token rejected (HTTP ${res.status} at ${backendChatUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
+            } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
+              backendError = 'Render backend OpenAI key is invalid or missing (server-side OPENAI_API_KEY). This is not your Mossy backend token.';
+            } else {
+              backendError = msg;
+            }
           }
         } catch (e: any) {
-          console.warn('[AI Chat OpenAI] Backend proxy error, falling back to direct OpenAI:', e?.message || e);
+          backendError = `Backend connection error: ${e?.message || e}`;
+          console.warn('[AI Chat OpenAI] Backend proxy error:', e?.message || e);
         } finally {
           clearTimeout(timeout);
         }
       }
 
-      // Fall back to direct OpenAI SDK when backend is unavailable or failed
+      // If backend is configured, stay backend-only to avoid mixed/stale local key paths.
+      if (backendAttempted) {
+        if (content) {
+          return { success: true, content };
+        }
+        return { success: false, error: backendError || 'Backend chat failed. Please check backend health and provider keys.' };
+      }
+
+      // No backend configured: use direct OpenAI SDK fallback.
       if (!content) {
         const s = loadSettings();
         const apiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
@@ -9636,15 +9712,18 @@ end.
       // The backend at https://mossy.onrender.com has a valid Groq key configured,
       // so we prioritize backend success over fast fallback to the (potentially invalid) local key.
       let content = '';
+      let backendAttempted = false;
+      let backendError = '';
       const backend = getBackendConfig();
       console.log('[AI Chat Groq] Backend config:', backend ? `URL=${backend.baseUrl}, hasToken=${!!backend.token}` : 'No backend configured');
       if (backend) {
+        backendAttempted = true;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
         try {
           const backendUrl = backendJoin(backend, '/v1/chat');
           console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
-          const res = await fetch(backendUrl, {
+          let res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -9655,17 +9734,41 @@ end.
           });
 
           console.log('[AI Chat Groq] Backend response status:', res.status, res.statusText);
-          const json: any = await res.json().catch(() => ({}));
+          let json: any = await res.json().catch(() => ({}));
+
+          if ((res.status === 401 || res.status === 403) && backend.token) {
+            console.warn('[AI Chat Groq] Backend rejected Authorization header; retrying without auth header once');
+            res = await fetch(backendUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ provider: 'groq', model, messages, maxTokens }),
+              signal: controller.signal,
+            });
+            console.log('[AI Chat Groq] Backend retry response status:', res.status, res.statusText);
+            json = await res.json().catch(() => ({}));
+          }
+
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
             console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length);
           } else {
-            console.warn('[AI Chat Groq] ❌ Backend proxy failed:', json?.message || json?.error || res.status);
+            const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
+            console.warn('[AI Chat Groq] ❌ Backend proxy failed:', msg);
             console.warn('[AI Chat Groq] Response body:', JSON.stringify(json).substring(0, 200));
+            if (res.status === 401 || res.status === 403) {
+              backendError = `Backend token rejected (HTTP ${res.status} at ${backendUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
+            } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
+              backendError = 'Render backend provider key is invalid or missing (server-side GROQ_API_KEY/OPENAI_API_KEY). This is not your Mossy backend token.';
+            } else {
+              backendError = msg;
+            }
           }
         } catch (e: any) {
           console.error('[AI Chat Groq] ❌ Backend proxy exception:', e?.message || e);
           console.error('[AI Chat Groq] Error type:', e?.name, 'Code:', e?.code);
+          backendError = `Backend connection error: ${e?.message || e}`;
         } finally {
           clearTimeout(timeout);
         }
@@ -9673,7 +9776,15 @@ end.
         console.log('[AI Chat Groq] Skipping backend — no backend URL configured');
       }
 
-      // Fall back to direct Groq SDK when backend is unavailable or failed
+      // If backend is configured, stay backend-only to avoid mixed/stale local key paths.
+      if (backendAttempted) {
+        if (content) {
+          return { success: true, content };
+        }
+        return { success: false, error: backendError || 'Groq cloud chat unavailable: backend request failed.' };
+      }
+
+      // No backend configured: use direct Groq SDK fallback.
       if (!content) {
         const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
         if (!apiKey) {

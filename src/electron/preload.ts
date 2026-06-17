@@ -2464,7 +2464,6 @@ const electronAPI = {
       // IPC handler is not registered – call the Render backend directly.
       // The preload runs in Node context so process.env is available.
       const backendUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').replace(/\/+$/, '');
-      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
 
       if (!backendUrl) {
         console.warn('[Preload] aiChatGroq: no backend URL configured');
@@ -2493,7 +2492,6 @@ const electronAPI = {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {}),
             },
             body: JSON.stringify({ provider: 'groq', model: resolvedModel, messages, maxTokens: 1024 }),
             signal: controller.signal,
