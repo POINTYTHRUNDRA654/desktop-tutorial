@@ -86,6 +86,7 @@ function parseBgsmTextures(raw: string): string[] {
 }
 
 function parseNifTextures(raw: string): string[] {
+  // Strip NULs before regex matching to satisfy eslint no-control-regex while preserving behavior.
   const sanitized = raw.replaceAll('\u0000', '');
   const matches = sanitized.match(/textures[/\\][^"<>|?*\r\n]{3,200}\.dds/gi) ?? [];
   return [...new Set(matches)];
