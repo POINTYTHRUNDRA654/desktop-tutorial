@@ -11,7 +11,7 @@ const LS = {
     try { return JSON.parse(localStorage.getItem('mossy_fo4_' + k) ?? 'null') ?? d; } catch { return d; }
   },
   set: <T,>(k: string, v: T): void => {
-    try { localStorage.setItem('mossy_fo4_' + k, JSON.stringify(v)); } catch {}
+    try { localStorage.setItem('mossy_fo4_' + k, JSON.stringify(v)); } catch { /* ignore */ }
   },
 };
 
