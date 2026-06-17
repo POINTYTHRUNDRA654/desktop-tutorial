@@ -1,0 +1,69 @@
+{
+  "packId": "fo4-locations-complete-v1",
+  "packName": "Fallout 4 — Complete Locations Database",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Full database of Fallout 4 locations: all major Commonwealth locations, interiors, dungeons, settlements, and DLC areas with key details, loot, and mod-relevant editor IDs.",
+  "items": [
+    {
+      "id": "fo4-locations-north-commonwealth",
+      "title": "Fallout 4 — North Commonwealth Locations",
+      "content": "SANCTUARY HILLS: Starting zone. SS's pre-war home. Workshop settlement available immediately. Connected to Red Rocket Truck Stop (Dogmeat's home, first companion). Vault 111 entrance is north of Sanctuary Hills on a hill. CONCORD: Museum of Freedom (Where Freedom Calls quest, rescue Preston Garvey). Raiders holding Minutemen survivors. Deathclaw nest outside museum. Concord Civic Access (sewer). Concord Speakeasy (ghoul bar). LEXINGTON: Corvega Assembly Plant (Gunner-heavy location, multiple floors, key loot: Nuka-Cola Quantum vending machine area, 'Jangles the Moon Monkey' bobblehead). Lexington Apartments (synth ambush area). Super Duper Mart (raiders/ghouls, Novice-Expert locked rooms). TENPINES BLUFF: Elevated platform settlement, default-claimed by Minutemen radiant quests. OBERLAND STATION: Railroad-adjacent settlement. RED ROCKET TRUCK STOP: Near Sanctuary Hills, Dogmeat's initial location, workbench available, single-cell location. DRUMLIN DINER: Wolfgang-Trudy dispute (persuasion/combat choice), Jet dealer conflict. BOSTON AIRPORT (north): Brotherhood of Steel main base (Prydwen arrives here). Ticket counter area. NAHANT: Coastal town east. Nahant Oceanological Society (mirelurks). Nahant Chapel (Institute synth ambush). NORTH ABIGAIL TOWNSHIP: Generic settlement. REVERE SATELLITE ARRAY: Military installation, high-level super mutants, signal repeater for Military Frequency quest. UNIVERSITY POINT: South of Cambridge across the river — Gunner/raider conflict area, merchant area destroyed before the SS arrives (backstory on terminals). GENERAL ATOMICS GALLERIA: Functioning (broken) pre-war shopping mall with robot staff, requires navigating robot manager system. NORDHAGEN BEACH: South coastal settlement, one of the furthest south easily accessible settlements. PARSONS STATE INSANE ASYLUM: Jacob's questline ('The Secret of Cabot House'), requires Lorenzo's Artifact quest completion, unique weapon (Lorenzo's Artifact Gun). ROBOT VENDOR TAKAHASHI: Located on route between Sanctuary and Concord. Only says 'Nan-ni shimashou ka?' ('What shall we do?'). BRADBERTON: Location of Nuka-World before DLC triggers.",
+      "source": "Mossy Team — Fallout 4 location data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["locations", "north-commonwealth", "sanctuary-hills", "concord", "lexington", "corvega", "airport", "nahant", "settlement"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-locations-downtown-boston",
+      "title": "Fallout 4 — Downtown Boston Locations",
+      "content": "DIAMOND CITY (Fenway Park): Largest settlement in the Commonwealth. Mayor McDonough (synth). Piper Wright (Diamond City Blues newspaper). Nick Valentine (Valentine Detective Agency). Doctor Sun (face/body surgery for caps), Vault 81 quest giver (Vault-Tec rep). Vendors: Arturo (weapons), Myrna (General Goods), Takahashi (Nan-ni Shimashou Ka?). Power Noodles (Lucas Miller vendor, Diamond City Blues quest). Baseball obsession — residents trade 'Baseball Cards' instead of currency (cosmetic detail). Residents: Cait's location (Combat Zone, not Diamond City proper). Located at: DiamondCityWorldspace, interior cell DiamondCityInt. GOODNEIGHBOR: Crime-friendly settlement in the Theater District. Hancock (ghoul mayor). The Third Rail (bar below, Magnolia the synth singer, KL-E-0 merchant). Memory Den (Dr. Amari, memory extraction from Kellogg). Daisy's Discounts (ghoul merchant). Hotel Rexford (KL-E-0). Vault 114 entrance underground (Nick Valentine rescue). KEY DUNGEONS: MASS FUSION: Corporate headquarters, 16 floors of ghouls/synths (after BoS or Institute trigger). Unique: X-01 Power Armor pieces on executive level. Fusion Core generators. Brotherhood vs. Institute standoff. CIT RUINS (Institute entrance): Above-ground ruins of MIT. Courser fight before teleportation. Cambridge Polymer Labs adjacent (unique reactor experiment). SWAN'S POND: Boston Common. Swan (named super mutant behemoth, level 50, always spawns regardless of level). Very dangerous early game. Diamond City map marker shows 'Public Garden.' TRINITY CHURCH: High-level location, ghouls. Unique weapon: Shishkebab (if you follow Strong's companion quest). FANEUIL HALL: Gunner stronghold near downtown. OLD GRANARY BURYING GROUND: Near Old North Church. OLD NORTH CHURCH: Railroad HQ. Freedom Trail walking tour ends here — requires solving cipher (ring spells 'RAILROAD'). Paul Revere memorial nearby. PARK STREET STATION: Entrance to Vault 114 (Nick Valentine rescue). NEIGHBORHOOD LOCATIONS: Hung Jury, The Shamrock Taphouse, Fallon's Department Store (super mutants including Behemoth in basement), South Boston Police Department, D.B. Technical High School (raider camp).",
+      "source": "Mossy Team — Fallout 4 downtown Boston location data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["downtown-boston", "diamond-city", "goodneighbor", "mass-fusion", "old-north-church", "CIT", "vault-114", "swan", "faneuil-hall", "locations"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-locations-cambridge-south",
+      "title": "Fallout 4 — Cambridge, South & The Glowing Sea",
+      "content": "CAMBRIDGE: CAMBRIDGE POLICE STATION: First Brotherhood of Steel contact (Haylen's distress signal). Locked down, fighting super mutants. Gives access to BoS questline. ARC JET SYSTEMS: Brotherhood quest location (ArcJet Engine Part), energy weapon testing facility. Contains 5 Fusion Cores in one room — best early PA fuel source. Turrets, Protectrons. CAMBRIDGE POLYMER LABS: Unique lab with an ongoing pre-war experiment. Complete the experiment to get unique armor piece (Polymer armor mod). CAMBRIDGE CRATER: Super mutant camp. GREENTECH GENETICS: Gunner stronghold, 5+ floors, significant loot, Gunner commander armor. SAUGUS IRONWORKS: The Forged (raider group, fire theme). Furnace area with Slag (boss), unique weapon: Shishkebab variants. Boston Mayoral Shelter beneath. QUINCY RUINS: Former thriving Minutemen settlement. Now Gunner HQ — Clint (traitor Minuteman) and Major Erskin (Gunner commander). High-level location. Triggers Preston's backstory. SPECTACLE ISLAND: Large island south of Boston. Activate the ship's radio to trigger recruitment beacon. Best large settlement (lots of space). Initial clearing requires dealing with Mirelurks. JAMAICA PLAIN: Urban neighborhood. 'Treasure of Jamaica Plain' (side quest) leads to a room full of patriotic American artifacts — the 'treasure.' Heavy mirelurk presence underground. NORDHAGEN BEACH: Coastal settlement with a small pier. THE GLOWING SEA (southwest): Ground zero of the nuclear strikes. Highest radiation zone in the game. Requires Power Armor with nuclear physicist perk OR heavy RadAway/Rad-X to traverse without armor. VIRGIL'S CAVE: Dr. Brian Virgil, former Institute BioScience researcher who became a super mutant to escape. Gives FEV samples, sends SS to find an Institute serum to cure his mutation. CHILDREN OF ATOM (The Crater): Religious camp at the crater center. Confessor Cromwell (leader in Commonwealth). COVENANT: North of Boston. Idyllic settlement. SAFE test at gate. Doctor Chambers and Swanson run synth-detection operation; Amelia Stockton is the abducted synth. Resolution: kill the operation (spare Amelia) or help them (get caps). FORT STRONG: Brotherhood quest (Show No Mercy) — super mutant-held military base. Mini-nuke cache for Liberty Prime.",
+      "source": "Mossy Team — Fallout 4 south/Cambridge location data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["cambridge", "arcjet", "glowing-sea", "covenant", "saugus-ironworks", "quincy", "spectacle-island", "jamaica-plain", "virgil", "children-of-atom", "locations"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-locations-key-interiors",
+      "title": "Fallout 4 — Key Interior Locations, Vaults & Unique Cells",
+      "content": "VAULT 81: Southeast Commonwealth. Functional (mostly) Vault. Residents live there. Overseer McNamara. Secret sub-area: Secret Vault 81 (experimental area, requires mole rat cure quest 'Hole in the Wall'). Curie companion obtained here (in robot form). Unique item: Syringer Rifle. Requires trading Fusion Cores to enter (3 Fusion Cores for initial access). VAULT 114: Park Street Station, downtown Boston. Location for Nick Valentine rescue mission. Pre-war social experiment — designed as a prison where the Vault's WARDEN was a regular resident while the inmates were privileged. Nick Valentine held in cell there after failed Institute attempt to wipe his memories. VAULT 111: Sole Survivor's home vault. Cryosleep experiment — residents were never intended to be woken; Vault-Tec staff abandoned them. Location: north of Sanctuary Hills. VAULT 75: Under Malden Middle School (The Slog area, northwest). Secret experiment involving kidnapped children (Gunner operation now). VAULT 95: Southwest area, near Covenant. Chemist experiment — residents given chems, then subjected to a simulated crisis while chems were removed. Collapsed into addiction chaos. Cait companion quest location ('Benign Intervention' — AA meeting in vault). VAULT 81 SECRET AREA: Only accessible during 'Hole in the Wall' quest. Mole rat disease area. Curie has the cure. FORT HAGEN: Southwest. Conrad Kellogg's lair (Synths faction boss). Raider/Synth location pre-quest, synth reinforcements during Kellogg fight. Kellogg drops his pistol (Kellogg's Pistol — unique legendary). TRINITY TOWER: Boston downtown, super mutants. Strong companion and Rex Goodman (NPC) held captive. Multiple floors. Strong joins here. MEMORY DEN: Goodneighbor. Dr. Amari's clinic. Houses memory loungers for experiencing shared memories. Key to accessing Kellogg's memories to find the Institute. TINKER TOM'S LAB: Railroad HQ sub-area. COMBAT ZONE: Downtown raider entertainment venue — raiders watch fights. Tommy Lonegan runs it. Cait companion obtained here as a fighter. After recruiting Cait, the Combat Zone becomes empty. LIBERTALIA: East coast ship settlement built from old boats. Raiders with a captain who trades. WRECK OF THE ORCA: South Atlantic coast, raider ship location. SPECTACLE ISLAND BOAT: Mirelurk queen nest on shipwreck.",
+      "source": "Mossy Team — Fallout 4 vault and interior location data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["vaults", "vault-81", "vault-114", "vault-111", "vault-75", "vault-95", "fort-hagen", "trinity-tower", "memory-den", "combat-zone", "interior-locations"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-settlements-all",
+      "title": "Fallout 4 — All 30 Settlement Locations (Commonwealth + DLC)",
+      "content": "COMMONWEALTH SETTLEMENTS (22 vanilla): Sanctuary Hills (north, large, first), Red Rocket Truck Stop (near Sanctuary), Abernathy Farm (corn/tato/mutfruit farm, south), Tenpines Bluff (overlook, small), The Slog (northeast, ghoul settlement, tarberry crops), Graygarden (northwest, robot workers, Supervisor White), Oberland Station (railroad station settlement), Outpost Zimonja (small, raider attack), Starlight Drive-In (large open area, good space), Sunshine Tidings Co-op (southwest forest, super mutant camp to clear), County Crossing (southeast, small), Greentop Nursery (northeast), Nordhagen Beach (south coast, small), Somerville Place (south, brambles area), Finch Farm (on a cliff, Jake Finch quest — Saugus Ironworks), Coastal Cottage (east coast, small), Warwick Homestead (south, large working farm with crops, Minutemen radiant quest friendly), The Drive-In (Starlight Drive In same), Hangman's Alley (downtown Boston, small tight space, good defensive position), Jamaica Plain (south Boston, urban, not immediate claim), Spectacle Island (east coast island, largest area, best space), The Castle (Fort Independence, Minutemen HQ after 'Taking Independence'). DLC SETTLEMENTS (8): Far Harbor DLC — Dalton Farm, Echo Lake Lumber, Longfellow's Cabin, National Park Visitor's Center, Rayburn Point, Brooke's Head Lighthouse, The Island (general), Acadia (synth refuge); Nuka-World DLC — Nuka-World Transit Center (raider base), Power Plant, Safari Zone, Dry Rock Gulch, Kiddie Kingdom, Galactic Zone, Nuka-Town USA (raider central), Bradberton; Vault-Tec DLC — Vault 88 (underground settlement, unique build objects like overseers' guardian, machine vault structures). BEST SETTLEMENTS FOR BUILDING: Sanctuary Hills (largest flat space), Spectacle Island (most raw space), Starlight Drive-In (flat concrete area, good for defenses), The Castle (coastal, defensible walls already exist).",
+      "source": "Mossy Team — Fallout 4 settlement database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["settlements", "settlement-locations", "sanctuary-hills", "spectacle-island", "the-castle", "jamaica-plain", "hangmans-alley", "vault-88", "nuka-world", "far-harbor"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

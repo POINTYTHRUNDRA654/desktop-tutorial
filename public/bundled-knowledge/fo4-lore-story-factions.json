@@ -1,0 +1,117 @@
+{
+  "packId": "fo4-lore-story-factions-v1",
+  "packName": "Fallout 4 — Complete Lore, Story & Factions",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Comprehensive Fallout 4 lore covering pre-war history, the main story arc, all major factions, key characters, and world-building details.",
+  "items": [
+    {
+      "id": "fo4-prewar-history",
+      "title": "Fallout 4 — Pre-War History & The Great War",
+      "content": "The Fallout universe diverges from ours in the 1940s: transistors were never miniaturized (vacuum tubes persist), and a 1950s-aesthetic tech culture persists into 2077. Resource Wars (2052–2077): global oil depletion triggers wars across the Middle East and Europe; the European Commonwealth fractures; the US annexes Canada (2072) for resources. The Sino-American War (2066–2077): China invades Alaska over petroleum; the US deploys Power Armor (T-45) in 2067, liberating Alaska in the Anchorage Campaign (2077). The Great War (October 23, 2077): China launches nuclear strikes; the US retaliates; within 2 hours civilization is devastated. The Commonwealth (Boston area) is hit hard. Vault-Tec Vaults open at 9:47 AM EST; most are control experiments, not genuine shelters. The Sole Survivor's family enters Vault 111 in Sanctuary Hills, MA, moments before the bombs hit. PRE-WAR INSTITUTIONS: Vault-Tec Corporation (Vault construction, social experiments), Nuka-Cola Corporation (dominant soft drink, owned multiple facilities including Nuka-World), RobCo Industries (Pip-Boy, Mr. Handy, Mr. Gutsy, Protectron, Robobrain, Eyebot), General Atomics International (nuclear appliances, Mr. Handy), Mass Fusion (energy company, fusion power), Med-Tek Research (pharmaceutical including Mentats, Buffout, Med-X), HalluciGen Inc (ChemTech Division, Hallucigenia Gas), BADTFL (Bureau of Alcohol, Drugs, Tobacco, Firearms and Lasers — law enforcement), West Tek Research Facility (Power Armor, FEV research), Poseidon Energy (nuclear plants, El Fuego Rum). Boston features MIT (re-branded as CIT = Commonwealth Institute of Technology post-war), the Old North Church, Paul Revere Memorial, USS Constitution (airship museum), Harvard University, Fenway Park (Diamond City post-war).",
+      "source": "Mossy Team — Compiled from Fallout 4 game data, loading screens, terminals, holotapes",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["lore", "pre-war", "great-war", "history", "vault-tec", "sino-american", "commonwealth", "boston", "nuka-cola", "robco"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-main-story-arc",
+      "title": "Fallout 4 — Main Story Arc Summary & Ending Choices",
+      "content": "PREMISE: The Sole Survivor (SS) was cryogenically frozen in Vault 111 in 2077. They awaken 210 years later in 2287, having witnessed the murder of their spouse (Nate or Nora) and kidnapping of their son Shaun by Conrad Kellogg — an Institute agent. The primary motivation is finding Shaun. ACT 1 — SETTING UP: SS escapes Vault 111, reaches Sanctuary Hills, meets Codsworth, travels to Concord to rescue Preston Garvey and the Minutemen, builds the first settlement, meets Piper in Diamond City, investigates the attack on Valentine Detective Agency and rescues Nick Valentine from Vault 114. ACT 2 — TRACKING KELLOGG: SS follows a trail leading to Fort Hagen where Kellogg is killed. Using memory-tampering technology (Memory Den in Goodneighbor), SS accesses Kellogg's memories to discover the Institute entrance. With Brotherhood of Steel (Prydwen arrives mid-game), Railroad, or Minutemen, SS seeks a way into the Institute. RAILROAD MISSION: Decode the Freedom Trail walking tour of Boston; follow the trail spelling RAILROAD to the Old North Church entrance. ACT 3 — THE INSTITUTE: SS teleports into the Institute, meets Father — who reveals he IS Shaun, now an old man (Shaun was taken as an infant, is now 60). Father is Director of the Institute. SS must choose a faction alliance. ENDINGS: (1) MINUTEMEN — Build network, use Mass Fusion for power source (without Brotherhood), assault Institute with Minutemen; can preserve Railroad and possibly Brotherhood; most 'neutral' ending. (2) BROTHERHOOD OF STEEL — Assist Maxson, participate in Operation Blind Betrayal (expose Danse as synth), nuclear-bomb the Institute via the Prydwen's weapon systems; Railroad and Railroad agents are destroyed. (3) RAILROAD — Protect synths, infiltrate Institute, trigger a self-destruct while evacuating synths; Brotherhood can be preserved if you avoid triggering their hostility. (4) INSTITUTE — Become director after Father's death, eliminate Minutemen/Railroad/Brotherhood, build the Institute's vision of the future. All 4 endings require activating a nuclear reactor (Mass Fusion or Institute Reactor) and assaulting a headquarters. After the main quest ends, the Commonwealth remains open for exploration; faction quests continue if the faction survived.",
+      "source": "Mossy Team — Fallout 4 main questline",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["main-quest", "story", "institute", "shaun", "father", "kellogg", "minutemen", "brotherhood", "railroad", "ending", "sole-survivor"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-faction-minutemen",
+      "title": "Fallout 4 — The Minutemen (Faction Details)",
+      "content": "MINUTEMEN: Protectors of the Commonwealth, founded on the principle that communities defend each other. Leader: Preston Garvey (last surviving officer before the SS revives the faction). Based at The Castle (Fort Independence) after rebuilding. HISTORY: Minutemen were a thriving militia for decades, but internal conflicts (Battle of Quincy — betrayed by Clint and Gunner mercs acting as Minutemen) and the collapse of The Castle (Mirelurk queen attack) left only a handful of survivors including Preston. PHILOSOPHY: Non-ideological — help settlements, build communities, no dogma. Accept synths (no official stance on synths). QUESTS: When Freedom Calls (rescue Preston), Sanctuary (build first settlement), Taking Independence (retake The Castle), Old Guns (restore the artillery), The Nuclear Option (assault the Institute via teleportation + artillery). SETTLEMENT MECHANICS: Minutemen quest line is tightly integrated with settlement building — Preston gives radiant quests to help settlements that are under attack or need supplies. Artillery shells (Old Guns) are deployed from settlements to support assaults. RADIO: Radio Freedom (95.0 FM) broadcast from The Castle. SPECIAL: The Minutemen ending is the only one that doesn't require destroying a major faction other than the Institute (though you can still destroy others). Provides access to the 'Artillery Smoke Grenades' which call down mortar fire.",
+      "source": "Mossy Team — Fallout 4 Minutemen questline and game data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["minutemen", "faction", "preston-garvey", "castle", "settlement", "artillery", "quincy", "freedom-calls"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-faction-brotherhood",
+      "title": "Fallout 4 — Brotherhood of Steel (Faction Details)",
+      "content": "BROTHERHOOD OF STEEL (BoS): Militaristic techno-religious organization dedicated to preserving pre-war technology and eradicating threats to humanity (super mutants, feral ghouls, synths). EAST COAST DIVISION: Led by Elder Arthur Maxson, who rose to leadership at age 16 after the events of Fallout 3. Arrives in the Commonwealth aboard the Prydwen — a massive dirigible — mid-game after the SS completes 'Reunions' (kills Kellogg). PRYDWEN: Airship headquarters hovering over the Boston Airport. Contains Knight Captain Cade (doctor), Proctor Ingram (chief engineer), Proctor Quinlan (head scribe), Proctor Teagan (quartermaster), Paladin Danse (companion). RANKS: Initiate → Knight → Paladin → Knight-Captain → Paladin → Knight-Captain → Knight-Commander → Star Paladin → Paladin Commander → Elder. PHILOSOPHY: Technology belongs in the hands of the Brotherhood, not the wasteland. Synths are abominations — Institute must be destroyed. Ghouls (non-feral tolerated, feral killed). Super mutants eliminated. Railroad viewed as dangerous idealists. EQUIPMENT: T-60 Power Armor (standard issue), Laser weapons, Missile Launchers, Vertibirds (transport). KEY NPCS: Elder Maxson (leader, personal dislike of Nick Valentine), Paladin Danse (companion, later revealed to be a synth in 'Blind Betrayal'), Knight Rhys, Scribe Haylen. QUESTS: Fire Support → Call to Arms → Shadow of Steel (receive Vertibird signal grenades) → Tour of Duty → Show No Mercy (assault Fort Strong) → From Within (infiltrate Mass Fusion) → Outside the Wire (meet spy in Railroad) → Liberty Reprimed (reactivate Liberty Prime) → Blind Betrayal (Danse revealed as synth) → Ad Victoriam (Liberty Prime assault) → The Nuclear Option (destroy Institute). UNIQUE ITEM: Vertibird Signal Grenade (fast-travel via Vertibird). T-60 Power Armor sets are available from Proctor Teagan.",
+      "source": "Mossy Team — Fallout 4 Brotherhood questline",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["brotherhood-of-steel", "BoS", "maxson", "danse", "prydwen", "vertibird", "power-armor", "T-60", "faction", "liberty-prime"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-faction-institute",
+      "title": "Fallout 4 — The Institute (Faction Details)",
+      "content": "THE INSTITUTE: Secretive scientific organization descended from MIT (Commonwealth Institute of Technology). Located underground, accessible only via teleportation. DIRECTOR: Father (Shaun — the SS's son), elderly man who has run the Institute for decades. After his death, the SS can become Director. DIVISIONS: BioScience (Dr. Clayton Holdren — plants, food synthesis, FEV super mutant research), Synth Retention Bureau (SRB, Director Justin Ayo — retrieves escaped synths), Advanced Systems (Dr. Madison Li, later leaves for Brotherhood — energy technology), Robotics (Dr. Isaac Karlin — synth construction). SYNTH GENERATIONS: Gen 1 (skeletal robot bodies, basic AI), Gen 2 (humanoid flesh over metal, more human appearance, limited personality — most 'synths' in the wasteland from escaped Institute raids are Gen 2), Gen 3 (fully human biological synths, indistinguishable from humans, capable of full personality and independent thought — railroad helps Gen 3s escape and replace their memories). PHILOSOPHY: Humanity's salvation requires starting over underground; the Commonwealth surface is considered beyond saving; synths are tools, not people (official position, though some Institute members disagree). OPERATIONS: Raids on surface settlements to abduct people for Gen 3 synth templates; SRB 'coursers' (enhanced Gen 3 synths with combat training) hunt escaped synths. QUESTS: Institutionalized → Synth Retention → The Battle of Bunker Hill → Mass Fusion (sabotage Brotherhood) → Pinned (eliminate Railroad) → End of the Line (destroy Railroad) → Airship Down (destroy Prydwen) → Nuclear Family (destroy Minutemen or spare). LOCATION: Deep underground beneath the CIT ruins in Cambridge. Has its own cafeteria, residential quarters, labs, power plant. UNIQUE: Courser Chip (needed to hack teleporter), Institute paint for Power Armor, Institute Laser weapons (brighter green).",
+      "source": "Mossy Team — Fallout 4 Institute questline",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["institute", "father", "shaun", "synth", "gen-3", "courser", "bioscience", "SRB", "faction", "teleporter", "underground"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-faction-railroad",
+      "title": "Fallout 4 — The Railroad (Faction Details)",
+      "content": "THE RAILROAD: Underground resistance movement dedicated to freeing Gen 3 synths and giving them new identities. Modeled after the historical Underground Railroad. LEADERSHIP: Desdemona (director/leader), Deacon (master spy and companion, chronic liar), Tinker Tom (tech expert, conspiracy theorist), Glory (heavy weapons, former synth), Drummer Boy (messenger), Carrington (handler, suspicious of outsiders). BASED AT: Old North Church basement (revealed by following the Freedom Trail — a walking tour path in downtown Boston spelling F-R-A-I-L-R-O-A-D). The entrance requires spinning a ring cipher to spell 'RAILROAD'. OPERATIONS: 'Tourist' agents embedded across the Commonwealth; 'heavies' (Glory) for combat extractions; 'handlers' who manage freed synths; Tinker Tom hacks Institute tech. The Randolph Safehouse network (unmarked locations) provides dead-drop missions. SYNTH PHILOSOPHY: Gen 3 synths are people; their memories may be implanted but their experiences and feelings are real; giving them new identities via memory wipe is a mercy, not erasure. QUESTS: Road to Freedom (follow Freedom Trail) → Tradecraft (join Railroad, recover package from Switchboard) → Boston After Dark → To The Mattresses → Memory Interrupted → Underground Undercover (double agent in Institute) → Precipice of War → Rockets' Red Glare (blow up Prydwen) → The Nuclear Option. UNIQUE ITEMS: Railroad Pistol (signature weapon, not unique but thematic), ballistic weave armor mod (Tinker Tom unlocks this — allows adding ballistic resistance to clothing, one of the most valuable non-combat perks in the game). NOTABLE: Deacon can become a companion; he may lie about his backstory; his true origin is ambiguous. The Railroad ending is considered the 'pro-synth' path.",
+      "source": "Mossy Team — Fallout 4 Railroad questline",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["railroad", "desdemona", "deacon", "freedom-trail", "old-north-church", "synth", "ballistic-weave", "faction", "tinker-tom"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-other-factions-groups",
+      "title": "Fallout 4 — Other Factions, Groups & Organizations",
+      "content": "GUNNERS: Mercenary organization, most professional armed group in the Commonwealth besides BoS. Use military-grade equipment including Power Armor. Wear distinctive yellow-striped military fatigues. HQ: Gunner Plaza (former Quincy newspaper building). Will attack most non-Gunner individuals. Leader: Major Erskin (can be killed at Quincy Ruins). Notable: Clint — a former Minuteman who betrayed Quincy; now at the Quincy Ruins with Gunners. SUPER MUTANTS: Created via FEV exposure from the Institute's BioScience division. The Institute experimented on humans (abducted from the surface) to create super mutants as an early prototype of their synth program — they later shifted to synths. Super mutant strongholds: Trinity Tower (Rex Goodman + Strong), Mass Pike Interchange, Fallon's Department Store, University Point. Strong is a companion super mutant. RAIDERS: Generic hostile groups scattered across the Commonwealth. Several named raider gangs exist (Forged at Saugus Ironworks, Nuka-World raider gangs in DLC — Operators, Disciples, Pack). CHILDREN OF ATOM: Religious cult worshipping radiation as the divine. HQ: Crater of Atom (Glowing Sea). Far Harbor DLC expands on them with the Nucleus submarine base. Leader in Far Harbor: High Confessor Tektus. DIAMOND CITY SECURITY: Local police force of Diamond City. Captain: Piper's nemesis, Mayor McDonough (revealed as a synth). GOODNEIGHBOR: Ghoul and outcast community run by Hancock (ghoul mayor, charismatic populist). Key location: The Memory Den (Irma), The Third Rail (bar, Magnolia singer). COVENANT: Seemingly idyllic community that secretly tests people for synth status (SAFE test) and detains/kills suspected synths. Doctor Chambers runs the operation. ATOM CATS: Custom Power Armor gang, friendly to SS, located south of Boston. TRIGGERMEN: Ghoul mobsters working for Marowski and others in the city.",
+      "source": "Mossy Team — Fallout 4 game data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["gunners", "super-mutants", "raiders", "children-of-atom", "goodneighbor", "hancock", "diamond-city", "covenant", "atom-cats", "triggermen", "faction"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-key-characters",
+      "title": "Fallout 4 — Key NPCs & Characters Reference",
+      "content": "SOLE SURVIVOR: Male (Nate) or Female (Nora), spouse is the opposite. Former US Army soldier (Nate) or lawyer (Nora). Both voiced. Nate voiced by Brian T. Delaney, Nora by Courtenay Taylor. SHAUN/FATHER: The SS's infant son kidnapped in 2077. Now 60 years old, Director of the Institute. Dying of terminal cancer (chose not to cure himself to remain relatable to staff). Voice: Tony Amendola. NICK VALENTINE: Synth detective modeled after the pre-war Nick Valentine, a cop who fell in love with Jenny (killed by Eddie Winter). Pre-war memories were uploaded into a Gen 2 synth body by the Institute. Based in Valentine Detective Agency, Diamond City. Voice: Stephen Russell. Companion. KEY QUEST NPCS: Conrad Kellogg (Institute agent who killed the SS's spouse, augmented with cybernetics, killed at Fort Hagen), Piper Wright (Diamond City reporter, companion, voice: Courtenay Taylor), Magnolia (synth singer at The Third Rail in Goodneighbor), Dr. Amari (Memory Den neuroscientist), Daisy (ghoul merchant in Goodneighbor, connection to the Ship of Theseus dialogue about synth identity), Eddie Winter (pre-war crime boss, Nick Valentine quest, holotapes scattered across Boston). MAJOR VENDORS: Arturo (Diamond City weapons), Myrna (Diamond City General Goods — actually a synth conspiracy theorist who doesn't know she IS a synth), Takahashi (robot vendor in Sanctuary area, only says 'Nan-ni shimashou ka?'). DISTRICT LEADERS: Mayor McDonough (Diamond City, revealed as a synth in 'In Sheep's Clothing'), Fahrenheit (Hancock's bodyguard), Rogue (Atom Cats leader).",
+      "source": "Mossy Team — Fallout 4 NPC database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["npcs", "characters", "nick-valentine", "kellogg", "father", "shaun", "piper", "hancock", "key-characters", "voice-actors"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-world-lore-commonwealth",
+      "title": "Fallout 4 — The Commonwealth: World Lore & Geography",
+      "content": "THE COMMONWEALTH: Post-apocalyptic remains of greater Boston, Massachusetts. Roughly modeled on the real geography. REGIONS: (1) Sanctuary Hills/Red Rocket area (northwest, starting zone, low-level) — Concord, Museum of Freedom, Vault 111. (2) The Forest (northeast) — Lexington, Corvega Assembly Plant, Tenpines Bluff, Oberland Station. (3) The Fens (central-west) — Diamond City (Fenway Park), Goodneighbor, Rexford Hotel. (4) Nahant/The Coast (east) — Libertalia (Raider ship settlement), Nahant Oceanological Society. (5) Downtown Boston (center) — Mass Fusion, CIT Ruins (Institute entrance), The Slog, Swan's Pond (Swan the behemoth). (6) Cambridge (south of downtown) — Cambridge Police Station (Brotherhood first contact), ArcJet Systems, Cambridge Polymer Labs. (7) The Glowing Sea (southwest) — Heavily irradiated crater, Children of Atom, Virgil's cave. (8) South Shore/Quincy — Quincy Ruins (Gunner HQ, site of the Minutemen massacre), Spectacle Island (large settlement island), Nordhagen Beach. NOTABLE LANDMARKS: Fenway Park (Diamond City — largest secure settlement), Old North Church (Railroad HQ), USS Constitution (ship that the Publick Occurrences newspaper was printed from; the robot crew tries to fly it), Bunker Hill (merchant hub, Railroad safehouse, key battle location), Charles River (major water feature), Mystic River (northern boundary), Boston Harbor (east). THE GLOWING SEA: Remains of the nuclear strike ground zero. Heavily irradiated — requires full Power Armor or RadAway+Rad-X. Contains Virgil (Institute scientist, has become a super mutant from exposure), Atom's Spring Children of Atom camp, Crater of Atom. CELL NAMING: Exterior worldspace is 'Commonwealth'; interior cells have unique editor IDs. The SS's home cell is SanctuaryHillsExt.",
+      "source": "Mossy Team — Fallout 4 geography and world data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["commonwealth", "geography", "regions", "diamond-city", "glowing-sea", "boston", "worldspace", "locations", "map"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

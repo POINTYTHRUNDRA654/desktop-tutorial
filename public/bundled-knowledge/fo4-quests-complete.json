@@ -1,0 +1,57 @@
+{
+  "packId": "fo4-quests-complete-v1",
+  "packName": "Fallout 4 — Complete Quest Database (Main, Side, Faction, Radiant)",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Full Fallout 4 quest database including main quest stages, all faction questlines, major side quests, companion quests, miscellaneous quests, and key radiant quest patterns.",
+  "items": [
+    {
+      "id": "fo4-main-quest-stages",
+      "title": "Fallout 4 — Main Quest All Stages & Requirements",
+      "content": "OUT OF TIME (introduction): Escape Vault 111, reach Sanctuary Hills, meet Codsworth, head to Concord. WHEN FREEDOM CALLS: Rescue Preston Garvey and Minutemen from Concord museum, defeat Deathclaw, reach Vault 111 museum roof for power armor, travel to Sanctuary Hills. JEWEL OF THE COMMONWEALTH: Travel to Diamond City, gain entry via intercom/convince/just enter. UNLIKELY VALENTINE: Find Nick Valentine's office in Diamond City, rescue Nick from Vault 114 (Park Street Station). GETTING A CLUE: Talk to Nick, examine Kellogg's house in Diamond City, follow dog (Dogmeat) clue trail to Fort Hagen. REUNIONS: Assault Fort Hagen, kill Conrad Kellogg (main villain of Act 1), obtain his cybernetic implant. DANGEROUS MINDS: Take implant to Memory Den in Goodneighbor, Dr. Amari extracts Kellogg's memories, discover Institute uses teleportation from CIT ruins. THE MOLECULAR LEVEL: Build a relay interceptor (requires Minutemen/BoS/Railroad help; each gives different quests), decipher Courser Chip from Kellogg's memories. INSTITUTIONALIZED: Teleport into Institute, meet Father/Shaun, complete introductory Institute tour. MANKIND REDEFINED / SYNTH RETENTION / MASS PRODUCTION / BATTLE OF BUNKER HILL: Institute quests before choosing side. THE NUCLEAR OPTION: Final quest — the name is the same across all 4 factions but the path differs. Minutemen: build teleporter + use artillery + SS teleports in + activates self-destruct. BoS: Liberty Prime assault + SS teleports in + activates self-destruct. Railroad: Blow up Prydwen using missiles, SS teleports in + activates self-destruct while synths evacuate. Institute: SS activates reactor, becomes Director, eliminates surface threats. POST-GAME: Quest 'Nuclear Family' (Institute only) or the faction quests continue post-game. QUEST STAGES (key setstage commands): When Freedom Calls = MQ101; Jewel of the Commonwealth = MQ102; Unlikely Valentine = MQ103; Getting a Clue = MQ104; Reunions = MQ105; Dangerous Minds = MQ106; The Glowing Sea = MQ201; The Molecular Level = MQ206; Institutionalized = MQ301; The Nuclear Option = MQ401 (all factions use same ID, different stages).",
+      "source": "Mossy Team — Fallout 4 main quest data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["main-quest", "quest-stages", "kellogg", "institute", "nick-valentine", "fort-hagen", "memory-den", "nuclear-option", "quest-IDs"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-major-side-quests",
+      "title": "Fallout 4 — Major Side & Miscellaneous Quests",
+      "content": "CABOT HOUSE QUESTLINE: 'Special Delivery' → 'Emogene Takes a Lover' → 'The Secret of Cabot House' → 'Benefit of the Doubt'. Jack Cabot's family (immortal due to alien serum from his father Edward Cabot). Lorenzo Cabot is imprisoned in Parsons State Insane Asylum. Resolution: free Lorenzo (gets serum from him for caps) or kill him (get the serum from Jack, Lorenzo's Artifact Gun). SILVER SHROUD: Goodneighbor/Memory Den area. Become 'The Silver Shroud' — a pre-war comic book vigilante. Kent Connolly gives quest. Wear Silver Shroud Costume to get unique dialogue. Defeat Sinjin and rescue Kent (or fail to). Reward: Silver Shroud Costume + unique SMG variant. THE BIG DIG: Goodneighbor. Help Bobbi No-Nose tunnel into Diamond City's mayor's safe. Multiple resolution options. Reward: Ashmaker (unique Minigun) from Bobbi. IN SHEEP'S CLOTHING: Diamond City. Investigate Mayor McDonough as a synth. Nick Valentine questline leads here. McDonough revealed as Institute synth plant. HOLE IN THE WALL: Vault 81. Find missing child Austin, contract mole rat disease, Curie has only dose of cure. Moral choice: cure Austin (lose the cure, Curie joins you anyway) or keep cure. BLIND BETRAYAL (BoS companion quest): Elder Maxson orders SS to execute Danse after he's revealed as a synth. Can spare Danse if you pass a speech check with Maxson or if you're not in BoS at the time. LONG TIME COMING (Nick Valentine companion): Track down Eddie Winter (pre-war mobster who's become a feral ghoul) across 10 holotapes. Give Nick closure over the murder of Jenny McGee. BENIGN INTERVENTION (Cait companion): Take Cait to Vault 95 for an impromptu intervention at a pre-war-era AA meeting setup. Convinces Cait to give up Psycho addiction. EMERGENT BEHAVIOR (Curie companion): Help Curie transfer her AI from Mr. Handy to a synth body (via Railroad/Dr. Amari). TAKING INDEPENDENCE: Minutemen quest. Retake The Castle from Mirelurks (including Mirelurk Queen boss fight). OLD GUNS: Minutemen quest. Restore the Castle's armory — repair the artillery and build artillery smoke grenades. Unlocks Artillery Strike support. PAINTING THE TOWN: Abernathy Farm. Photon Agitator for Deb's generator. HUNTER/HUNTED: Track a Courser (Institute combat synth) to the C.I.T. Ruins. Required for The Molecular Level. JACKPOT: Railroad network of cache retrieval missions across the Commonwealth. TRADECRAFT: Railroad quest. Recover package from the Switchboard (Railroad's original HQ, now overrun). BOSTON AFTER DARK: Railroad — Night at the Museum scenario, escort synth. MEMORY INTERRUPTED: Railroad — interrupt Institute memory backup of a recently escaped synth.",
+      "source": "Mossy Team — Fallout 4 side quest database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["side-quests", "cabot-house", "silver-shroud", "the-big-dig", "blind-betrayal", "hole-in-the-wall", "taking-independence", "old-guns", "artillary", "railroad-quests", "companion-quests"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-minutemen-quests",
+      "title": "Fallout 4 — Minutemen Questline (Complete)",
+      "content": "MINUTEMEN QUESTLINE ORDER: When Freedom Calls (rescue Preston) → Sanctuary (settle first settlement) → The First Step (secure Tenpines Bluff) → Returning the Favor (supply run, kill raider leader) → Taking Independence (retake The Castle from Mirelurks, Mirelurk Queen boss) → Old Guns (restore Castle artillery, craft artillery smoke grenades) → United We Stand (defend The Castle from Institute/Gunners) → The Nuclear Option (Minutemen version): coordinate a settlement network into an assault force, teleport into Institute (after building relay via The Molecular Level + Minutemen), activate self-destruct. The Minutemen ending preserves the Railroad and can preserve the Brotherhood of Steel (if you avoid triggering their 'Blind Betrayal' or have not triggered their war with you). RADIANT MINUTEMEN QUESTS: Preston gives infinite radiant quests — Settlement Under Attack (defend a settlement from raiders/super mutants), Kidnapping (rescue settler), Clearing the Way (clear location for settlement claim), Missing Persons (find settler), Returning Settlers (escort), Ghoul Problem (kill ghouls near settlement), Clean Up the Commonwealth (kill raiders/mutants at random location). These radiant quests are the primary source of Minutemen XP and reputation. SETTLEMENT HAPPINESS radiant quests are separate: Preston gives these when a settlement is unhappy (below 50%). UNIQUE MINUTEMEN PERKS/ITEMS: Artillery Smoke Grenades (crafted after Old Guns, available from chemistry stations in settlements with artillery installed), Radio Freedom (95.0 FM, alerts the SS of settlement attacks), The Castle Radio Broadcast. NOTE: Can complete the entire Minutemen questline without ever joining another faction — this is the 'peaceful' route through the main game.",
+      "source": "Mossy Team — Fallout 4 Minutemen questline data",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["minutemen", "questline", "castle", "artillery", "taking-independence", "old-guns", "radiant-quests", "preston-garvey", "nuclear-option"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-misc-notable-quests",
+      "title": "Fallout 4 — Notable Misc Quests & Hidden Quests",
+      "content": "COVENANT (Covenant quest): SAFE personality test at gate. Then discover the synth-detention operation in the back. Dr. Chambers and Swanson. Amelia Stockton is the synth. Resolution: help the operation or destroy it and free Amelia. MYSTERY MEAT (Vault 81): The mole rats in the secret Vault 81 area are carrying a disease. Investigating leads to the Curie discovery. JACK STRAW: Far Harbor (see DLC section). CLEANSING THE LAND (BoS Far Harbor quest): Wipe out Children of Atom at the Nucleus. WOMAN OF SUBSTANCE: Contraptions DLC — build specific contraptions. RITE OF PASSAGE: Atom Cats quest — race the SS against a ramp jump challenge. THE SILVER SHROUD: Goodneighbor Kent quest — dress as The Silver Shroud vigilante, kill criminals who match the show's villain archetypes. Unique dialogue tree using Silver Shroud persona. CURTAIN CALL (Combat Zone): Tommy Lonegan quest — unlock Cait as companion. MEMORY BANK (Nick Valentine): Find Nick's original memories, confront DiMA's past. WHAT ATOM REQUIRES (Far Harbor): Children of Atom initiation quest. ABLUTIONS: Far Harbor — become a full member of Children of Atom. THE TRIALS OF BROTHER DEVIN: Far Harbor/Children of Atom. PUBLIC KNOWLEDGE (Diamond City): Investigate Mayor McDonough — leads to 'In Sheep's Clothing.' OPEN SEASON (Nuka-World): Kill all three raider gang leaders in Nuka-World; best ending for clearing Nuka-World. POWER PLAY (Nuka-World): Betray one of the raider factions after establishing their territory — triggers gang war. Home Sweet Home, Better Living Underground, etc. (Nuka-World settlement quests): Build outposts for each raider gang. DUNWICH BORERS: Investigation quest — terminals reveal a pre-war mining company that broke into something supernatural (Lovecraftian horror vibe). Boss: Bedlam. TREASURES OF JAMAICA PLAIN: Find the 'great treasure' — turns out to be a room full of American flag memorabilia. COVENANT INVESTIGATION: Can be triggered by SAFE test or by entering suspiciously. GHOUL PROBLEM: Minutemen radiant, clear ghouls from specific farm. ABERNATHY FARM QUESTS: Farming family with daughter who died at raiders' hands — retrieve her locket. MEDICAL MYSTERY: Vault 81 — investigate Austin's illness.",
+      "source": "Mossy Team — Fallout 4 miscellaneous quest database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["misc-quests", "covenant", "silver-shroud", "diamond-city", "jamaica-plain", "dunwich", "open-season", "nuka-world", "vault-81", "atom-cats"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}

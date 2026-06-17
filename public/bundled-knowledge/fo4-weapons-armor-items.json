@@ -1,0 +1,81 @@
+{
+  "packId": "fo4-weapons-armor-items-v1",
+  "packName": "Fallout 4 — Complete Weapons, Armor & Items Database",
+  "packVersion": "1.0.0",
+  "exportDate": "2026-06-16",
+  "description": "Complete reference for all Fallout 4 weapons (ballistic, energy, melee), armor sets, legendary effects, unique weapons, aid items, and key consumables.",
+  "items": [
+    {
+      "id": "fo4-ballistic-weapons",
+      "title": "Fallout 4 — Ballistic Weapons Complete Reference",
+      "content": "PISTOLS: .44 Pistol (heavy revolver, .44 caliber, powerful), 10mm Pistol (starter weapon, common), Pipe Pistol (weakest, improvised, many ammo types), Deliverer (unique silenced 10mm, Railroad reward, high VATS AP reduction). RIFLES: Assault Rifle (5.56mm, good automatic or semi, common among higher-level enemies), Combat Rifle (5.56mm or .38, versatile), Hunting Rifle (.308, bolt-action, excellent for sniping), Pipe Rifle (common early game), Lever-Action Rifle (.45-70, Far Harbor DLC, highest base damage non-legendary rifle). SHOTGUNS: Double-Barrel Shotgun (.38 or shotgun shells), Combat Shotgun (semi-auto, excellent close range), Pump Action Shotgun. HEAVY WEAPONS: Minigun (5mm, high DPS, low accuracy), Fat Man (mini-nuke launcher, highest burst damage), Missile Launcher, Broadsider (cannonball launcher, unique naval cannon), Junk Jet (fires junk as ammo, Strength 1 requirement), Gatling Laser (energy/heavy overlap, uses Fusion Cores as ammo). SUBMACHINE GUNS: 10mm SMG (automatic, common), Submachine Gun (10mm, Institute drops). SNIPER RIFLES: Sniper Rifle (.50 caliber, highest damage ballistic per shot), Gauss Rifle (unique charge mechanic, most damage of any single-shot weapon). AMMO TYPES: .38 (most common, Pipe weapons), 10mm (pistols, SMGs), 5.56mm (assault/combat rifles), .308 (hunting rifle, common), .45 (combat rifle, pipe revolver), .44 (magnum pistols), .50 (sniper rifle), 12 gauge (shotguns), 5mm (minigun), Mini-Nuke (Fat Man), 2mm EC (Gauss Rifle), Fusion Core (Gatling Laser, Power Armor), Cannonball (Broadsider), Gamma Round (Gamma Gun). LEGENDARY VARIANTS: Each enemy type can drop legendaries with prefixes. Top-tier: Two Shot (+double projectile), Explosive (+grenadeAoE on hit), Instigating (double dmg at full HP), Wounding (+bleed damage), Rapid (faster fire rate + reload), VATS Enhanced (reduced AP cost), Freezing (cryo damage + cripple), Incendiary (fire damage).",
+      "source": "Mossy Team — Fallout 4 weapon database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["weapons", "ballistic", "pistols", "rifles", "shotguns", "heavy-weapons", "sniper", "ammo", "legendary", "fat-man", "minigun", "gauss-rifle"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-energy-weapons",
+      "title": "Fallout 4 — Energy Weapons Complete Reference",
+      "content": "LASER WEAPONS: Laser Pistol (10mm energy equivalent, modifies to rifle), Laser Rifle (most versatile energy weapon, sniper or auto builds), Institute Laser (brighter beam, same stats), Laser Musket (charge-shot cranked musket, Minutemen theme, crank charges for damage, single-shot with no magazine). PLASMA WEAPONS: Plasma Pistol, Plasma Rifle (high damage, turns enemies into green goo on kill — no body loot), Plasma Thrower (flamethrower variant, short range). GAMMA GUN: Radiation damage — incredibly effective against unaugmented humans and synths; largely ineffective against robots and power armor users (robots are radiation immune). Kellogg has a unique variant. FLAMER: Fire damage, ignites targets for DoT (damage over time). Very effective against mirelurks and Deathclaws. SHORT range. ARC WELDER: Electrical. CRYOLATOR: Unique weapon in Vault 111 (requires Master lockpicking or Dogmeat trick to get early). Freezes targets solid, can shatter them. Cryo damage. JUNK JET: Fires junk from inventory as projectiles — useful for clearing junk while dealing damage. RAILWAY RIFLE: Railroad-themed weapon fires railway spikes at high velocity, pins enemies to walls. .38 caliber ammo. BROADSIDER: Cannonball-launching naval cannon, uses cannonballs, very high AoE damage. GAUSS RIFLE: Charge weapon — hold fire to charge for maximum damage, single shot. 2mm EC ammo. Considered best non-explosive single-hit damage. SYRINGER: Fires syringes with various effects (Bloatfly Larva, Concussion, Hemorrhage, Irradiated, Lock Joint, Mind Cloud, Pax, Radscorpion Venom, Yellow Belly). Used by Dr. Li in Institute. LORENZO'S ARTIFACT GUN: Unique gravity weapon from Cabot House questline (fires with gravitational damage). ALIEN BLASTER: Unique weapon obtained from alien crash site (Alien Blaster Ammo only, very rare — but can be modded to use Fusion Cells). CHARACTERISTICS: Energy weapons require Science! and Gun Nut perk for advanced mods. Institute laser guns drop from Institute synths. Laser weapons more accurate, plasma more powerful. Gamma Gun and Syringer are utility/specialized.",
+      "source": "Mossy Team — Fallout 4 energy weapon database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["energy-weapons", "laser", "plasma", "cryolator", "gauss-rifle", "gamma-gun", "flamer", "railway-rifle", "institute", "science-perk", "unique-weapons"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-melee-unarmed",
+      "title": "Fallout 4 — Melee & Unarmed Weapons Complete Reference",
+      "content": "MELEE WEAPONS (require Big Leagues perk for damage scaling): Baseball Bat (iconic, many legendary variants), Baton (police baton), Board (board with nails), Combat Knife (fast, low damage), Machete (solid early melee), Pipe Wrench (improvised), Pool Cue, Rolling Pin, Tire Iron, Switchblade (fast, low damage). UNIQUE/NAMED MELEE: Shishkebab (flaming machete, crafted or found at Saugus Ironworks), Rockville Slugger (unique baseball bat, reduces action point use on power attacks), Deathclaw Gauntlet (requires Deathclaw hand, very high damage), Ripper (chain saw — legendary variants incredibly powerful for melee builds), Bladed Tire Iron, Grognak's Axe (Vault 114 — locked display case — high damage two-handed axe). TWO-HANDED: Sledgehammer (high damage, slow), Two-Handed Sword (Kremvh's Tooth unique, found at Dunwich Borers — unique Kremvh's Tooth — causes bleeding and poison damage), Super Sledge (super mutant weapon, massive power), War Hammer, Baseball Bat (two-handed variants). UNARMED (Iron Fist perk): Boxing Gloves, Power Fist (very high damage, piston mechanism), Deathclaw Gauntlet (counts as unarmed OR melee based on perk), Bladed Knuckles, Knuckles, Spiked Knuckles. SPECIAL MELEE MECHANICS: Power Attacks (hold attack) do more damage at the cost of AP. Blitz perk (Agility 9) allows teleporting to enemies in VATS — enables melee builds to work at range. Ninja perk multiplies sneak attack damage. Big Leagues perk at rank 5 gives chance to disarm on power attacks. LEGENDARY EFFECTS for melee: Wounding (+25 bleed per hit), Poisoner's (adds poison DoT), Instigating (double damage at full HP), Crippling (+50% limb damage), Lucky (+15% crit damage), Heated (fire damage), Electrified (electric damage).",
+      "source": "Mossy Team — Fallout 4 melee weapon database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["melee", "unarmed", "shishkebab", "deathclaw-gauntlet", "super-sledge", "kremvh-tooth", "power-fist", "baseball-bat", "big-leagues", "blitz", "ninja"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-armor-types",
+      "title": "Fallout 4 — All Armor Types, Sets & Modding",
+      "content": "ARMOR SYSTEM: FO4 uses a modular system — armor pieces cover five slots: Head, Torso (chest), Left Arm, Right Arm, Left Leg, Right Leg (6 slots total). Layered over clothing (which can have Ballistic Weave added). ARMOR TYPES BY MATERIAL (affect DR and look): Raider Armor (lowest DR, most common early), Leather Armor (light, good for stealth builds), Metal Armor (mid-tier, heavy), Combat Armor (mid-high tier, common military), Synth Armor (high DR, dropped by Gen 2 synths — can be reinforced for very high DR), Army Fatigues (clothing layer, no armor slots), Marine Armor (Far Harbor DLC — highest DR standard armor), Heavy Combat Armor (Combat + heavy variant). FULL SETS: Vault Suit (worn from Vault 111, clothing layer, can be moddified with Ballistic Weave), Courser Uniform (Institute item, synth-based), Railroad Agent's Coat, Silver Shroud Costume (quest reward, 'The Silver Shroud'). BALLISTIC WEAVE: Railroad perk from Tinker Tom (after enough Railroad quests). Adds armor-equivalent DR to clothing/costumes — allows wearing Vault Suit, formal wear, or Railroad Armored Coat with high DR. Highest DR clothes: Military Fatigues + max ballistic weave can rival combat armor. LEGENDARY ARMOR EFFECTS: Bolstering (+35 DR/ER at low HP), Chameleon (invisibility while sneaking and not moving), Cloaking (Stealth Boy effect when hit), Fortifying (+STR+END while wearing), Ghoulish (+radiation = more powerful, recruit ghouls), Powered (increases AP regen rate), Titan (+25 carry weight), VATS Enhanced (15% reduced VATS AP cost), Assassin's (+15% vs humans), Murderer's (+15% vs super mutants). UNIQUE ARMOR SETS: Institute Armor (green glow, dropped by Coursers), Captain's Hat (misc headwear), Grognak Costume (increases melee damage — from Vault 114 locked case near Grognak's Axe), Silver Shroud Costume (+10% sneak damage bonus when worn).",
+      "source": "Mossy Team — Fallout 4 armor database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["armor", "combat-armor", "synth-armor", "marine-armor", "ballistic-weave", "legendary-armor", "chameleon", "silver-shroud", "vault-suit", "armor-mods", "leather", "raider"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-chems-aid-items",
+      "title": "Fallout 4 — All Chems, Aid Items & Consumables",
+      "content": "HEALING ITEMS: Stimpak (restores HP, must be crafted or bought, no addiction), RadAway (removes rads, slight nausea debuff), Rad-X (temporary rad resistance boost). COMBAT CHEMS (all addictive unless noted): Jet (slows time, AP regeneration, can be crafted, Jet Fuel variant stronger), Psycho (damage resistance + damage bonus, addictive), Buffout (STR/END/MAX HP boost, addictive), Mentats (INT/PER/CHA boost, addictive), Med-X (temporary DR +25, addictive), Berry Mentats (+CHA, see persuasion success/fail on all options — NOT addictive), Grape Mentats (buy/sell prices improved), Orange Mentats (INT boost + target highlight), Day Tripper (CHA boost), Fury (STR boost + melee damage), Calmex (sneak + VATS slowdown for stealth characters), X-Cell (all SPECIAL +1 temporary), Overdrive (VATS crit charge faster), Turbo (slows time briefly, extreme Jet variant). ADDICTION: Each chem has a base addiction chance (Jet 10%, Psycho 10%, Buffout 10%, etc.). Addiction causes SPECIAL stat debuffs when the chem is not active. Cured by: Doc Crocker in Diamond City, Dr. Sun in Diamond City, Dr. Chambers (Covenant), or crafting Addictol at Chemistry Station. FOOD/DRINK: Purified Water (best, no rads, can be made via Settlement water purifiers), Nuka-Cola (HP + rads), Nuka-Cola Quantum (more HP + more rads + very rare), Brahmin Milk (minor healing), Cooked foods provide various bonuses with no rads or addiction. NOTABLE SPECIALS: Nuka-Cherry (HP + rads, limited locations), Nuka-Cola Dark (STR + rads + inebriation effect), Industrial Strength Cleaner (poisonous if drunk), Vim! (Far Harbor Nuka-Cola equivalent). NUKA-WORLD SPECIAL NUKA-COLAS: Multiple varieties crafted or found in Nuka-World — Nuka-Power (Power Armor regeneration), Nuka-Wild (useful in Far Harbor), Nuka-Cooler, Nuka-Frutti, Nuka-Hearty, Nuka-Lixir, Nuka-Love, Nuka-Punch, Nuka-Ray, Nuka-Sunrise, Nuka-Void. NOTES: Chem Resistant perk (END 4) reduces addiction chance by 50%/100%. Chemist perk (INT 7) doubles chem duration. In Survival Mode all food/drink also satisfies hunger/thirst but alcohol items also cause fatigue.",
+      "source": "Mossy Team — Fallout 4 items database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["chems", "stimpak", "radaway", "jet", "psycho", "buffout", "mentats", "nuka-cola", "addiction", "survival", "food", "consumables", "aid"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    },
+    {
+      "id": "fo4-unique-legendary-weapons",
+      "title": "Fallout 4 — Unique & Notable Named Weapons",
+      "content": "NAMED UNIQUE WEAPONS (guaranteed spawn locations): Kellogg's Pistol (unique .44 pistol, kills Kellogg at Fort Hagen, Relentless effect — refills AP on critical), Deliverer (10mm pistol, unique silenced, Railroad questline reward, VATS enhanced), Kremvh's Tooth (machete unique, Dunwich Borers in flooded room, sacrificial blade with poison + bleed), The Last Minute (Gauss Rifle unique, sold by Ronnie Shaw at The Castle after 'Old Guns'), Shishkebab (flaming machete, built or found Saugus Ironworks), Old Faithful (Laser Rifle, sold by Arturo in Diamond City, Instigating effect), Ashmaker (Minigun unique, 'The Big Dig' Railroad questline, sets targets on fire), Big Boy (unique Fat Man, Two Shot effect, fires 2 mini-nukes, sold by Arturo in Diamond City — very expensive), Deathclaw Gauntlet (crafted at Weapons Workbench with Deathclaw hand), Lorenzo's Artifact Gun (Cabot House quest 'The Secret of Cabot House', gravity damage), Righteous Authority (Laser Rifle, Paladin Danse gives it after 'Call to Arms' BoS quest, Lucky Weapon effect), The Silver Shroud Submachine Gun (Silver Shroud quest reward — but the costume gives the real bonus), Le Fusil Terribles (Combat Shotgun unique, Libertalia location), General Chao's Revenge (machete, Drumlin Diner merchant Wolfgang — if you help him get paid), Experiment 18-A (Plasma Rifle, sold by the Institute Requisitions officer), 2076 World Series Baseball Bat (baseball bat unique, found in Jamaica Plain, Lucky weapon), Minigun (unique version — The Gainer — at Quincy Ruins). NOTABLE CRAFTED: Shishkebab (requires Pilot Light, Aluminum, Steel, Adhesive), Deathclaw Gauntlet (Deathclaw Hand, Heavy Leather Belt, Gear, Spring, Screw). ARMOR UNIQUE PIECES: Combat Armor chest piece 'Ushanka' (from Grim Reaper's Sprint event), Silver Shroud Costume (increases sneak attack damage and unique companion dialogue), Grognak Costume (Vault 114, melee damage increase). OVERSEERS GUARDIAN (Combat Rifle unique, sold in Vault 81, Two Shot effect — effectively doubles damage at medium range).",
+      "source": "Mossy Team — Fallout 4 unique weapons database",
+      "creditName": "Mossy Team",
+      "creditUrl": "",
+      "trustLevel": "community",
+      "tags": ["unique-weapons", "legendary", "kellogg-pistol", "deliverer", "kremvh-tooth", "shishkebab", "fat-man", "big-boy", "overseer-guardian", "righteous-authority", "named-weapons"],
+      "date": "2026-06-16T00:00:00.000Z",
+      "status": "learned"
+    }
+  ]
+}
