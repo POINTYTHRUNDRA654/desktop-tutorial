@@ -1,0 +1,14 @@
+{
+  "archetype": "feral_ghoul",
+  "voice_type": "NPC_FeralGhoulMale",
+  "speech_notes": "Non-verbal. Use for Papyrus sound cue reference only. No coherent speech. Pair with vanilla .fuz audio files.",
+  "contexts": {
+    "detect": ["[screech]", "[raspy moan]", "[gurgling hiss]", "[clicking sounds]", "[wet gurgle]"],
+    "combat_start": ["[prolonged screech]", "[frenzied wail]", "[rapid clicking]", "[chittering]"],
+    "combat_taunt": ["[shriek]", "[sustained moan]", "[grinding sounds]"],
+    "combat_pain": ["[agonized screech]", "[strangled cry]", "[wet rasp]"],
+    "death": ["[dying moan]", "[wet rattle]", "[silence]"],
+    "idle_wander": ["[soft moan]", "[low growl]", "[distant screech]", "[shuffling]"]
+  },
+  "note": "For non-feral ghouls (Hancock, traders, wastelanders) use ghoul_nonferal.json. Feral ghouls have no coherent dialogue — use vanilla audio files only via Papyrus Say() or PlaySound()."
+}

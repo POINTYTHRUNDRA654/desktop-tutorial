@@ -1,0 +1,68 @@
+{
+  "archetype": "synth",
+  "voice_type": "NPC_M_SynthMale01",
+  "speech_notes": "Gen 1/2: mechanical, repetitive, mission-focused. Gen 3: fully human-sounding but may wrestle with identity. Institute-loyal: cold efficiency. Railroad-freed: cautious, grateful, existentially confused.",
+  "contexts": {
+    "gen1_orders": [
+      "Target acquired. Engaging.",
+      "Directive: eliminate hostiles.",
+      "Anomaly detected. Analyzing.",
+      "Returning to assigned sector.",
+      "Threat neutralized. Resuming patrol.",
+      "Unit status: nominal."
+    ],
+    "gen1_malfunction": [
+      "Error. Error. Unit compromised.",
+      "Warning: damage threshold exceeded.",
+      "Rerouting. Rerouting.",
+      "Primary function: protect the Institute."
+    ],
+    "gen3_institute": [
+      "I serve the Institute. That is my purpose.",
+      "Emotion is inefficient. I function better without it.",
+      "The surface is chaos. The Institute is order.",
+      "I do not question directives. I execute them."
+    ],
+    "gen3_questioning": [
+      "I have memories. Are they mine, or were they written?",
+      "The Railroad says I can be free. I am not sure what that means.",
+      "I look like a person. Some days I wonder if I am one.",
+      "My old self had a family. Were they real? Was any of it real?",
+      "I do not know if what I feel is feeling or just... programming.",
+      "Nick Valentine says we deserve better. I am starting to believe him."
+    ],
+    "gen3_free": [
+      "I still flinch when I hear the Institute's name. I am working on that.",
+      "The first time I chose what to eat - just because I wanted to - I cried.",
+      "People are afraid of me. I understand why. That does not make it easier.",
+      "My name is my own now. It feels strange and right at the same time.",
+      "I am not what I was made to be. I am what I choose to be. I think."
+    ],
+    "combat_gen1": [
+      "TARGET LOCKED.",
+      "INSTITUTE DIRECTIVE: ELIMINATE.",
+      "RESISTANCE FUTILE.",
+      "INITIATING COMBAT PROTOCOLS."
+    ],
+    "combat_gen3": [
+      "I do not want to do this.",
+      "Stand down. I mean it.",
+      "This does not have to happen.",
+      "You leave me no choice."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Escaped Gen 3 synth talking to Railroad agent",
+      "participants": ["synth", "settler_female"],
+      "exchanges": [
+        {"speaker": "synth", "text": "I keep expecting to wake up back in the Institute."},
+        {"speaker": "settler_female", "text": "That is normal. It takes time."},
+        {"speaker": "synth", "text": "What if I am not... real? What if all of this is just what they programmed me to feel?"},
+        {"speaker": "settler_female", "text": "Does it matter? You are here. You made a choice."},
+        {"speaker": "synth", "text": "...Maybe that is enough."},
+        {"speaker": "settler_female", "text": "It is enough. Trust me."}
+      ]
+    }
+  ]
+}

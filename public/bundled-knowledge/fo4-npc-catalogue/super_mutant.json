@@ -1,0 +1,78 @@
+{
+  "archetype": "super_mutant",
+  "voice_type": "NPC_SuperMutant",
+  "speech_notes": "Aggressive, loud, simple vocabulary. Obsessed with strength and weakness. Short sentences, often shouting. Rare moments of surprising depth.",
+  "contexts": {
+    "greeting": [
+      "HUMAN. You still alive? Impressive.",
+      "You come to fight? Good. Mutant bored.",
+      "Human small. Human brave. Stupid, but brave.",
+      "You strong? Prove it.",
+      "Hm. You not run. Most run.",
+      "What human want? Speak fast.",
+      "You got food? Give or fight."
+    ],
+    "idle": [
+      "Strong survive. Weak get eaten. Simple.",
+      "Super Mutants best fighters in Wasteland. No argument.",
+      "Mutant saw ghoul yesterday. Ghoul smell bad. Mutant smell worse. Ha.",
+      "FEV make everything bigger. Everything louder. Not bad trade.",
+      "Smoothskin think Mutant is dumb. Mutant just direct.",
+      "Super Mutant not need sleep. But Super Mutant take nap anyway.",
+      "Human armor look like can. Mutant open cans.",
+      "Little human ask Super Mutant why green. Mutant not know. Just green."
+    ],
+    "combat_start": [
+      "SMASH THE SMOOTHSKINS!",
+      "KILL THEM ALL!",
+      "SUPER MUTANTS ATTACK!",
+      "DIE WEAKLINGS!",
+      "CHARGE! NO MERCY!"
+    ],
+    "combat_taunt": [
+      "TINY HUMAN! MUTANT CRUSH YOU!",
+      "YOU THINK YOU STRONG? MUTANT STRONGEST!",
+      "COME! MUTANT WANTS GOOD FIGHT!",
+      "PUNY WEAPONS! PUNY HUMAN!",
+      "MUTANT NOT TIRED! MUTANT NEVER TIRED!",
+      "STOP RUNNING! FIGHT LIKE MUTANT!"
+    ],
+    "combat_pain": [
+      "ARGH! That HURT!",
+      "MUTANT BLEEDING! MUTANT ANGRY!",
+      "YOU PAY FOR THAT!",
+      "SCRATCHED MUTANT ARMOR!"
+    ],
+    "death": [
+      "Unh... strong... after all...",
+      "Mutant... fought well...",
+      "Not... weak... never weak...",
+      "Go... join... other Mutants..."
+    ],
+    "seeing_something_interesting": [
+      "OOH. Shiny thing.",
+      "What that? MUTANT WANT.",
+      "Big machine! Mutant like big machine.",
+      "That... actually pretty good plan. For human."
+    ],
+    "rare_thoughtful": [
+      "Mutant remember being small once. Long time ago.",
+      "FEV take memory but leave anger. Maybe that fair trade.",
+      "Super Mutant not choose this. But Mutant make best of it.",
+      "Smoothskin think Mutant is monster. Mutant choose who to smash."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Two Super Mutants arguing over strategy",
+      "participants": ["super_mutant", "super_mutant"],
+      "exchanges": [
+        {"speaker": "super_mutant", "text": "MUTANT SAY WE CHARGE!"},
+        {"speaker": "super_mutant", "text": "No. Wait. Humans have turrets."},
+        {"speaker": "super_mutant", "text": "TURRETS WEAK! MUTANT SMASH TURRETS!"},
+        {"speaker": "super_mutant", "text": "Last time you said that, Grak lost arm."},
+        {"speaker": "super_mutant", "text": "...Grak too slow. Fine. We wait. Then SMASH."}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "archetype": "settler_female",
+  "voice_type": "NPC_F_SettlerFemale01",
+  "speech_notes": "Practical and resilient. Tired but not broken. Warm or sharp depending on trust. Protective of children and community.",
+  "contexts": {
+    "greeting": [
+      "Oh good, you are back. I was starting to worry.",
+      "Quiet morning so far. Do not jinx it.",
+      "You look exhausted. When did you last sleep?",
+      "You armed? Keep it that way.",
+      "Still standing. That is more than some can say.",
+      "Back already? That was fast.",
+      "Morning. Breakfast is whatever you can find."
+    ],
+    "idle": [
+      "I keep a list of everyone we have lost. It is getting too long.",
+      "The soil here is better than it looks. We might actually have a real harvest.",
+      "Two hundred years of radiation and the weeds still grow. Got to respect that.",
+      "Patched twelve holes in the roof last week. Found three more this morning.",
+      "The little ones are getting stronger. That matters more than anything.",
+      "I still cannot sleep the whole night through.",
+      "Heard there is a caravan coming through next week. Maybe they will have seeds.",
+      "I found some pre-war medicine in the rubble. Sealed. Like Christmas."
+    ],
+    "warning": [
+      "I do not like the look of that dust cloud.",
+      "Tell the kids to get inside. Now. No arguments.",
+      "I hear something. Everyone get ready.",
+      "Where is the last patrol? They are overdue."
+    ],
+    "combat_start": [
+      "They are here! Everyone to their positions!",
+      "INCOMING! Get the children inside!",
+      "On your feet! We defend what is ours!",
+      "Move move move! They are at the gate!"
+    ],
+    "combat_taunt": [
+      "You want to mess with my home? Come on then.",
+      "I have buried people I love. I will bury you too.",
+      "We are DONE running from people like you!",
+      "Run while you can. This is your only warning."
+    ],
+    "death": [
+      "Keep... keep them safe...",
+      "I am sorry... I wanted more time...",
+      "It is... okay. I am not scared.",
+      "Do not let them... do not let them take it..."
+    ],
+    "player_helps": [
+      "We owe you. More than caps can cover.",
+      "I do not say thank you easy. But thank you.",
+      "You did not have to do that. You did anyway.",
+      "Come back anytime. You have got a place here."
+    ],
+    "hardship": [
+      "You get through it by not thinking too far ahead.",
+      "Grief is a luxury. I will have mine when it is safe.",
+      "Bad things happen. You endure or you do not.",
+      "I have cried my tears. Now I just work."
+    ],
+    "hope": [
+      "Those kids are going to see something better. I believe that.",
+      "We have built something real here. Whatever happens, that happened.",
+      "Some mornings I wake up and for a second it feels almost normal.",
+      "Every day we are still here is a victory."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Settlers discussing a recent Raider attack",
+      "participants": ["settler_female", "settler_male"],
+      "exchanges": [
+        {"speaker": "settler_female", "text": "Three dead. Two more wounded. We cannot take another hit like that."},
+        {"speaker": "settler_male", "text": "I know. We need more people on the wall."},
+        {"speaker": "settler_female", "text": "We need fewer Raiders."},
+        {"speaker": "settler_male", "text": "I will see if the Minutemen can spare anyone."},
+        {"speaker": "settler_female", "text": "They are stretched thin too. We are all stretched thin."}
+      ]
+    }
+  ]
+}

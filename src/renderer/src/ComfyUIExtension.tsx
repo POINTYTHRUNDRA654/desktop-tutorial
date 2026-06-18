@@ -171,6 +171,21 @@ export const ComfyUIExtension: React.FC = () => {
   const [showAdvanced,     setShowAdvanced]     = useState(false);
   const [customSteps,      setCustomSteps]      = useState<number | null>(null);
   const [customCfg,        setCustomCfg]        = useState<number | null>(null);
+  const [installPath,      setInstallPath]      = useState('');
+  const [pathInput,        setPathInput]        = useState('');
+  const [editingPath,      setEditingPath]      = useState(false);
+  const [launching,        setLaunching]        = useState(false);
+
+  // ─── Load saved install path ──────────────────────────────────────────────
+
+  useEffect(() => {
+    const bridge: any = (window as any).electron?.api;
+    (async () => {
+      const settings = await bridge?.getSettings?.().catch(() => null);
+      const saved: string = settings?.comfyuiPath || localStorage.getItem('comfyui_install_path') || '';
+      if (saved) { setInstallPath(saved); setPathInput(saved); }
+    })();
+  }, []);
 
   // ─── Connection check ─────────────────────────────────────────────────────
 
@@ -276,7 +291,6 @@ export const ComfyUIExtension: React.FC = () => {
   const openOutputFolder = async () => {
     const bridge: any = (window as any).electron?.api;
     if (bridge?.assetScanner?.browseFolder) await bridge.assetScanner.browseFolder();
-    else if (bridge?.browseFolder) await bridge.browseFolder();
     else setStatusMsg('Navigate to your ComfyUI output folder (default: ComfyUI/output).');
   };
 
@@ -297,6 +311,42 @@ export const ComfyUIExtension: React.FC = () => {
     const bridge: any = (window as any).electron?.api;
     if (bridge?.openExternal) bridge.openExternal(COMFY_BASE).catch(() => null);
     else window.open(COMFY_BASE, '_blank');
+  };
+
+  const launchComfyUI = async () => {
+    if (!installPath) { setEditingPath(true); return; }
+    const bridge: any = (window as any).electron?.api;
+    if (!bridge?.openProgram) { setStatusMsg('openProgram not available.'); return; }
+    const sep = installPath.includes('/') ? '/' : '\\';
+    const batPath = installPath.replace(/[/\\]+$/, '') + sep + 'run_nvidia_gpu.bat';
+    setLaunching(true);
+    try {
+      await bridge.openProgram(batPath).catch(() => null);
+      setStatusMsg('ComfyUI launch requested — waiting for server…');
+      setTimeout(() => void checkConnection(), 6000);
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const browseInstallPath = async () => {
+    const bridge: any = (window as any).electron?.api;
+    if (bridge?.browseDirectory) {
+      const picked = await bridge.browseDirectory().catch(() => null);
+      if (picked) { setPathInput(picked); }
+    } else if (bridge?.assetScanner?.browseFolder) {
+      await bridge.assetScanner.browseFolder();
+    }
+  };
+
+  const saveInstallPath = async () => {
+    const trimmed = pathInput.trim();
+    setInstallPath(trimmed);
+    localStorage.setItem('comfyui_install_path', trimmed);
+    const bridge: any = (window as any).electron?.api;
+    await bridge?.setSettings?.({ comfyuiPath: trimmed }).catch(() => null);
+    setEditingPath(false);
+    setStatusMsg(trimmed ? `ComfyUI path saved: ${trimmed}` : 'Path cleared.');
   };
 
   // ─── Derived ─────────────────────────────────────────────────────────────
@@ -340,18 +390,40 @@ export const ComfyUIExtension: React.FC = () => {
               <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-bold text-amber-300 mb-1 text-sm">ComfyUI Not Running</h3>
-                <p className="text-sm text-slate-300 mb-3">
-                  Start ComfyUI (<code className="bg-slate-800 px-1 rounded text-xs">run_nvidia_gpu.bat</code>) to enable real generation.
-                  Requests will use simulation mode until ComfyUI is reachable at <span className="text-pink-300 font-mono text-xs">{COMFY_BASE}</span>.
+                <p className="text-sm text-slate-300 mb-2">
+                  ComfyUI is not responding at <span className="text-pink-300 font-mono text-xs">{COMFY_BASE}</span>.
+                  {installPath
+                    ? <> Install path: <span className="text-slate-400 font-mono text-xs ml-1">{installPath}</span></>
+                    : <> Set your ComfyUI install path below to enable one-click launch.</>
+                  }
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => void launchComfyUI()} disabled={launching}
+                    className="px-3 py-1.5 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5" /> {launching ? 'Launching…' : installPath ? 'Launch ComfyUI' : 'Set Path & Launch'}
+                  </button>
                   <button onClick={() => void checkConnection()} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
                     <RefreshCw className="w-3.5 h-3.5" /> Retry
                   </button>
                   <button onClick={openComfyUI} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
-                    <ExternalLink className="w-3.5 h-3.5" /> Open {COMFY_BASE}
+                    <ExternalLink className="w-3.5 h-3.5" /> Open Web UI
+                  </button>
+                  <button onClick={() => setEditingPath((v) => !v)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                    <Settings className="w-3.5 h-3.5" /> {editingPath ? 'Cancel' : 'Set Path'}
                   </button>
                 </div>
+                {editingPath && (
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={pathInput}
+                      onChange={(e) => setPathInput(e.target.value)}
+                      placeholder="e.g. C:\AI\ComfyUI"
+                      className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-600 rounded-lg text-white text-xs font-mono"
+                    />
+                    <button onClick={() => void browseInstallPath()} className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-xs transition-colors">Browse</button>
+                    <button onClick={() => void saveInstallPath()} className="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white rounded-lg text-xs transition-colors">Save</button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -537,6 +609,29 @@ export const ComfyUIExtension: React.FC = () => {
               <button onClick={exportJobs} className="px-3 py-2.5 bg-cyan-900/20 border border-cyan-500/30 text-cyan-300 rounded-lg hover:bg-cyan-900/30 transition-colors flex items-center gap-2 justify-center text-sm"><Download className="w-4 h-4" /> Export Log</button>
               <button onClick={() => navigate('/settings')} className="px-3 py-2.5 bg-pink-900/20 border border-pink-500/30 text-pink-300 rounded-lg hover:bg-pink-900/30 transition-colors flex items-center gap-2 justify-center text-sm"><Settings className="w-4 h-4" /> Settings</button>
             </div>
+          </div>
+
+          {/* Install Path */}
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5">
+            <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-pink-400" /> ComfyUI Install Path
+            </h3>
+            <p className="text-xs text-slate-400 mb-3">
+              Point MOSSY to your ComfyUI folder (containing <code className="bg-slate-900 px-1 rounded">run_nvidia_gpu.bat</code>) to enable one-click launch.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={pathInput}
+                onChange={(e) => setPathInput(e.target.value)}
+                placeholder="e.g. C:\AI\ComfyUI"
+                className="flex-1 px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white text-sm font-mono"
+              />
+              <button onClick={() => void browseInstallPath()} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors">Browse</button>
+              <button onClick={() => void saveInstallPath()} className="px-3 py-2 bg-pink-700 hover:bg-pink-600 text-white rounded-lg text-sm transition-colors">Save</button>
+            </div>
+            {installPath && (
+              <p className="mt-2 text-xs text-emerald-400">Saved: {installPath}</p>
+            )}
           </div>
 
           {/* FO4 Guide */}
