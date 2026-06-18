@@ -232,7 +232,7 @@ export const UpscaylExtension: React.FC = () => {
       await new Promise<void>((r) => setTimeout(r, i * 200));
 
       // Try real upscayl-bin execution
-      if (upscaylBinPath && file.path && bridge?.runWorkflowTool) {
+      if (upscaylBinPath && file.path && bridge?.workflowRunnerRunTool) {
         setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'processing', progress: 10 } : j));
         try {
           const args = [
@@ -242,7 +242,7 @@ export const UpscaylExtension: React.FC = () => {
             '-n', selectedModel,
             '-f', outputFormat,
           ];
-          const result = await bridge.runWorkflowTool({ cmd: upscaylBinPath, args });
+          const result = await bridge.workflowRunnerRunTool({ cmd: upscaylBinPath, args });
           if (result?.exitCode === 0) {
             setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'complete', progress: 100 } : j));
             continue;

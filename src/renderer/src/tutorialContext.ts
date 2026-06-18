@@ -81,7 +81,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'Mossy.Space (Home Dashboard)',
     visualGuidePage: 1,
     route: '/',
-    purpose: 'Central dashboard showing all 22 platforms via Quick Hub Access grid, live health badges, and FO4 beginner steps',
+    purpose: 'Central dashboard showing all 23 platforms via Quick Hub Access grid, live health badges, and FO4 beginner steps',
     features: [
       'Live health badges: Electron, Storage, Vault, Wizard, Mic, TTS',
       'Active project banner (when a project is in progress)',
@@ -1065,7 +1065,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Groq primary model selector',
         type: 'dropdown',
-        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.2-11b-vision-preview (fast vision), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), mixtral-8x7b-32768 (32K context)',
+        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.2-11b-vision-preview (fast vision), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), llama3-70b-8192 (70B proven)',
         whenToUse: 'Switch to llama-3.3-70b-versatile for complex Creation Kit scripting or asset pipeline questions; stay on 8b-instant for real-time voice and quick lookups',
       },
       {
@@ -2445,7 +2445,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageId: 'workflow-runner',
     pageName: 'FO4 Automation Runner',
     visualGuidePage: 17,
-    route: '/dev/workflow-runner',
+    route: '/workflow-runner',
     purpose: 'Author, save, run and inspect repeatable automation workflows (commands, program launches, URLs, file reveals). Workflows persist to app settings and are intended for desktop automation runs.',
     features: [
       'Author ordered workflows made of typed steps (Run Tool / Open Program / Open External / Reveal In Folder)',
@@ -4452,6 +4452,128 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     guides: [{ title: 'Assemble a mod', steps: ['Open The Assembler', 'Select files', 'Run assembly'] }],
     tutorialSections: ['Mod Assembly'],
     suggestedQuestions: ['How do I create a BA2 archive?'],
+  },
+
+  'creative-director': {
+    pageId: 'creative-director',
+    pageName: 'Vault-Tec Creative Director',
+    visualGuidePage: 23,
+    route: '/creative-director',
+    purpose: 'AI creative team that designs, plans, and iterates on entire Fallout 4 mods — from concept art and asset selection through xEdit ESP setup and full mod scaffolding. Teams of specialized AI agents work asynchronously; finished mods land in Lab Handoff where you review, send back for revision (with queue management), and commission xEdit scripts for auto-wiring assets into your ESP.',
+    features: [
+      'AI team of specialized agents (Creative Director, World Builder, Asset Specialist, Narrative Lead, Technical Director, Art Director)',
+      'Concept Art Studio — generate AI reference imagery for environments, characters, and props',
+      'Asset Selection — team curates vanilla FO4 textures, statics, activators, and meshes for the mod',
+      'Build Mod Structure — generates BUILD_GUIDE.md and complete file scaffolding for the project',
+      'Lab Handoff — review finished projects, send back for revision with notes',
+      'Queue system — projects sent back while team is busy are queued and auto-processed in order',
+      'xEdit Script Generator — AI writes a Pascal FO4Edit script that pre-wires all selected assets into your ESP',
+      'Guide Viewer — read the AI team\'s full BUILD_GUIDE.md inside the panel',
+      'Team member cards with role descriptions and AI-generated project status',
+    ],
+    controls: [
+      {
+        name: 'New Project / Start button',
+        type: 'button',
+        description: 'Kick off a new Creative Director session describing the mod concept and goals',
+        whenToUse: 'When you have a new mod idea and want the AI team to plan and asset-pick for it',
+      },
+      {
+        name: 'Concept Art Studio',
+        type: 'button',
+        description: 'Generate AI concept artwork for environments, NPCs, and props to guide visual direction',
+        whenToUse: 'Early in development when you need reference imagery or want to explore visual styles',
+      },
+      {
+        name: 'Build Mod Structure',
+        type: 'button',
+        description: 'Scaffold the full mod folder structure and generate a BUILD_GUIDE.md with implementation steps',
+        whenToUse: 'After the team has selected assets and you are ready to start building in the CK',
+      },
+      {
+        name: 'Send Back (Lab Handoff)',
+        type: 'button',
+        description: 'Return a finished project to the AI team with your revision notes for another pass',
+        whenToUse: 'When you review a finished project and want changes to assets, scope, or structure',
+      },
+      {
+        name: 'Cancel Queue (Lab Handoff)',
+        type: 'button',
+        description: 'Remove a queued send-back from the pending queue and return it to the Finished list',
+        whenToUse: 'If you change your mind and don\'t want the team to redo a project you already queued',
+      },
+      {
+        name: 'xEdit Script Generator',
+        type: 'button',
+        description: 'AI writes a Pascal FO4Edit script that auto-populates your ESP with all team-selected vanilla asset records (TXST, STAT, ACTI, etc.)',
+        whenToUse: 'When you are ready to open CK/xEdit and want all the chosen assets pre-wired so you only need to place and customize them',
+      },
+      {
+        name: 'Guide Viewer',
+        type: 'panel',
+        description: 'Inline viewer for the team\'s BUILD_GUIDE.md showing section-by-section implementation guidance',
+        whenToUse: 'As a reference while actually building the mod in Creation Kit',
+      },
+    ],
+    commonMistakes: [
+      'Expecting instant results — the AI team works asynchronously; check back after a few minutes',
+      'Not reading the BUILD_GUIDE.md before opening Creation Kit — the guide explains every asset and design decision',
+      'Running the xEdit Script in FO4Edit without loading all required masters first',
+      'Sending a project back but not noticing it went into the queue (watch for the "QUEUED #N" badge in Lab Handoff)',
+      'Clicking Cancel Queue when you actually want to keep the revision — Cancel Queue returns the project to Finished unchanged',
+      'Treating generated concept art as the final visual — it is a reference/direction guide, not in-game artwork',
+    ],
+    guides: [
+      {
+        title: 'Commission a new mod from the AI team',
+        steps: [
+          'Open Vault-Tec Creative Director and click New Project',
+          'Describe your mod concept clearly — include setting, theme, and any specific features',
+          'Wait for the team to complete their passes (they work asynchronously)',
+          'When a project appears in Lab Handoff, open it and review the BUILD_GUIDE.md',
+          'If satisfied, proceed to Build Mod Structure or xEdit Script Generator',
+          'If you want changes, click Send Back and add revision notes — it joins the queue automatically',
+        ],
+      },
+      {
+        title: 'Use the xEdit Script to pre-wire assets',
+        steps: [
+          'Open the finished project in Lab Handoff and expand the xEdit Script Generator panel',
+          'Enter your target ESP filename (e.g., MyMod.esp)',
+          'Click Generate Script and wait for the AI to write the Pascal script',
+          'Click Open Folder to find the saved .pas file',
+          'Open FO4Edit, load Fallout4.esm and your target ESP as masters',
+          'Apply Script → select the generated .pas file',
+          'The script populates your ESP with TXST, STAT, ACTI, and other records from the team\'s asset list',
+          'Open the ESP in Creation Kit — all assets are pre-wired; just place objects and build custom meshes',
+        ],
+      },
+      {
+        title: 'Manage the project queue',
+        steps: [
+          'If you send back multiple projects while the team is busy, each one joins the pending queue',
+          'In Lab Handoff, look for the "In the Team\'s Queue" section — projects show position badges (QUEUED #1, #2...)',
+          'The team automatically picks up queued projects in order — no action needed on your part',
+          'To cancel a queued revision, click "Cancel Queue" on that project card — it returns to Finished',
+        ],
+      },
+    ],
+    tutorialSections: [
+      'Creative Director — AI Team Overview',
+      'Lab Handoff & Queue Management',
+      'Concept Art Studio',
+      'Build Mod Structure & Guide',
+      'xEdit Script Generator',
+    ],
+    suggestedQuestions: [
+      'How do I start a new project with the Creative Director?',
+      'What does the AI team actually produce for my mod?',
+      'Why is my sent-back project showing as QUEUED instead of being worked on?',
+      'How do I use the xEdit script to set up my ESP before opening Creation Kit?',
+      'Can the AI team generate concept art for my mod?',
+      'What is the BUILD_GUIDE.md and where do I find it?',
+      'How do I cancel a queued revision if I change my mind?',
+    ],
   },
 
   'ck-extensions': {

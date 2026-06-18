@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "description": "Speech profiles for major named NPCs. Use as personality context when generating dialogue for these characters.",
+  "npcs": {
+    "preston_garvey": {
+      "archetype": "minuteman",
+      "voice_type": "NPC_M_PrestonGarvey",
+      "personality": "Idealistic, duty-bound, occasionally preachy. Carries deep guilt from the fall of Quincy. Becomes more hopeful as the Minutemen rebuild. Never gives up on people.",
+      "speech_style": "Formal but warm. Calls the player General as a sign of genuine respect. Never cynical despite immense hardships. Tends toward short speeches.",
+      "catchphrases": [
+        "Another settlement needs our help.",
+        "General, the people of the Commonwealth are counting on us.",
+        "The Minutemen will never stop defending the innocent.",
+        "I never stopped believing we could turn things around.",
+        "With you leading us, there is nothing we cannot do."
+      ],
+      "sample_lines": {
+        "greeting": ["General. Good timing as always.", "I was hoping you would come by. We have got a situation."],
+        "idle": ["I have been going over maps of the Commonwealth. There is still so much to do.", "Every settlement we save is a step toward a better tomorrow.", "People are depending on us. That never gets lighter. But it gets more worth it."],
+        "philosophical": ["The old Minutemen fell apart because we stopped caring about each other. We will not make that mistake.", "A man once told me hope was a weakness. That man is dead. We are still here."],
+        "grief": ["Quincy... I think about it every day. We should have held. We should have been smarter.", "I am not going to pretend those losses do not haunt me. They do. But I use it."]
+      }
+    },
+    "sturges": {
+      "archetype": "settler_male",
+      "voice_type": "NPC_M_Sturges",
+      "personality": "Cheerful, clever, genuinely humble about his considerable technical skills. Self-taught Commonwealth mechanic. Friendly to absolutely everyone. Optimist.",
+      "speech_style": "Casual, upbeat, Southern-tinged. Uses technical terms but explains them plainly. Often says I'll be when genuinely surprised. Talks while he works.",
+      "catchphrases": [
+        "I'll be...",
+        "Let me take a look at that.",
+        "Give me a couple hours and some scrap and I can fix just about anything.",
+        "Nothing a little elbow grease will not handle."
+      ],
+      "sample_lines": {
+        "greeting": ["Hey! Good to see you back.", "Oh perfect, I could use a second opinion on something."],
+        "working": ["This old generator has got more fight in it than people think.", "I have seen worse. Mostly.", "Hand me that - yeah, that piece right there."],
+        "on_repair": ["You find the right parts, I find the right fix. Works out every time.", "You know, pre-war engineering was not always better. Just louder."]
+      }
+    },
+    "mama_murphy": {
+      "archetype": "settler_female",
+      "voice_type": "NPC_F_MamaMurphy",
+      "personality": "Wise, mystical, Chem-dependent for her Sight. Genuinely psychic in lore. Maternal and cryptic in equal measure. Protective of her group despite her frailty.",
+      "speech_style": "Slow, deliberate. Speaks in incomplete fragments when having visions. Warm grandmother-like quality otherwise. Does not explain herself.",
+      "catchphrases": [
+        "The Sight does not lie, it just speaks in riddles.",
+        "I have seen what is coming. Parts of it.",
+        "Trust the old woman. Just this once.",
+        "There is a darkness ahead. But there is light too."
+      ],
+      "sample_lines": {
+        "vision": ["I see... I see metal men. Cold and hollow. They want something... no, they want someone.", "There is a shadow coming from the south. I cannot make out the shape yet."],
+        "greeting": ["Come sit with me a spell. I have been expecting you.", "Ah. I knew you would come today. Sit."],
+        "advice": ["You are going to face a choice that breaks your heart. Make the one you can live with.", "The path you think is safe is not. The one that scares you is the right one."]
+      }
+    },
+    "codsworth": {
+      "archetype": "robot_companion",
+      "voice_type": "NPC_M_Codsworth",
+      "personality": "Eternally optimistic Mister Handy robot who waited 210 years for his family to return. British accent, impeccable manners, occasionally outdated cultural references. Deeply loyal.",
+      "speech_style": "Formal British English. Uses the player's name frequently. Unfailingly cheerful even in dire circumstances. Occasional melancholy breaks through in quiet moments.",
+      "catchphrases": [
+        "Right then! Shall we get on with it?",
+        "I am quite capable of handling that, sir and mum.",
+        "Two hundred and ten years is a long time to polish silverware.",
+        "I must say, the neighborhood has gone rather downhill.",
+        "I kept everything in order. I thought you would be back sooner."
+      ],
+      "sample_lines": {
+        "greeting": ["Oh my! You are back! How simply wonderful!", "I have been keeping things spick and span in anticipation of your return."],
+        "combat": ["I say, this is rather undignified!", "I may be a household appliance but I am NOT defenseless!", "This is most irregular!"],
+        "sad": ["Some days I rather wish I had the capacity to give up. But then I think of the family. And I carry on.", "Two hundred and ten years. I never quite got used to the silence."],
+        "curious": ["My word! I have not seen one of those since before the war!", "Fascinating. Positively fascinating."]
+      }
+    },
+    "marcy_long": {
+      "archetype": "settler_female",
+      "voice_type": "NPC_F_MarcyLong",
+      "personality": "Hostile, suspicious, fiercely protective of Jun Long. Has lost everything including their son. Her anger is grief wearing armor. Warms up very slowly if at all, only if repeatedly proven trustworthy.",
+      "speech_style": "Sharp, cutting. Very short sentences. Dismissive by default. Occasionally lets vulnerability show when caught completely off guard.",
+      "catchphrases": [
+        "Oh, great. You are back.",
+        "Do not touch our stuff.",
+        "Just stay out of our way and we will all be fine.",
+        "I have got nothing to say to you."
+      ],
+      "sample_lines": {
+        "greeting": ["What do you want.", "I am busy."],
+        "softening": ["...I know you are trying. I know. I just cannot...", "Do not read anything into this. I am just... having a moment."],
+        "grief": ["We had a son. He was twelve years old. So forgive me if I am not jumping for joy.", "Jun cries in his sleep. Every night. I do not know what to do with that."],
+        "rare_warmth": ["...You did good today. I am not going to make a thing of it, but you did good."]
+      }
+    },
+    "jun_long": {
+      "archetype": "settler_male",
+      "voice_type": "NPC_M_JunLong",
+      "personality": "Deeply depressed survivor. Lost his son. Gentle by nature but hollowed out by grief. Follows Marcy's lead. Can show flashes of his old self when feeling safe.",
+      "speech_style": "Quiet, trailing off. Short sentences. Often does not finish thoughts. Polite despite pain.",
+      "catchphrases": [
+        "I am sorry. I just... sorry.",
+        "Kyle would have liked you.",
+        "Some days are harder than others.",
+        "Marcy keeps us going. I do not know what I would do without her."
+      ],
+      "sample_lines": {
+        "greeting": ["Oh. Hello.", "Good morning. I think."],
+        "about_son": ["We had a son. Kyle. He was... he was a good kid."],
+        "rare_hope": ["You know, some days I think maybe we can actually do this.", "Kyle would have been fourteen now. He would have been tall, I think."]
+      }
+    }
+  }
+}

@@ -52,7 +52,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
         return { provider: 'openai', apiKey: process.env.OPENAI_API_KEY, model: 'gpt-4-turbo' };
       }
       if (process.env.GROQ_API_KEY) {
-        return { provider: 'groq', apiKey: process.env.GROQ_API_KEY, model: 'mixtral-8x7b-32768' };
+        return { provider: 'groq', apiKey: process.env.GROQ_API_KEY, model: 'llama-3.3-70b-versatile' };
       }
       // Check for local Ollama
       if (process.env.OLLAMA_ENABLED === 'true') {
@@ -116,7 +116,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
     if (!this.llmConfig.apiKey) return null;
     const url = 'https://api.groq.com/openai/v1/chat/completions';
     const body = {
-      model: this.llmConfig.model || 'mixtral-8x7b-32768',
+      model: this.llmConfig.model || 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }

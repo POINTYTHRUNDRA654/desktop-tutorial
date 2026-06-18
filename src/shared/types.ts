@@ -6878,3 +6878,123 @@ export interface PapyrusCode {
   fragments?: string[]; // Script fragments for stages/dialogue
   formId?: string; // Associated form ID
 }
+
+// ── FO4 NPC Director — Memory & Dialogue System ──────────────────────────────
+
+export type NPCArchetype =
+  | 'settler_male' | 'settler_female' | 'minuteman'
+  | 'super_mutant' | 'raider' | 'feral_ghoul' | 'ghoul_nonferal'
+  | 'synth' | 'robot_companion' | 'companion' | 'named_npc' | 'custom';
+
+export type NPCReputation = 'hostile' | 'unfriendly' | 'neutral' | 'friendly' | 'allied';
+
+export interface NPCPersonality {
+  traits: string[];
+  speech_style: string;
+  speech_notes: string;
+  catchphrases: string[];
+  voice_type: string;
+}
+
+export interface NPCRelationship {
+  player_trust: number; // 0–100
+  player_rep: NPCReputation;
+  last_interaction: string; // ISO date
+  affinity_log: Array<{ date: string; reason: string; delta: number }>;
+}
+
+export interface NPCExchange {
+  speaker: string; // npc_id or 'player'
+  text: string;
+}
+
+export interface NPCConversation {
+  date: string; // ISO date
+  partner: string; // npc_id or 'player'
+  location: string;
+  summary: string;
+  exchanges: NPCExchange[];
+}
+
+export interface NPCEventEntry {
+  date: string;
+  event: string;
+  type: 'world' | 'personal' | 'player' | 'combat';
+}
+
+export interface NPCGeneratedLine {
+  context: string; // e.g. 'greeting', 'combat_taunt', 'idle'
+  text: string;
+  created: string; // ISO date
+  used_count: number;
+  vanilla_line_id?: string; // reference to matching vanilla audio if available
+}
+
+export interface NPCMemory {
+  schema_version: '1.0';
+  npc_id: string; // snake_case unique id, e.g. 'preston_garvey'
+  name: string;
+  archetype: NPCArchetype;
+  location: string; // current home settlement
+  personality: NPCPersonality;
+  relationship: NPCRelationship;
+  event_log: NPCEventEntry[];
+  conversation_history: NPCConversation[];
+  known_facts: string[]; // things this NPC knows about the world/player
+  generated_lines: NPCGeneratedLine[];
+  created: string; // ISO date
+  updated: string; // ISO date
+}
+
+export interface NPCMemorySummary {
+  npc_id: string;
+  name: string;
+  archetype: NPCArchetype;
+  location: string;
+  player_rep: NPCReputation;
+  player_trust: number;
+  conversation_count: number;
+  last_interaction: string;
+  updated: string;
+}
+
+export interface CatalogueContext {
+  [contextKey: string]: string[];
+}
+
+export interface CatalogueFile {
+  archetype: string;
+  voice_type: string;
+  speech_notes: string;
+  contexts: CatalogueContext;
+  sample_conversations?: Array<{
+    context: string;
+    participants: string[];
+    exchanges: NPCExchange[];
+  }>;
+}
+
+export interface NPCStoreStatus {
+  configured_path: string;
+  exists: boolean;
+  npc_count: number;
+  conversation_count: number;
+  catalogue_archetypes: string[];
+}
+
+export interface GenerateConversationPayload {
+  npc_a: string; // npc_id or archetype
+  npc_b: string; // npc_id, archetype, or 'player'
+  location: string;
+  topic: string;
+  exchange_count: number;
+  tone?: 'neutral' | 'friendly' | 'tense' | 'hostile' | 'philosophical';
+}
+
+export interface GenerateLinesPayload {
+  archetype: NPCArchetype;
+  context: string;
+  count: number;
+  style_notes?: string;
+  npc_id?: string; // if generating for a specific named NPC
+}

@@ -17,7 +17,7 @@ const DiagnosticsHub: React.FC = () => {
   const [expandedSection, setExpandedSection] = useState<string>('system-monitor');
 
   const toggleSection = (id: string) => {
-    setExpandedSection((current) => (current === id ? '' : id));
+    setExpandedSection(id);
   };
 
   const sections: HubSection[] = [

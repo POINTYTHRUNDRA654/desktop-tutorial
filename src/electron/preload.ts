@@ -3896,6 +3896,10 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:scaffold-mod', outputDir),
     reopenProject: (projectId: string, userNotes?: string): Promise<any> =>
       ipcRenderer.invoke('creative-director:reopen-project', projectId, userNotes ?? ''),
+    dequeueProject: (queueEntryId: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:dequeue-project', queueEntryId),
+    generateXEditScript: (outputDir: string, selectedAssets: string[], guideContent: string, espName: string): Promise<any> =>
+      ipcRenderer.invoke('creative-director:generate-xedit-script', outputDir, selectedAssets, guideContent, espName),
     readConceptArtPrompts: (outputDir: string): Promise<{ success: boolean; prompts: any[]; error?: string }> =>
       ipcRenderer.invoke('creative-director:read-concept-prompts', outputDir),
     sdStatus: (sdUrl?: string): Promise<{ online: boolean }> =>
@@ -4725,6 +4729,17 @@ aiTextureEnhancer: {
   stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
   koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
   f4aiBridgeStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-bridge-status'),
+  // F4AI NPC Director
+  f4aiStoreStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-store-status'),
+  f4aiInitMemoryStore: (payload?: { storePath?: string }): Promise<any> => ipcRenderer.invoke('f4ai-init-memory-store', payload),
+  f4aiListNpcs: (): Promise<any> => ipcRenderer.invoke('f4ai-list-npcs'),
+  f4aiGetNpc: (npcId: string): Promise<any> => ipcRenderer.invoke('f4ai-get-npc', npcId),
+  f4aiSaveNpc: (memory: any): Promise<any> => ipcRenderer.invoke('f4ai-save-npc', memory),
+  f4aiDeleteNpc: (npcId: string): Promise<any> => ipcRenderer.invoke('f4ai-delete-npc', npcId),
+  f4aiGenerateConversation: (payload: any): Promise<any> => ipcRenderer.invoke('f4ai-generate-conversation', payload),
+  f4aiGenerateLines: (payload: any): Promise<any> => ipcRenderer.invoke('f4ai-generate-lines', payload),
+  f4aiGetCatalogue: (archetype: string): Promise<any> => ipcRenderer.invoke('f4ai-get-catalogue', archetype),
+  f4aiListArchetypes: (): Promise<any> => ipcRenderer.invoke('f4ai-list-archetypes'),
   onKoboldServerStatus: (callback: (data: any) => void): (() => void) => {
     const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
     ipcRenderer.on('kobold-server-status', sub);
