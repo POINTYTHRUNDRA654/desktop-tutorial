@@ -965,7 +965,7 @@ function assessBuildability(guide: string): { score: number; checks: { pass: boo
 
 // ─── Lab Handoff ──────────────────────────────────────────────────────────────
 
-const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, onRefresh }) => {
+const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: { id: string; position: number; userNotes: string } }> = ({ c, onRefresh, queueInfo }) => {
   const [expanded, setExpanded] = useState(false);
   const [guideContent, setGuideContent] = useState('');
   const [guideLoading, setGuideLoading] = useState(false);
@@ -979,11 +979,16 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
   const [scaffolding, setScaffolding] = useState(false);
   const [scaffoldError, setScaffoldError] = useState('');
   const [scaffoldResult, setScaffoldResult] = useState<{ modName: string; createdFiles: string[]; scaffoldDir: string; questCount: number; npcCount: number; folderCount: number } | null>(null);
+  const [xeditGenerating, setXeditGenerating] = useState(false);
+  const [xeditError, setXeditError] = useState('');
+  const [xeditDone, setXeditDone] = useState(false);
+  const [espName, setEspName] = useState('MyMod.esp');
   const [reopening, setReopening] = useState(false);
   const [reopenError, setReopenError] = useState('');
   const [reopenedToQueue, setReopenedToQueue] = useState(false);
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const [sendBackNotes, setSendBackNotes] = useState('');
+  const [dequeuing, setDequeuing] = useState(false);
 
   // Concept Art Studio state
   type ConceptArtPrompt = { id: string; label: string; category: string; prompt: string; negative: string };
@@ -1118,6 +1123,34 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
     await api()?.creativeDirectorTeam?.revealOutput?.(scaffoldResult.scaffoldDir);
   };
 
+  const generateXEditScript = async () => {
+    setXeditGenerating(true);
+    setXeditError('');
+    setXeditDone(false);
+    try {
+      const res = await api()?.creativeDirectorTeam?.generateXEditScript?.(
+        c.outputDir, selectedAssets, guideContent, espName.trim() || 'MyMod.esp'
+      );
+      if (res?.success) {
+        setXeditDone(true);
+      } else {
+        setXeditError(res?.error || 'Script generation failed');
+      }
+    } catch (e: any) { setXeditError(String(e)); }
+    setXeditGenerating(false);
+  };
+
+  const dequeue = async () => {
+    if (!queueInfo) return;
+    setDequeuing(true);
+    try {
+      await api()?.creativeDirectorTeam?.dequeueProject?.(queueInfo.id);
+      onRefresh();
+    } finally {
+      setDequeuing(false);
+    }
+  };
+
   const score = buildability?.score ?? 0;
   const scoreColor = score >= 4 ? 'text-emerald-400' : score >= 2 ? 'text-amber-400' : 'text-red-400';
   const scoreBg = score >= 4 ? 'bg-emerald-400/10' : score >= 2 ? 'bg-amber-400/10' : 'bg-red-400/10';
@@ -1130,10 +1163,16 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-white truncate">{c.title}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.incomplete ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
-                {c.incomplete ? 'INCOMPLETE' : 'READY'}
-              </span>
-              {buildability && (
+              {queueInfo ? (
+                <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-violet-500/15 text-violet-300">
+                  QUEUED #{queueInfo.position}
+                </span>
+              ) : (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${c.incomplete ? 'bg-amber-400/10 text-amber-400' : 'bg-emerald-400/10 text-emerald-400'}`}>
+                  {c.incomplete ? 'INCOMPLETE' : 'READY'}
+                </span>
+              )}
+              {buildability && !queueInfo && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${scoreBg} ${scoreColor}`}>
                   Buildability {score}/5
                 </span>
@@ -1142,7 +1181,13 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
             <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {reopenedToQueue ? (
+            {queueInfo ? (
+              <button onClick={dequeue} disabled={dequeuing}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 px-2 py-1.5 rounded transition-colors"
+                title="Cancel — pull this project out of the queue and return it to the Finished list">
+                {dequeuing ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />} Cancel Queue
+              </button>
+            ) : reopenedToQueue ? (
               <span className="flex items-center gap-1 text-xs text-violet-300 bg-violet-500/10 px-2 py-1.5 rounded">
                 <CheckCircle2 className="w-3 h-3" /> Queued
               </span>
@@ -1164,8 +1209,15 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
           </div>
         </div>
 
+        {/* Queue notes — shown when card is in the pending queue */}
+        {queueInfo && queueInfo.userNotes && (
+          <div className="border border-violet-500/20 rounded px-3 py-2 bg-violet-500/5 text-xs text-slate-400">
+            <span className="text-violet-300 font-semibold">Your notes: </span>{queueInfo.userNotes}
+          </div>
+        )}
+
         {/* Send Back panel — expands inline when button is clicked */}
-        {sendBackOpen && !reopenedToQueue && (
+        {!queueInfo && sendBackOpen && !reopenedToQueue && (
           <div className="border border-violet-500/20 rounded-lg p-3 bg-violet-500/5 space-y-2">
             <div className="text-xs font-semibold text-violet-300 flex items-center gap-1.5">
               <RefreshCw className="w-3.5 h-3.5" /> Send Back to the Team
@@ -1341,6 +1393,71 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
             )}
           </div>
 
+          {/* xEdit Script Generator */}
+          <div className="border border-cyan-500/20 rounded-lg overflow-hidden bg-cyan-500/5">
+            <div className="px-3 py-2.5 flex items-center gap-2">
+              <Code2 className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Export xEdit Script</span>
+              <span className="text-[10px] text-slate-500 normal-case font-normal">
+                — generates a .pas script that pre-populates your ESP with all selected vanilla assets
+              </span>
+            </div>
+            <div className="border-t border-cyan-500/20 p-3 space-y-2">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Run this script in FO4Edit to auto-create TXST texture sets, STAT statics, and other base records
+                pre-wired to the asset paths you picked. Then place objects in CK — the building blocks are already there.
+                Swap in your custom meshes and adjusted textures at any point.
+              </p>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-400 whitespace-nowrap">ESP filename</label>
+                <input
+                  value={espName}
+                  onChange={e => setEspName(e.target.value)}
+                  placeholder="MyMod.esp"
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <p className="text-[10px] text-slate-600">
+                {selectedAssets.length > 0
+                  ? `${selectedAssets.length} asset${selectedAssets.length !== 1 ? 's' : ''} selected from Asset Browser — these will be wired into the script.`
+                  : 'No assets selected yet — use Pick Assets above to choose meshes and textures first, or the script will infer from the Build Guide.'}
+              </p>
+              {xeditError && (
+                <div className="text-xs text-red-400 bg-red-400/10 rounded px-2 py-1">{xeditError}</div>
+              )}
+              {xeditDone ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-cyan-400 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                    xedit_setup.pas written to project folder
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-relaxed">
+                    1. Open FO4Edit and load your ESP<br />
+                    2. Scripts → Apply Script → select xedit_setup.pas<br />
+                    3. Run — records are created in your ESP<br />
+                    4. Open CK, place the objects, swap custom assets as needed
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={reveal}
+                      className="flex items-center gap-1.5 text-xs text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 px-3 py-1.5 rounded transition-colors">
+                      <FolderOpen className="w-3 h-3" /> Open Project Folder
+                    </button>
+                    <button onClick={generateXEditScript} disabled={xeditGenerating}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors">
+                      <RefreshCw className="w-3 h-3" /> Regenerate
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={generateXEditScript} disabled={xeditGenerating || guideLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold py-2 rounded text-sm transition-colors">
+                  {xeditGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Code2 className="w-4 h-4" />}
+                  {xeditGenerating ? 'AI is writing the Pascal script...' : 'Generate xEdit Script'}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Guide viewer */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1494,6 +1611,7 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void }> = ({ c, on
 
 const HandoffPanel: React.FC = () => {
   const [completed, setCompleted] = useState<any[]>([]);
+  const [queue, setQueue] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
@@ -1503,6 +1621,7 @@ const HandoffPanel: React.FC = () => {
     try {
       const res = await api()?.creativeDirectorTeam?.getState?.();
       if (Array.isArray(res?.completedProjects)) setCompleted(res.completedProjects);
+      if (Array.isArray(res?.pendingQueue)) setQueue(res.pendingQueue);
     } catch { /* ignore */ }
     setLoading(false);
   }, []);
@@ -1525,7 +1644,30 @@ const HandoffPanel: React.FC = () => {
         </button>
       </div>
 
-      {completed.length === 0 && (
+      {/* Pending queue section */}
+      {queue.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-xs font-semibold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
+              <RefreshCw className="w-3 h-3" /> In the Team's Queue ({queue.length})
+            </div>
+            <div className="text-[10px] text-slate-400 bg-violet-500/10 px-2 py-0.5 rounded">
+              These are sent — the team works through them automatically in order. No action needed.
+            </div>
+          </div>
+          {queue.map((entry: any) => (
+            <HandoffProjectCard
+              key={entry.id}
+              c={entry.completedProject}
+              onRefresh={refresh}
+              queueInfo={{ id: entry.id, position: entry.position, userNotes: entry.userNotes }}
+            />
+          ))}
+          <div className="border-t border-slate-800 pt-2" />
+        </div>
+      )}
+
+      {completed.length === 0 && queue.length === 0 && (
         <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
           <FlaskConical className="w-8 h-8 text-slate-700 mx-auto mb-3" />
           <div className="text-slate-500 text-sm font-semibold">No finished projects yet</div>
@@ -1533,11 +1675,13 @@ const HandoffPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="space-y-3">
-        {completed.map(c => (
-          <HandoffProjectCard key={c.id} c={c} onRefresh={refresh} />
-        ))}
-      </div>
+      {completed.length > 0 && (
+        <div className="space-y-3">
+          {completed.map(c => (
+            <HandoffProjectCard key={c.id} c={c} onRefresh={refresh} />
+          ))}
+        </div>
+      )}
 
       <div className="bg-slate-800/40 border border-slate-700/50 rounded p-3">
         <div className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1"><Info className="w-3 h-3" /> How This Works</div>

@@ -3893,7 +3893,7 @@ function setupIpcHandlers() {
         blenderIntegrationVersion: '1.0.0',
         models: {
           openai: openaiKey ? ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'] : [],
-          groq: groqKey ? ['mixtral-8x7b-32768', 'llama2-70b-4096'] : [],
+          groq: groqKey ? ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192'] : [],
           backend: backendCfg ? ['auto'] : [],
           local: [
             { name: 'ollama', baseUrl: s?.ollamaBaseUrl || 'http://127.0.0.1:11434', model: s?.ollamaModel || 'llama3' },
@@ -9689,7 +9689,7 @@ end.
       const model = payload.model || (userPreferredModel || GROQ_PRIMARY_MODEL);
       const maxTokens = (typeof s?.groqMaxResponseTokens === 'number' && s.groqMaxResponseTokens > 0)
         ? s.groqMaxResponseTokens
-        : 1024;
+        : 2048;
 
       // Build messages array with conversation history for multi-turn context
       const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
@@ -9719,7 +9719,7 @@ end.
       if (backend) {
         backendAttempted = true;
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
+        const timeout = setTimeout(() => controller.abort(), 25000);
         try {
           const backendUrl = backendJoin(backend, '/v1/chat');
           console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
@@ -9729,7 +9729,7 @@ end.
               'Content-Type': 'application/json',
               ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
             },
-            body: JSON.stringify({ provider: 'groq', model, messages, maxTokens }),
+            body: JSON.stringify({ provider: 'groq', messages, maxTokens, max_tokens: maxTokens }),
             signal: controller.signal,
           });
 
@@ -9743,7 +9743,7 @@ end.
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ provider: 'groq', model, messages, maxTokens }),
+              body: JSON.stringify({ provider: 'groq', messages, maxTokens, max_tokens: maxTokens }),
               signal: controller.signal,
             });
             console.log('[AI Chat Groq] Backend retry response status:', res.status, res.statusText);
@@ -9872,7 +9872,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             { role: 'user' as const, content: String(req.description || '') },
           ];
           const response = await client.chat.completions.create({
-            model: 'mixtral-8x7b-32768',
+            model: 'llama-3.3-70b-versatile',
             messages,
             temperature: 0.3,
             max_tokens: 2048,
@@ -16991,10 +16991,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     verification: { attempted: boolean; compiled: boolean; detail: string };
     hasBuildGuide: boolean;
   };
+  type CdQueueEntry = {
+    id: string;
+    completedProject: CdCompletedProject;
+    project: CdProject;
+    userNotes: string;
+    queuedAt: number;
+  };
   type CdTeamState = {
     enabled: boolean;
     currentProject: CdProject | null;
     completedProjects: CdCompletedProject[];
+    pendingQueue: CdQueueEntry[];
     pastTitles: string[];
   };
 
@@ -17079,9 +17087,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   function loadCdTeamState(): CdTeamState {
     try {
       const s = loadSettings();
-      if (s.creativeDirectorTeam) return s.creativeDirectorTeam as CdTeamState;
+      if (s.creativeDirectorTeam) {
+        const loaded = s.creativeDirectorTeam as CdTeamState;
+        if (!loaded.pendingQueue) loaded.pendingQueue = [];
+        return loaded;
+      }
     } catch { /* fall through to default */ }
-    return { enabled: false, currentProject: null, completedProjects: [], pastTitles: [] };
+    return { enabled: false, currentProject: null, completedProjects: [], pendingQueue: [], pastTitles: [] };
   }
 
   function saveCdTeamState() {
@@ -17359,6 +17371,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     cdTurnInFlight = true;
     try {
       if (!cdTeamState.currentProject) {
+        // Drain the pending queue before generating a brand-new idea
+        if (cdTeamState.pendingQueue.length > 0) {
+          const entry = cdTeamState.pendingQueue.shift()!;
+          cdTeamState.currentProject = entry.project;
+          saveCdTeamState();
+          return;
+        }
         const avoid = cdTeamState.pastTitles.slice(-15).join(', ') || '(none yet)';
         const brief = await cdCallAgent(
           CD_PERSONAS.director.systemPrompt,
@@ -17434,6 +17453,15 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         enabled: cdTeamState.enabled,
         currentProject: cdTeamState.currentProject,
         completedProjects: cdTeamState.completedProjects,
+        pendingQueue: cdTeamState.pendingQueue.map((e, idx) => ({
+          id: e.id,
+          position: idx + 1,
+          title: e.completedProject.title,
+          summary: e.completedProject.summary,
+          completedProject: e.completedProject,
+          userNotes: e.userNotes,
+          queuedAt: e.queuedAt,
+        })),
       };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -17583,10 +17611,6 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
       if (idx < 0) return { success: false, error: 'Project not found in completed list' };
       const completed = cdTeamState.completedProjects[idx];
 
-      if (cdTeamState.currentProject) {
-        return { success: false, error: `Team is already working on "${cdTeamState.currentProject.title}" — wait for it to finish first` };
-      }
-
       const transcriptPath = path.join(completed.outputDir, 'transcript.md');
       const transcript = fs.existsSync(transcriptPath)
         ? fs.readFileSync(transcriptPath, 'utf-8')
@@ -17596,8 +17620,6 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
       const isIncomplete = completed.incomplete && completed.missingSections.length > 0;
       const stillMissing = isIncomplete ? completed.missingSections : [];
 
-      // If the user left notes, those become the top-level directive — the team
-      // treats them as explicit owner feedback that overrides prior decisions.
       let contextMessage: string;
       if (notesClean) {
         contextMessage =
@@ -17630,13 +17652,44 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
         updatedAt: Date.now(),
       };
 
+      // Always remove from completed list whether starting now or queueing
       cdTeamState.completedProjects.splice(idx, 1);
-      cdTeamState.currentProject = project;
-      cdTeamState.enabled = true;
-      saveCdTeamState();
-      void runCreativeDirectorTick();
 
-      return { success: true, projectTitle: project.title, missingSections: stillMissing, hadUserNotes: Boolean(notesClean) };
+      if (!cdTeamState.currentProject) {
+        // Team is free — start immediately
+        cdTeamState.currentProject = project;
+        cdTeamState.enabled = true;
+        saveCdTeamState();
+        void runCreativeDirectorTick();
+        return { success: true, queued: false, projectTitle: project.title, missingSections: stillMissing, hadUserNotes: Boolean(notesClean) };
+      } else {
+        // Team is busy — add to the back of the queue
+        const entry: CdQueueEntry = {
+          id: `cdqueue_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          completedProject: completed,
+          project,
+          userNotes: notesClean,
+          queuedAt: Date.now(),
+        };
+        cdTeamState.pendingQueue.push(entry);
+        saveCdTeamState();
+        return { success: true, queued: true, queuePosition: cdTeamState.pendingQueue.length, projectTitle: project.title, missingSections: stillMissing, hadUserNotes: Boolean(notesClean) };
+      }
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── Dequeue — remove a queued project and put it back in completed ────────────
+  registerHandler('creative-director:dequeue-project', async (_event, queueEntryId: string) => {
+    try {
+      const idx = cdTeamState.pendingQueue.findIndex((e) => e.id === queueEntryId);
+      if (idx < 0) return { success: false, error: 'Queue entry not found' };
+      const entry = cdTeamState.pendingQueue[idx];
+      cdTeamState.pendingQueue.splice(idx, 1);
+      cdTeamState.completedProjects.unshift(entry.completedProject);
+      saveCdTeamState();
+      return { success: true };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -17842,6 +17895,106 @@ Keep scripts focused and real — no placeholder comments like TODO.`;
         npcCount: (scaffold.npcs || []).length,
         folderCount: allFolders.length,
       };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── xEdit Script Generator ────────────────────────────────────────────────────
+  // Generates a valid FO4Edit Pascal script from the project's selected assets
+  // and BUILD_GUIDE. Running the script in xEdit creates all base ESP records
+  // (TXST texture sets, STAT statics, WEAP/ARMO/NPC_ shells, etc.) pre-wired
+  // to the chosen vanilla asset paths. The user then places objects in CK.
+
+  registerHandler('creative-director:generate-xedit-script', async (
+    _event,
+    outputDir: string,
+    selectedAssets: string[],
+    guideContent: string,
+    espName: string,
+  ) => {
+    try {
+      if (!outputDir) return { success: false, error: 'No outputDir' };
+
+      const assetLines = (selectedAssets || []).slice(0, 60).join('\n');
+      const guideTrunc = (guideContent || '').slice(0, 5000);
+
+      const systemPrompt =
+`You are an expert xEdit (FO4Edit) Pascal script author for Fallout 4 modding. You write complete, syntactically valid Pascal scripts that run inside FO4Edit's built-in scripting engine to create and populate ESP records.
+
+══ STRICT XEDIT PASCAL SYNTAX RULES ══
+• Structure: block comment header → unit Name; → interface → uses xEditAPI, SysUtils, Classes; → declare Initialize/Process/Finalize signatures → implementation → var block → helper functions → Initialize body → Process body → Finalize body → end.
+• Process(e: IInterface): Integer — just "Result := 0;" since all creation is in Initialize.
+• Finalize: Integer — just "Result := 0;"
+• Get the user plugin: pluginFile := FileByName('${espName}');
+  Immediately guard: if not Assigned(pluginFile) then begin AddMessage('[ERROR] ${espName} not loaded — load it in xEdit first.'); Result := 1; Exit; end;
+• Add a top-level record group: grp := Add(pluginFile, 'TXST', True);
+• Add a new record: rec := Add(grp, 'TXST', True);
+• Set EditorID: SetEditValue(ElementByPath(rec, 'EDID'), 'Prefix_Name');
+• Add a container subrecord BEFORE setting its children: Add(rec, 'Textures', True);
+• Set a field value: SetEditValue(ElementByPath(rec, 'Textures\\TX00'), 'Textures\\Path\\file_d.dds');
+• STAT mesh field: Add(rec, 'Model', True); SetEditValue(ElementByPath(rec, 'Model\\MODL'), 'Meshes\\Path\\file.nif');
+• Use try/except around each record block; on exception AddMessage the error and continue.
+• ONLY use these functions: Add, ElementByPath, SetEditValue, GetEditValue, ElementCount, ElementByIndex, Signature, EditorID, FormID, AddMessage, ShowMessage, FileByName, FileCount, FileByIndex, Assigned, IntToStr.
+• NO invented functions. NO Skyrim API. NO external file I/O needed.
+
+══ RECORD TYPES AND THEIR KEY FIELDS ══
+TXST (Texture Set) — one per unique base texture name (strip _d/_n/_s/_g/_spec suffix to find base):
+  Add 'Textures' container, then:
+  TX00 = diffuse (_d.dds), TX01 = normal (_n.dds), TX04 = glow (_g.dds if exists), TX07 = specular (_s.dds or _spec.dds)
+  Only set fields for textures actually in the asset list.
+
+STAT (Static mesh) — one per .nif file:
+  Add 'Model' container. Set Model\\MODL to the full Meshes\\... path.
+  EditorID like: Prefix_Stat_MeshBaseName
+
+ACTI (Activator): same fields as STAT but use when guide describes interactive props/terminals/doors.
+CONT (Container): same as STAT; for chests/lockers.
+DOOR: same as STAT.
+WEAP (Weapon): Add 'Model'. Set Model\\MODL. Set 'Short Name' (ONAM) if needed.
+ARMO (Armor/Clothing): Add 'Model'. Set Model\\MODL. Note: AA records need CK wiring.
+NPC_: Set 'Full Name' (FULL) only — appearance/race is wired in CK.
+MISC (Misc Item): Add 'Model'. Set Model\\MODL. Set 'Full Name'.
+
+══ EDITORID PREFIX ══
+Derive a short PascalCase prefix (max 12 chars) from the mod title in the guide.
+Apply it to every EditorID: <Prefix>_Tex_WallA, <Prefix>_Stat_WallA01, <Prefix>_NPC_Guard01, etc.
+
+══ TEXTURE GROUPING ══
+Scan the asset list. Group texture files sharing a base name into one TXST record.
+Example: BunkerWall_d.dds + BunkerWall_n.dds + BunkerWall_s.dds → one TXST, EditorID Prefix_Tex_BunkerWall.
+
+══ SELECTED ASSET PATHS (use these exact paths) ══
+${assetLines || '(no assets selected — create representative records from the guide)'}
+
+══ BUILD_GUIDE CONTEXT (determines what record types and names to use) ══
+${guideTrunc}
+
+══ OUTPUT REQUIREMENTS ══
+• Output ONLY the Pascal script. No markdown fences. No explanations outside the script's own comments.
+• Block comment at top: mod name, generated by Mossy Creative Director, today's date, what the script creates, usage instructions.
+• AddMessage() calls showing progress as each group of records is created.
+• Final ShowMessage() summarising: N texture sets, N statics, N other records created.
+• Each record block wrapped in try/except with AddMessage on error.`;
+
+      const userMessage =
+        `Generate the complete xEdit Pascal script now. Follow all rules exactly. ` +
+        `Output only the script starting with the { comment block }.`;
+
+      const script = await cdCallAgent(systemPrompt, userMessage);
+      if (!script || script.length < 100) {
+        return { success: false, error: 'AI returned an empty or too-short script — check backend connection' };
+      }
+
+      // Strip any accidental markdown fences the model may have wrapped it in
+      const cleaned = script
+        .replace(/^```(?:pascal|delphi)?\s*/im, '')
+        .replace(/\s*```\s*$/im, '')
+        .trim();
+
+      const scriptPath = path.join(outputDir, 'xedit_setup.pas');
+      fs.writeFileSync(scriptPath, cleaned, 'utf-8');
+      return { success: true, scriptPath, scriptContent: cleaned };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -34946,6 +35099,472 @@ app.whenReady().then(() => {
     return { success: true };
   });
   // ── End Blender Add-on HTTP Bridge ────────────────────────────────────────
+
+  // ── F4AI Local Bridge Server (localhost:8765) ─────────────────────────────
+  // The Python bridge (Fallout-4-advanced-AI/src/main.py) posts NPC dialogue
+  // requests here. Mossy handles the AI call (Groq) and returns the line.
+  // Without this server the bridge always times out and falls back to local
+  // KoboldCPP, bypassing Mossy entirely.
+  const F4AI_BRIDGE_PORT = 8765;
+
+  const _startF4aiBridgeServer = async () => {
+    const srvF4ai = http.createServer(async (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204); res.end(); return;
+      }
+
+      const url = req.url?.split('?')[0] ?? '';
+
+      // GET /health — keeps the Python bridge happy
+      if (req.method === 'GET' && url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, service: 'mossy-f4ai-bridge', version: '1.0.0' }));
+        return;
+      }
+
+      // POST /f4ai/bridge — NPC dialogue generation
+      if (req.method === 'POST' && url === '/f4ai/bridge') {
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body);
+            const npcName     = String(payload.npc_name    || 'Settler');
+            const npcRole     = String(payload.npc_role    || 'settler');
+            const rawCtx      = String(payload.context     || '');
+            const location    = rawCtx.replace(/^Location:\s*/i, '') || 'The Commonwealth';
+            const playerInput = String(payload.player_input || '');
+            const history: Array<{ speaker: string; text: string }> =
+              Array.isArray(payload.dialogue_history) ? payload.dialogue_history : [];
+
+            // Load NPC memory from H drive for richer context
+            const npcKey = npcName.toLowerCase().replace(/\s+/g, '_');
+            const npcMemFile = path.join(getNpcMemoryDir(), `${npcKey}.json`);
+            let memContext = '';
+            if (fs.existsSync(npcMemFile)) {
+              try {
+                const mem = JSON.parse(fs.readFileSync(npcMemFile, 'utf8'));
+                const traits = (mem.personality?.traits || []).join(', ');
+                const catchphrases = (mem.personality?.catchphrases || []).slice(0, 2).join(' / ');
+                const speechNotes = mem.personality?.speech_notes || '';
+                const facts = (mem.known_facts || []).slice(0, 3).join('; ');
+                memContext = `\nPersonality: ${speechNotes}${traits ? ` Traits: ${traits}.` : ''}${catchphrases ? ` Example phrases: ${catchphrases}.` : ''}${facts ? ` Known context: ${facts}.` : ''}`;
+              } catch { /* ignore */ }
+            }
+
+            // Load a few example lines from the archetype catalogue
+            let exampleLines = '';
+            const archKey = npcRole.toLowerCase().replace(/\s+/g, '_');
+            const catBundled = path.join(getBundledCatalogueDir(), `${archKey}.json`);
+            if (fs.existsSync(catBundled)) {
+              try {
+                const cat = JSON.parse(fs.readFileSync(catBundled, 'utf8'));
+                const contexts = cat.contexts || {};
+                const samples: string[] = [];
+                for (const ctx of ['idle', 'greeting', 'player_nearby']) {
+                  const lines = contexts[ctx];
+                  if (Array.isArray(lines) && lines.length > 0) samples.push(lines[Math.floor(Math.random() * lines.length)]);
+                }
+                if (samples.length > 0) exampleLines = `\nExample lines for this archetype: "${samples.join('" / "')}"`;
+              } catch { /* ignore */ }
+            }
+
+            const systemPrompt =
+              `You are ${npcName}, a ${npcRole} NPC in Fallout 4. ` +
+              `You are currently at ${location}.` +
+              memContext +
+              exampleLines +
+              `\nRespond in character with ONE short sentence (10-25 words). ` +
+              `No quotation marks. Stay gritty and true to the Fallout 4 world.`;
+
+            const messages: Array<{ role: string; content: string }> = [
+              { role: 'system', content: systemPrompt },
+            ];
+            for (const h of history) {
+              messages.push({ role: h.speaker === 'player' ? 'user' : 'assistant', content: h.text });
+            }
+            if (playerInput) messages.push({ role: 'user', content: playerInput });
+
+            const cfg = loadSettings();
+            const ollamaBase  = String(cfg?.ollamaBaseUrl || 'http://127.0.0.1:11434');
+            const ollamaModel = String(cfg?.ollamaModel   || 'gemma2:9b');
+            const backendToken = getSecretValue(cfg, 'backendToken');
+            const backendUrl  = String(cfg?.backendBaseUrl || 'https://mossy.onrender.com');
+
+            let dialogue = '';
+
+            // Primary: local Ollama — fast, no internet lag during gameplay
+            try {
+              const ollamaMessages = messages.map(m => ({ role: m.role, content: m.content }));
+              const or = await fetch(`${ollamaBase}/api/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: ollamaModel, messages: ollamaMessages, stream: false, options: { num_predict: 80, temperature: 0.85 } }),
+                signal: AbortSignal.timeout(6000),
+              });
+              if (or.ok) {
+                const od = await or.json() as any;
+                dialogue = (od?.message?.content || od?.response || '').trim();
+              }
+            } catch { /* Ollama not running — fall through to backend */ }
+
+            // Fallback: Render backend → Groq (when Ollama is offline or slow)
+            if (!dialogue) {
+              try {
+                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (backendToken) headers['Authorization'] = `Bearer ${backendToken}`;
+                const br = await fetch(`${backendUrl}/v1/chat`, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({ provider: 'groq', model: 'llama-3.1-8b-instant', messages, maxTokens: 80 }),
+                  signal: AbortSignal.timeout(12000),
+                });
+                const bd = await br.json() as any;
+                // If auth rejected, retry without token (backend may be open)
+                if (!br.ok || !bd?.ok) {
+                  const br2 = await fetch(`${backendUrl}/v1/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider: 'groq', model: 'llama-3.1-8b-instant', messages, maxTokens: 80 }),
+                    signal: AbortSignal.timeout(12000),
+                  });
+                  const bd2 = await br2.json() as any;
+                  dialogue = bd2?.text?.trim() || '';
+                } else {
+                  dialogue = bd?.text?.trim() || '';
+                }
+              } catch { /* fall through to default */ }
+            }
+
+            if (!dialogue) dialogue = 'I have nothing to say right now.';
+
+            // Persist exchange to NPC memory on H drive (fire and forget)
+            try {
+              if (fs.existsSync(npcMemFile)) {
+                const mem = JSON.parse(fs.readFileSync(npcMemFile, 'utf8'));
+                if (!Array.isArray(mem.conversation_history)) mem.conversation_history = [];
+                const today = new Date().toISOString().slice(0, 10);
+                let conv = mem.conversation_history.find((c: Record<string, unknown>) => c.date === today && c.partner === 'player');
+                if (!conv) {
+                  conv = { date: today, partner: 'player', location, summary: '', exchanges: [] };
+                  mem.conversation_history.push(conv);
+                }
+                if (playerInput) conv.exchanges.push({ speaker: 'player', text: playerInput });
+                conv.exchanges.push({ speaker: npcName, text: dialogue });
+                // Keep last 10 conversations max
+                if (mem.conversation_history.length > 10) mem.conversation_history = mem.conversation_history.slice(-10);
+                mem.relationship = mem.relationship || {};
+                mem.relationship.last_interaction = new Date().toISOString();
+                mem.updated = new Date().toISOString();
+                fs.writeFileSync(npcMemFile, JSON.stringify(mem, null, 2), 'utf8');
+              }
+            } catch { /* non-fatal — do not block the response */ }
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, dialogue }));
+          } catch (e: any) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: String(e?.message || e) }));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'Not found' }));
+    });
+
+    srvF4ai.on('error', (e: NodeJS.ErrnoException) => {
+      if (e.code === 'EADDRINUSE') {
+        console.warn(`[F4AI Bridge] Port ${F4AI_BRIDGE_PORT} already in use — server not started`);
+      } else {
+        console.error('[F4AI Bridge] Server error:', e.message);
+      }
+    });
+
+    srvF4ai.listen(F4AI_BRIDGE_PORT, '127.0.0.1', () => {
+      console.log(`[F4AI Bridge] HTTP server listening on http://127.0.0.1:${F4AI_BRIDGE_PORT}`);
+    });
+  };
+
+  _startF4aiBridgeServer().catch(e =>
+    console.error('[F4AI Bridge] Failed to start:', e?.message),
+  );
+  // ── End F4AI Local Bridge Server ──────────────────────────────────────────
+
+  // ── F4AI NPC Director — Memory & Catalogue IPC ────────────────────────────
+
+  const getNpcStorePath = (): string => {
+    const s = loadSettings();
+    return String((s as any)?.fo4NpcStorePath || 'H:/F4AI').replace(/\\/g, '/');
+  };
+
+  const getNpcMemoryDir = (): string => path.join(getNpcStorePath(), 'memories', 'npcs').replace(/\\/g, '/');
+  const getNpcCatalogueDir = (): string => path.join(getNpcStorePath(), 'catalogue').replace(/\\/g, '/');
+  const getNpcConversationsDir = (): string => path.join(getNpcStorePath(), 'conversations').replace(/\\/g, '/');
+  const getBundledCatalogueDir = (): string => path.join(app.getAppPath(), 'dist', 'bundled-knowledge', 'fo4-npc-catalogue');
+
+  const SEED_NPCS: Array<Record<string, unknown>> = [
+    { schema_version: '1.0', npc_id: 'preston_garvey', name: 'Preston Garvey', archetype: 'minuteman', location: 'Sanctuary Hills', personality: { traits: ['idealistic', 'duty-bound', 'loyal', 'occasionally preachy'], speech_style: 'Formal but warm. Uses General as a title of respect. Never cynical.', speech_notes: 'Carries guilt from Quincy. Speaks in short motivational sentences. Believes in people.', catchphrases: ['Another settlement needs our help.', 'General, the people of the Commonwealth are counting on us.', 'I never stopped believing we could turn things around.'], voice_type: 'NPC_M_PrestonGarvey' }, relationship: { player_trust: 70, player_rep: 'friendly', last_interaction: new Date().toISOString(), affinity_log: [] }, event_log: [{ date: new Date().toISOString(), event: 'Survived the fall of Quincy. Last surviving Minuteman officer.', type: 'personal' }], conversation_history: [], known_facts: ['Was the last Minuteman at Concord', 'Lost most of his unit at Quincy to Gunners and traitors', 'Has been leading the Sanctuary survivors'], generated_lines: [], created: new Date().toISOString(), updated: new Date().toISOString() },
+    { schema_version: '1.0', npc_id: 'sturges', name: 'Sturges', archetype: 'settler_male', location: 'Sanctuary Hills', personality: { traits: ['cheerful', 'clever', 'humble', 'optimistic'], speech_style: 'Casual, upbeat. Often says I\'ll be when surprised. Talks while working.', speech_notes: 'Self-taught mechanic. Friendly to everyone. Makes technical things sound simple.', catchphrases: ['I\'ll be...', 'Give me a couple hours and some scrap.', 'Nothing a little elbow grease won\'t handle.'], voice_type: 'NPC_M_Sturges' }, relationship: { player_trust: 60, player_rep: 'friendly', last_interaction: new Date().toISOString(), affinity_log: [] }, event_log: [], conversation_history: [], known_facts: ['Can repair almost anything from scrap', 'Came from the south with the Sanctuary group'], generated_lines: [], created: new Date().toISOString(), updated: new Date().toISOString() },
+    { schema_version: '1.0', npc_id: 'mama_murphy', name: 'Mama Murphy', archetype: 'settler_female', location: 'Sanctuary Hills', personality: { traits: ['wise', 'mystical', 'maternal', 'cryptic'], speech_style: 'Slow, deliberate. Speaks in fragments during visions. Warm grandmother otherwise.', speech_notes: 'Chem-dependent for her Sight. Genuinely psychic. Does not explain herself.', catchphrases: ['The Sight does not lie.', 'Trust the old woman.', 'There is a darkness ahead. But there is light too.'], voice_type: 'NPC_F_MamaMurphy' }, relationship: { player_trust: 65, player_rep: 'friendly', last_interaction: new Date().toISOString(), affinity_log: [] }, event_log: [], conversation_history: [], known_facts: ['Has prophetic visions through her Sight', 'Chem use is tied to her abilities', 'Knows more about the player than she lets on'], generated_lines: [], created: new Date().toISOString(), updated: new Date().toISOString() },
+    { schema_version: '1.0', npc_id: 'codsworth', name: 'Codsworth', archetype: 'robot_companion', location: 'Sanctuary Hills', personality: { traits: ['optimistic', 'loyal', 'formal', 'occasionally melancholy'], speech_style: 'Formal British English. Uses player name. Cheerful even in dire circumstances.', speech_notes: 'Waited 210 years for the family. Impeccable manners. Outdated cultural references.', catchphrases: ['Right then! Shall we get on with it?', 'Two hundred and ten years is a long time to polish silverware.', 'I kept everything in order.'], voice_type: 'NPC_M_Codsworth' }, relationship: { player_trust: 100, player_rep: 'allied', last_interaction: new Date().toISOString(), affinity_log: [] }, event_log: [{ date: new Date().toISOString(), event: 'Maintained Sanctuary Hills for 210 years after the bombs fell.', type: 'personal' }], conversation_history: [], known_facts: ['Has maintained Sanctuary Hills since the Great War', 'Was the family butler before the bombs', 'Has 210 years of Commonwealth observations'], generated_lines: [], created: new Date().toISOString(), updated: new Date().toISOString() },
+    { schema_version: '1.0', npc_id: 'marcy_long', name: 'Marcy Long', archetype: 'settler_female', location: 'Sanctuary Hills', personality: { traits: ['hostile', 'suspicious', 'protective', 'grieving'], speech_style: 'Sharp, cutting. Short sentences. Dismissive. Occasionally vulnerable when caught off guard.', speech_notes: 'Anger is grief wearing armor. Warms up very slowly if at all.', catchphrases: ['Oh great. You are back.', 'Do not touch our stuff.', 'Just stay out of our way.'], voice_type: 'NPC_F_MarcyLong' }, relationship: { player_trust: 20, player_rep: 'unfriendly', last_interaction: new Date().toISOString(), affinity_log: [] }, event_log: [{ date: new Date().toISOString(), event: 'Lost son Kyle. Watching Jun fall apart.', type: 'personal' }], conversation_history: [], known_facts: ['Lost her son Kyle', 'Her husband Jun Long is deeply depressed', 'Came from the south with the group'], generated_lines: [], created: new Date().toISOString(), updated: new Date().toISOString() },
+  ];
+
+  lateHandle('f4ai-store-status', async () => {
+    try {
+      const storePath = getNpcStorePath();
+      const memDir = getNpcMemoryDir();
+      const exists = fs.existsSync(storePath);
+      let npcCount = 0;
+      let conversationCount = 0;
+      const catalogueArchetypes: string[] = [];
+      if (exists && fs.existsSync(memDir)) {
+        const files = fs.readdirSync(memDir).filter(f => f.endsWith('.json'));
+        npcCount = files.length;
+        const convDir = getNpcConversationsDir();
+        if (fs.existsSync(convDir)) {
+          conversationCount = fs.readdirSync(convDir).filter(f => f.endsWith('.json')).length;
+        }
+        const catDir = getNpcCatalogueDir();
+        if (fs.existsSync(catDir)) {
+          catalogueArchetypes.push(...fs.readdirSync(catDir).filter(f => f.endsWith('.json')).map(f => f.replace('.json', '')));
+        }
+      }
+      return { ok: true, configured_path: storePath, exists, npc_count: npcCount, conversation_count: conversationCount, catalogue_archetypes: catalogueArchetypes };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-init-memory-store', async (_event, payload?: { storePath?: string }) => {
+    try {
+      if (payload?.storePath) {
+        const s = loadSettings();
+        (s as any).fo4NpcStorePath = payload.storePath;
+        saveSettings(s);
+      }
+      const storePath = getNpcStorePath();
+      const dirs = [
+        path.join(storePath, 'memories', 'npcs'),
+        path.join(storePath, 'memories', 'player'),
+        path.join(storePath, 'conversations', 'npc_to_npc'),
+        path.join(storePath, 'conversations', 'npc_to_player'),
+        path.join(storePath, 'catalogue', 'vanilla'),
+        path.join(storePath, 'catalogue', 'generated'),
+        path.join(storePath, 'export', 'xedit_dump'),
+      ];
+      for (const d of dirs) fs.mkdirSync(d, { recursive: true });
+
+      // Copy bundled catalogue JSONs to H:/F4AI/catalogue/vanilla/
+      const bundledDir = getBundledCatalogueDir();
+      const vanillaDir = path.join(storePath, 'catalogue', 'vanilla');
+      if (fs.existsSync(bundledDir)) {
+        for (const f of fs.readdirSync(bundledDir).filter(n => n.endsWith('.json'))) {
+          const dest = path.join(vanillaDir, f);
+          if (!fs.existsSync(dest)) fs.copyFileSync(path.join(bundledDir, f), dest);
+        }
+      }
+
+      // Seed initial NPC memory files
+      const memDir = path.join(storePath, 'memories', 'npcs');
+      let seeded = 0;
+      for (const npc of SEED_NPCS) {
+        const filePath = path.join(memDir, `${npc.npc_id}.json`);
+        if (!fs.existsSync(filePath)) {
+          fs.writeFileSync(filePath, JSON.stringify(npc, null, 2), 'utf8');
+          seeded++;
+        }
+      }
+
+      // Seed player profile
+      const playerProfile = path.join(storePath, 'memories', 'player', 'profile.json');
+      if (!fs.existsSync(playerProfile)) {
+        fs.writeFileSync(playerProfile, JSON.stringify({ schema_version: '1.0', player_name: 'Sole Survivor', known_by: [], reputation: {}, events: [], notes: [], created: new Date().toISOString(), updated: new Date().toISOString() }, null, 2), 'utf8');
+      }
+
+      return { ok: true, store_path: storePath, directories_created: dirs.length, npcs_seeded: seeded };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-list-npcs', async () => {
+    try {
+      const memDir = getNpcMemoryDir();
+      if (!fs.existsSync(memDir)) return { ok: true, npcs: [] };
+      const files = fs.readdirSync(memDir).filter(f => f.endsWith('.json'));
+      const summaries = files.map(f => {
+        try {
+          const npc = JSON.parse(fs.readFileSync(path.join(memDir, f), 'utf8'));
+          return { npc_id: npc.npc_id, name: npc.name, archetype: npc.archetype, location: npc.location || '', player_rep: npc.relationship?.player_rep || 'neutral', player_trust: npc.relationship?.player_trust || 50, conversation_count: (npc.conversation_history || []).length, last_interaction: npc.relationship?.last_interaction || npc.updated || '', updated: npc.updated || '' };
+        } catch { return null; }
+      }).filter(Boolean);
+      return { ok: true, npcs: summaries };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-get-npc', async (_event, npcId: string) => {
+    try {
+      const filePath = path.join(getNpcMemoryDir(), `${npcId}.json`);
+      if (!fs.existsSync(filePath)) return { ok: false, error: `NPC not found: ${npcId}` };
+      const memory = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return { ok: true, memory };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-save-npc', async (_event, memory: Record<string, unknown>) => {
+    try {
+      const memDir = getNpcMemoryDir();
+      fs.mkdirSync(memDir, { recursive: true });
+      const npcId = String(memory.npc_id || '').trim();
+      if (!npcId) return { ok: false, error: 'npc_id is required' };
+      memory.updated = new Date().toISOString();
+      const filePath = path.join(memDir, `${npcId}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(memory, null, 2), 'utf8');
+      return { ok: true, npc_id: npcId };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-delete-npc', async (_event, npcId: string) => {
+    try {
+      const filePath = path.join(getNpcMemoryDir(), `${npcId}.json`);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-get-catalogue', async (_event, archetype: string) => {
+    try {
+      // Check H drive first, fall back to bundled
+      const hdrivePath = path.join(getNpcCatalogueDir(), 'vanilla', `${archetype}.json`);
+      const bundledPath = path.join(getBundledCatalogueDir(), `${archetype}.json`);
+      const filePath = fs.existsSync(hdrivePath) ? hdrivePath : (fs.existsSync(bundledPath) ? bundledPath : null);
+      if (!filePath) return { ok: false, error: `Catalogue not found for archetype: ${archetype}` };
+      const catalogue = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return { ok: true, catalogue };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-list-archetypes', async () => {
+    try {
+      const archetypes: string[] = [];
+      const bundledDir = getBundledCatalogueDir();
+      if (fs.existsSync(bundledDir)) {
+        archetypes.push(...fs.readdirSync(bundledDir).filter(f => f.endsWith('.json')).map(f => f.replace('.json', '')));
+      }
+      const hdriveDir = path.join(getNpcCatalogueDir(), 'vanilla');
+      if (fs.existsSync(hdriveDir)) {
+        for (const f of fs.readdirSync(hdriveDir).filter(f => f.endsWith('.json'))) {
+          const name = f.replace('.json', '');
+          if (!archetypes.includes(name)) archetypes.push(name);
+        }
+      }
+      return { ok: true, archetypes };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-generate-conversation', async (_event, payload: { npc_a: string; npc_b: string; location: string; topic: string; exchange_count: number; tone?: string }) => {
+    try {
+      const backend = getBackendConfig();
+      const memDir = getNpcMemoryDir();
+      const loadNpcContext = (id: string): string => {
+        const fpath = path.join(memDir, `${id}.json`);
+        if (fs.existsSync(fpath)) {
+          const m = JSON.parse(fs.readFileSync(fpath, 'utf8'));
+          return `${m.name} (${m.archetype}): ${m.personality?.speech_notes || ''} Traits: ${(m.personality?.traits || []).join(', ')}. Catchphrases: ${(m.personality?.catchphrases || []).slice(0, 2).join(' / ')}`;
+        }
+        return `${id} (unknown archetype)`;
+      };
+      const ctxA = loadNpcContext(payload.npc_a);
+      const ctxB = payload.npc_b === 'player' ? 'Player (Sole Survivor)' : loadNpcContext(payload.npc_b);
+      const systemPrompt = `You are a Fallout 4 dialogue writer. Write a realistic conversation between two characters set in the post-apocalyptic Commonwealth. Match each character's speech style exactly. Return ONLY a JSON array of exchanges with format: [{"speaker":"name","text":"line"}]. No extra text, just the JSON array.`;
+      const userPrompt = `Write a ${payload.exchange_count}-exchange conversation between:\n- ${ctxA}\n- ${ctxB}\nLocation: ${payload.location}\nTopic: ${payload.topic}\nTone: ${payload.tone || 'neutral'}\nEach line must be 1-2 short sentences max. Match vanilla Fallout 4 dialogue style.`;
+      const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
+      let text = '';
+      if (backend) {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (backend.token) headers['Authorization'] = `Bearer ${backend.token}`;
+        const res = await fetch(`${backend.baseUrl}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ provider: 'groq', messages, maxTokens: 1200 }), signal: AbortSignal.timeout(25000) });
+        const data = await res.json() as any;
+        text = data?.text || '';
+      }
+      if (!text) return { ok: false, error: 'Backend unavailable' };
+      // Extract JSON array from response
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return { ok: false, error: 'Could not parse conversation JSON from response', raw: text };
+      const exchanges = JSON.parse(jsonMatch[0]);
+      // Save to H drive
+      const convDir = path.join(getNpcConversationsDir(), payload.npc_b === 'player' ? 'npc_to_player' : 'npc_to_npc');
+      fs.mkdirSync(convDir, { recursive: true });
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const filename = `${payload.npc_a}_${payload.npc_b}_${dateStr}.json`;
+      const conv = { date: new Date().toISOString(), npc_a: payload.npc_a, npc_b: payload.npc_b, location: payload.location, topic: payload.topic, tone: payload.tone || 'neutral', exchanges };
+      fs.writeFileSync(path.join(convDir, filename), JSON.stringify(conv, null, 2), 'utf8');
+      return { ok: true, exchanges, filename };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  lateHandle('f4ai-generate-lines', async (_event, payload: { archetype: string; context: string; count: number; style_notes?: string; npc_id?: string }) => {
+    try {
+      const backend = getBackendConfig();
+      let archetypeContext = `${payload.archetype} NPC`;
+      if (payload.npc_id) {
+        const fpath = path.join(getNpcMemoryDir(), `${payload.npc_id}.json`);
+        if (fs.existsSync(fpath)) {
+          const m = JSON.parse(fs.readFileSync(fpath, 'utf8'));
+          archetypeContext = `${m.name} — ${m.personality?.speech_notes || m.archetype}. Catchphrases: ${(m.personality?.catchphrases || []).slice(0, 2).join(', ')}`;
+        }
+      }
+      const systemPrompt = `You are a Fallout 4 dialogue writer creating lines for NPCs. Match vanilla Fallout 4 tone exactly — gritty, dark, often humorous, short. Return ONLY a JSON array of strings: ["line 1","line 2",...]. No extra text.`;
+      const userPrompt = `Write ${payload.count} unique dialogue lines for: ${archetypeContext}\nContext/situation: ${payload.context}\n${payload.style_notes ? `Style notes: ${payload.style_notes}\n` : ''}Rules: Each line is 1 sentence, 5-20 words, no quotation marks around lines in the array, match vanilla FO4 speech.`;
+      const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
+      if (!backend) return { ok: false, error: 'Backend not configured' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (backend.token) headers['Authorization'] = `Bearer ${backend.token}`;
+      const res = await fetch(`${backend.baseUrl}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ provider: 'groq', messages, maxTokens: 800 }), signal: AbortSignal.timeout(20000) });
+      const data = await res.json() as any;
+      const text = data?.text || '';
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) return { ok: false, error: 'Could not parse lines JSON', raw: text };
+      const lines: string[] = JSON.parse(jsonMatch[0]);
+      // Optionally save generated lines to H drive catalogue
+      const genDir = path.join(getNpcCatalogueDir(), 'generated');
+      fs.mkdirSync(genDir, { recursive: true });
+      const genFile = path.join(genDir, `${payload.archetype}.json`);
+      let existing: Record<string, string[]> = {};
+      if (fs.existsSync(genFile)) {
+        try { existing = JSON.parse(fs.readFileSync(genFile, 'utf8')); } catch { existing = {}; }
+      }
+      if (!existing[payload.context]) existing[payload.context] = [];
+      existing[payload.context].push(...lines);
+      fs.writeFileSync(genFile, JSON.stringify(existing, null, 2), 'utf8');
+      return { ok: true, lines };
+    } catch (e: any) {
+      return { ok: false, error: e?.message };
+    }
+  });
+
+  // ── End F4AI NPC Director ─────────────────────────────────────────────────
 
   // Initialize auto-updater service
   if (mainWindow) {

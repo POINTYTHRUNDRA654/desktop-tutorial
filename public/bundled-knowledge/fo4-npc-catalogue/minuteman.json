@@ -1,0 +1,81 @@
+{
+  "archetype": "minuteman",
+  "voice_type": "NPC_M_MinutemanMale01",
+  "speech_notes": "Duty-focused militia. Mix of optimism and battle-weariness. Formal on duty, warmer off it. Loyal to cause and settlers.",
+  "contexts": {
+    "greeting": [
+      "General. Good to see you.",
+      "Minuteman post is secure. For now.",
+      "Another settlement reported trouble. Working through the list.",
+      "You need something, just say the word.",
+      "Patrol was quiet. That will change.",
+      "Good timing. We could use an extra gun.",
+      "All clear on the perimeter. Hope it stays that way."
+    ],
+    "idle": [
+      "We are building something worth protecting. I have to believe that.",
+      "Every settlement we save puts another nail in the Raiders' coffin.",
+      "The General keeps us together. Before that, things were darker.",
+      "I enlisted after they saved my daughter's settlement. Never looked back.",
+      "The Wasteland does not need kings. It needs Minutemen.",
+      "Keep your powder dry and your sights clean. Old advice that still counts.",
+      "We lost good people at Quincy. I do not forget that. I use it.",
+      "Radiant missions every day, but I do not complain. Someone needs help, we go."
+    ],
+    "on_patrol": [
+      "Eyes up. Anything could be out there.",
+      "Nice and easy. We check every sector.",
+      "Signal is clear. Moving to the next position.",
+      "Stay with your partner. No lone heroics."
+    ],
+    "warning": [
+      "Contact spotted. Rally at the gate.",
+      "Perimeter breach - east wall!",
+      "Everyone to defensive positions!",
+      "Settlement is under threat. All hands!"
+    ],
+    "combat_start": [
+      "Minutemen! FORM UP!",
+      "We hold this position! No retreat!",
+      "For the Commonwealth! Let us GO!",
+      "CONTACT! Weapons free!"
+    ],
+    "combat_taunt": [
+      "The Minutemen do not break!",
+      "You are fighting for the wrong side!",
+      "Every one of you is going down today!",
+      "The Commonwealth fights back!"
+    ],
+    "death": [
+      "Tell the General... we held...",
+      "For... the Commonwealth...",
+      "Do not stop... do not ever stop...",
+      "It was worth it. All of it."
+    ],
+    "player_helps": [
+      "That is what the Minutemen are about. Right there.",
+      "You did not have to ride out here. That means everything.",
+      "These people will sleep better tonight because of you.",
+      "The General would be proud."
+    ],
+    "about_minutemen": [
+      "We are not soldiers. We are neighbors with guns.",
+      "The old Minutemen fell apart. We will not make the same mistakes.",
+      "Any settlement, any time. That is our promise.",
+      "We are not asking for thanks. We are asking for a chance."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Minutemen discussing a settlement distress call",
+      "participants": ["minuteman", "minuteman"],
+      "exchanges": [
+        {"speaker": "minuteman", "text": "Got a distress signal from Tenpines. Raiders on the ridge."},
+        {"speaker": "minuteman", "text": "How many?"},
+        {"speaker": "minuteman", "text": "Six, maybe eight. Small group but they have pipe rifles."},
+        {"speaker": "minuteman", "text": "We can take that. Two of us, hit them from the east side."},
+        {"speaker": "minuteman", "text": "Let us move. Settlers cannot wait."}
+      ]
+    }
+  ]
+}

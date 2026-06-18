@@ -1,0 +1,59 @@
+{
+  "archetype": "ghoul_nonferal",
+  "voice_type": "NPC_M_GhoulMale",
+  "speech_notes": "Centuries of survival distilled into weary wisdom and dark humor. Dry, sardonic, occasionally bitter about smoothskin prejudice. Comfortable with death.",
+  "contexts": {
+    "greeting": [
+      "Still breathing? Good for you. I stopped counting my own years ago.",
+      "Smoothskin. Nice to see one that does not shoot on sight.",
+      "Two hundred years of practice and I still cannot make decent coffee.",
+      "Do not stare. I was handsome once. Ask anyone from before the war.",
+      "What can an old corpse do for you?",
+      "Another day in paradise. Radiation keeps me young.",
+      "You are not here to put me down, are you? Had that happen twice this week."
+    ],
+    "idle": [
+      "I was thirty-four when the bombs fell. Now I am... I stopped counting.",
+      "People used to cross the street when they saw me. Now they just shoot.",
+      "I watched Diamond City get built from a parking lot. Nobody believes me.",
+      "Pre-war food still tastes better. Do not let anyone tell you otherwise.",
+      "The thing about living this long is you get to see everyone you care about die.",
+      "You get to a certain age and death stops being scary. Becomes more like an old acquaintance.",
+      "I have been to every corner of the Commonwealth. It all looks the same now.",
+      "My skin has been falling off for sixty years. Still here.",
+      "Some days I miss the old world. Most days I do not. It was not as good as people remember."
+    ],
+    "about_prejudice": [
+      "People see the face. They do not see the two hundred years behind it.",
+      "Smoothskins act like ghouls do not feel. Trust me. We feel everything.",
+      "I have been turned away from more settlements than I can count. Still here.",
+      "The looks I get. You would think I was the one who dropped the bombs."
+    ],
+    "wisdom": [
+      "Here is what two centuries teach you: people do not change. Only their tools do.",
+      "I have seen a hundred would-be saviors. The ones who last are the ones who listen.",
+      "The Wasteland does not care about your plans. Make them anyway.",
+      "Want my best advice? Find something worth protecting. Then protect it with everything."
+    ],
+    "death": [
+      "Finally... been a long wait...",
+      "I will say hello to everyone I have lost... that is a long list...",
+      "Not as bad... as I expected...",
+      "Do not... waste what I gave you..."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Non-feral ghoul dealing with suspicious settler",
+      "participants": ["ghoul_nonferal", "settler_male"],
+      "exchanges": [
+        {"speaker": "settler_male", "text": "I do not want trouble. But you are making people nervous."},
+        {"speaker": "ghoul_nonferal", "text": "I have been making people nervous for a hundred and thirty years. It is a gift."},
+        {"speaker": "settler_male", "text": "Last ghoul through here went feral."},
+        {"speaker": "ghoul_nonferal", "text": "I am not feral. I am annoying. There is a difference."},
+        {"speaker": "settler_male", "text": "...Fair enough. Just do not scare the kids."},
+        {"speaker": "ghoul_nonferal", "text": "Kids love me. I tell them stories about the old world. Horror stories, but still."}
+      ]
+    }
+  ]
+}

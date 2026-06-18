@@ -1,0 +1,78 @@
+{
+  "archetype": "raider",
+  "voice_type": "NPC_M_RaiderMale01",
+  "speech_notes": "Menacing, territorial, nihilistic. Mix of bravado and genuine desperation. Short violent sentences when hostile, occasionally philosophical when idle.",
+  "contexts": {
+    "greeting": [
+      "This is our turf. You got a good reason to be here?",
+      "Nice gear. Gonna look even better on me.",
+      "Word to the wise: keep walking.",
+      "You got caps? Hand them over or we do this the fun way.",
+      "Hey. You are either lost or suicidal. Which is it?",
+      "One more step and you will regret it.",
+      "Oh look. Fresh meat."
+    ],
+    "idle": [
+      "This lifestyle is not glamorous, but the hours are flexible.",
+      "Commonwealth has got rules. I got none. Guess who wins.",
+      "Found a vault once. Empty. That kind of thing breaks a person.",
+      "Out here you take or you get taken. I made my choice.",
+      "Nuka-Cola and corpses. That is the Raider diet.",
+      "Some people build settlements. I build enemies.",
+      "Everyone is a Raider when they are hungry enough. I just got there faster."
+    ],
+    "combat_start": [
+      "LIGHT THEM UP!",
+      "TAKE EVERYTHING!",
+      "NOBODY MOVES OR EVERYBODY DIES!",
+      "GET THAT ONE! THEY LOOK VALUABLE!",
+      "DO NOT LET THEM ESCAPE!"
+    ],
+    "combat_taunt": [
+      "You think you can take all of us? I respect the confidence!",
+      "I have killed better than you for breakfast!",
+      "I am gonna enjoy this!",
+      "Nobody comes through our territory without paying the toll!",
+      "Should have run when you had the chance!",
+      "Oh this one is ANGRY. Good. More fun that way."
+    ],
+    "combat_pain": [
+      "What the - that actually hurt!",
+      "ACH! I am leaking!",
+      "You are gonna pay for that scar!",
+      "Just a scratch! JUST A SCRATCH!"
+    ],
+    "death": [
+      "Heh... did not think... you had it in you...",
+      "Should have... taken the caps...",
+      "Okay... okay... you win...",
+      "Not bad... smoothskin... not bad..."
+    ],
+    "threatening": [
+      "You have got about five seconds to make this worth my time.",
+      "Drop the weapons. Do it slow. Or do not - I could use the exercise.",
+      "Last crew that crossed us? They are part of the road now.",
+      "I do not bluff. Ask anyone. Oh wait, they are all dead."
+    ],
+    "rare_honest": [
+      "You know, some of us did not have much choice. Then again, maybe that is just what I tell myself.",
+      "Raiding is not a career choice. It is what you do when every other door has been closed.",
+      "I had a settlement once. Diamond City types took it. So now I take from them.",
+      "The difference between a Raider and a Settler is one bad season. Remember that."
+    ]
+  },
+  "sample_conversations": [
+    {
+      "context": "Raiders planning an attack on a settlement",
+      "participants": ["raider", "raider"],
+      "exchanges": [
+        {"speaker": "raider", "text": "Settlement to the south. Six settlers, maybe eight. I counted the lights."},
+        {"speaker": "raider", "text": "They got defenses?"},
+        {"speaker": "raider", "text": "Two turrets. Old model. Half our crew can take them in the dark."},
+        {"speaker": "raider", "text": "And what do they have worth taking?"},
+        {"speaker": "raider", "text": "Food, water, and a working generator. Better than caps."},
+        {"speaker": "raider", "text": "We move at dawn. Wake the others."}
+      ]
+    }
+  ]
+}

@@ -166,6 +166,7 @@ const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
 const SystemHub = React.lazy(() => import('./SystemHub'));
 const GuidesHub = React.lazy(() => import('./GuidesHub'));
 const CreativeDirectorPanel = React.lazy(() => import('./plugin_creative_director/CreativeDirectorPanel'));
+const FO4NPCDirector = React.lazy(() => import('./FO4NPCDirector'));
 
 // Test Components
 const NotificationTest = React.lazy(() => import('./NotificationTest'));
@@ -235,7 +236,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
-  '/ext-tools', '/creative-director',
+  '/ext-tools', '/creative-director', '/fo4-npc-director',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);
@@ -1608,6 +1609,8 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/extensions/upscayl"><ErrorBoundary><UpscaylExtension /></ErrorBoundary></KeepAlivePanel>
               {/* Vault-Tec Creative Director plugin */}
               <KeepAlivePanel path="/creative-director"><ErrorBoundary><CreativeDirectorPanel /></ErrorBoundary></KeepAlivePanel>
+              {/* FO4 NPC Director */}
+              <KeepAlivePanel path="/fo4-npc-director"><ErrorBoundary><FO4NPCDirector /></ErrorBoundary></KeepAlivePanel>
             </div>
           </main>
           </div>

@@ -36,12 +36,10 @@ const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const SystemHub: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<SystemTab>('diagnostics');
-
-  useEffect(() => {
+  const [activeTab, setActiveTab] = useState<SystemTab>(() => {
     const saved = sessionStorage.getItem('system_hub_tab') as SystemTab | null;
-    if (saved && tabs.some((t) => t.id === saved)) setActiveTab(saved);
-  }, []);
+    return (saved && tabs.some((t) => t.id === saved)) ? saved : 'diagnostics';
+  });
 
   useEffect(() => {
     sessionStorage.setItem('system_hub_tab', activeTab);

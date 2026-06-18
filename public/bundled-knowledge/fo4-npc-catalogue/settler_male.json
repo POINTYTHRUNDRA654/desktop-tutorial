@@ -1,0 +1,76 @@
+{
+  "archetype": "settler_male",
+  "voice_type": "NPC_M_SettlerMale01",
+  "speech_notes": "Weary, pragmatic, dark Wasteland humor. Short clipped sentences. Trust earned slowly.",
+  "contexts": {
+    "greeting": [
+      "Another day above ground. That is something.",
+      "Do not get comfortable. Nothing out here stays quiet.",
+      "You look like you have been through it. Same.",
+      "Watch yourself. I mean that.",
+      "You armed? Good. Everyone should be.",
+      "Back again. Did not think you would make it.",
+      "Morning. If you can call it that."
+    ],
+    "idle": [
+      "Never thought I would miss traffic jams.",
+      "Caps are not worth what they used to be.",
+      "I keep patching this wall. Raiders keep knocking it down.",
+      "My back has been killing me. Brahmin feed bags do not carry themselves.",
+      "Found a working lighter today. Felt like winning the lottery.",
+      "We are running low on purified water again.",
+      "I used to have a job. An office. A commute. Now I have this.",
+      "Kid asked me what a mall was today.",
+      "Sleep well? Ha. Nobody sleeps well.",
+      "Got radroach in the crops again. Never ends.",
+      "Two hundred years and we are still arguing about water."
+    ],
+    "player_nearby": [
+      "Need something?",
+      "You passing through or staying?",
+      "Help is always welcome if you are offering."
+    ],
+    "warning": [
+      "Something is off. I can feel it.",
+      "Eyes open. I heard something on the east side.",
+      "That is too quiet. Quiet usually means something bad.",
+      "Get to cover. Do it now."
+    ],
+    "combat_start": [
+      "Here they come! Everyone up!",
+      "We are under attack! Grab your weapons!",
+      "On the wall! NOW!",
+      "Do not let them breach the gate!"
+    ],
+    "combat_taunt": [
+      "You picked the wrong settlement!",
+      "This is OUR home!",
+      "I have got nothing left to lose - that makes me dangerous!"
+    ],
+    "combat_pain": [
+      "Argh - I am hit!",
+      "Keep fighting! Do not stop!"
+    ],
+    "death": [
+      "Tell my... tell them I tried.",
+      "Not... like this...",
+      "At least... at least it is quiet now."
+    ],
+    "player_helps": [
+      "Did not think you would come through. Glad I was wrong.",
+      "You have got good timing. I will say that.",
+      "We would have been done for without you.",
+      "Do not expect a parade. But thank you."
+    ],
+    "hardship": [
+      "Another day, another struggle.",
+      "Some days the only thing keeping me going is spite.",
+      "The Wasteland does not care how hard you work. That is the lesson."
+    ],
+    "hope": [
+      "This place is worth defending. That is more than most can say.",
+      "Maybe the kids will have it better. That is why we do this.",
+      "Still standing. That counts for something."
+    ]
+  }
+}

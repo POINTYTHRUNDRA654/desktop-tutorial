@@ -110,6 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
 
     { to: '/system-hub', icon: Wrench, label: t('nav.systemHub', 'FO4 System & Diagnostics Hub') },
     { to: '/creative-director', icon: Wand2, label: 'Creative Director' },
+    { to: '/fo4-npc-director', icon: Bot, label: t('nav.fo4NPCDirector', 'FO4 NPC Director') },
     { to: '/settings', icon: Settings, label: t('nav.settings', 'Settings') },
   ];
 
