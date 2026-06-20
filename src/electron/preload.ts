@@ -4625,6 +4625,32 @@ aiTextureEnhancer: {
       ipcRenderer.invoke('ml:get-openai-compat-status', baseUrl),
   },
 
+  // AnythingLLM RAG Engine API
+  anythingllm: {
+    ping: (url?: string): Promise<{ ok: boolean; status?: number; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:ping', url),
+    setup: (): Promise<{ ok: boolean; message?: string; apiKey?: string; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:setup'),
+    workspaces: (): Promise<{ ok: boolean; workspaces: any[]; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:workspaces'),
+    createWorkspace: (name: string, systemPrompt?: string): Promise<{ ok: boolean; workspace?: any; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:create-workspace', name, systemPrompt),
+    deleteWorkspace: (slug: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:delete-workspace', slug),
+    chat: (slug: string, message: string, mode?: string): Promise<{ ok: boolean; response: string; sources?: any[]; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:chat', slug, message, mode),
+    uploadText: (params: { slug: string; title: string; content: string }): Promise<{ ok: boolean; docLocation?: string; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:upload-text', params),
+    getSettings: (): Promise<{ url: string; enabled: boolean; hasApiKey: boolean }> =>
+      ipcRenderer.invoke('anythingllm:get-settings'),
+    saveSettings: (params: { url?: string; apiKey?: string; enabled?: boolean }): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('anythingllm:save-settings', params),
+    serverStatus: (): Promise<{ processRunning: boolean; portListening: boolean; pid: number | null }> =>
+      ipcRenderer.invoke('anythingllm:server-status'),
+    serverRestart: (): Promise<{ ok: boolean }> =>
+      ipcRenderer.invoke('anythingllm:server-restart'),
+  },
+
   // ============================================================================
   // Platform #4: Asset Pipeline API
   // ============================================================================
