@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Book, Bot, GitBranch, Package } from 'lucide-react';
+import { Book, Bot, GitBranch, Package, Database } from 'lucide-react';
 
 const QuickReference = React.lazy(() =>
   import('./QuickReference').then((m) => ({ default: m.QuickReference }))
@@ -16,14 +16,16 @@ const CommunityLearning = React.lazy(() => import('./CommunityLearning'));
 const VanillaAssetBrowser = React.lazy(() =>
   import('./VanillaAssetBrowser').then((m) => ({ default: m.VanillaAssetBrowser }))
 );
+const AnythingLLMSearch = React.lazy(() => import('./AnythingLLMSearch'));
 
-type HubTab = 'reference' | 'search' | 'community' | 'vanilla';
+type HubTab = 'reference' | 'search' | 'community' | 'vanilla' | 'rag';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'reference', icon: Book, label: 'Quick Reference', sublabel: 'Papyrus · FormIDs · Hotkeys' },
   { id: 'search', icon: Bot, label: 'Knowledge Search', sublabel: 'Semantic search · Ollama' },
   { id: 'community', icon: GitBranch, label: 'Community Learning', sublabel: 'Tips · Shared knowledge' },
   { id: 'vanilla', icon: Package, label: 'Vanilla Assets', sublabel: 'Browse · Copy · Reference' },
+  { id: 'rag', icon: Database, label: 'RAG Search', sublabel: 'AnythingLLM · Vector DB' },
 ];
 
 const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -125,6 +127,11 @@ const KnowledgeHub: React.FC = () => {
         {activeTab === 'vanilla' && (
           <PanelLoader>
             <VanillaAssetBrowser />
+          </PanelLoader>
+        )}
+        {activeTab === 'rag' && (
+          <PanelLoader>
+            <AnythingLLMSearch embedded />
           </PanelLoader>
         )}
       </div>

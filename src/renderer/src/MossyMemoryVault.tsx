@@ -30,6 +30,100 @@ type MossyMemoryVaultProps = {
     embedded?: boolean;
 };
 
+// ── AnythingLLM Sync Panel ────────────────────────────────────────────────────
+const AnythingLLMSyncPanel: React.FC<{ memories: MemoryItem[] }> = ({ memories }) => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    const hasApi = !!api?.anythingllm;
+
+    const [connected, setConnected] = useState(false);
+    const [workspaces, setWorkspaces] = useState<{ slug: string; name: string }[]>([]);
+    const [selectedSlug, setSelectedSlug] = useState('');
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<{ ok: number; fail: number } | null>(null);
+    const [checked, setChecked] = useState(false);
+
+    useEffect(() => {
+        if (!hasApi) return;
+        api.anythingllm.ping().then((res: any) => {
+            setChecked(true);
+            if (!res.ok) return;
+            setConnected(true);
+            api.anythingllm.workspaces().then((wsRes: any) => {
+                if (wsRes.ok && wsRes.workspaces?.length) {
+                    setWorkspaces(wsRes.workspaces);
+                    setSelectedSlug(wsRes.workspaces[0]?.slug || '');
+                }
+            });
+        });
+    }, [hasApi]);
+
+    if (!checked || !hasApi || !connected) return null;
+
+    const handleSync = async () => {
+        if (!selectedSlug || memories.length === 0) return;
+        setSyncing(true);
+        setSyncResult(null);
+        let ok = 0, fail = 0;
+        for (const mem of memories) {
+            const content = `# ${mem.title}\n\nSource: ${mem.source || 'Unknown'}\nTags: ${(mem.tags || []).join(', ')}\nTrust: ${mem.trustLevel || 'personal'}\n\n${mem.content}`;
+            const res = await api.anythingllm.uploadText({ slug: selectedSlug, title: mem.title, content });
+            if (res.ok) ok++; else fail++;
+        }
+        setSyncing(false);
+        setSyncResult({ ok, fail });
+    };
+
+    return (
+        <div className="mx-6 mb-2 p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+                <Database className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 text-xs text-slate-300 space-y-2">
+                    <div className="font-semibold text-cyan-300 flex items-center gap-1.5">
+                        AnythingLLM RAG Sync
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">CONNECTED</span>
+                    </div>
+                    <p className="text-slate-400">
+                        Push all {memories.length} memory item{memories.length !== 1 ? 's' : ''} into an AnythingLLM workspace so they become searchable via RAG in the Knowledge Hub.
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {workspaces.length > 1 && (
+                            <select
+                                value={selectedSlug}
+                                onChange={e => setSelectedSlug(e.target.value)}
+                                className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-xs text-white"
+                            >
+                                {workspaces.map(ws => (
+                                    <option key={ws.slug} value={ws.slug}>{ws.name}</option>
+                                ))}
+                            </select>
+                        )}
+                        {workspaces.length === 1 && (
+                            <span className="text-slate-400 font-mono text-[10px]">→ {workspaces[0]?.name}</span>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => void handleSync()}
+                            disabled={syncing || memories.length === 0}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-semibold disabled:opacity-50 transition-colors"
+                        >
+                            {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
+                            {syncing ? 'Syncing...' : 'Sync to AnythingLLM'}
+                        </button>
+                    </div>
+                    {syncResult && (
+                        <div className={'text-xs font-mono p-1.5 rounded border ' + (syncResult.fail === 0
+                            ? 'border-emerald-700/40 bg-emerald-900/20 text-emerald-300'
+                            : 'border-yellow-700/40 bg-yellow-900/20 text-yellow-300')}>
+                            Synced {syncResult.ok}/{syncResult.ok + syncResult.fail} items
+                            {syncResult.fail > 0 ? ` (${syncResult.fail} failed)` : ' — all done!'}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false }) => {
     const whisperModelFileUrl = 'https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.en.bin';
     const contentScrollRef = useRef<HTMLDivElement>(null);
@@ -1198,6 +1292,9 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     </div>
                 </div>
             </div>
+
+            {/* AnythingLLM Sync */}
+            <AnythingLLMSyncPanel memories={memories} />
 
             {/* Search */}
             <div className="p-6 bg-[#0f120f]">
