@@ -34935,6 +34935,34 @@ let _anythingllmProcess: import('child_process').ChildProcess | null = null;
 const ANYTHINGLLM_PORT = 3001;
 const ANYTHINGLLM_SERVER_DIR = 'D:\\Projects\\anything-llm\\server';
 
+function patchAnythingLLMNodeCompat(): void {
+  try {
+    // Patch 1: buffer-equal-constant-time uses removed SlowBuffer API (Node 22+)
+    const bufEqPath = path.join(ANYTHINGLLM_SERVER_DIR, 'node_modules', 'buffer-equal-constant-time', 'index.js');
+    if (fs.existsSync(bufEqPath)) {
+      const src = fs.readFileSync(bufEqPath, 'utf-8');
+      if (src.includes('SlowBuffer')) {
+        const patched = `'use strict';\nvar Buffer = require('buffer').Buffer;\nmodule.exports = bufferEq;\nfunction bufferEq(a,b){if(!Buffer.isBuffer(a)||!Buffer.isBuffer(b))return false;if(a.length!==b.length)return false;var c=0;for(var i=0;i<a.length;i++)c|=a[i]^b[i];return c===0;}\nbufferEq.install=function(){Buffer.prototype.equal=function(t){return bufferEq(this,t);};};\nvar origBufEqual=Buffer.prototype.equal;\nbufferEq.restore=function(){Buffer.prototype.equal=origBufEqual;};\n`;
+        fs.writeFileSync(bufEqPath, patched, 'utf-8');
+        console.log('[AnythingLLM] Patched buffer-equal-constant-time for Node 22+');
+      }
+    }
+
+    // Patch 2: zod/v3 subpath export missing (zod v3 installed, packages expect zod v4 compat)
+    const zodPkgPath = path.join(ANYTHINGLLM_SERVER_DIR, 'node_modules', 'zod', 'package.json');
+    if (fs.existsSync(zodPkgPath)) {
+      const zodPkg = JSON.parse(fs.readFileSync(zodPkgPath, 'utf-8'));
+      if (zodPkg.exports && !zodPkg.exports['./v3']) {
+        zodPkg.exports['./v3'] = { import: './lib/index.mjs', require: './lib/index.js', default: './lib/index.js' };
+        fs.writeFileSync(zodPkgPath, JSON.stringify(zodPkg, null, 2), 'utf-8');
+        console.log('[AnythingLLM] Patched zod ./v3 export for Node 26 compatibility');
+      }
+    }
+  } catch (err: any) {
+    console.warn('[AnythingLLM] Compat patch warning:', err?.message || err);
+  }
+}
+
 async function autoStartAnythingLLM(): Promise<void> {
   const serverScript = path.join(ANYTHINGLLM_SERVER_DIR, 'index.js');
   const nodeModules  = path.join(ANYTHINGLLM_SERVER_DIR, 'node_modules');
@@ -34958,7 +34986,26 @@ async function autoStartAnythingLLM(): Promise<void> {
     }
   } catch { /* not running yet — proceed */ }
 
-  const { spawn } = await import('child_process');
+  // Apply Node.js compatibility patches before spawning
+  patchAnythingLLMNodeCompat();
+
+  const { spawn, execSync } = await import('child_process');
+
+  // Run Prisma migrations if the database doesn't exist yet
+  const dbPath = path.join(ANYTHINGLLM_SERVER_DIR, '..', 'storage', 'anythingllm.db');
+  if (!fs.existsSync(dbPath)) {
+    console.log('[AnythingLLM] Database not found — running Prisma migrations...');
+    try {
+      execSync('npx prisma migrate deploy', {
+        cwd: ANYTHINGLLM_SERVER_DIR,
+        stdio: 'pipe',
+        timeout: 30000,
+      });
+      console.log('[AnythingLLM] Prisma migrations applied');
+    } catch (migrateErr: any) {
+      console.warn('[AnythingLLM] Migration warning:', migrateErr?.message?.slice(0, 200));
+    }
+  }
 
   // Find node.exe: prefer explicit paths, fall back to PATH
   const nodeLocations = [
