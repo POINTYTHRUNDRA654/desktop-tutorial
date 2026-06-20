@@ -1722,6 +1722,11 @@ const loadSettings = (): any => {
 
     // Blender Link security token
     blenderLinkToken: crypto.randomBytes(16).toString('hex'),
+
+    // AnythingLLM RAG Engine
+    anythingllmUrl: 'http://127.0.0.1:3001',
+    anythingllmApiKey: '',
+    anythingllmEnabled: false,
   };
 
   // Seed API keys from .env.encrypted into settings.json on first launch so that
@@ -34484,6 +34489,274 @@ ${steps}
     }
   });
 
+  // ── AnythingLLM RAG Engine IPC handlers ─────────────────────────────────────
+  // Proxy calls to a locally-running AnythingLLM server (default port 3001).
+  // Auth flow: on first use, POST /request-token with AUTH_TOKEN password to
+  // get a JWT, then POST /admin/generate-api-key to obtain a permanent key.
+  // All subsequent calls use that API key as a Bearer token.
+
+  const anythingllmFetch = async (
+    method: string,
+    urlPath: string,
+    body?: unknown,
+    bearerToken?: string
+  ): Promise<{ ok: boolean; status: number; data: any }> => {
+    const s = loadSettings();
+    const baseUrl = String(s?.anythingllmUrl || 'http://127.0.0.1:3001').replace(/\/$/, '');
+    const apiKey = bearerToken || String(s?.anythingllmApiKey || '');
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    try {
+      const resp = await fetch(`${baseUrl}${urlPath}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      let data: any = null;
+      try { data = await resp.json(); } catch { data = {}; }
+      return { ok: resp.ok, status: resp.status, data };
+    } catch (err: any) {
+      return { ok: false, status: 0, data: { error: err?.message || String(err) } };
+    }
+  };
+
+  const anythingllmEnsureApiKey = async (): Promise<string | null> => {
+    const s = loadSettings();
+    const existing = String(s?.anythingllmApiKey || '').trim();
+    if (existing) return existing;
+
+    // Login with single-user password to get a JWT
+    const loginRes = await anythingllmFetch('POST', '/request-token', { password: 'mossy2025' });
+    if (!loginRes.ok || !loginRes.data?.token) {
+      console.warn('[AnythingLLM] Login failed:', loginRes.data);
+      return null;
+    }
+    const jwt = loginRes.data.token as string;
+
+    // Generate a permanent API key
+    const keyRes = await anythingllmFetch('POST', '/admin/generate-api-key', { name: 'Mossy Integration' }, jwt);
+    if (!keyRes.ok || !keyRes.data?.apiKey?.secret) {
+      console.warn('[AnythingLLM] API key generation failed:', keyRes.data);
+      return null;
+    }
+    const apiKey = keyRes.data.apiKey.secret as string;
+
+    // Persist it to settings
+    const current = loadSettings();
+    saveSettings({ ...(current || {}), anythingllmApiKey: apiKey, anythingllmEnabled: true });
+    return apiKey;
+  };
+
+  forceHandle('anythingllm:ping', async (_event, url?: string) => {
+    try {
+      const s = loadSettings();
+      const baseUrl = String(url || s?.anythingllmUrl || 'http://127.0.0.1:3001').replace(/\/$/, '');
+      const resp = await fetch(`${baseUrl}/v1/auth`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${String(s?.anythingllmApiKey || '')}`,
+          'Content-Type': 'application/json',
+        },
+      }).catch(() => null);
+      if (!resp) return { ok: false, error: 'Server unreachable' };
+      return { ok: resp.ok, status: resp.status };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:setup', async () => {
+    try {
+      const s = loadSettings();
+      const baseUrl = String(s?.anythingllmUrl || 'http://127.0.0.1:3001').replace(/\/$/, '');
+
+      // Step 1: Try writing the Groq API key into the AnythingLLM .env
+      const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+      const anythingllmEnvPath = path.join('D:', 'Projects', 'anything-llm', 'server', '.env');
+      if (groqKey && fs.existsSync(anythingllmEnvPath)) {
+        try {
+          let envContent = fs.readFileSync(anythingllmEnvPath, 'utf-8');
+          if (/^GROQ_API_KEY=\s*$/m.test(envContent)) {
+            envContent = envContent.replace(/^GROQ_API_KEY=\s*$/m, `GROQ_API_KEY=${groqKey}`);
+            fs.writeFileSync(anythingllmEnvPath, envContent, 'utf-8');
+            console.log('[AnythingLLM] Groq API key injected into .env');
+          }
+        } catch (e) {
+          console.warn('[AnythingLLM] Could not update .env with Groq key:', e);
+        }
+      }
+
+      // Step 2: Get/create API key
+      const pingResp = await fetch(`${baseUrl}/v1/auth`, {
+        headers: { 'Authorization': `Bearer ${String(s?.anythingllmApiKey || '')}` }
+      }).catch(() => null);
+
+      if (pingResp?.ok) {
+        return { ok: true, message: 'Already connected', apiKey: s?.anythingllmApiKey };
+      }
+
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Could not create API key — is the server running?' };
+
+      // Step 3: Create default "mossy-fo4" workspace if it doesn't exist
+      const wsRes = await anythingllmFetch('GET', '/v1/workspaces', undefined, apiKey);
+      const workspaces: any[] = wsRes.data?.workspaces || [];
+      const hasMossy = workspaces.some((w: any) => w.slug === 'mossy-fo4');
+      if (!hasMossy) {
+        await anythingllmFetch('POST', '/v1/workspace/new', {
+          name: 'Mossy FO4 Knowledge',
+          openAiPrompt: 'You are a Fallout 4 modding expert. Answer questions using only the provided document context. Be concise, specific, and cite source file names when referencing content.',
+          chatMode: 'query',
+          topN: 6,
+        }, apiKey);
+      }
+
+      return { ok: true, message: 'AnythingLLM connected and configured', apiKey };
+    } catch (err: any) {
+      console.error('[AnythingLLM] Setup error:', err);
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:workspaces', async () => {
+    try {
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Not connected', workspaces: [] };
+      const res = await anythingllmFetch('GET', '/v1/workspaces', undefined, apiKey);
+      return { ok: res.ok, workspaces: res.data?.workspaces || [], error: res.data?.error };
+    } catch (err: any) {
+      return { ok: false, workspaces: [], error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:create-workspace', async (_event, name: string, systemPrompt?: string) => {
+    try {
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Not connected' };
+      const res = await anythingllmFetch('POST', '/v1/workspace/new', {
+        name,
+        openAiPrompt: systemPrompt || 'You are a Fallout 4 modding expert. Answer questions using only the provided document context.',
+        chatMode: 'query',
+        topN: 6,
+      }, apiKey);
+      return { ok: res.ok, workspace: res.data?.workspace, error: res.data?.message };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:delete-workspace', async (_event, slug: string) => {
+    try {
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Not connected' };
+      const res = await anythingllmFetch('DELETE', `/v1/workspace/${slug}`, undefined, apiKey);
+      return { ok: res.ok, error: res.data?.error };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:chat', async (_event, slug: string, message: string, mode?: string) => {
+    try {
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Not connected', response: '' };
+      const res = await anythingllmFetch('POST', `/v1/workspace/${slug}/chat`, {
+        message,
+        mode: mode || 'query',
+      }, apiKey);
+      return {
+        ok: res.ok,
+        response: res.data?.textResponse || res.data?.error || '',
+        sources: res.data?.sources || [],
+        error: res.data?.error,
+      };
+    } catch (err: any) {
+      return { ok: false, response: '', sources: [], error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:upload-text', async (_event, params: { slug: string; title: string; content: string; docNamespace?: string }) => {
+    try {
+      const apiKey = await anythingllmEnsureApiKey();
+      if (!apiKey) return { ok: false, error: 'Not connected' };
+      const s = loadSettings();
+      const baseUrl = String(s?.anythingllmUrl || 'http://127.0.0.1:3001').replace(/\/$/, '');
+
+      // Upload text document via the raw-text endpoint
+      const uploadRes = await fetch(`${baseUrl}/v1/document/raw-text`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          textContent: params.content,
+          metadata: { title: params.title, docAuthor: 'Mossy Memory Vault' },
+        }),
+      }).catch(() => null);
+
+      if (!uploadRes?.ok) return { ok: false, error: 'Upload failed' };
+      const uploadData = await uploadRes.json();
+      const docLocation = uploadData?.documents?.[0]?.location;
+      if (!docLocation) return { ok: false, error: 'No document location returned' };
+
+      // Move document into the workspace
+      const syncRes = await anythingllmFetch('POST', `/v1/workspace/${params.slug}/update-embeddings`, {
+        adds: [docLocation],
+        deletes: [],
+      }, apiKey);
+
+      return { ok: syncRes.ok, docLocation, error: syncRes.data?.error };
+    } catch (err: any) {
+      console.error('[AnythingLLM] upload-text error:', err);
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  forceHandle('anythingllm:server-status', async () => {
+    const processRunning = !!_anythingllmProcess && !_anythingllmProcess.killed;
+    try {
+      const resp = await fetch(`http://127.0.0.1:${ANYTHINGLLM_PORT}/v1/auth`).catch(() => null);
+      const portListening = resp?.ok || resp?.status === 403;
+      return { processRunning, portListening, pid: _anythingllmProcess?.pid ?? null };
+    } catch {
+      return { processRunning, portListening: false, pid: _anythingllmProcess?.pid ?? null };
+    }
+  });
+
+  forceHandle('anythingllm:server-restart', async () => {
+    if (_anythingllmProcess) {
+      try { _anythingllmProcess.kill(); } catch { /* ignore */ }
+      _anythingllmProcess = null;
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    await autoStartAnythingLLM();
+    return { ok: true };
+  });
+
+  forceHandle('anythingllm:get-settings', async () => {
+    const s = loadSettings();
+    return {
+      url: s?.anythingllmUrl || 'http://127.0.0.1:3001',
+      enabled: Boolean(s?.anythingllmEnabled),
+      hasApiKey: Boolean(s?.anythingllmApiKey),
+    };
+  });
+
+  forceHandle('anythingllm:save-settings', async (_event, params: { url?: string; apiKey?: string; enabled?: boolean }) => {
+    try {
+      const current = loadSettings();
+      const updated: any = { ...(current || {}) };
+      if (params.url !== undefined) updated.anythingllmUrl = params.url;
+      if (params.apiKey !== undefined) updated.anythingllmApiKey = params.apiKey;
+      if (params.enabled !== undefined) updated.anythingllmEnabled = params.enabled;
+      saveSettings(updated);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
   const missingRequiredHandlers = REQUIRED_IPC_HANDLER_CHANNELS.filter(
     channel => !registeredHandlers.has(channel)
   );
@@ -34657,6 +34930,82 @@ function setupWizardIpcHandlers(): void {
 let _koboldProcess: import('child_process').ChildProcess | null = null;
 const KOBOLD_PORT = 5001;
 
+// ── AnythingLLM process state ────────────────────────────────────────────────
+let _anythingllmProcess: import('child_process').ChildProcess | null = null;
+const ANYTHINGLLM_PORT = 3001;
+const ANYTHINGLLM_SERVER_DIR = 'D:\\Projects\\anything-llm\\server';
+
+async function autoStartAnythingLLM(): Promise<void> {
+  const serverScript = path.join(ANYTHINGLLM_SERVER_DIR, 'index.js');
+  const nodeModules  = path.join(ANYTHINGLLM_SERVER_DIR, 'node_modules');
+
+  if (!fs.existsSync(serverScript) || !fs.existsSync(nodeModules)) {
+    console.log('[AnythingLLM] Server not installed at', ANYTHINGLLM_SERVER_DIR, '— skipping auto-start');
+    return;
+  }
+
+  if (_anythingllmProcess && !_anythingllmProcess.killed) {
+    console.log('[AnythingLLM] Process already running');
+    return;
+  }
+
+  // Check if something else is already listening on port 3001
+  try {
+    const testResp = await fetch(`http://127.0.0.1:${ANYTHINGLLM_PORT}/v1/auth`).catch(() => null);
+    if (testResp?.ok || testResp?.status === 403) {
+      console.log('[AnythingLLM] Already running externally on port', ANYTHINGLLM_PORT);
+      return;
+    }
+  } catch { /* not running yet — proceed */ }
+
+  const { spawn } = await import('child_process');
+
+  // Find node.exe: prefer explicit paths, fall back to PATH
+  const nodeLocations = [
+    'C:\\Program Files\\nodejs\\node.exe',
+    path.join(process.env['LOCALAPPDATA'] || '', 'Programs', 'nodejs', 'node.exe'),
+    path.join(process.env['APPDATA'] || '', 'nvm', 'nodejs', 'node.exe'),
+  ];
+  let nodeExe = 'node'; // PATH fallback
+  for (const loc of nodeLocations) {
+    if (fs.existsSync(loc)) { nodeExe = loc; break; }
+  }
+
+  console.log('[AnythingLLM] Spawning server — node:', nodeExe);
+
+  _anythingllmProcess = spawn(nodeExe, ['index.js'], {
+    cwd: ANYTHINGLLM_SERVER_DIR,
+    detached: false,
+    stdio: 'pipe',
+    env: { ...process.env, NODE_ENV: 'production' },
+  });
+
+  _anythingllmProcess.stdout?.on('data', (data: Buffer) => {
+    const msg = data.toString().trim();
+    if (msg) console.log('[AnythingLLM]', msg.slice(0, 200));
+  });
+
+  _anythingllmProcess.stderr?.on('data', (data: Buffer) => {
+    const msg = data.toString().trim();
+    // Suppress noisy Node deprecation warnings
+    if (msg && !msg.includes('DeprecationWarning') && !msg.includes('ExperimentalWarning')) {
+      console.warn('[AnythingLLM] stderr:', msg.slice(0, 200));
+    }
+  });
+
+  _anythingllmProcess.on('exit', (code: number) => {
+    console.log('[AnythingLLM] Server exited, code:', code);
+    _anythingllmProcess = null;
+  });
+
+  _anythingllmProcess.on('error', (err: Error) => {
+    console.error('[AnythingLLM] Process error:', err.message);
+    _anythingllmProcess = null;
+  });
+
+  console.log('[AnythingLLM] Server process started (PID:', _anythingllmProcess.pid, ')');
+}
+
 app.whenReady().then(() => {
   writeMainLog('═══ app.whenReady() FIRED ═══');
   console.log('[Main] ═════════════════════════════════════════════════════════════');
@@ -34789,6 +35138,11 @@ app.whenReady().then(() => {
   } catch (err: any) {
     writeMainLog(`ERROR starting bridge servers: ${err?.message || err}`);
   }
+
+  // Auto-start AnythingLLM RAG engine (non-blocking — fires and forgets)
+  autoStartAnythingLLM().catch((err: any) => {
+    console.warn('[AnythingLLM] Auto-start failed:', err?.message || err);
+  });
 
   try {
     // Register Texture Enhancer handlers (uses BridgeServer for Blender integration)
@@ -36064,6 +36418,7 @@ app.on('will-quit', () => {
   bridge.stop();
   f4aiBridge.stop();
   if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
+  if (_anythingllmProcess) { try { _anythingllmProcess.kill(); } catch { /* ignore */ } _anythingllmProcess = null; }
 });
 
 // Handle second instance (ensure single instance) - MOVED INSIDE app.whenReady()

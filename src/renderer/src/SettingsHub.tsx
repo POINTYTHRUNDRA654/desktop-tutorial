@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star,
+  Package, Palette, Shield, Coffee, Star, Database,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -12,6 +12,7 @@ import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
+import AnythingLLMSettings from './AnythingLLMSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
 import VersionInfo from './VersionInfo';
@@ -413,6 +414,15 @@ const SettingsHub: React.FC = () => {
       content: <OllamaSettings embedded />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-slate-800 border-slate-600 text-slate-400',
+    },
+    {
+      id: 'anythingllm',
+      title: 'Step 3c: AnythingLLM — RAG Knowledge Engine',
+      description: 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.',
+      icon: Database,
+      content: <AnythingLLMSettings embedded />,
+      badge: 'OPTIONAL',
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },
     {
       id: 'external-tools',

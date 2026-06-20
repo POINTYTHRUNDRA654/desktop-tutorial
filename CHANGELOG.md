@@ -4,7 +4,99 @@ All notable changes to **Mossy — The Fallout 4 Modding Assistant** are documen
 
 ---
 
-## [5.4.68] — Latest
+## [5.4.70] — Latest
+
+### Added — AnythingLLM RAG Engine Integration
+
+Full integration of [AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) as a local vector-database RAG backend for MOSSY.SPACE.
+
+**Setup & Configuration**
+- Cloned `Mintplex-Labs/anything-llm` to `d:/Projects/anything-llm/`
+- Pre-configured server `.env` with Groq as LLM provider, native embedder, LanceDB vector DB
+- `start-mossy.bat` — one-click launch script with auto-install of dependencies
+- `Settings → Step 3c: AnythingLLM` — new settings panel with:
+  - Connection status indicator (CONNECTED / UNREACHABLE / NOT TESTED)
+  - Server URL and API key configuration
+  - **Auto-Connect** button — logs in, creates a permanent API key, and creates the default `Mossy FO4 Knowledge` workspace automatically
+  - Workspace manager: create, list, and delete workspaces
+  - Quick-start guide with step-by-step instructions
+
+**Main Process (IPC handlers)**
+- `anythingllm:ping` — server health check
+- `anythingllm:setup` — auto-login, API key creation, default workspace bootstrap, Groq key injection into AnythingLLM `.env`
+- `anythingllm:workspaces` — list all workspaces
+- `anythingllm:create-workspace` — create workspace with FO4 system prompt
+- `anythingllm:delete-workspace` — delete workspace by slug
+- `anythingllm:chat` — RAG-enhanced chat against a workspace (returns answer + sources)
+- `anythingllm:upload-text` — ingest a text document into a workspace
+- `anythingllm:get-settings` / `anythingllm:save-settings` — persist connection config
+
+**Knowledge Hub — RAG Search tab (tab 5)**
+- New `RAG Search` tab in FO4 Knowledge Hub powered by AnythingLLM
+- Workspace selector, query input, Ask RAG button
+- Response display with collapsible source attribution
+- Graceful offline state: shows start instructions if server not running
+
+**Memory Vault — AnythingLLM Sync**
+- `AnythingLLMSyncPanel` component auto-detects if server is running
+- **Sync to AnythingLLM** button pushes all memory items as structured documents to the selected workspace
+- Documents include title, source, tags, trust level, and content — fully indexed for semantic retrieval
+- Success/failure count shown after sync
+
+---
+
+## [5.4.69] — Previous
+
+### Added — Vault-Tec Creative Director: Project Queue System
+
+The Creative Director's Lab Handoff now has a full queue system so no sent-back project is ever silently dropped. Previously, clicking "Send Back" on a finished project while the team was already working on something else would fail silently — the project vanished from the handoff list but the team never picked it up. All of that is replaced with a guaranteed queue.
+
+- **Queue type + state**: Added `CdQueueEntry` (id, completedProject, project, userNotes, queuedAt) and `pendingQueue: CdQueueEntry[]` to `CdTeamState` in `main.ts`. State saves and loads with backwards-compat default (`pendingQueue = []` on first load).
+- **Queue draining in the tick**: `runCreativeDirectorTick` now checks `pendingQueue` before generating a brand-new idea — queued revisions always take priority over new work. The team works through them automatically in order.
+- **`reopenProject` rewritten**: When the team is free, the project starts immediately. When the team is busy, it pushes to `pendingQueue` and saves state — no more silent failures.
+- **`creative-director:dequeue-project` IPC handler**: Pulls a project out of the queue by entry ID and restores it to `completedProjects` (the "Cancel Queue" path).
+- **`getState` handler updated**: Returns `pendingQueue` mapped with position numbers so the UI can display queue order.
+- **`dequeueProject` added to `preload.ts`**: Renderer can call the cancel-queue path.
+
+### Added — Vault-Tec Creative Director: xEdit Script Generator
+
+The AI team can now write a Pascal FO4Edit script that auto-populates your ESP with every vanilla asset record they selected for the mod — TXST texture sets, STAT statics, ACTI activators, CONT containers, DOOR doors, and any other record types in the asset list. When you load the script in xEdit, it pre-wires everything so all you need to do is place objects in the CK and build custom meshes.
+
+- **`creative-director:generate-xedit-script` IPC handler** in `main.ts`: Calls the AI with a detailed system prompt that knows the xEdit Pascal API (`Add`, `ElementByPath`, `SetEditValue`, `FileByName`, `AddMessage`), groups textures by base name, prefixes EditorIDs from the mod title, and saves the output `.pas` file to the project's output folder.
+- **xEdit Script UI panel** in `HandoffProjectCard` (`CreativeDirectorPanel.tsx`): Cyan-accented panel (Code2 icon) with ESP filename input, asset count display, Generate button, success state with Open Folder + Regenerate actions. Shows between Build Mod Structure and the Guide Viewer.
+- **`generateXEditScript` added to `preload.ts`**: Renderer invokes the IPC handler with output dir, selected assets, guide content, and ESP name.
+
+### Improved — Vault-Tec Creative Director: Lab Handoff Queue UX
+
+- **"In the Team's Queue" section** added to `HandoffPanel`: appears above the main Finished list when `pendingQueue` is non-empty. Violet header badge reads "In the Team's Queue (N)" with a note: "These are sent — the team works through them automatically in order. No action needed."
+- **QUEUED #N badge** on each queued card (violet, shows position in line).
+- **"Cancel Queue" button** replaces the old "Remove" button on queued cards. Tooltip: "Cancel — pull this project out of the queue and return it to the Finished list." The old "Remove" label caused confusion — users thought they were supposed to press it as a required step.
+- **Send Back panel hidden** on queued cards — you can't send back something that's already queued.
+- **Queue notes block** shows the revision notes that were submitted with the send-back.
+
+### Improved — Mossy AI Response Depth
+
+Replaced the strict response-length cap (150 words, "give step 1 then stop") that was causing Mossy to cut off mid-explanation during deep technical discussions. The previous constraints were added to reduce rambling but overcorrected — Mossy was truncating multi-step workflows and stopping before finishing answers.
+
+The new guidance in `MossyBrain.ts` (frontend only — backend untouched) is depth-calibrated:
+- Complete the answer. All steps in one response — no drip-feeding.
+- Be specific: concrete file paths, record types, tool names.
+- No preamble, no restatement summary, no padding.
+- Simple question → concise answer. Deep question → full answer without artificial truncation.
+
+### Fixed — F4AI DLL: Papyrus Natives Never Registered
+
+`F4SEPlugin_Load` in `MiscUtil.cpp` was only fetching the plugin handle then returning `true` — `g_papyrus->Register(RegisterFunctions)` had been disabled, meaning every Papyrus native function provided by the DLL was silently unavailable in-game even though the DLL loaded. Re-enabled the registration call. Combined with the prior-session fix adding `0x010B0BF0` (FO4 1.11.191) to `compatibleVersions`, the plugin now loads correctly and all natives are available on current game versions.
+
+### Fixed — Tutorial Context: Creative Director Missing, Platform Count Wrong, Route Error
+
+- **Vault-Tec Creative Director** (`/creative-director`) had no tutorial context entry at all — Mossy had no knowledge of the platform's features, controls, or workflows. Added a full entry covering the AI team, Concept Art Studio, Build Mod Structure, Lab Handoff, queue system, xEdit Script Generator, and Guide Viewer. Includes 3 step-by-step guides and 7 suggested questions.
+- **Home dashboard purpose** still said "22 platforms" after Creative Director was added as platform 23. Updated to 23.
+- **Automation Runner route** in tutorial context was `/dev/workflow-runner` (the old internal redirect path). Corrected to `/workflow-runner` (the actual user-facing route).
+
+---
+
+## [5.4.68] — Previous
 
 ### Fixed — Platform Deep Scans: Wizards Hub, Textures & Materials, Packaging & Release
 
