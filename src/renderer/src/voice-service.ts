@@ -984,36 +984,85 @@ export class VoiceService {
     }
   }
 
+  // Chromium/Electron cuts off SpeechSynthesisUtterance silently after ~200 chars.
+  // Split on sentence endings; if a sentence is still too long, split at word boundaries.
+  private chunkTextForTts(text: string, maxLen = 180): string[] {
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    const chunks: string[] = [];
+    let current = '';
+    for (const sentence of sentences) {
+      const candidate = current ? current + ' ' + sentence : sentence;
+      if (candidate.length <= maxLen) {
+        current = candidate;
+      } else {
+        if (current) chunks.push(current.trim());
+        if (sentence.length <= maxLen) {
+          current = sentence;
+        } else {
+          const words = sentence.split(/\s+/);
+          current = '';
+          for (const word of words) {
+            const wCandidate = current ? current + ' ' + word : word;
+            if (wCandidate.length <= maxLen) {
+              current = wCandidate;
+            } else {
+              if (current) chunks.push(current.trim());
+              current = word;
+            }
+          }
+        }
+      }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.filter(c => c.length > 0);
+  }
+
+  private speakChunk(
+    chunk: string,
+    settings: { rate: number; pitch: number; volume: number },
+    voice: SpeechSynthesisVoice | null,
+    lang: string,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const utterance = new SpeechSynthesisUtterance(chunk);
+      utterance.rate = settings.rate;
+      utterance.pitch = settings.pitch;
+      utterance.volume = settings.volume;
+      utterance.lang = lang;
+      if (voice) utterance.voice = voice;
+
+      // Per-chunk timeout: 15 s is far more than needed for ≤180 chars
+      const timer = setTimeout(() => {
+        window.speechSynthesis.cancel();
+        resolve();
+      }, 15000);
+
+      utterance.onend = () => { clearTimeout(timer); resolve(); };
+      utterance.onerror = (event) => {
+        clearTimeout(timer);
+        if (event?.error === 'canceled' || event?.error === 'interrupted') {
+          resolve();
+        } else {
+          reject(new Error(`TTS error: ${event.error}`));
+        }
+      };
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+
   private async speakBrowser(text: string): Promise<void> {
     console.log('[VoiceService] speakBrowser() called');
     if (!('speechSynthesis' in window)) {
-      console.error('[VoiceService] Speech synthesis not supported in window');
       throw new Error('Speech synthesis not supported');
     }
-    console.log('[VoiceService] SpeechSynthesis is available');
 
-    // ALWAYS cancel the synthesis queue before speaking, not just when already speaking.
-    // Electron/Chromium has a known bug where speechSynthesis.speak() queues a second
-    // utterance after the first completes but onstart/onend never fire — the queue
-    // silently accepts it and hangs. Canceling first guarantees a clean slate every call.
-    const SPEECH_SYNTHESIS_CLEAR_DELAY_MS = 150;
-    console.log('[VoiceService] Resetting speechSynthesis state before speak (speaking:', window.speechSynthesis.speaking, ', pending:', window.speechSynthesis.pending, ', paused:', window.speechSynthesis.paused, ')');
+    // Reset synthesis state before starting
     window.speechSynthesis.cancel();
-    // Give the engine time to fully clear its internal queue before queuing the new utterance.
-    await new Promise(resolve => setTimeout(resolve, SPEECH_SYNTHESIS_CLEAR_DELAY_MS));
+    await new Promise(resolve => setTimeout(resolve, 150));
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
 
-    // Resume if paused — Chrome/Electron can leave speechSynthesis in a paused
-    // state, causing new speak() calls to silently queue but never start.
-    if (window.speechSynthesis.paused) {
-      console.log('[VoiceService] speechSynthesis is paused, resuming');
-      window.speechSynthesis.resume();
-    }
-
-    // Wait for voices to be available before creating the utterance so the
-    // preferred voice is correctly applied before queuing.
-    const currentVoices = window.speechSynthesis.getVoices();
-    if (currentVoices.length === 0) {
-      console.log('[VoiceService] Waiting for voiceschanged before speaking');
+    // Wait for voices to load
+    if (window.speechSynthesis.getVoices().length === 0) {
       await new Promise<void>((resolve) => {
         let done = false;
         const finish = () => { if (!done) { done = true; resolve(); } };
@@ -1022,13 +1071,12 @@ export class VoiceService {
             window.speechSynthesis.removeEventListener('voiceschanged', handler);
             finish();
           });
-        } catch (e) { console.warn('[VoiceService] Could not add voiceschanged listener:', e); }
+        } catch { /* ignore */ }
         setTimeout(finish, 1500);
       });
     }
 
-    // Resolve TTS language from settings so the utterance is spoken in the
-    // user's selected language and voice selection is filtered accordingly.
+    // Resolve language
     let ttsBcp47 = 'en-US';
     let ttsLangBase = '';
     try {
@@ -1041,101 +1089,39 @@ export class VoiceService {
           ttsBcp47 = uiLangToBcp47(raw);
         }
       }
-    } catch {
-      // ignore — keep defaults
+    } catch { /* keep defaults */ }
+
+    const browserSettings = loadBrowserTtsSettings();
+    if (!browserSettings.enabled) return;
+
+    if (this.shouldStop) return;
+
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || '';
+    const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined, ttsLangBase || undefined);
+    const voiceLang = selectedVoice?.lang || ttsBcp47;
+
+    this.onModeChange?.('speaking');
+
+    // Split text into ≤180-char chunks and speak each one sequentially.
+    // This works around the Chromium/Electron bug where a single long utterance
+    // is silently cut off mid-sentence.
+    const chunks = this.chunkTextForTts(text);
+    console.log('[VoiceService] Speaking', chunks.length, 'chunks for', text.length, 'chars');
+
+    for (const chunk of chunks) {
+      if (this.shouldStop) break;
+      try {
+        await this.speakChunk(chunk, browserSettings, selectedVoice, voiceLang);
+      } catch (err: any) {
+        if (/canceled|interrupted/i.test(err?.message ?? '')) break;
+        throw err;
+      }
+      // Brief inter-chunk pause to avoid Chromium queue jank
+      if (!this.shouldStop) await new Promise(r => setTimeout(r, 50));
     }
-    console.log('[VoiceService] TTS language resolved:', ttsBcp47);
 
-    return new Promise((resolve, reject) => {
-      if (this.shouldStop) {
-        console.log('[VoiceService] speakBrowser: shouldStop is true, resolving early');
-        resolve();
-        return;
-      }
-
-      // Safety timeout — if Electron's speechSynthesis never fires onend/onerror
-      // (a known Chromium bug on the second+ utterance), force-resolve after 30s
-      // so the voice pipeline never gets permanently stuck in 'speaking' mode.
-      const TTS_HANG_TIMEOUT_MS = 30000;
-      const hangTimer = setTimeout(() => {
-        console.warn('[VoiceService] ⚠️ TTS utterance onend never fired after', TTS_HANG_TIMEOUT_MS, 'ms — force-resolving to unblock pipeline');
-        window.speechSynthesis.cancel();
-        this.onModeChange?.('idle');
-        resolve();
-      }, TTS_HANG_TIMEOUT_MS);
-
-      const browserSettings = loadBrowserTtsSettings();
-      if (!browserSettings.enabled) {
-        console.log('[VoiceService] Browser TTS disabled in settings, skipping speak');
-        clearTimeout(hangTimer);
-        resolve();
-        return;
-      }
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = browserSettings.rate;
-      utterance.pitch = browserSettings.pitch;
-      utterance.volume = browserSettings.volume;
-      console.log('[VoiceService] Created SpeechSynthesisUtterance, lang:', ttsBcp47);
-
-      // Set voice — voices are now guaranteed to be loaded (or we timed out and will use default).
-      const preferredVoice = browserSettings.preferredVoiceName || import.meta.env.VITE_BROWSER_TTS_VOICE || '';
-      console.log('[VoiceService] Preferred voice:', preferredVoice);
-      const voices = window.speechSynthesis.getVoices();
-      console.log('[VoiceService] Available voices:', voices.map(v => ({ name: v.name, lang: v.lang, localService: v.localService })));
-      const selectedVoice = pickBrowserTtsVoice(voices, preferredVoice || undefined, ttsLangBase || undefined);
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        // Match the language to the actual selected voice's language, not the requested language
-        const voiceLang = selectedVoice.lang || ttsBcp47;
-        utterance.lang = voiceLang;
-        console.log('[VoiceService] Selected voice:', selectedVoice.name, selectedVoice.lang, '-> setting utterance.lang to:', voiceLang);
-      } else {
-        console.warn('[VoiceService] No matching voice found, using browser default');
-        // If no voice found, set language to requested language
-        utterance.lang = ttsBcp47;
-      }
-
-      utterance.onstart = () => {
-        console.log('[VoiceService] 🎵 Speech utterance started at', new Date().toISOString());
-        if (this.shouldStop) {
-          console.log('[VoiceService] Cancelling speech due to shouldStop');
-          clearTimeout(hangTimer);
-          window.speechSynthesis.cancel();
-          resolve();
-        } else {
-          this.onModeChange?.('speaking');
-        }
-      };
-      utterance.onend = () => {
-        clearTimeout(hangTimer);
-        console.log('[VoiceService] 🔇 Speech utterance ended at', new Date().toISOString(), '- waiting', this.TTS_RESUME_DELAY_MS, 'ms for speaker decay');
-        this.onModeChange?.('idle');
-        resolve();
-      };
-      utterance.onerror = (event) => {
-        clearTimeout(hangTimer);
-        // Treat explicit cancellations and interruptions as normal completion (do not surface as an error).
-        if (event?.error === 'canceled' || event?.error === 'interrupted') {
-          // 'interrupted'/'canceled' is expected when user presses stop — no logging needed
-          this.onModeChange?.('idle');
-          resolve();
-          return;
-        }
-
-        console.error('[VoiceService] Speech utterance error:', event.error, event);
-        this.onModeChange?.('idle');
-
-        if (this.shouldStop) {
-          resolve();
-        } else {
-          reject(new Error(`TTS error: ${event.error}`));
-        }
-      };
-
-      console.log('[VoiceService] Calling window.speechSynthesis.speak()');
-      window.speechSynthesis.speak(utterance);
-    });
+    this.onModeChange?.('idle');
   }
 
 

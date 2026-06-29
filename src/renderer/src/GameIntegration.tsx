@@ -1,6 +1,6 @@
 /**
  * Game Integration UI Component
- * Real-time integration with running Fallout 4/Skyrim instances
+ * Real-time integration with running Fallout 4 instances via F4SE bridge
  * Five main tabs: Game Monitor, Console Commander, Save Game Analyzer, Performance Dashboard, Quick Test Tools
  */
 
@@ -12,7 +12,6 @@ import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Alert, AlertDescription } from './components/ui/alert';
 import { Progress } from './components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/Select';
 import { Textarea } from './components/ui/Textarea';
 import { ScrollArea } from './components/ui/ScrollArea';
 import { Separator } from './components/ui/Separator';
@@ -46,7 +45,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
 
   // Console Commander state
   const [commandInput, setCommandInput] = useState('');
-  const [selectedGame, setSelectedGame] = useState<'fallout4' | 'skyrim'>('fallout4');
+  const selectedGame = 'fallout4' as const;
   const [commandOutput, setCommandOutput] = useState<string[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
   const [macroName, setMacroName] = useState('');
@@ -91,7 +90,6 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
       const game = typeof api?.gameDetectGame === 'function' ? await api.gameDetectGame() : null;
       setRunningGame(game);
       if (game) {
-        setSelectedGame(game.game);
         // Load active mods and start monitoring
         loadActiveMods(game);
         startPerformanceMonitoring(game.pid);
@@ -251,7 +249,6 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             commandInput={commandInput}
             setCommandInput={setCommandInput}
             selectedGame={selectedGame}
-            setSelectedGame={setSelectedGame}
             commandOutput={commandOutput}
             isExecuting={isExecuting}
             onExecuteCommand={executeCommand}
@@ -330,7 +327,7 @@ const GameMonitorTab: React.FC<GameMonitorTabProps> = ({
       {!runningGame ? (
         <Alert>
           <AlertDescription>
-            No running Fallout 4 or Skyrim game detected. Launch the game and click "Refresh Game Status".
+            No running Fallout 4 process detected. Launch the game and click "Refresh Game Status".
           </AlertDescription>
         </Alert>
       ) : (
@@ -437,8 +434,7 @@ const GameMonitorTab: React.FC<GameMonitorTabProps> = ({
 interface ConsoleCommanderTabProps {
   commandInput: string;
   setCommandInput: (value: string) => void;
-  selectedGame: 'fallout4' | 'skyrim';
-  setSelectedGame: (value: 'fallout4' | 'skyrim') => void;
+  selectedGame: 'fallout4';
   commandOutput: string[];
   isExecuting: boolean;
   onExecuteCommand: (command: string) => void;
@@ -456,7 +452,6 @@ const ConsoleCommanderTab: React.FC<ConsoleCommanderTabProps> = ({
   commandInput,
   setCommandInput,
   selectedGame,
-  setSelectedGame,
   commandOutput,
   isExecuting,
   onExecuteCommand,
@@ -477,15 +472,9 @@ const ConsoleCommanderTab: React.FC<ConsoleCommanderTabProps> = ({
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4">
-            <Select value={selectedGame} onValueChange={setSelectedGame}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fallout4">Fallout 4</SelectItem>
-                <SelectItem value="skyrim">Skyrim</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center px-3 py-2 rounded border border-slate-700 bg-slate-800 text-xs font-semibold text-amber-400 whitespace-nowrap">
+              Fallout 4
+            </div>
             <Input
               value={commandInput}
               onChange={(e: any) => setCommandInput(e.target.value)}

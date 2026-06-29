@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Database, Wifi, WifiOff, Plus, Trash2, RefreshCw,
   CheckCircle2, AlertCircle, Loader2, Key, Settings, Play, RotateCcw,

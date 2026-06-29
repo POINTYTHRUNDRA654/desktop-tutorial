@@ -1685,22 +1685,32 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                 }).join('\n')
                 : "\n**FALLOUT 4 NOT DETECTED** - User may need to manually specify game folder in External Tools Settings.";
 
-            // Expose current hub architecture so Mossy stays aligned with the 22-platform UI
-            const appFeatures = `\n**MOSSY PLATFORMS (Current):**\n` +
+            // Expose current hub architecture so Mossy stays aligned — action-oriented so she can tell users what they DO in each platform
+            const appFeatures = `\n**MOSSY PLATFORMS — What You Can DO in Each One:**\n` +
                 [
-                    "• FO4 Mod Journey Hub (/journey-hub): Project flow, First Success, mod browser, and roadmap planning.",
-                    "• Creation Kit Hub (/ck-tools): CK safety tooling, crash prevention workflows, and FO4 CK references.",
-                    "• Textures & Materials Hub (/textures): DDS format decisions and FO4 material pipeline guidance.",
-                    "• FO4 Plugin & Load Order Hub (/plugin-tools): xEdit conflict checks, load order workflows, PRP-aware patching, and plugin-reference guidance.",
-                    "• FO4 Asset Analysis Hub (/asset-analysis): Mining Dashboard, Advanced Analysis, Asset Deduplicator, and FO4 asset optimization guidance.",
-                    "• FO4 Mod Builder Hub (/mod-builder): Blueprint, Workshop, Devtools, and Scribe workflows for building complete mods.",
-                    "• FO4 Automation Orchestrator (/orchestrator): Type-based asset pipelines, step-by-step run logs, storage stats, and BA2 staging queue.",
-                    "• FO4 Automation Runner (/workflow-runner): Typed step workflows, desktop execution, run history logs, and JSON import/export sharing.",
-                    "• Packaging & Release Hub (/packaging-release): BA2 and FOMOD packaging/release checks.",
-                    "• FO4 Runtime Hub (/runtime-hub): Live Synapse voice workflows, Desktop Bridge connectivity, and Holodeck runtime testing.",
-                    "• FO4 External Integrations Hub (/ext-tools): MO2, ComfyUI, Upscayl, plus auto-detected setup-time desktop tools like xEdit, Creation Kit, Blender, LOOT, NifSkope, and BodySlide.",
-                    "• FO4 System & Diagnostics Hub (/system-hub): diagnostics, local AI capabilities, blacklist/security management, asset vault, and Mossy support.",
-                    "• FO4 Knowledge Hub (/knowledge-hub): in-app FO4 docs/reference search."
+                    "• Mossy.Space Home Dashboard (/): See all 23 platforms at a glance, check live health badges (Electron, Storage, Vault, Mic, TTS), view your active project, and jump directly to any hub. Use the 6-step 'Where to Start' guide to orient a brand-new modder. The UPLINK badge tells you whether the Desktop Bridge (local tooling) is connected.",
+                    "• AI Chat (/chat): Talk to Mossy about anything FO4-related. Ask step-by-step how-to questions, debug mod issues, get workflow guidance, request Papyrus script help, upload files for analysis, enable voice mode for hands-free chat, and use the Knowledge Vault to store important notes for Mossy to reference in future chats.",
+                    "• AI Mod Assistant (/ai-mod-assistant): Get specialized AI help directly tied to your open project. The assistant knows your mod's current state and gives targeted advice — more project-aware than general chat.",
+                    "• FO4 Mod Journey Hub (/journey-hub): Start or continue your modding project here. Create a project, follow the First Success walkthrough (the proven beginner path to publishing a real mod), browse Nexus Mods by category, and build your personal modding roadmap step by step.",
+                    "• FO4 What's New (/whats-new): Read the latest MOSSY.SPACE release notes and see what changed in the most recent update.",
+                    "• FO4 Knowledge Hub (/knowledge-hub): Search the built-in FO4 documentation library, browse the Quick Reference sheet (FormIDs, record types, keywords, common values), look up community guides, and query the RAG Search (AnythingLLM) to search documents you've uploaded.",
+                    "• FO4 Memory Vault (/memory-vault): Store, tag, search, and manage your personal modding notes — recipes, references, solutions to problems, workflow steps. Sync entries to AnythingLLM so Mossy can use them as a knowledge source in RAG Search.",
+                    "• FO4 Setup Wizards (/wizards): Run guided wizards for first-time setup — configure xEdit, Creation Kit, Blender, LOOT, and other tools; verify your FO4 Data folder; and walk through environment checks so everything is wired correctly before you start modding.",
+                    "• FO4 Creation Kit Hub (/ck-tools): Work safely in Creation Kit. Use CK crash prevention tools, the FormID reference panel, quest/dialogue wizards, NPC editor guides, navmesh helpers, and the CK workflow library. This hub prevents the most common CK mistakes (wrong active file, accidental deletes, precombine breaks).",
+                    "• FO4 Textures & Materials Hub (/textures): Make DDS format decisions, convert and batch-process textures (DDS Converter), edit BGSM/BGEM material files visually (Material Editor, BGSM Editor), generate textures with AI (Texture Generator), upscale low-res textures (Texture Enhancer), and follow FO4 material pipeline guides.",
+                    "• FO4 Packaging & Release (/packaging-release): Pack your mod correctly. Build BA2 archives, create and validate FOMOD installer packages, run pre-release checklists (ITMs, UDRs, conflict scan, file structure), and prepare your mod for Nexus Mods upload.",
+                    "• FO4 Guides Hub (/guides-hub): Read in-depth built-in guides — Papyrus scripting, Bodyslide, Blender-to-FO4 NIF pipeline, Quest mod authoring, Sim Settlements 2, animations, and more. Each guide is a full walkthrough, not a stub.",
+                    "• FO4 Automation Studio (/tools/cosmos): Build and run multi-step automation pipelines (Cosmos Workflow). Chain tasks like 'scan → analyze → convert → pack' into a single automated run. Good for batch processing large asset sets.",
+                    "• FO4 Mod Builder Hub (/mod-builder): The all-in-one mod construction workspace. Use The Blueprint to plan your mod's architecture, The Workshop to assemble assets and scripts, The Scribe to write dialogue and lore, and Dev Tools for advanced scripting and debugging.",
+                    "• FO4 Asset Analysis Hub (/asset-analysis): Deep-dive into your mod's assets. Run the Mining Dashboard to extract and index your FO4 Data folder, use Advanced Analysis to inspect meshes/textures/scripts, and run the Asset Deduplicator to find and eliminate redundant files that bloat your mod.",
+                    "• FO4 Automation Orchestrator (/orchestrator): Set up type-based asset pipelines (e.g., 'process all NIF files'), monitor pipeline run logs step-by-step, manage the BA2 staging queue, and view storage stats. More powerful than the Automation Runner — handles complex multi-type workflows.",
+                    "• FO4 Automation Runner (/workflow-runner): Run individual typed workflow steps manually or in sequence. Import/export workflow JSON to share with other modders. View run history and reuse successful workflows.",
+                    "• FO4 Runtime Hub (/runtime-hub): Test your mod live. Use Live Synapse for voice-activated real-time commands while FO4 is running, connect the Desktop Bridge to control Blender and other tools from Mossy, and use the Holodeck to run in-game tests and monitor runtime behavior.",
+                    "• FO4 External Integrations Hub (/ext-tools): Configure and launch every external tool from one place — MO2, Vortex, Blender, xEdit, Creation Kit, LOOT, NifSkope, BodySlide, GIMP, BAE, Archive2, ComfyUI, Upscayl. Each integration shows connection status and has a launch button. Also manage MO2 profiles, run ComfyUI image generation workflows, and upscale textures with Upscayl.",
+                    "• FO4 Plugin & Load Order Hub (/plugin-tools): Manage your plugin load order safely. Scan for conflicts with xEdit, sort with LOOT, detect ITMs and UDRs, build conflict-resolution patches, manage ESL/ESP/ESM plugin types, and follow PRP-aware patching workflows to avoid breaking precombines.",
+                    "• FO4 System & Diagnostics Hub (/system-hub): Diagnose Mossy itself. Run hardware scans, check local AI capabilities (Ollama, KoboldCPP), manage the mod blacklist and whitelist, browse the asset vault, view Mossy's logs, and get support information.",
+                    "• Settings (/settings): Configure everything — FO4 game folder, tool paths (xEdit, CK, Blender, etc.), AI engine settings (Groq model, max tokens, voice), AnythingLLM RAG connection, appearance, and all other Mossy preferences.",
+                    "• Vault-Tec Creative Director (/creative-director): The AI design team. Enable the autonomous AI team to generate complete Fallout 4 mod concepts with full BUILD_GUIDE documentation — quest design, NPC concepts, dialogue, world-building, art direction, and Papyrus script stubs. Review finished projects in Lab Handoff, score them on buildability, enhance guides with your real asset paths, and generate xEdit setup scripts.",
                 ].join('\n');
 
             return `

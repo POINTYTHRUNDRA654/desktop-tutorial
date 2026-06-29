@@ -537,9 +537,9 @@ export const LocalAIEngine = {
         /i\s+don'?t\s+(remember|retain|recall)\s+(conversations|past|previous|prior)/i,
         /i\s+have\s+no\s+(memory|recollection)\s+of\s+(previous|past|prior|our)/i,
         /no\s+(persistent\s+)?(memory|memories)\s+(between|across)\s+sessions/i,
-        // "As a/an (large) language model / AI / LLM, ..."
-        /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
-        /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm|ai\b)/i,
+        // "As a/an language model / LLM, I can't..." (must combine self-ID + internet denial)
+        /^as\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm).{0,60}(cannot|can'?t|unable|don'?t\s+have).*(internet|web|access)/i,
+        /^being\s+(a\s+|an?\s+)?(large\s+)?(language\s+model|llm).{0,60}(cannot|can'?t|unable|don'?t\s+have).*(internet|web|access)/i,
         // Direct internet refusal
         /i\s+(cannot|can'?t|am\s+unable\s+to)\s+(access|browse|go\s+online|reach)\s+the\s+(internet|web)/i,
         /i\s+don'?t\s+have\s+(internet\s+access|access\s+to\s+the\s+internet)/i,
@@ -594,29 +594,21 @@ export const LocalAIEngine = {
       /i\s+can'?t\s+(search|look\s+up|find)\s+(online|web|internet)/i,
       /i\s+cannot\s+(search|look\s+up|find)\s+(online|web|internet)/i,
 
-      // === LLM/AI + INTERNET DENIAL (ANY TENSE/FORM) ===
-      // Catch anything like "I am/I'm an LLM/AI/language model" anywhere followed by denial
-      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+|a\s+|an?\s+)?llm/i,
-      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+|a\s+|an?\s+)?(large\s+)?language\s+model/i,
-      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?an?\s+ai(\s|$|\.)/i,
-      /(i\s+|i'?m\s+)?(am\s+|'?m\s+)?(just\s+)?base\s+llm/i,
-
-      // Specific "I'm/am a/an [X]" patterns - will match in ANY position
+      // === LLM/AI SELF-IDENTIFICATION (explicit "I am/I'm" required to avoid false positives) ===
       /\bi'?m\s+(a\s+)?llm\b/i,
       /\bi\s+am\s+(a\s+)?llm\b/i,
       /\bi'?m\s+(a\s+)?(large\s+)?language\s+model\b/i,
       /\bi\s+am\s+(a\s+)?(large\s+)?language\s+model\b/i,
       /\bi'?m\s+(a\s+)?base\s+llm\b/i,
       /\bi\s+am\s+(a\s+)?base\s+llm\b/i,
-      /\bi'?m\s+(a\s+|an\s+)?ai(\s|$|\.)/i,
-      /\bi\s+am\s+(a\s+|an\s+)?ai(\s|$|\.)/i,
+      /\bi'?m\s+(a\s+|an\s+)?ai\s+(assistant|chatbot|model|system)\b/i,
+      /\bi\s+am\s+(a\s+|an\s+)?ai\s+(assistant|chatbot|model|system)\b/i,
 
-      // === "JUST A" PATTERNS (very aggressive) ===
-      /just\s+(a\s+)?llm/i,
-      /just\s+(a\s+)?(large\s+)?language\s+model/i,
-      /just\s+(a\s+)?base\s+llm/i,
-      /just\s+(an?\s+)?ai/i,
-      /just\s+(a\s+)?text.?based/i,
+      // === "JUST A" PATTERNS ===
+      /\bjust\s+(a\s+)?llm\b/i,
+      /\bjust\s+(a\s+)?(large\s+)?language\s+model\b/i,
+      /\bjust\s+(a\s+)?base\s+llm\b/i,
+      /\bjust\s+(a\s+)?text.?based\s+(ai|assistant|chatbot|model)\b/i,
 
       // === TEXT-BASED / TEXT-ONLY AI ("nothing but a text-based AI") ===
       /text.?based\s+(ai|assistant|chatbot|model|llm)/i,

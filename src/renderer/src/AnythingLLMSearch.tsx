@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Search, Database, Bot, RefreshCw, Copy, Check, Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 type Source = {

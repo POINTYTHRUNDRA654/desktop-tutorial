@@ -1,0 +1,123 @@
+{
+  "Plugin": "MI_FieldRecorder.esl",
+  "Records": [
+    {
+      "Signature": "QUST",
+      "EditorID": "MI_Quest_FieldRecorder",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "DNAM": { "Flags": ["StartGameEnabled"] },
+        "Stages": [
+          { "Index": 10, "LogEntry": "You found a Mossy Industries field recorder." },
+          { "Index": 20, "LogEntry": "Investigate the nearby terminal." },
+          { "Index": 30, "LogEntry": "Speak with the surviving researcher." },
+          { "Index": 40, "LogEntry": "Recover the recorder's missing data spool." },
+          { "Index": 50, "LogEntry": "Return the spool to the researcher." }
+        ],
+        "Scripts": [
+          {
+            "Name": "MI_Script_FieldRecorder",
+            "Source": "Scriptname MI_Script_FieldRecorder extends Quest\n\nEvent OnInit()\n    SetStage(10)\nEndEvent",
+            "Properties": []
+          }
+        ]
+      }
+    },
+
+    {
+      "Signature": "NPC_",
+      "EditorID": "MI_Researcher_GraftSurvivor",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Race": "HumanRace",
+        "VoiceType": "MaleEvenToned",
+        "AIData": { "AggroRadius": 0 },
+        "Factions": []
+      }
+    },
+
+    {
+      "Signature": "DIAL",
+      "EditorID": "MI_Topic_Researcher",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Category": "Custom",
+        "Subtype": "Topic"
+      }
+    },
+
+    {
+      "Signature": "INFO",
+      "EditorID": "MI_Researcher_Greeting",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Topic": "MI_Topic_Researcher",
+        "ResponseText": "You found one of ours? I didn't think any units survived.",
+        "Conditions": []
+      }
+    },
+
+    {
+      "Signature": "INFO",
+      "EditorID": "MI_Researcher_Stage20",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Topic": "MI_Topic_Researcher",
+        "ResponseText": "That terminal should still hold the recorder's access logs.",
+        "Conditions": [
+          { "Function": "GetStage", "Quest": "MI_Quest_FieldRecorder", "Value": 20 }
+        ]
+      }
+    },
+
+    {
+      "Signature": "BOOK",
+      "EditorID": "MI_Holotape_FieldRecorder",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "FullName": "Mossy Industries — Field Recorder Unit",
+        "Description": "A pre-war Mossy Industries data capture device.",
+        "Text": [
+          "FIELD RECORDER — MOSSY INDUSTRIES",
+          "If you are reading this, the recorder survived the blast.",
+          "Return it to any Mossy field researcher."
+        ]
+      }
+    },
+
+    {
+      "Signature": "TERM",
+      "EditorID": "MI_Terminal_FieldRecorder",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Header": "MOSSY INDUSTRIES — ACCESS LOG",
+        "Entries": [
+          {
+            "Title": "Data Spool Status",
+            "Text": "Primary spool missing. Last known location: GRAFT observation chamber."
+          }
+        ]
+      }
+    },
+
+    {
+      "Signature": "BOOK",
+      "EditorID": "MI_Note_FieldRecorder",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Flags": ["IsNote"],
+        "Text": "The spool is alive. It reacts to movement. Handle carefully."
+      }
+    },
+
+    {
+      "Signature": "CELL",
+      "EditorID": "MI_Cell_FieldRecorderRoom",
+      "FormID": "[GENERATE]",
+      "Fields": {
+        "Name": "Mossy Observation Room",
+        "Location": "Commonwealth"
+      }
+    }
+  ]
+}
