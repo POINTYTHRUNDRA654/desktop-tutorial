@@ -4,7 +4,23 @@ import { exec } from 'child_process';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { clipboard, nativeImage, screen } from 'electron';
+type ElectronModule = typeof import('electron');
+
+let electronModule: ElectronModule | null | undefined;
+
+function getElectronModule(): ElectronModule | null {
+    if (electronModule !== undefined) {
+        return electronModule;
+    }
+
+    try {
+        electronModule = require('electron') as ElectronModule;
+    } catch {
+        electronModule = null;
+    }
+
+    return electronModule;
+}
 
 /**
  * Mossy Bridge Server
@@ -56,8 +72,13 @@ export class BridgeServer {
                 // Screen Capture — returns base64 PNG of the primary display
                 else if (url === '/capture' && method === 'GET') {
                     try {
+                        const electron = getElectronModule();
+                        if (!electron) {
+                            throw new Error('Electron APIs unavailable');
+                        }
+
                         // Resolve the primary display bounds
-                        const primaryDisplay = screen.getPrimaryDisplay();
+                        const primaryDisplay = electron.screen.getPrimaryDisplay();
                         const { width, height } = primaryDisplay.size;
 
                         // Use Electron desktopCapturer via a helper exec approach.
@@ -100,7 +121,12 @@ export class BridgeServer {
                 // Clipboard — GET reads current clipboard text, POST writes it
                 else if (url === '/clipboard' && method === 'GET') {
                     try {
-                        const text = clipboard.readText();
+                        const electron = getElectronModule();
+                        if (!electron) {
+                            throw new Error('Electron APIs unavailable');
+                        }
+
+                        const text = electron.clipboard.readText();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ status: 'success', text }));
                     } catch (clipErr: any) {
@@ -115,7 +141,12 @@ export class BridgeServer {
                     req.on('end', () => {
                         try {
                             const { text } = JSON.parse(body);
-                            clipboard.writeText(String(text ?? ''));
+                            const electron = getElectronModule();
+                            if (!electron) {
+                                throw new Error('Electron APIs unavailable');
+                            }
+
+                            electron.clipboard.writeText(String(text ?? ''));
                             res.writeHead(200, { 'Content-Type': 'application/json' });
                             res.end(JSON.stringify({ status: 'success', message: 'Clipboard updated' }));
                         } catch (clipErr: any) {

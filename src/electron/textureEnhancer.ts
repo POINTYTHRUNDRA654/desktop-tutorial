@@ -5,7 +5,7 @@
  * No external ESRGAN/Python - uses Blender's native image & shader capabilities.
  */
 
-import { ipcMain, BrowserWindow } from 'electron';
+import type { BrowserWindow } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { BridgeServer } from './BridgeServer';
@@ -431,6 +431,8 @@ export function registerTextureEnhancerHandlers(
   bridgeServer: BridgeServer,
   mainWindow?: BrowserWindow
 ) {
+  const { ipcMain, BrowserWindow } = require('electron') as typeof import('electron');
+
   /**
    * Analyze mod textures
    */
