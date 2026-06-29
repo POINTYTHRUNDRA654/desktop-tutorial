@@ -3906,6 +3906,26 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:sd-status', sdUrl),
     generateConceptArt: (params: { prompt: string; negativePrompt?: string; width?: number; height?: number; steps?: number; cfgScale?: number; sdUrl?: string }): Promise<{ success: boolean; imageData?: string; error?: string }> =>
       ipcRenderer.invoke('creative-director:generate-concept-art', params),
+    vrStatus: (questId: string): Promise<{ success: boolean; status: string; report: any; bugTicket: any; error?: string }> =>
+      ipcRenderer.invoke('creative-director:vr-status', questId),
+    vrSendToLab: (projectId: string): Promise<{ success: boolean; questId?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:vr-send-to-lab', projectId),
+    resetAll: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('creative-director:reset-all'),
+    launchIClone: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('creative-director:launch-iclone'),
+    readAnimationDirection: (outputDir: string): Promise<{ success: boolean; data: any; error?: string }> =>
+      ipcRenderer.invoke('creative-director:read-animation-direction', outputDir),
+    generateAnimationDirection: (outputDir: string, modTitle: string): Promise<{ success: boolean; data: any; error?: string }> =>
+      ipcRenderer.invoke('creative-director:generate-animation-direction', outputDir, modTitle),
+    scanFo4World: (): Promise<{ success: boolean; summary?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:scan-fo4-world'),
+    getWorldScanInfo: (): Promise<{ success: boolean; scanned: boolean; generatedAt?: string; totalNames?: number; source?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:get-world-scan-info'),
+    approvePlan: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('creative-director:approve-plan'),
+    rejectPlan: (feedback: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('creative-director:reject-plan', feedback),
   },
 
   // Personal R&D Network (dev-only) - proxies to the user's own separate local

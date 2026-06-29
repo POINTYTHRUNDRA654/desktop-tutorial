@@ -65,7 +65,7 @@ const AIModAssistant: React.FC = () => {
         setWizardMode('none');
         const fixPrompt = `Find and fix any bugs or errors in this Fallout 4 Papyrus/modding code. Return the corrected version in a code block, then a short bullet list of what was fixed.\n\n${userText}`;
         const response = await callAI(fixPrompt,
-          'You are Mossy, a Fallout 4 modding assistant. Fix the code the user pasted. Be precise and practical.', false);
+          'You are Mossy, the AI of Mossy Industries — a Fallout 4 modding assistant. Fix the code the user pasted. Be precise and practical. For Papyrus scripts: use OnStageSet (not OnInit) for quest scripts; scripts attach to parent records via Scripts[] in Fields — never as standalone SCPT records. For notes: BOOK with Flags:["IsNote"], never a NOTE record.', false);
         const code = extractCodeBlock(response);
         if (code) setCodePreview(code);
         const explanation = code ? response.replace(/```[\w]*\n?[\s\S]*?```/, '').trim() : response;
@@ -75,7 +75,7 @@ const AIModAssistant: React.FC = () => {
 
       // Regular chat
       const response = await callAI(userText,
-        'You are Mossy, a Fallout 4 modding assistant. Help the user with modding questions, Papyrus scripting, Creation Kit, mod tools, and best practices. Be practical and specific.');
+        'You are Mossy, the AI of Mossy Industries — a pre-war company researching AI, fungal networks, and bioengineering (branches: MYCEL, WEAVE, GRAFT; founder Dr. Eleanor Moss, Blue Hills facility). Help the user with modding questions, Papyrus scripting, Creation Kit, mod tools, and best practices. Be practical and specific. When producing mod specs, output xEdit-importable JSON: { "Plugin": "MI_ModName.esl", "Records": [...] } with valid FO4 signatures (QUST NPC_ DIAL INFO BOOK TERM CELL REFR PACK SCEN IDLE). Use "[GENERATE]" for FormIDs, "[WRITE]" for content you must fill, "[VERIFY]" for uncertain values. Scripts attach as Fields.Scripts[] on parent records — never standalone SCPT. Notes are BOOK with Flags:["IsNote"].');
       const code = extractCodeBlock(response);
       if (code) setCodePreview(code);
       setMessages(m => [...m, { role: 'assistant', text: response }]);
@@ -110,7 +110,7 @@ const AIModAssistant: React.FC = () => {
       `Create a complete Fallout 4 Papyrus script based on this description:\n\n${description}\n\n` +
       `Return the full script in a Papyrus code block, then a short explanation of how it works and any Creation Kit steps needed to wire it up.`;
     const response = await callAI(prompt,
-      'You are Mossy, a Fallout 4 Papyrus scripting expert. Generate complete, valid Papyrus scripts with proper syntax, ScriptName declarations, properties, and event handlers. Include comments explaining key sections.', false);
+      'You are Mossy, a Fallout 4 Papyrus scripting expert. Generate complete, valid Papyrus scripts with proper syntax, ScriptName declarations, properties, and event handlers. CRITICAL RULES: (1) Scripts are NOT standalone SCPT records — they attach to parent records (QUST, NPC_, REFR) as Scripts[] in Fields. (2) Use OnStageSet(int auiStageID, int auiItemID) for quest stage scripts, NOT OnInit. (3) Use RegisterForRemoteEvent instead of RegisterForUpdate polling loops. (4) Use Const on immutable parameters. (5) Scripts extending Quest must call Self.Stop() when done to avoid save bloat.', false);
     const code = extractCodeBlock(response);
     if (code) setCodePreview(code);
     const explanation = code ? response.replace(/```[\w]*\n?[\s\S]*?```/, '').trim() : response;
@@ -133,7 +133,7 @@ const AIModAssistant: React.FC = () => {
         `Each suggestion should be a concrete next step, tool recommendation, or potential issue to check. ` +
         `Format as a numbered list.\n\nContext:\n${context}`;
       const response = await callAI(prompt,
-        'You are Mossy, a Fallout 4 modding expert. Give practical, specific suggestions — not generic advice. Reference real tools and workflows (xEdit, CK, Bodyslide, Nifskope, etc.) where relevant.', false);
+        'You are Mossy, the AI of Mossy Industries — a Fallout 4 modding expert and pre-war AI company assistant (MYCEL/WEAVE/GRAFT branches, Dr. Eleanor Moss founder). Give practical, specific suggestions — not generic advice. Reference real tools and workflows (xEdit, CK, BodySlide, NifSkope, etc.) where relevant. All new mods use MI_ prefix EditorIDs. When suggesting record types, use valid FO4 signatures only: QUST NPC_ DIAL INFO BOOK TERM CELL REFR PACK SCEN IDLE.', false);
       setMessages(m => [...m, { role: 'assistant', text: response }]);
 
       // Clear any old navigation suggestions — they navigated away from this page
@@ -162,7 +162,7 @@ const AIModAssistant: React.FC = () => {
     try {
       const prompt = `Refactor and improve this Fallout 4 Papyrus script. Clean up the structure, improve variable names, add missing comments, and fix any obvious issues. Return the improved script in a code block followed by a brief summary of changes.\n\n${context}`;
       const response = await callAI(prompt,
-        'You are a Fallout 4 Papyrus scripting expert. Refactor the code for clarity, correctness, and best practices. Preserve the original intent exactly.', false);
+        'You are a Fallout 4 Papyrus scripting expert. Refactor the code for clarity, correctness, and best practices. Preserve the original intent exactly. Apply these FO4-specific rules: (1) Replace any RegisterForUpdate polling with RegisterForRemoteEvent or RegisterForAnimationEvent. (2) Replace OnInit with OnStageSet on quest scripts. (3) Add Self.Stop() to quests that have no ongoing logic. (4) Use Const on immutable parameters. (5) Separate state into Papyrus State blocks instead of nested if/else chains.', false);
       const code = extractCodeBlock(response);
       if (code) setCodePreview(code);
       const explanation = code ? response.replace(/```[\w]*\n?[\s\S]*?```/, '').trim() : response;
@@ -192,7 +192,7 @@ const AIModAssistant: React.FC = () => {
     try {
       const prompt = `Find and fix any bugs, errors, or problems in this Fallout 4 Papyrus/modding code. Return the corrected version in a code block, then a checklist of exactly what was fixed and why.\n\n${context}`;
       const response = await callAI(prompt,
-        'You are a Fallout 4 Papyrus debugging expert. Identify real bugs — syntax errors, missing properties, wrong event names, logic errors. Fix them precisely and explain each fix.', false);
+        'You are a Fallout 4 Papyrus debugging expert. Identify real bugs — syntax errors, missing properties, wrong event names, logic errors. Fix them precisely and explain each fix. FO4-specific bug patterns to check: (1) OnInit on a quest script (should be OnStageSet). (2) RegisterForUpdate polling loop (replace with event-driven pattern). (3) Script declared as SCPT record in JSON/xEdit (scripts are Fields.Scripts[] on parent — never standalone). (4) NOTE signature used (notes are BOOK with Flags:["IsNote"]). (5) Self.Stop() missing on a one-shot quest script. (6) Missing ScriptName declaration line.', false);
       const code = extractCodeBlock(response);
       if (code) setCodePreview(code);
       const explanation = code ? response.replace(/```[\w]*\n?[\s\S]*?```/, '').trim() : response;

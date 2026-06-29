@@ -20,7 +20,7 @@ const ChatRequestSchema = z.object({
   model: z.string().min(1).optional(),
   messages: z.array(ChatMessageSchema).min(1),
   temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().min(1).max(8192).optional(),
+  maxTokens: z.number().int().min(1).max(32768).optional(),
 });
 
 function getOpenAIClient(): OpenAI {

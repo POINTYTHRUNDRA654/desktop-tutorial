@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette, Camera } from 'lucide-react';
 
 // Lazy-load tool panels — hub stays lightweight
 const DDSConverter = React.lazy(() =>
@@ -29,8 +29,9 @@ const BGSMEditor = React.lazy(() =>
 const MaterialDefinitionEditor = React.lazy(() =>
   import('./MaterialDefinitionEditor').then((m) => ({ default: m.MaterialDefinitionEditor }))
 );
+const AIImageStudio = React.lazy(() => import('./AIImageStudio'));
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
@@ -43,6 +44,7 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'optimizer', icon: Zap,               label: 'Optimizer',         sublabel: 'Batch compress' },
   { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'AI upscale' },
   { id: 'krita',     icon: Palette,           label: 'Krita AI Paint',    sublabel: 'Diffusion · Inpaint' },
+  { id: 'aistudio',  icon: Camera,            label: 'AI Image Studio',   sublabel: 'txt2img · img2img'   },
 ];
 
 // ============================================================================
@@ -541,6 +543,11 @@ const TextureMaterialsHub: React.FC<{ embedded?: boolean }> = ({ embedded = fals
           </PanelLoader>
         )}
         {activeTab === 'krita' && <KritaAIDiffusion />}
+        {activeTab === 'aistudio' && (
+          <PanelLoader>
+            <AIImageStudio />
+          </PanelLoader>
+        )}
       </div>
     </div>
   );

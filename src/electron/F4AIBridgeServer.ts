@@ -29,6 +29,53 @@ async function probePort(port: number, path: string): Promise<boolean> {
   });
 }
 
+const ROLE_MODELS: Record<string, string[]> = {
+  companion:       ['gemma2:9b', 'llama3.1:8b', 'llama3:latest', 'mistral:7b'],
+  settler:         ['llama3.1:8b', 'llama3:latest', 'gemma2:9b', 'mistral:7b'],
+  raider:          ['mistral:7b', 'llama3.1:8b', 'llama3:latest'],
+  ghoul:           ['mistral:7b', 'llama3.1:8b', 'gemma2:9b'],
+  robot:           ['llama3:latest', 'llama3.1:8b', 'mistral:7b'],
+  default:         ['llama3.1:8b', 'gemma2:9b', 'llama3:latest', 'mistral:7b'],
+};
+
+async function pickOllamaModel(role: string): Promise<string> {
+  const prefs = ROLE_MODELS[role] ?? ROLE_MODELS.default;
+  try {
+    const res  = await new Promise<string>((resolve, reject) => {
+      const req = http.get({ hostname: '127.0.0.1', port: 11434, path: '/api/tags', timeout: 2000 }, (r) => {
+        let d = ''; r.on('data', (c) => d += c); r.on('end', () => resolve(d));
+      });
+      req.on('error', reject); req.on('timeout', () => { req.destroy(); reject(new Error('tags timeout')); });
+    });
+    const available: string[] = JSON.parse(res).models?.map((m: any) => m.name as string) ?? [];
+    return prefs.find((p) => available.some((a) => a.includes(p))) ?? available[0] ?? prefs[0];
+  } catch { return prefs[0]; }
+}
+
+async function callOllamaChat(messages: { role: string; content: string }[], role = 'default'): Promise<string> {
+  const model = await pickOllamaModel(role);
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ model, messages, max_tokens: 80, temperature: 0.65, stream: false,
+                                  stop: ['\n\n', 'Player:', 'NPC:', '###'] });
+    const req = http.request(
+      { hostname: '127.0.0.1', port: 11434, path: '/v1/chat/completions', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+        timeout: 90_000 },
+      (res) => {
+        let data = '';
+        res.on('data', (c) => data += c);
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)?.choices?.[0]?.message?.content?.trim() ?? ''); }
+          catch { reject(new Error('Invalid Ollama response')); }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Ollama timeout')); });
+    req.write(body); req.end();
+  });
+}
+
 async function callKoboldChat(messages: { role: string; content: string }[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ model: 'default', messages, max_tokens: 150, stream: false });
@@ -130,10 +177,52 @@ export class F4AIBridgeServer {
           ];
 
           const koboldUp = await probePort(KOBOLD_PORT, '/api/v1/info');
-          if (!koboldUp) { err(503, 'KoboldCPP not running on port ' + KOBOLD_PORT); return; }
+          const ollamaUp = await probePort(11434, '/api/tags');
 
-          const dialogue = await callKoboldChat(messages);
-          ok({ ok: true, dialogue, source: 'koboldcpp', npc_id, npc_name });
+          if (!koboldUp && !ollamaUp) { err(503, 'No local AI running — start KoboldCPP or Ollama'); return; }
+
+          const BAD_OUTPUT = [
+            'write a ', 'write an ', 'as an ai', 'i am an ai', 'language model',
+            'happy to help', "i'd be happy", "i'd be glad", 'how can i assist',
+            'horror tale', 'horror genre', 'science fiction', '1970s',
+            '500-word', 'first-person narrative', 'conversation between',
+            'protagonist who', 'creative writing', 'doctor and a patient',
+            'treatment options', 'here are some', 'choice 1', 'option 1',
+            // system-prompt echo detection (fragments from buildNpcSystemPrompt)
+            'speak in character', 'keep responses under', 'be terse, gritty',
+            'era-appropriate', 'post-nuclear commonwealth. context:',
+            'hardworking settler', 'cautious but hopeful',
+            'battle-hardened', 'mechanical precision', 'following directives',
+            'centuries of radiation', 'lives by violence',
+            // context echo detection
+            'location:', 'context:', 'weather:', 'time of day:',
+          ];
+          const isBad = (t: string, playerIn: string) => {
+            const lo = t.toLowerCase();
+            if (BAD_OUTPUT.some((b) => lo.includes(b))) return true;
+            // detect prompt echo: response begins with or contains the player's own question
+            if (playerIn && playerIn.length > 4 && lo.startsWith(playerIn.toLowerCase())) return true;
+            return false;
+          };
+
+          let dialogue = '';
+          let source = '';
+          if (koboldUp) {
+            const kbReply = await callKoboldChat(messages);
+            if (kbReply && !isBad(kbReply, player_input)) {
+              dialogue = kbReply; source = 'koboldcpp';
+            } else {
+              console.warn('[F4AI Bridge] KoboldCPP output rejected — falling to Ollama:', kbReply?.slice(0, 60));
+              if (!ollamaUp) { err(503, 'KoboldCPP output invalid and Ollama offline'); return; }
+              dialogue = await callOllamaChat(messages, npc_role);
+              source = 'ollama';
+            }
+          } else {
+            // Ollama fallback — route to best model for this NPC role
+            dialogue = await callOllamaChat(messages, npc_role);
+            source = 'ollama';
+          }
+          ok({ ok: true, dialogue, source, npc_id, npc_name, npc_role });
           return;
         }
 

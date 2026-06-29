@@ -101,6 +101,7 @@ const AUTO_CONNECT_TOOLS: AutoConnectTool[] = [
   { id: 'f4se',         label: 'F4SE (Script Extender)',    match: ['f4se', 'f4se_loader'],                          category: 'utility',     installUrl: 'https://f4se.silverlock.org/' },
   { id: 'comfyui',      label: 'ComfyUI',                   match: ['comfyui', 'comfy'],                             category: 'ai',          installUrl: 'https://github.com/comfyanonymous/ComfyUI' },
   { id: 'upscayl',      label: 'Upscayl',                   match: ['upscayl'],                                      category: 'ai',          installUrl: 'https://upscayl.org/' },
+  { id: 'iclone8',      label: 'iClone 8 (Animation)',      match: ['iclone', 'reallusion'],                         category: 'editor',      installUrl: 'https://www.reallusion.com/iclone/' },
 ];
 
 const SETTINGS_AUTO_MAP: Array<{ key: string; match: string[] }> = [
