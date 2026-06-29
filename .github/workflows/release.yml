@@ -49,16 +49,25 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
-      - name: Verify version matches package.json
+      - name: Sync package.json version
         run: |
           PKG_VERSION=$(jq -r '.version' < package.json)
           INPUT_VERSION="${{ steps.get_version.outputs.version }}"
           if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
-            echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
-            echo "Update package.json to version $INPUT_VERSION before creating this release."
-            exit 1
+            echo "⚠️ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'. Auto-bumping package.json."
+            # Update version and description string in package.json
+            jq --arg v "$INPUT_VERSION" \
+              '.version = $v | .description = ("Mossy Universal v" + $v + " - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization")' \
+              package.json > package.json.tmp && mv package.json.tmp package.json
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json
+            git commit -m "chore: bump version to v$INPUT_VERSION [skip ci]"
+            git push
+            echo "✅ package.json bumped and pushed to v$INPUT_VERSION"
+          else
+            echo "✅ Release version $INPUT_VERSION already matches package.json version $PKG_VERSION"
           fi
-          echo "✅ Release version $INPUT_VERSION matches package.json version $PKG_VERSION"
 
       - name: Create Release
         run: |
