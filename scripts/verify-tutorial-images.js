@@ -5,10 +5,13 @@ const root = path.resolve(__dirname, '..');
 const tutorialFile = path.join(root, 'src', 'renderer', 'src', 'InteractiveTutorial.tsx');
 const txt = fs.readFileSync(tutorialFile, 'utf8');
 
-const re = /\/visual-guide-images\/((?:\\'|[^'"$)`])+)/g; // allow escaped single quote inside string; exclude template literal expressions
+// Strip single-line comment-only lines before scanning to avoid false positives from comments
+// that happen to mention the /visual-guide-images/ path.
+const codeOnly = txt.split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
+const re = /\/visual-guide-images\/((?:\\'|[^'"$)`\n])+)/g; // allow escaped single quote; stop at newline
 const matches = [];
 let mm;
-while ((mm = re.exec(txt)) !== null) {
+while ((mm = re.exec(codeOnly)) !== null) {
   // unescape any escaped single quotes in captured filename
   const raw = mm[1].replace(/\\'/g, "'");
   matches.push('/visual-guide-images/' + raw);

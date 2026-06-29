@@ -27,10 +27,11 @@ while ((m = pageTitleRe.exec(md)) !== null) {
 }
 
 // extract tutorialContext pageName values: pageName: 'The Auditor',
-const pageNameRe = /\bpageName:\s*['\"]([^'\"]+)['\"]\s*,/g;
+// Use separate alternatives so apostrophes inside double-quoted strings (e.g. "FO4 What's New") are captured correctly.
+const pageNameRe = /\bpageName:\s*(?:"([^"]+)"|'([^']+)')\s*,/g;
 const ctxNames = [];
 while ((m = pageNameRe.exec(ctx)) !== null) {
-  ctxNames.push(m[1].trim());
+  ctxNames.push((m[1] !== undefined ? m[1] : m[2]).trim());
 }
 
 // build normalized lookup for ctx
