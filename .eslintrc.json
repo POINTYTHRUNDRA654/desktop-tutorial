@@ -30,7 +30,9 @@
     "@typescript-eslint/no-var-requires": "off",
     "react-hooks/exhaustive-deps": "off",
     "prefer-const": "off",
-    "react/prop-types": "off"
+    "react/prop-types": "off",
+    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "no-control-regex": "off"
   },
   "settings": {
     "react": {
