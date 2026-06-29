@@ -2,7 +2,7 @@
   "name": "mossy-ai",
   "private": true,
   "version": "5.4.69",
-  "description": "Mossy Universal v5.4.68 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
+  "description": "Mossy Universal v5.4.69 - Professional Fallout 4 modding assistant with AI, full OG/NG/AE/Creations Menu version awareness, and professional asset optimization",
   "main": "dist-electron/electron/main.js",
   "author": "POINTYTHRUNDRA654",
   "license": "MIT",
