@@ -86,7 +86,7 @@ function parseBgsmTextures(raw: string): string[] {
 }
 
 function parseNifTextures(raw: string): string[] {
-  const matches = raw.match(/textures[/\\][^\x00"<>|?*\r\n]{3,200}\.dds/gi) ?? [];
+  const matches = raw.match(/textures[/\\][^"<>|?*\r\n]{3,200}\.dds/gi) ?? [];
   return [...new Set(matches)];
 }
 
