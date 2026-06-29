@@ -31,7 +31,7 @@ while ((m = pageTitleRe.exec(md)) !== null) {
 const pageNameRe = /\bpageName:\s*(?:'([^']+)'|"([^"]+)")\s*,/g;
 const ctxNames = [];
 while ((m = pageNameRe.exec(ctx)) !== null) {
-  ctxNames.push((m[1] !== undefined ? m[1] : m[2]).trim());
+  ctxNames.push((m[1] ?? m[2]).trim());
 }
 
 // build normalized lookup for ctx
