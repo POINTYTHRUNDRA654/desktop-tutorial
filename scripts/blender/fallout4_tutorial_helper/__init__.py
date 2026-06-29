@@ -33,20 +33,20 @@ from . import mossy_link
 from . import ui_panels
 from . import operators
 from . import preferences
+from . import fo4_scanner
 
 
 def register():
     preferences.register()
     operators.register()
     ui_panels.register()
+    fo4_scanner.register()
     mossy_link.register()
-    # Inject the Mossy-configured PyTorch path into sys.path at add-on load
-    # time so that any Blender operator can do `import torch` directly.
-    # This is a no-op if Mossy is not running or no path is configured.
     mossy_link.setup_pytorch()
 
 
 def unregister():
+    fo4_scanner.unregister()
     ui_panels.unregister()
     operators.unregister()
     preferences.unregister()

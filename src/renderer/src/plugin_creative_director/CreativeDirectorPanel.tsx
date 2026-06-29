@@ -7,6 +7,7 @@ import {
   Play, AlertTriangle, Info, Copy, FlaskConical,
   Folder, FolderOpen, File, Image, Volume2, Code2, Package,
   Sparkles, Eye, EyeOff, ChevronRight, ChevronDown, X, FolderSearch,
+  Monitor, TestTube2, Send, Film, Check,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -685,22 +686,52 @@ const WorldDesign: React.FC<{ backendOnline: boolean }> = ({ backendOnline }) =>
 // else local KoboldCpp). No external servers, no fake peer ports.
 
 const AGENT_COLORS: Record<string, string> = {
-  director: 'text-amber-400',
-  quest: 'text-emerald-400',
-  dialogue: 'text-sky-400',
-  world: 'text-purple-400',
+  director:  'text-amber-400',
+  quest:     'text-emerald-400',
+  dialogue:  'text-sky-400',
+  world:     'text-purple-400',
+  planner:   'text-cyan-400',
+  reviewer:  'text-rose-400',
+  analyst:   'text-violet-400',
+  builder:   'text-emerald-400',
+  verifier:  'text-orange-400',
 };
 
 const AI_TEAM_NAMES: Record<string, string> = {
-  director: 'Creative Director',
-  quest: 'Quest & Systems Designer',
-  dialogue: 'Dialogue & Lore Writer',
-  world: 'World & NPC Builder',
+  director:  'Creative Director',
+  quest:     'Quest & Systems Designer',
+  dialogue:  'Dialogue & Lore Writer',
+  world:     'World & NPC Builder',
+  planner:   'Mod Planner',
+  reviewer:  'Plan Reviewer',
+  analyst:   'Game Data Analyst',
+  builder:   'Mod Builder',
+  verifier:  'Build Verifier',
 };
+
+const PHASE_STEPS = [
+  { key: 'planning',          label: 'Planning'  },
+  { key: 'reviewing',         label: 'Review'    },
+  { key: 'analyzing',         label: 'Analysis'  },
+  { key: 'awaiting_approval', label: 'Approval'  },
+  { key: 'building',          label: 'Building'  },
+  { key: 'verifying',         label: 'Verifying' },
+  { key: 'done',              label: 'Done'       },
+] as const;
+
+function phaseIndex(phase: string): number {
+  return PHASE_STEPS.findIndex(s => s.key === phase);
+}
 
 const AITeamPanel: React.FC = () => {
   const [state, setState] = useState<{ enabled: boolean; currentProject: any; completedProjects: any[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(false);
+  const [rejectFeedback, setRejectFeedback] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanInfo, setScanInfo] = useState<{ scanned: boolean; generatedAt?: string; totalNames?: number; source?: string } | null>(null);
+  const [scanMsg, setScanMsg] = useState('');
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
@@ -712,11 +743,37 @@ const AITeamPanel: React.FC = () => {
     } catch { /* ignore */ }
   }, []);
 
+  const refreshScanInfo = useCallback(async () => {
+    try {
+      const res = await api()?.creativeDirectorTeam?.getWorldScanInfo?.();
+      if (res?.success) setScanInfo(res);
+    } catch { /* ignore */ }
+  }, []);
+
+  const runWorldScan = async () => {
+    setScanBusy(true);
+    setScanMsg('Scanning FO4 game files (this takes ~5 seconds)...');
+    try {
+      const res = await api()?.creativeDirectorTeam?.scanFo4World?.();
+      if (res?.success) {
+        setScanMsg('Scan complete — world data loaded.');
+        await refreshScanInfo();
+      } else {
+        setScanMsg('Scan failed: ' + (res?.error || 'unknown error'));
+      }
+    } catch (e: any) {
+      setScanMsg('Error: ' + (e as Error).message);
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
   useEffect(() => {
     refresh();
+    refreshScanInfo();
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
-  }, [refresh]);
+  }, [refresh, refreshScanInfo]);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
@@ -732,43 +789,225 @@ const AITeamPanel: React.FC = () => {
     }
   };
 
+  const resetAll = async () => {
+    if (!window.confirm('Delete ALL projects — current, queued, and completed? This cannot be undone.')) return;
+    setBusy(true);
+    try {
+      await api()?.creativeDirectorTeam?.resetAll?.();
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approvePlan = async () => {
+    setApprovalBusy(true);
+    try {
+      await api()?.creativeDirectorTeam?.approvePlan?.();
+      setShowRejectInput(false);
+      setRejectFeedback('');
+      await refresh();
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
+  const rejectPlan = async () => {
+    if (!rejectFeedback.trim()) return;
+    setApprovalBusy(true);
+    try {
+      await api()?.creativeDirectorTeam?.rejectPlan?.(rejectFeedback);
+      setShowRejectInput(false);
+      setRejectFeedback('');
+      await refresh();
+    } finally {
+      setApprovalBusy(false);
+    }
+  };
+
   const project = state?.currentProject;
+  const phase: string = project?.phase ?? '';
+  const currentPhaseIdx = phaseIndex(phase);
 
   return (
     <div className="space-y-4">
+
+      {/* Header — enable/disable */}
       <div className="flex items-center justify-between gap-3 bg-slate-800/60 border border-slate-700 rounded p-3">
         <div>
           <div className="text-sm font-semibold text-white">Autonomous Team</div>
           <div className="text-xs text-slate-500">
-            {state?.enabled ? 'Working continuously — picks up a new project automatically when one finishes.' : 'Disabled — no AI calls are made while off.'}
+            {state?.enabled ? 'Working — plan → review → analysis → YOUR APPROVAL → build.' : 'Disabled — no AI calls are made while off.'}
           </div>
         </div>
-        <button onClick={toggleEnabled} disabled={busy}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${state?.enabled ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}>
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-          {state?.enabled ? 'Disable' : 'Enable'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={resetAll} disabled={busy} title="Delete all projects and start fresh"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold text-slate-400 bg-slate-700/50 hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50 transition-colors">
+            <Trash2 className="w-3.5 h-3.5" /> Reset All
+          </button>
+          <button onClick={toggleEnabled} disabled={busy}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${state?.enabled ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'}`}>
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            {state?.enabled ? 'Disable' : 'Enable'}
+          </button>
+        </div>
+      </div>
+
+      {/* FO4 World Scan */}
+      <div className="bg-slate-800/40 border border-slate-700/60 rounded p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Search className="w-3.5 h-3.5 text-amber-400" /> FO4 World Scan
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5">
+              {scanInfo?.scanned
+                ? `${(scanInfo.totalNames ?? 0).toLocaleString()} real game names loaded.`
+                : 'Not scanned yet — scan to load real FO4 names.'}
+            </div>
+          </div>
+          <button onClick={runWorldScan} disabled={scanBusy}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold whitespace-nowrap transition-colors ${scanInfo?.scanned ? 'bg-slate-700/50 text-slate-400 hover:bg-amber-500/10 hover:text-amber-400' : 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'} disabled:opacity-50`}>
+            {scanBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            {scanInfo?.scanned ? 'Re-scan' : 'Scan FO4 World'}
+          </button>
+        </div>
+        {scanMsg && <div className="text-xs text-slate-400 bg-slate-900/60 rounded px-2 py-1">{scanMsg}</div>}
       </div>
 
       {!project && (
         <div className="text-center py-10 border border-dashed border-slate-700 rounded-lg">
           <Cpu className="w-8 h-8 text-slate-700 mx-auto mb-3" />
           <div className="text-slate-500 text-sm font-semibold">{state?.enabled ? 'Picking a new project shortly...' : 'Team is disabled'}</div>
-          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">Enable the team and the Creative Director will propose an FO4 mod/tool idea, then fully design it with the other two specialists — ending in a complete BUILD_GUIDE.md for you to follow.</div>
+          <div className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">
+            Enable the team. The AI will plan a small mod, review it, analyze it, then pause for your approval before building.
+          </div>
         </div>
       )}
 
       {project && (
-        <div className="bg-slate-950 border border-slate-700 rounded">
+        <div className="bg-slate-950 border border-slate-700 rounded overflow-hidden">
+
+          {/* Project header */}
           <div className="px-3 py-2 border-b border-slate-800">
             <div className="text-sm font-semibold text-white">{project.title}</div>
-            <div className="text-xs text-slate-500 mt-0.5">{project.brief}</div>
+            <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{project.brief}</div>
           </div>
+
+          {/* Phase pipeline progress */}
+          <div className="px-3 pt-3 pb-2 border-b border-slate-800/60">
+            <div className="flex items-center gap-0.5">
+              {PHASE_STEPS.map((step, idx) => {
+                const isDone  = currentPhaseIdx > idx;
+                const isActive = currentPhaseIdx === idx;
+                const isApproval = step.key === 'awaiting_approval';
+                return (
+                  <React.Fragment key={step.key}>
+                    <div className={`flex flex-col items-center min-w-0 flex-1`}>
+                      <div className={`w-full h-1.5 rounded-full transition-colors ${isDone ? 'bg-emerald-500' : isActive ? (isApproval ? 'bg-amber-400 animate-pulse' : 'bg-sky-500') : 'bg-slate-700'}`} />
+                      <div className={`text-[9px] mt-1 font-medium truncate w-full text-center transition-colors ${isDone ? 'text-emerald-400' : isActive ? (isApproval ? 'text-amber-400' : 'text-sky-400') : 'text-slate-600'}`}>
+                        {step.label}
+                      </div>
+                    </div>
+                    {idx < PHASE_STEPS.length - 1 && (
+                      <div className={`w-2 h-px flex-shrink-0 mb-3 ${isDone ? 'bg-emerald-700' : 'bg-slate-700'}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Approval gate */}
+          {phase === 'awaiting_approval' && (
+            <div className="m-3 border border-amber-500/40 bg-amber-500/5 rounded-lg p-3 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-semibold text-amber-300">Plan ready for your review</div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    The team has planned and analyzed a small mod. Review the transcript below, then approve to start building or send it back with feedback.
+                  </div>
+                </div>
+              </div>
+              {!showRejectInput ? (
+                <div className="flex items-center gap-2">
+                  <button onClick={approvePlan} disabled={approvalBusy}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors">
+                    {approvalBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Approve — Start Building
+                  </button>
+                  <button onClick={() => setShowRejectInput(true)} disabled={approvalBusy}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-semibold bg-rose-600/10 text-rose-400 border border-rose-500/20 hover:bg-rose-600/20 disabled:opacity-50 transition-colors">
+                    <X className="w-3.5 h-3.5" /> Send Back with Feedback
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <textarea
+                    value={rejectFeedback}
+                    onChange={e => setRejectFeedback(e.target.value)}
+                    placeholder="What needs to change? Be specific — the Planner will use this to revise."
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-rose-500 outline-none resize-none"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <button onClick={rejectPlan} disabled={approvalBusy || !rejectFeedback.trim()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600/30 disabled:opacity-50 transition-colors">
+                      {approvalBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      Send Feedback
+                    </button>
+                    <button onClick={() => { setShowRejectInput(false); setRejectFeedback(''); }}
+                      className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Build section progress (only during building/verifying) */}
+          {(phase === 'building' || phase === 'verifying') && (
+            <div className="px-3 py-2 border-b border-slate-800/60">
+              <div className="text-xs text-slate-500 mb-1.5 font-medium">Build Progress</div>
+              <div className="flex gap-1.5">
+                {['Quest & Stage Design', 'NPC Records', 'Scene & Placement', 'Build Instructions'].map((s, i) => {
+                  const done = i < (project.buildSectionIdx ?? 0);
+                  const active = i === (project.buildSectionIdx ?? 0);
+                  return (
+                    <div key={s} className={`flex-1 rounded px-1.5 py-1 text-center text-[9px] font-medium transition-colors ${done ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : active ? 'bg-sky-500/15 text-sky-400 border border-sky-500/20' : 'bg-slate-800 text-slate-600 border border-slate-700/50'}`}>
+                      {done ? <Check className="w-3 h-3 mx-auto" /> : s.split(' ')[0]}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Transcript */}
           <div ref={transcriptRef} className="p-3 space-y-3 max-h-96 overflow-y-auto">
             {(project.turns || []).map((t: any, i: number) => (
               <div key={i} className="text-xs">
-                <span className={`font-semibold ${AGENT_COLORS[t.agent] || 'text-slate-400'}`}>{AI_TEAM_NAMES[t.agent] || t.agent}</span>
-                <span className="text-slate-600 ml-2 font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-semibold ${AGENT_COLORS[t.agent] || 'text-slate-400'}`}>
+                    {AI_TEAM_NAMES[t.agent] || t.agent}
+                  </span>
+                  <span className="text-slate-600 font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
+                  {t.agent === 'reviewer' && /APPROVED/i.test(t.message) && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">APPROVED</span>
+                  )}
+                  {t.agent === 'reviewer' && /NEEDS_REVISION/i.test(t.message) && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20">NEEDS REVISION</span>
+                  )}
+                  {t.agent === 'verifier' && /PASSED/i.test(t.message) && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">PASSED</span>
+                  )}
+                  {t.agent === 'verifier' && /FAILED/i.test(t.message) && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">FAILED</span>
+                  )}
+                </div>
                 <div className="text-slate-300 whitespace-pre-wrap mt-1">{t.message}</div>
               </div>
             ))}
@@ -990,6 +1229,13 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
   const [sendBackNotes, setSendBackNotes] = useState('');
   const [dequeuing, setDequeuing] = useState(false);
 
+  // Virtual World VR lab state
+  const [vrStatus, setVrStatus] = useState<'loading' | 'no_lab' | 'not_submitted' | 'pending' | 'passed' | 'failed' | 'error'>('loading');
+  const [vrReport, setVrReport] = useState<any>(null);
+  const [vrBugTicket, setVrBugTicket] = useState<any>(null);
+  const [vrSending, setVrSending] = useState(false);
+  const [vrError, setVrError] = useState('');
+
   // Concept Art Studio state
   type ConceptArtPrompt = { id: string; label: string; category: string; prompt: string; negative: string };
   const [artPrompts, setArtPrompts] = useState<ConceptArtPrompt[]>([]);
@@ -997,9 +1243,15 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
   const [artErrors, setArtErrors] = useState<Record<string, string>>({});
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
   const [artExpanded, setArtExpanded] = useState(false);
-  const [sdUrl, setSdUrl] = useState<string>(() => localStorage.getItem('cd_sd_url') || 'http://127.0.0.1:7860');
+  const [sdUrl, setSdUrl] = useState<string>('http://127.0.0.1:8188');
   const [sdOnline, setSdOnline] = useState<boolean | null>(null);
   const [sdChecking, setSdChecking] = useState(false);
+  const [comfyModel, setComfyModel] = useState<string | null>(null);
+  const [animDir, setAnimDir] = useState<any>(null);
+  const [animExpanded, setAnimExpanded] = useState(false);
+  const [animGenerating, setAnimGenerating] = useState(false);
+  const [animError, setAnimError] = useState('');
+  const [animScriptCopied, setAnimScriptCopied] = useState(false);
 
   const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
 
@@ -1031,12 +1283,106 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
 
   useEffect(() => { loadArtPrompts(); }, [loadArtPrompts]);
 
+  const loadAnimationDirection = useCallback(async () => {
+    if (!c.outputDir) return;
+    const res = await api()?.creativeDirectorTeam?.readAnimationDirection?.(c.outputDir);
+    if (res?.success && res.data) setAnimDir(res.data);
+  }, [c.outputDir]);
+
+  useEffect(() => { loadAnimationDirection(); }, [loadAnimationDirection]);
+
+  const generateAnimationDirection = async () => {
+    setAnimGenerating(true);
+    setAnimError('');
+    try {
+      const res = await api()?.creativeDirectorTeam?.generateAnimationDirection?.(c.outputDir, c.title);
+      if (res?.success && res.data) {
+        setAnimDir(res.data);
+        setAnimExpanded(true);
+      } else {
+        setAnimError(res?.error || 'Generation failed');
+      }
+    } catch (e: any) { setAnimError(String(e)); }
+    setAnimGenerating(false);
+  };
+
+  const launchIClone = async () => {
+    const res = await api()?.creativeDirectorTeam?.launchIClone?.();
+    if (!res?.success) setAnimError(res?.error || 'Could not launch iClone 8');
+  };
+
+  const copyScript = async () => {
+    if (!animDir?.scriptContent) return;
+    try {
+      await navigator.clipboard.writeText(animDir.scriptContent);
+      setAnimScriptCopied(true);
+      setTimeout(() => setAnimScriptCopied(false), 2500);
+    } catch { /* clipboard may fail silently */ }
+  };
+
+  const loadVrStatus = useCallback(async () => {
+    if (!c.questId) { setVrStatus('not_submitted'); return; }
+    setVrStatus('loading');
+    try {
+      const res = await api()?.creativeDirectorTeam?.vrStatus?.(c.questId);
+      if (res?.success) {
+        setVrStatus(res.status as any);
+        setVrReport(res.report);
+        setVrBugTicket(res.bugTicket);
+      } else {
+        setVrStatus('error');
+        setVrError(res?.error || 'Failed to load VR status');
+      }
+    } catch (e: any) { setVrStatus('error'); setVrError(String(e)); }
+  }, [c.questId]);
+
+  useEffect(() => { loadVrStatus(); }, [loadVrStatus]);
+
+  const sendToVrLab = async () => {
+    setVrSending(true); setVrError('');
+    try {
+      const res = await api()?.creativeDirectorTeam?.vrSendToLab?.(c.id);
+      if (res?.success) {
+        setVrStatus('pending');
+        setVrReport(null);
+        setVrBugTicket(null);
+      } else {
+        setVrError(res?.error || 'Failed to send to VR lab');
+      }
+    } catch (e: any) { setVrError(String(e)); }
+    setVrSending(false);
+  };
+
+  const sendBackWithVrIssues = async () => {
+    if (!vrBugTicket) return;
+    const issueText = (vrBugTicket.issues || [])
+      .map((i: any) => `[${i.category}] ${i.description}${i.suggested_fix ? ` — Fix: ${i.suggested_fix}` : ''}`)
+      .join('\n');
+    setSendBackNotes(`VR Lab failed — fix these issues before re-testing:\n${issueText}`);
+    setSendBackOpen(true);
+  };
+
   const checkSdStatus = async () => {
     setSdChecking(true);
     const res = await api()?.creativeDirectorTeam?.sdStatus?.(sdUrl);
-    setSdOnline(res?.online ?? false);
+    const online = res?.online ?? false;
+    setSdOnline(online);
+    if (res?.model) setComfyModel(res.model);
     setSdChecking(false);
+    return online;
   };
+
+  // Auto-check ComfyUI when prompts arrive, then auto-generate if none yet done
+  useEffect(() => {
+    if (artPrompts.length === 0) return;
+    if (sdOnline !== null) return;
+    checkSdStatus().then(online => {
+      if (online && Object.keys(artImages).length === 0 && generatingIds.size === 0) {
+        generateAll();
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artPrompts]);
 
   const generateArt = async (p: ConceptArtPrompt) => {
     setGeneratingIds(prev => new Set(prev).add(p.id));
@@ -1045,10 +1391,11 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
       const res = await api()?.creativeDirectorTeam?.generateConceptArt?.({
         prompt: p.prompt,
         negativePrompt: p.negative,
-        width: 512,
-        height: 512,
-        steps: 20,
-        sdUrl,
+        width: 768,
+        height: 768,
+        steps: 30,
+        cfgScale: 7,
+        model: comfyModel || undefined,
       });
       if (res?.success && res.imageData) {
         setArtImages(prev => ({ ...prev, [p.id]: `data:image/png;base64,${res.imageData}` }));
@@ -1177,6 +1524,21 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
                   Buildability {score}/5
                 </span>
               )}
+              {!queueInfo && vrStatus === 'pending' && (
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-blue-500/15 text-blue-300">
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" /> VR Testing
+                </span>
+              )}
+              {!queueInfo && vrStatus === 'passed' && (
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-emerald-400/15 text-emerald-400">
+                  <Monitor className="w-2.5 h-2.5" /> VR Passed
+                </span>
+              )}
+              {!queueInfo && vrStatus === 'failed' && (
+                <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-semibold bg-red-400/15 text-red-400">
+                  <Monitor className="w-2.5 h-2.5" /> VR Failed{vrBugTicket ? ` · ${vrBugTicket.issues?.length ?? 0} issue${vrBugTicket.issues?.length !== 1 ? 's' : ''}` : ''}
+                </span>
+              )}
             </div>
             <div className="text-xs text-slate-500 mt-0.5">{new Date(c.completedAt).toLocaleString()} · {c.turnCount} turns</div>
           </div>
@@ -1301,6 +1663,117 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
               </div>
             </div>
           )}
+
+          {/* Virtual World VR Lab */}
+          <div className="border border-blue-500/20 rounded-lg overflow-hidden bg-blue-500/5">
+            <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Monitor className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Virtual World Lab</span>
+                <span className="text-[10px] text-slate-500 normal-case font-normal">— Unity headless validation</span>
+              </div>
+              <button onClick={loadVrStatus} title="Refresh VR status" className="text-slate-500 hover:text-blue-300">
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="border-t border-blue-500/20 p-3 space-y-2">
+              {vrStatus === 'loading' && (
+                <div className="flex items-center gap-2 text-xs text-slate-500"><Loader2 className="w-3 h-3 animate-spin" /> Checking VR lab...</div>
+              )}
+              {vrStatus === 'no_lab' && (
+                <div className="text-xs text-slate-500">Virtual World lab not found — start the orchestrator at <span className="font-mono text-slate-400">E:\Fallout 4 virtual world\orchestrator\orchestrator.py</span></div>
+              )}
+              {vrStatus === 'not_submitted' && !c.questId && (
+                <div className="text-xs text-slate-500">No VR spec — this project predates VR integration. Projects finalized from now on are submitted automatically.</div>
+              )}
+              {vrStatus === 'not_submitted' && c.questId && (
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-400">Quest spec exists but hasn't been picked up yet — the orchestrator may not be running.</div>
+                  <button onClick={sendToVrLab} disabled={vrSending}
+                    className="flex items-center gap-1.5 text-xs text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-50 px-3 py-1.5 rounded transition-colors">
+                    {vrSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    {vrSending ? 'Submitting...' : 'Re-submit to VR Lab'}
+                  </button>
+                </div>
+              )}
+              {vrStatus === 'pending' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-blue-300">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Waiting for Unity to run navmesh, interaction, and quest-flow tests...
+                  </div>
+                  <p className="text-[10px] text-slate-500">Run <span className="font-mono">orchestrator.py</span> to kick off the test. Results appear here automatically.</p>
+                </div>
+              )}
+              {vrStatus === 'passed' && vrReport && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> All VR tests passed — navmesh paths clear, all interactions found, quest flow complete
+                  </div>
+                  {vrReport.fps_min > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/70">
+                      <Monitor className="w-2.5 h-2.5" /> {vrReport.fps_min}–{vrReport.fps_max} fps
+                    </div>
+                  )}
+                  <div className="text-[10px] text-emerald-400/60">0 issues detected — Unity headless validation passed.</div>
+                  <button onClick={sendToVrLab} disabled={vrSending}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-3 py-1.5 rounded transition-colors">
+                    {vrSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <TestTube2 className="w-3 h-3" />} Re-test
+                  </button>
+                </div>
+              )}
+              {vrStatus === 'failed' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-red-400 font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5" /> VR validation failed
+                  </div>
+                  {vrReport && (vrReport.issues || []).length > 0 && (
+                    <div className="space-y-1 mb-1">
+                      {(vrReport.issues as string[]).map((issue, i) => (
+                        <div key={i} className="flex items-start gap-1.5 text-[10px] text-red-300">
+                          <AlertCircle className="w-2.5 h-2.5 flex-shrink-0 mt-0.5" />
+                          <span>{issue}</span>
+                        </div>
+                      ))}
+                      {vrReport.fps_min > 0 && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-1">
+                          <Monitor className="w-2.5 h-2.5" /> {vrReport.fps_min}–{vrReport.fps_max} fps
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {vrBugTicket && (vrBugTicket.issues || []).length > 0 && (
+                    <div className="bg-red-400/10 rounded p-2 space-y-1.5">
+                      <div className="text-[10px] font-semibold text-red-300 uppercase tracking-wider">Bug Ticket #{vrBugTicket.ticket_id}</div>
+                      {(vrBugTicket.issues || []).map((issue: any, i: number) => (
+                        <div key={i} className="space-y-0.5">
+                          <div className="flex items-start gap-1.5 text-xs text-red-300">
+                            <Bug className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                            <span>[{issue.category}] {issue.description}</span>
+                          </div>
+                          {issue.suggested_fix && (
+                            <div className="flex items-start gap-1.5 text-[10px] text-slate-400 pl-4.5">
+                              <span className="text-amber-400">Fix:</span> {issue.suggested_fix}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={sendBackWithVrIssues}
+                      className="flex items-center gap-1.5 text-xs text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 px-3 py-1.5 rounded transition-colors">
+                      <RefreshCw className="w-3 h-3" /> Send Back with Issues
+                    </button>
+                    <button onClick={sendToVrLab} disabled={vrSending}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-3 py-1.5 rounded transition-colors">
+                      {vrSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <TestTube2 className="w-3 h-3" />} Re-test
+                    </button>
+                  </div>
+                </div>
+              )}
+              {vrError && <div className="text-xs text-red-400">{vrError}</div>}
+            </div>
+          </div>
 
           {/* Enhance with assets */}
           <div>
@@ -1487,6 +1960,117 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
             )}
           </div>
 
+          {/* Animation Studio */}
+          <div className="border border-violet-500/20 rounded-lg overflow-hidden bg-violet-500/5">
+            <button onClick={() => setAnimExpanded(!animExpanded)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-violet-500/10 transition-colors text-left">
+              <div className="flex items-center gap-2">
+                <Film className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Animation Studio</span>
+                {animDir && (
+                  <span className="text-[10px] text-violet-500 font-normal normal-case">
+                    {(animDir.animations || []).length} animation{(animDir.animations || []).length !== 1 ? 's' : ''} · iClone 8
+                  </span>
+                )}
+              </div>
+              {animExpanded ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" /> : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
+            </button>
+
+            {animExpanded && (
+              <div className="border-t border-violet-500/20 p-3 space-y-3">
+                {/* Generate / regenerate */}
+                <div className="flex items-center gap-2">
+                  <button onClick={generateAnimationDirection} disabled={animGenerating}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded bg-violet-600 hover:bg-violet-500 disabled:bg-slate-700 disabled:text-slate-500 text-white transition-colors">
+                    {animGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                    {animDir ? 'Regenerate Direction' : 'Generate Animation Direction'}
+                  </button>
+                  <button onClick={launchIClone}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded bg-slate-800 border border-slate-600 hover:border-violet-500 text-slate-300 hover:text-violet-300 transition-colors">
+                    <Zap className="w-3 h-3" />
+                    Launch iClone 8
+                  </button>
+                </div>
+
+                {animError && <div className="text-[10px] text-red-400">{animError}</div>}
+
+                {!animDir && !animGenerating && (
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    The AI team will analyze your mod's BUILD_GUIDE and determine exactly which custom
+                    animations are needed — or confirm that vanilla animations are sufficient.
+                    Generates an iClone 8 Python script with stubs for each animation.
+                  </p>
+                )}
+
+                {animDir && (
+                  <>
+                    {/* Character + export info */}
+                    <div className="bg-slate-900/60 border border-slate-700 rounded p-2.5 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-semibold text-violet-300 uppercase tracking-wider">Character</span>
+                        <span className="text-[10px] text-slate-300 font-mono">{animDir.character?.type || 'human'}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-mono truncate">{animDir.character?.skeleton || ''}</div>
+                      {animDir.character?.notes && <div className="text-[10px] text-slate-400">{animDir.character.notes}</div>}
+                      {animDir.exportSettings?.hkxNotes && (
+                        <div className="text-[10px] text-amber-400/80 leading-relaxed pt-1 border-t border-slate-700">
+                          {animDir.exportSettings.hkxNotes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Animation list */}
+                    <div className="space-y-2">
+                      {(animDir.animations || []).map((a: any) => (
+                        <div key={a.id} className="bg-slate-900/60 border border-slate-700 rounded p-2.5 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-white">{a.name}</span>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                              a.type === 'loop' ? 'bg-sky-900/40 text-sky-300 border-sky-500/30' :
+                              a.type === 'one_shot' ? 'bg-amber-900/40 text-amber-300 border-amber-500/30' :
+                              'bg-slate-800 text-slate-400 border-slate-600'
+                            }`}>{a.type}</span>
+                            <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                              a.priority === 'high' ? 'bg-red-900/40 text-red-300 border-red-500/30' :
+                              a.priority === 'medium' ? 'bg-violet-900/40 text-violet-300 border-violet-500/30' :
+                              'bg-slate-800 text-slate-400 border-slate-600'
+                            }`}>{a.priority}</span>
+                            {a.durationSec > 0 && <span className="text-[10px] text-slate-500">{a.durationSec}s</span>}
+                          </div>
+                          <p className="text-[10px] text-slate-400 leading-relaxed">{a.description}</p>
+                          {a.technicalNotes && (
+                            <p className="text-[10px] text-violet-400/70 leading-relaxed">{a.technicalNotes}</p>
+                          )}
+                          {(a.targetBones || []).length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {a.targetBones.map((b: string) => (
+                                <span key={b} className="text-[9px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{b}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Python script copy */}
+                    {animDir.scriptContent && (
+                      <button onClick={copyScript}
+                        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded bg-slate-800 border border-slate-600 hover:border-violet-500 text-slate-300 hover:text-violet-300 transition-colors">
+                        {animScriptCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {animScriptCopied ? 'Copied!' : 'Copy iClone Python Script'}
+                      </button>
+                    )}
+
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Script saved to <span className="font-mono text-slate-400">iclone_animations.py</span> in your project folder.
+                      Open iClone 8, import your character, then run Script → Load Script.
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Concept Art Studio */}
           <div className="border border-sky-500/20 rounded-lg overflow-hidden bg-sky-500/5">
             <button onClick={() => setArtExpanded(!artExpanded)}
@@ -1506,21 +2090,20 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
 
             {artExpanded && (
               <div className="border-t border-sky-500/20 p-3 space-y-3">
-                {/* SD WebUI endpoint */}
+                {/* ComfyUI status */}
                 <div className="flex items-center gap-2">
-                  <input
-                    value={sdUrl}
-                    onChange={e => { setSdUrl(e.target.value); localStorage.setItem('cd_sd_url', e.target.value); setSdOnline(null); }}
-                    placeholder="http://127.0.0.1:7860"
-                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-sky-500"
-                  />
+                  <div className="flex-1 flex items-center gap-1.5 px-2 py-1 bg-slate-900/60 border border-slate-700 rounded text-xs">
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sdOnline === true ? 'bg-emerald-400' : sdOnline === false ? 'bg-red-400' : 'bg-slate-500'}`} />
+                    <span className="text-slate-400 font-mono">ComfyUI :8188</span>
+                    {comfyModel && <span className="text-slate-500 truncate">· {comfyModel}</span>}
+                  </div>
                   <button onClick={checkSdStatus} disabled={sdChecking}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:text-sky-300 disabled:opacity-50 transition-colors whitespace-nowrap">
                     {sdChecking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                    {sdOnline === null ? 'Check SD' : sdOnline ? 'Online' : 'Offline'}
+                    {sdChecking ? 'Checking…' : sdOnline === null ? 'Check' : sdOnline ? 'Online' : 'Offline'}
                   </button>
                   {sdOnline === false && (
-                    <span className="text-[10px] text-red-400">SD WebUI not reachable — start AUTOMATIC1111/Forge first</span>
+                    <span className="text-[10px] text-red-400">ComfyUI not running — launch it or use AI Image Studio</span>
                   )}
                 </div>
 
@@ -1533,7 +2116,7 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
                 ) : (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-slate-500">512×512 · 20 steps · DPM++ 2M Karras</span>
+                      <span className="text-[10px] text-slate-500">768×768 · 30 steps · ComfyUI</span>
                       <button onClick={generateAll}
                         disabled={generatingIds.size > 0}
                         className="flex items-center gap-1.5 text-xs font-semibold text-sky-300 bg-sky-500/15 hover:bg-sky-500/25 disabled:opacity-50 px-3 py-1 rounded transition-colors">
@@ -1644,26 +2227,17 @@ const HandoffPanel: React.FC = () => {
         </button>
       </div>
 
-      {/* Pending queue section */}
+      {/* Sent-back projects — compact status bar only (they're with the team, not "finished" yet) */}
       {queue.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="text-xs font-semibold text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
-              <RefreshCw className="w-3 h-3" /> In the Team's Queue ({queue.length})
-            </div>
-            <div className="text-[10px] text-slate-400 bg-violet-500/10 px-2 py-0.5 rounded">
-              These are sent — the team works through them automatically in order. No action needed.
-            </div>
+        <div className="flex items-center gap-3 border border-violet-500/20 rounded px-3 py-2 bg-violet-500/5">
+          <Loader2 className="w-4 h-4 text-violet-400 animate-spin flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold text-violet-300">{queue.length} project{queue.length !== 1 ? 's' : ''} back with the team</span>
+            <span className="text-xs text-slate-500 ml-2">Revision in progress — they'll appear here as finished when the team is done.</span>
           </div>
-          {queue.map((entry: any) => (
-            <HandoffProjectCard
-              key={entry.id}
-              c={entry.completedProject}
-              onRefresh={refresh}
-              queueInfo={{ id: entry.id, position: entry.position, userNotes: entry.userNotes }}
-            />
-          ))}
-          <div className="border-t border-slate-800 pt-2" />
+          <button onClick={refresh} disabled={loading} className="text-slate-500 hover:text-violet-300 flex-shrink-0" title="Refresh">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       )}
 
