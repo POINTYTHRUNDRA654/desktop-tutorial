@@ -4,6 +4,85 @@ if (typeof expect !== 'undefined' && typeof expect.extend === 'function') {
   expect.extend(matchers);
 }
 
+vi.mock('electron', () => {
+  const clipboardStore = { text: '' };
+  return {
+    app: {
+      getPath: vi.fn(() => '/tmp'),
+      getVersion: vi.fn(() => '0.0.0-test'),
+      whenReady: vi.fn(() => Promise.resolve()),
+      isPackaged: false,
+      on: vi.fn(),
+      once: vi.fn(),
+      quit: vi.fn(),
+    },
+    BrowserWindow: vi.fn(() => ({
+      loadURL: vi.fn(),
+      loadFile: vi.fn(),
+      webContents: {
+        send: vi.fn(),
+        openDevTools: vi.fn(),
+      },
+      on: vi.fn(),
+      once: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      close: vi.fn(),
+    })),
+    clipboard: {
+      readText: vi.fn(() => clipboardStore.text),
+      writeText: vi.fn((value: string) => {
+        clipboardStore.text = String(value ?? '');
+      }),
+    },
+    contextBridge: {
+      exposeInMainWorld: vi.fn(),
+    },
+    dialog: {
+      showOpenDialog: vi.fn(async () => ({ canceled: true, filePaths: [] })),
+      showSaveDialog: vi.fn(async () => ({ canceled: true, filePath: undefined })),
+      showMessageBox: vi.fn(async () => ({ response: 0 })),
+    },
+    ipcMain: {
+      handle: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn(),
+      removeHandler: vi.fn(),
+      removeAllListeners: vi.fn(),
+    },
+    ipcRenderer: {
+      invoke: vi.fn(),
+      on: vi.fn(),
+      once: vi.fn(),
+      send: vi.fn(),
+      removeListener: vi.fn(),
+      removeAllListeners: vi.fn(),
+    },
+    nativeImage: {
+      createFromPath: vi.fn(() => ({ isEmpty: () => false })),
+      createFromDataURL: vi.fn(() => ({ isEmpty: () => false })),
+    },
+    safeStorage: {
+      isEncryptionAvailable: vi.fn(() => false),
+      encryptString: vi.fn((value: string) => Buffer.from(value, 'utf8')),
+      decryptString: vi.fn((value: Buffer) => value.toString('utf8')),
+    },
+    screen: {
+      getPrimaryDisplay: vi.fn(() => ({
+        size: { width: 1920, height: 1080 },
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      })),
+    },
+    shell: {
+      openExternal: vi.fn(),
+      showItemInFolder: vi.fn(),
+    },
+    net: {
+      request: vi.fn(),
+    },
+  };
+});
+
 // Many tests run in jsdom, but some (BridgeServer) use the `node` environment
 // where `window` is not defined.  Guard all window-based mocks so the file
 // can be imported regardless of environment.
