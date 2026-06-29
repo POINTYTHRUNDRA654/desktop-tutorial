@@ -61,9 +61,10 @@ jobs:
               package.json > package.json.tmp && mv package.json.tmp package.json
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
+            git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
             git add package.json
             git commit -m "chore: bump version to v$INPUT_VERSION [skip ci]"
-            git push
+            git push --force-with-lease
             echo "✅ package.json bumped and pushed to v$INPUT_VERSION"
           else
             echo "✅ Release version $INPUT_VERSION already matches package.json version $PKG_VERSION"
