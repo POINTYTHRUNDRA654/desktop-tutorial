@@ -66,8 +66,8 @@ for (const p of mdPages) {
 }
 
 // check InteractiveTutorial imageMap references exist in public images
-// allow filenames with spaces — stop when encountering a closing quote, parenthesis, or template literal expression ($)
-const itxImgs = Array.from(new Set((itx.match(/\/visual-guide-images\/[^'"$)]+/g) || [])
+// allow filenames with spaces — stop when encountering a closing quote, parenthesis, template literal expression ($), or newline
+const itxImgs = Array.from(new Set((itx.match(/(?<=['"`])\/visual-guide-images\/[^'"$)\r\n]+/g) || [])
   .map(s => s.replace('/visual-guide-images/',''))
   .map(fn => fn.replace(/\\'/g, "'").replace(/\\\\/g, "\\").trim())
 ));

@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..');
 const tutorialFile = path.join(root, 'src', 'renderer', 'src', 'InteractiveTutorial.tsx');
 const txt = fs.readFileSync(tutorialFile, 'utf8');
 
-const re = /\/visual-guide-images\/((?:\\'|[^'"$)`])+)/g; // allow escaped single quote inside string; exclude template literal expressions
+const re = /(?<=['"`])\/visual-guide-images\/((?:\\'|[^'"$)`\r\n])+)/g; // only match inside string literals (lookbehind); excludes comments
 const matches = [];
 let mm;
 while ((mm = re.exec(txt)) !== null) {

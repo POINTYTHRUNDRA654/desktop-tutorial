@@ -26,11 +26,12 @@ while ((m = pageTitleRe.exec(md)) !== null) {
   mdTitles.push(m[1].trim());
 }
 
-// extract tutorialContext pageName values: pageName: 'The Auditor',
-const pageNameRe = /\bpageName:\s*['\"]([^'\"]+)['\"]\s*,/g;
+// extract tutorialContext pageName values: pageName: 'The Auditor', or pageName: "FO4 What's New",
+// Use separate capture groups per quote type so apostrophes inside double-quoted strings are handled correctly.
+const pageNameRe = /\bpageName:\s*(?:'([^']+)'|"([^"]+)")\s*,/g;
 const ctxNames = [];
 while ((m = pageNameRe.exec(ctx)) !== null) {
-  ctxNames.push(m[1].trim());
+  ctxNames.push((m[1] !== undefined ? m[1] : m[2]).trim());
 }
 
 // build normalized lookup for ctx
