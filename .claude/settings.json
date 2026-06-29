@@ -4,5 +4,17 @@
       "Bash(yarn install *)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:20]\\)\")"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "tao-skill-bank": {
+      "source": {
+        "source": "directory",
+        "path": "G:\\NVIDIA-TAO\\tao-skills-bank"
+      },
+      "autoUpdate": false
+    }
+  },
+  "enabledPlugins": {
+    "tao-skills@tao-skill-bank": true
   }
 }
