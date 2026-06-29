@@ -35,6 +35,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get version
         id: get_version
@@ -49,16 +51,22 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
-      - name: Verify version matches package.json
+      - name: Bump version in package.json if needed
         run: |
           PKG_VERSION=$(jq -r '.version' < package.json)
           INPUT_VERSION="${{ steps.get_version.outputs.version }}"
-          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
-            echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
-            echo "Update package.json to version $INPUT_VERSION before creating this release."
-            exit 1
+          if [ "$PKG_VERSION" = "$INPUT_VERSION" ]; then
+            echo "✅ package.json already at v${INPUT_VERSION} — no bump needed."
+          else
+            echo "⬆️  Bumping package.json from v${PKG_VERSION} to v${INPUT_VERSION}..."
+            npm version "${INPUT_VERSION}" --no-git-tag-version
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add package.json package-lock.json
+            git commit -m "chore: bump version to ${INPUT_VERSION} [skip ci]"
+            git push
+            echo "✅ Committed and pushed package.json v${INPUT_VERSION}"
           fi
-          echo "✅ Release version $INPUT_VERSION matches package.json version $PKG_VERSION"
 
       - name: Create Release
         run: |
