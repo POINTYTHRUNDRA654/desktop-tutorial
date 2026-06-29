@@ -19425,7 +19425,9 @@ ${guideTrunc}
           const models: string[] = info?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
           return { online: true, model: models[0] ?? null, models };
         }
-      } catch {}
+      } catch {
+        // ignore model probe failures; status endpoint is enough to mark online
+      }
       return { online: true, model: null, models: [] };
     } catch {
       return { online: false };
@@ -19815,7 +19817,9 @@ Rules:
 
         request.on('response', response => {
           if (response.statusCode !== 200) {
-            try { file.destroy(); } catch {}
+            try { file.destroy(); } catch {
+              // ignore stream cleanup errors
+            }
             settle(false, new Error(`HTTP ${response.statusCode}`));
             return;
           }
@@ -19826,7 +19830,9 @@ Rules:
 
           response.on('data', (chunk: Buffer) => {
             if (settled) return;
-            try { file.write(chunk); } catch {}
+            try { file.write(chunk); } catch {
+              // write-stream error is handled by file.on('error')
+            }
             received += chunk.length;
             if (total > 0) {
               const pct = Math.round((received / total) * 100);
@@ -19836,7 +19842,9 @@ Rules:
                   event.sender.send('textures:download-progress', {
                     filename: params.filename, percent: pct, received, total,
                   });
-                } catch {}
+                } catch {
+                  // sender may be unavailable if renderer closed
+                }
               }
             }
           });
@@ -19850,13 +19858,17 @@ Rules:
           });
 
           response.on('error', (e: Error) => {
-            try { file.destroy(); } catch {}
+            try { file.destroy(); } catch {
+              // ignore stream cleanup errors
+            }
             settle(false, e);
           });
         });
 
         request.on('error', (e: Error) => {
-          try { file.destroy(); } catch {}
+          try { file.destroy(); } catch {
+            // ignore stream cleanup errors
+          }
           settle(false, e);
         });
 
@@ -19866,7 +19878,11 @@ Rules:
 
       return { success: true, path: dest };
     } catch (err: any) {
-      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
+      try {
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      } catch {
+        // ignore temp file cleanup errors
+      }
       return { success: false, error: String(err?.message ?? err ?? 'Unknown error') };
     }
   });
@@ -19916,11 +19932,17 @@ Rules:
       while (Date.now() < deadline) {
         await new Promise<void>(r => setTimeout(r, 3000));
         elapsed += 3;
-        try { event.sender.send('textures:comfyui-restart-progress', { elapsed }); } catch {}
+        try {
+          event.sender.send('textures:comfyui-restart-progress', { elapsed });
+        } catch {
+          // sender may be unavailable if renderer closed
+        }
         try {
           const resp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });
           if (resp.ok) return { success: true };
-        } catch {}
+        } catch {
+          // transient poll error; keep waiting until deadline
+        }
       }
       return { success: false, error: 'ComfyUI did not respond within 120 seconds.' };
     } catch (err: any) {
