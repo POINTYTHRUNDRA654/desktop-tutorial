@@ -18599,10 +18599,17 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // The scan takes ~2 seconds and writes H:\Mossy Memory\fo4_world_strings.json.
   registerHandler('creative-director:scan-fo4-world', async () => {
     try {
-      const scriptPath = path.join(app.getAppPath(), '..', '..', 'scripts', 'fo4_strings_scan.py');
-      const fallbackScript = path.join(process.cwd(), 'scripts', 'fo4_strings_scan.py');
-      const script = fs.existsSync(scriptPath) ? scriptPath : fallbackScript;
-      if (!fs.existsSync(script)) {
+      // Candidate paths in priority order:
+      // 1. next to app.asar in resources/scripts/ (where deploy-full.cjs puts it)
+      // 2. two levels up from asar (dev / project root layout)
+      // 3. cwd/scripts/ (last resort)
+      const candidates = [
+        path.join(app.getAppPath(), '..', 'scripts', 'fo4_strings_scan.py'),
+        path.join(app.getAppPath(), '..', '..', 'scripts', 'fo4_strings_scan.py'),
+        path.join(process.cwd(), 'scripts', 'fo4_strings_scan.py'),
+      ];
+      const script = candidates.find(p => fs.existsSync(p)) ?? '';
+      if (!script) {
         return { success: false, error: 'fo4_strings_scan.py not found — check scripts/ folder' };
       }
       const pythonExe = 'C:\\Users\\Owner\\AppData\\Local\\Python\\bin\\python.exe';
