@@ -91,6 +91,21 @@ async function main() {
     }
   }
 
+  // 5d. Copy Python runtime scripts to resources/scripts/ (alongside the asar).
+  // These cannot live inside the asar — Python's execFileSync needs a real disk path.
+  // The main.ts scan handler looks here first: path.join(app.getAppPath(), '..', 'scripts', ...)
+  const PYTHON_SCRIPTS = ['fo4_strings_scan.py'];
+  const srcScriptsDir  = path.join(ROOT, 'scripts');
+  const destScriptsDir = path.join(ROOT, 'Mossy', 'Mossy NVIDIA', 'resources', 'scripts');
+  if (!fs.existsSync(destScriptsDir)) fs.mkdirSync(destScriptsDir, { recursive: true });
+  for (const script of PYTHON_SCRIPTS) {
+    const src = path.join(srcScriptsDir, script);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(destScriptsDir, script));
+      console.log('      copied scripts/' + script + ' → resources/scripts/');
+    }
+  }
+
   // 6. Slim-pack (native .node modules stay in app.asar.unpacked)
   console.log('[6/6] Slim-packing...');
   await ASAR.createPackageWithOptions(TMP, DEST, { unpack: '{*.node,*.dll}' });
