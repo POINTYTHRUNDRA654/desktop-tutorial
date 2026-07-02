@@ -664,10 +664,10 @@ export const LocalAIEngine = {
       /(cannot|can'?t|unable|lack|no\s+access|don'?t\s+have).*(internet|web|online|access)[\s\S]{0,200}(llm|language\s+model|ai\s+model)/i,
     ];
 
-    // Try Groq Cloud FIRST (primary), then local as fallback support
-    // Local LLMs can claim "I'm just a language model" so they're backup-only
-    // Set to true to re-enable local-provider-first routing
-    const localProviderPrimaryEnabled = false;
+    // LOCAL FIRST: Ollama (Gemma 4) is the primary brain for all non-chat features.
+    // Groq cloud is the fallback only if local Ollama is unavailable.
+    // Mossy AI Chat (ChatInterface) is the only platform that should go cloud-first.
+    const localProviderPrimaryEnabled = true;
     if (localStatus.ok && localProviderPrimaryEnabled) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
       try {
         const api = (window.electron?.api || window.electronAPI) as any;

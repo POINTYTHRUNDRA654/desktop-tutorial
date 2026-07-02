@@ -1630,7 +1630,7 @@ const loadSettings = (): any => {
     // Local AI defaults
     localAiPreferredProvider: 'auto',
     ollamaBaseUrl: 'http://127.0.0.1:11434',
-    ollamaModel: 'llama3',
+    ollamaModel: 'gemma4:12b',
     openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
     openaiCompatModel: '',
     cosmosBaseUrl: '',
@@ -18037,7 +18037,36 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   async function cdCallAgent(systemPrompt: string, userPrompt: string): Promise<string> {
     const s = loadSettings();
-    // Try Groq cloud first if a key/backend is configured (same path the main AI Chat uses).
+
+    // PRIMARY: Local Ollama (Gemma 4) — on-device, no cloud needed.
+    // Falls through to Groq only if Ollama is offline or returns nothing.
+    try {
+      const ollamaBase = String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
+      const ollamaModel = String(s?.ollamaModel || 'gemma4:12b');
+      const ollamaRes = await fetch(`${ollamaBase}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          stream: false,
+          options: { num_predict: 8192, temperature: 0.7 },
+        }),
+        signal: AbortSignal.timeout(180_000),
+      });
+      if (ollamaRes.ok) {
+        const json: any = await ollamaRes.json().catch(() => ({}));
+        const text = json?.message?.content;
+        if (text) return String(text);
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Ollama unavailable, falling back to Groq cloud:', err);
+    }
+
+    // FALLBACK: Groq cloud — only used when Ollama is not running.
     try {
       const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
       const backend = getBackendConfig();
