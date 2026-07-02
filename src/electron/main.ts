@@ -18440,7 +18440,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             ? `This is revision attempt #${revisionCount + 1}. The reviewer sent it back:\n\n` +
               `=== REVIEWER FEEDBACK ===\n${lastReview.message.slice(0, 1500)}\n=== END FEEDBACK ===\n\n` +
               `Address ALL issues above, then output a complete revised plan.\n\n`
-            : `${FO4_VANILLA_WORLD}\n\nThis is your FIRST plan. Stay within the scope limits.\n\n`) +
+            : `${buildCDGameDataBlock()}\n\nThis is your FIRST plan. Stay within the scope limits.\n\n`) +
           `REMEMBER: This mod must connect to Mossy Industries canon above.\n` +
           `Write the complete plan using the exact headings from your instructions.`;
       }
@@ -18461,9 +18461,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         instruction =
           `${MOSSY_INDUSTRIES_LORE}\n\n` +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
-          `${FO4_VANILLA_WORLD}\n\n` +
+          `${buildCDGameDataBlock()}\n\n` +
           `=== APPROVED PLAN ===\n${(lastPlan?.message || project.phaseOutputs.plan || '').slice(0, 3000)}\n=== END PLAN ===\n\n` +
           `Verify every record reference against real FO4 game data above.\n` +
+          `When listing textures, meshes, or materials — copy exact paths from the catalog above.\n` +
           `Build the Verified Reference Table, confirm the location, and list NPC templates.\n` +
           `Also confirm the Mossy Industries connection is lore-consistent.\n` +
           `End your reply with the exact line: ## ANALYSIS COMPLETE`;
@@ -18479,9 +18480,11 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           `PROJECT: ${project.title}\n\n` +
           `=== APPROVED PLAN ===\n${(project.phaseOutputs.plan || '(see earlier turns)').slice(0, 1500)}\n=== END ===\n\n` +
           `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '(see earlier turns)').slice(0, 2000)}\n=== END ===\n\n` +
+          `=== REAL FO4 ASSET REFERENCE ===\n${buildCDGameDataBlock().slice(0, 4000)}\n=== END ASSET REFERENCE ===\n\n` +
           (verifyFails > 0 ? `NOTE: Previous attempt for this section FAILED verification. Fix ALL issues before resubmitting.\n\n` : '') +
           `Write SECTION ${project.buildSectionIdx + 1} OF ${CD_BUILD_SECTIONS.length}: "${sectionName}".\n` +
           `All Mossy Industries references must match the established canon above.\n` +
+          `When specifying texture/mesh paths use exact paths from the Asset Reference above — never invent file paths.\n` +
           `Be precise and numbered. Use only verified EditorIDs. End with: ## SECTION COMPLETE`;
       }
 
@@ -26146,6 +26149,44 @@ print(json.dumps(result))
       '║  END OF EXTENDED BRAIN MODULES',
       '╚════════════════════════════════════════════════════════════╝',
     ].join('\n\n');
+  }
+
+  // Builds a compact game-data block for Creative Director agents by pulling real
+  // asset catalogs directly from the loaded brain neurons. This is what gives the
+  // CD team access to real FO4 texture paths, mesh paths, voice types, etc. instead
+  // of inventing placeholders. Called at IPC handler runtime so neurons are loaded.
+  function buildCDGameDataBlock(): string {
+    const NEURON_IDS = [
+      'npc-voice-types',
+      'texture-catalog',
+      'mesh-full-catalog',
+      'material-catalog',
+      'sound-catalog',
+      'game-reference-papyrus',
+    ];
+    const parts: string[] = [
+      '╔══════════════════════════════════════════════════════════════╗',
+      '║  REAL FO4 GAME DATA — Mossy Brain Scan (use these, never invent)',
+      '╚══════════════════════════════════════════════════════════════╝',
+      '',
+      FO4_VANILLA_WORLD,
+      '',
+    ];
+    let neuronCount = 0;
+    for (const id of NEURON_IDS) {
+      const n = _brainNeurons.get(id);
+      if (n?.content) {
+        parts.push(`─── ${n.title} [${n.domain}] ───`, n.content, '');
+        neuronCount++;
+      }
+    }
+    if (neuronCount === 0) {
+      parts.push('(No brain neurons loaded — run a full Brain Scan in System Hub to populate real FO4 asset paths)');
+    }
+    parts.push('╔══════════════════════════════════════════════════════════════╗');
+    parts.push('║  END REAL FO4 GAME DATA');
+    parts.push('╚══════════════════════════════════════════════════════════════╝');
+    return parts.join('\n');
   }
 
   function formatGameReferenceAsNeuron(ref: any): string {
