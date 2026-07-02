@@ -18599,18 +18599,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // The scan takes ~2 seconds and writes H:\Mossy Memory\fo4_world_strings.json.
   registerHandler('creative-director:scan-fo4-world', async () => {
     try {
-      // Candidate paths in priority order:
-      // 1. next to app.asar in resources/scripts/ (where deploy-full.cjs puts it)
-      // 2. two levels up from asar (dev / project root layout)
-      // 3. cwd/scripts/ (last resort)
+      // process.execPath = path to the .exe, so dirname = the app install folder.
+      // resources/scripts/ is where deploy-full.cjs puts the Python scripts.
+      const exeDir = path.dirname(process.execPath);
       const candidates = [
-        path.join(app.getAppPath(), '..', 'scripts', 'fo4_strings_scan.py'),
-        path.join(app.getAppPath(), '..', '..', 'scripts', 'fo4_strings_scan.py'),
+        path.join(exeDir, 'resources', 'scripts', 'fo4_strings_scan.py'),   // definitive installed path
+        path.join(app.getAppPath(), '..', 'scripts', 'fo4_strings_scan.py'), // if getAppPath = asar file
+        path.join(app.getAppPath(), '..', '..', 'scripts', 'fo4_strings_scan.py'), // dev layout
         path.join(process.cwd(), 'scripts', 'fo4_strings_scan.py'),
       ];
-      const script = candidates.find(p => fs.existsSync(p)) ?? '';
+      const script = candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } }) ?? '';
       if (!script) {
-        return { success: false, error: 'fo4_strings_scan.py not found — check scripts/ folder' };
+        const tried = candidates.join('\n  ');
+        return { success: false, error: `fo4_strings_scan.py not found. Looked in:\n  ${tried}` };
       }
       const pythonExe = 'C:\\Users\\Owner\\AppData\\Local\\Python\\bin\\python.exe';
       const py = fs.existsSync(pythonExe) ? pythonExe : 'python';
