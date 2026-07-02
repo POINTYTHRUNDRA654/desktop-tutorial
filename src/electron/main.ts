@@ -18616,7 +18616,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       const pythonExe = 'C:\\Users\\Owner\\AppData\\Local\\Python\\bin\\python.exe';
       const py = fs.existsSync(pythonExe) ? pythonExe : 'python';
       const { execFileSync } = await import('child_process');
-      const stdout = execFileSync(py, [script, '--dlc'], { timeout: 60_000, encoding: 'utf-8' });
+      const stdout = execFileSync(py, [script], { timeout: 120_000, encoding: 'utf-8' });
       // Reload the world context into the running session
       if (fs.existsSync(FO4_STRINGS_JSON)) {
         const raw = JSON.parse(fs.readFileSync(FO4_STRINGS_JSON, 'utf-8'));
