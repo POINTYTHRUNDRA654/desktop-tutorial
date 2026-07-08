@@ -686,27 +686,33 @@ const WorldDesign: React.FC<{ backendOnline: boolean }> = ({ backendOnline }) =>
 // else local KoboldCpp). No external servers, no fake peer ports.
 
 const AGENT_COLORS: Record<string, string> = {
-  director:  'text-amber-400',
-  quest:     'text-emerald-400',
-  dialogue:  'text-sky-400',
-  world:     'text-purple-400',
-  planner:   'text-cyan-400',
-  reviewer:  'text-rose-400',
-  analyst:   'text-violet-400',
-  builder:   'text-emerald-400',
-  verifier:  'text-orange-400',
+  director:       'text-amber-400',
+  quest:          'text-emerald-400',
+  dialogue:       'text-sky-400',
+  world:          'text-purple-400',
+  planner:        'text-cyan-400',
+  reviewer:       'text-rose-400',
+  analyst:        'text-violet-400',
+  builder:        'text-emerald-400',
+  verifier:       'text-orange-400',
+  script_writer:  'text-lime-400',
+  record_builder: 'text-teal-400',
+  esp_builder:    'text-indigo-400',
 };
 
 const AI_TEAM_NAMES: Record<string, string> = {
-  director:  'Creative Director',
-  quest:     'Quest & Systems Designer',
-  dialogue:  'Dialogue & Lore Writer',
-  world:     'World & NPC Builder',
-  planner:   'Mod Planner',
-  reviewer:  'Plan Reviewer',
-  analyst:   'Game Data Analyst',
-  builder:   'Mod Builder',
-  verifier:  'Build Verifier',
+  director:       'Creative Director',
+  quest:          'Quest & Systems Designer',
+  dialogue:       'Dialogue & Lore Writer',
+  world:          'World & NPC Builder',
+  planner:        'Mod Planner',
+  reviewer:       'Plan Reviewer',
+  analyst:        'Game Data Analyst',
+  builder:        'Mod Builder',
+  verifier:       'Build Verifier',
+  script_writer:  'Script Writer',
+  record_builder: 'Record Builder',
+  esp_builder:    'xEdit Script Builder',
 };
 
 const PHASE_STEPS = [
@@ -724,9 +730,11 @@ function phaseIndex(phase: string): number {
 }
 
 const AITeamPanel: React.FC = () => {
-  const [state, setState] = useState<{ enabled: boolean; currentProject: any; completedProjects: any[] } | null>(null);
+  const [state, setState] = useState<{ enabled: boolean; tickInFlight?: boolean; currentProject: any; completedProjects: any[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [approvalBusy, setApprovalBusy] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [buildStarted, setBuildStarted] = useState(false);
   const [rejectFeedback, setRejectFeedback] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
@@ -802,11 +810,23 @@ const AITeamPanel: React.FC = () => {
 
   const approvePlan = async () => {
     setApprovalBusy(true);
+    setApprovalError(null);
     try {
-      await api()?.creativeDirectorTeam?.approvePlan?.();
+      const result = await api()?.creativeDirectorTeam?.approvePlan?.();
+      if (result?.success === false) {
+        setApprovalError(result.error || 'Failed to start build');
+        return;
+      }
+      if (result?.teamEnabled === false) {
+        setApprovalError('The AI team is disabled — click Enable at the top to activate it first.');
+        return;
+      }
       setShowRejectInput(false);
       setRejectFeedback('');
+      setBuildStarted(true);
       await refresh();
+    } catch (e: any) {
+      setApprovalError('Unexpected error: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setApprovalBusy(false);
     }
@@ -931,16 +951,24 @@ const AITeamPanel: React.FC = () => {
                 </div>
               </div>
               {!showRejectInput ? (
-                <div className="flex items-center gap-2">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
                   <button onClick={approvePlan} disabled={approvalBusy}
                     className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-semibold bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors">
                     {approvalBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    Approve — Start Building
+                    {approvalBusy ? 'Starting...' : 'Approve — Start Building'}
                   </button>
                   <button onClick={() => setShowRejectInput(true)} disabled={approvalBusy}
                     className="flex items-center gap-1.5 px-4 py-2 rounded text-xs font-semibold bg-rose-600/10 text-rose-400 border border-rose-500/20 hover:bg-rose-600/20 disabled:opacity-50 transition-colors">
                     <X className="w-3.5 h-3.5" /> Send Back with Feedback
                   </button>
+                  </div>
+                  {buildStarted && (
+                    <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-3 py-2">
+                      <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+                      Build launched — the AI team is now writing scripts and records. Progress appears in the transcript below (may take 2–5 minutes per section).
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -965,15 +993,21 @@ const AITeamPanel: React.FC = () => {
                   </div>
                 </div>
               )}
+              {approvalError && (
+                <div className="flex items-start gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-xs text-red-400">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                  <span>{approvalError}</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Build section progress (only during building/verifying) */}
           {(phase === 'building' || phase === 'verifying') && (
-            <div className="px-3 py-2 border-b border-slate-800/60">
-              <div className="text-xs text-slate-500 mb-1.5 font-medium">Build Progress</div>
+            <div className="px-3 py-2 border-b border-slate-800/60 space-y-2">
+              <div className="text-xs text-slate-500 font-medium">Build Progress</div>
               <div className="flex gap-1.5">
-                {['Quest & Stage Design', 'NPC Records', 'Scene & Placement', 'Build Instructions'].map((s, i) => {
+                {['Papyrus Scripts', 'ESP Records', 'xEdit Script'].map((s, i) => {
                   const done = i < (project.buildSectionIdx ?? 0);
                   const active = i === (project.buildSectionIdx ?? 0);
                   return (
@@ -983,34 +1017,43 @@ const AITeamPanel: React.FC = () => {
                   );
                 })}
               </div>
+              {state?.tickInFlight && (
+                <div className="flex items-center gap-2 text-xs text-sky-400 pt-0.5">
+                  <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+                  <span>AI team is processing — may take up to 3 minutes...</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Transcript */}
           <div ref={transcriptRef} className="p-3 space-y-3 max-h-96 overflow-y-auto">
-            {(project.turns || []).map((t: any, i: number) => (
-              <div key={i} className="text-xs">
-                <div className="flex items-center gap-2">
-                  <span className={`font-semibold ${AGENT_COLORS[t.agent] || 'text-slate-400'}`}>
-                    {AI_TEAM_NAMES[t.agent] || t.agent}
-                  </span>
-                  <span className="text-slate-600 font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
-                  {t.agent === 'reviewer' && /APPROVED/i.test(t.message) && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">APPROVED</span>
-                  )}
-                  {t.agent === 'reviewer' && /NEEDS_REVISION/i.test(t.message) && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20">NEEDS REVISION</span>
-                  )}
-                  {t.agent === 'verifier' && /PASSED/i.test(t.message) && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">PASSED</span>
-                  )}
-                  {t.agent === 'verifier' && /FAILED/i.test(t.message) && (
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">FAILED</span>
-                  )}
+            {(project.turns || []).map((t: any, i: number) => {
+              const isError = t.message?.startsWith?.('[ERROR]');
+              return (
+                <div key={i} className={`text-xs ${isError ? 'bg-red-500/5 border border-red-500/20 rounded p-2' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-semibold ${isError ? 'text-red-400' : (AGENT_COLORS[t.agent] || 'text-slate-400')}`}>
+                      {isError ? 'Error' : (AI_TEAM_NAMES[t.agent] || t.agent)}
+                    </span>
+                    <span className="text-slate-600 font-mono">{new Date(t.timestamp).toLocaleTimeString()}</span>
+                    {t.agent === 'reviewer' && /APPROVED/i.test(t.message) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">APPROVED</span>
+                    )}
+                    {t.agent === 'reviewer' && /NEEDS_REVISION/i.test(t.message) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20">NEEDS REVISION</span>
+                    )}
+                    {t.agent === 'verifier' && /PASSED/i.test(t.message) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">PASSED</span>
+                    )}
+                    {t.agent === 'verifier' && /FAILED/i.test(t.message) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/15 text-red-400 border border-red-500/20">FAILED</span>
+                    )}
+                  </div>
+                  <div className={`whitespace-pre-wrap mt-1 ${isError ? 'text-red-300' : 'text-slate-300'}`}>{t.message}</div>
                 </div>
-                <div className="text-slate-300 whitespace-pre-wrap mt-1">{t.message}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1214,7 +1257,16 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
   const [enhancing, setEnhancing] = useState(false);
   const [enhanceNotes, setEnhanceNotes] = useState('');
   const [enhanceError, setEnhanceError] = useState('');
-  const [buildability, setBuildability] = useState<{ score: number; checks: { pass: boolean; label: string }[] } | null>(null);
+  const [buildability, setBuildability] = useState<{ score: number; checks: { pass: boolean; label: string; detail?: string }[] } | null>(null);
+  const [compiling, setCompiling] = useState(false);
+  const [compileMsg, setCompileMsg] = useState('');
+  const [compileErr, setCompileErr] = useState('');
+  const [packaging, setPackaging] = useState(false);
+  const [packageMsg, setPackageMsg] = useState('');
+  const [packageErr, setPackageErr] = useState('');
+  const [prevising, setPrevising] = useState(false);
+  const [previsMsg, setPrevisMsg] = useState('');
+  const [previsErr, setPrevisErr] = useState('');
   const [scaffolding, setScaffolding] = useState(false);
   const [scaffoldError, setScaffoldError] = useState('');
   const [scaffoldResult, setScaffoldResult] = useState<{ modName: string; createdFiles: string[]; scaffoldDir: string; questCount: number; npcCount: number; folderCount: number } | null>(null);
@@ -1255,6 +1307,20 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
 
   const api = () => (window as any).electronAPI ?? (window as any).electron?.api;
 
+  // Score REAL artifacts (does an .esp exist? are scripts compiled? are QUST records
+  // present?) via the backend. Falls back to the old doc heuristic only if the real
+  // assessor is unavailable.
+  const refreshBuildability = useCallback(async () => {
+    try {
+      const b = await api()?.creativeDirectorTeam?.assessBuild?.(c.outputDir);
+      if (b?.success) { setBuildability({ score: b.score, checks: b.checks }); return; }
+    } catch { /* fall through to heuristic */ }
+    try {
+      const g = await api()?.creativeDirectorTeam?.readGuide?.(c.outputDir);
+      if (g?.success) setBuildability(assessBuildability(g.content));
+    } catch { /* ignore */ }
+  }, [c.outputDir]);
+
   const loadGuide = useCallback(async () => {
     if (!c.outputDir) return;
     setGuideLoading(true);
@@ -1262,14 +1328,14 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
       const res = await api()?.creativeDirectorTeam?.readGuide?.(c.outputDir);
       if (res?.success) {
         setGuideContent(res.content);
-        setBuildability(assessBuildability(res.content));
+        await refreshBuildability();
       } else {
         setGuideContent('(no BUILD_GUIDE.md found)');
         setBuildability(null);
       }
     } catch { setGuideContent('(error reading guide)'); }
     setGuideLoading(false);
-  }, [c.outputDir]);
+  }, [c.outputDir, refreshBuildability]);
 
   useEffect(() => { loadGuide(); }, [loadGuide]);
 
@@ -1427,7 +1493,7 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
       const res = await api()?.creativeDirectorTeam?.enhanceGuide?.(c.outputDir, selectedAssets, enhanceNotes);
       if (res?.success) {
         setGuideContent(res.content);
-        setBuildability(assessBuildability(res.content));
+        await refreshBuildability();
         setShowGuide(true);
         onRefresh();
       } else {
@@ -1458,11 +1524,47 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
       const res = await api()?.creativeDirectorTeam?.scaffoldMod?.(c.outputDir);
       if (res?.success) {
         setScaffoldResult(res);
+        refreshBuildability();
       } else {
         setScaffoldError(res?.error || 'Scaffold failed');
       }
     } catch (e: any) { setScaffoldError(String(e)); }
     setScaffolding(false);
+  };
+
+  const compileScripts = async () => {
+    setCompiling(true); setCompileErr(''); setCompileMsg('');
+    try {
+      const r = await api()?.creativeDirectorTeam?.compileScripts?.(c.outputDir);
+      if (r?.success) { setCompileMsg(r.message || `Compiled ${r.compiled}/${r.total}`); refreshBuildability(); }
+      else setCompileErr(r?.error || `Compiled ${r?.compiled ?? 0}/${r?.total ?? 0} — a script failed to compile`);
+    } catch (e: any) { setCompileErr(String(e)); }
+    setCompiling(false);
+  };
+
+  const packageMod = async () => {
+    setPackaging(true); setPackageErr(''); setPackageMsg('');
+    try {
+      const name = scaffoldResult?.modName || espName.replace(/\.(esp|esl|esm)$/i, '') || 'MyMod';
+      const r = await api()?.creativeDirectorTeam?.packageMod?.(c.outputDir, name);
+      if (r?.success) setPackageMsg(r.message || `Packed ${r.ba2Path}`);
+      else setPackageErr(r?.error || 'Packaging failed');
+    } catch (e: any) { setPackageErr(String(e)); }
+    setPackaging(false);
+  };
+
+  const rebuildPrevis = async () => {
+    setPrevising(true); setPrevisErr(''); setPrevisMsg('');
+    try {
+      const s = await api()?.getSettings?.();
+      const fo4 = String(s?.fallout4Path || '').trim();
+      const name = espName.trim() || 'MyMod.esp';
+      if (!fo4) { setPrevisErr('Set your Fallout 4 path in Settings — previs runs against the plugin installed in Data.'); setPrevising(false); return; }
+      const espPath = `${fo4.replace(/[\\/]+$/, '')}\\Data\\${name}`;
+      const r = await api()?.ckAutofixRebuildPrecombines?.(espPath, s?.xeditPath || undefined);
+      if (r?.success) setPrevisMsg(r.message || 'Previs rebuild started'); else setPrevisErr(r?.error || 'Could not start previs rebuild');
+    } catch (e: any) { setPrevisErr(String(e)); }
+    setPrevising(false);
   };
 
   const revealScaffold = async () => {
@@ -1657,7 +1759,8 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
                 {buildability.checks.map((ch, i) => (
                   <div key={i} className={`flex items-center gap-2 text-xs ${ch.pass ? 'text-emerald-400' : 'text-slate-500'}`}>
                     {ch.pass ? <CheckCircle2 className="w-3 h-3 flex-shrink-0" /> : <AlertCircle className="w-3 h-3 flex-shrink-0 text-amber-400/60" />}
-                    {ch.label}
+                    <span>{ch.label}</span>
+                    {ch.detail && <span className="text-[10px] text-slate-600 font-mono">— {ch.detail}</span>}
                   </div>
                 ))}
               </div>
@@ -1856,6 +1959,13 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
                     <RefreshCw className="w-3 h-3" /> Rebuild
                   </button>
                 </div>
+                <button onClick={compileScripts} disabled={compiling}
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold py-1.5 rounded text-xs transition-colors">
+                  {compiling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Code2 className="w-3.5 h-3.5" />}
+                  {compiling ? 'Compiling Papyrus…' : 'Compile Scripts (.psc → .pex)'}
+                </button>
+                {compileMsg && <div className="text-[10px] text-emerald-400">{compileMsg}</div>}
+                {compileErr && <div className="text-[10px] text-red-400">{compileErr}</div>}
               </div>
             ) : (
               <button onClick={scaffold} disabled={scaffolding || guideLoading}
@@ -1929,6 +2039,32 @@ const HandoffProjectCard: React.FC<{ c: any; onRefresh: () => void; queueInfo?: 
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Finalize — Package BA2 + Rebuild Previs (reuses the CK platform pipeline) */}
+          <div className="border border-fuchsia-500/20 rounded-lg p-3 bg-fuchsia-500/5 space-y-2">
+            <div className="text-xs font-semibold text-fuchsia-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5" /> Finalize — Package &amp; Previs
+            </div>
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Pack the scaffold&apos;s <code className="text-fuchsia-300">Data/</code> into a <code className="text-fuchsia-300">.ba2</code>, and rebuild precombines/previs for the installed plugin (reuses the CK platform&apos;s GeneratePrevisibines pipeline). Both need your Fallout&nbsp;4 path set in Settings.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={packageMod} disabled={packaging}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-fuchsia-600 hover:bg-fuchsia-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold py-1.5 rounded text-xs transition-colors">
+                {packaging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Package className="w-3.5 h-3.5" />}
+                {packaging ? 'Packing…' : 'Package BA2'}
+              </button>
+              <button onClick={rebuildPrevis} disabled={prevising}
+                className="flex-1 flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-semibold py-1.5 rounded text-xs transition-colors">
+                {prevising ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {prevising ? 'Starting…' : 'Rebuild Previs'}
+              </button>
+            </div>
+            {packageMsg && <div className="text-[10px] text-fuchsia-300">{packageMsg}</div>}
+            {packageErr && <div className="text-[10px] text-red-400">{packageErr}</div>}
+            {previsMsg && <div className="text-[10px] text-amber-300">{previsMsg}</div>}
+            {previsErr && <div className="text-[10px] text-red-400">{previsErr}</div>}
           </div>
 
           {/* Guide viewer */}
@@ -2219,7 +2355,7 @@ const HandoffPanel: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs text-slate-500 leading-relaxed">
-          Each project gets a buildability score (1–5) based on what's in its BUILD_GUIDE. Expand any card to see the full checklist, view the guide, pick assets from your extracted F4 files, and hit Enhance to have AI rewrite the guide with step-by-step CK instructions and real asset paths.
+          Each project gets a buildability score (1–5) based on REAL artifacts — whether an .esp exists, whether its Papyrus is compiled to .pex, and whether quest/dialogue records and script attachments are actually present. Expand any card to see the full checklist, build the mod structure, compile scripts, generate the xEdit records, and package + rebuild previs.
         </p>
         <button onClick={refresh} disabled={loading}
           className="flex items-center gap-1 text-xs text-slate-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1.5 rounded transition-colors flex-shrink-0">

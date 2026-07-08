@@ -16986,7 +16986,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // in-game verification is NOT implemented - flagged in the manifest as
   // future work, never claimed as done.
   // =========================================================================
-  type CdAgentRole = 'director' | 'quest' | 'dialogue' | 'world' | 'planner' | 'reviewer' | 'analyst' | 'builder' | 'verifier';
+  type CdAgentRole = 'director' | 'quest' | 'dialogue' | 'world' | 'planner' | 'reviewer' | 'analyst' | 'builder' | 'verifier' | 'script_writer' | 'record_builder' | 'esp_builder';
   type CdTurn = { agent: CdAgentRole; message: string; timestamp: number };
   type CdPhase =
     | 'concept'           // director proposes a small, concrete mod idea
@@ -17009,6 +17009,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       plan?: string;
       review?: string;
       analysis?: string;
+      scripts?: string;   // script_writer output
+      records?: string;   // record_builder JSON output
       rejectionFeedback?: string;
     };
     buildSectionIdx: number;   // index into CD_BUILD_SECTIONS currently being worked
@@ -17054,10 +17056,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // BUILD SECTIONS — the Builder works through these one at a time, and the
   // Verifier must approve each before the next begins. Keep scope small.
   const CD_BUILD_SECTIONS = [
-    'Quest & Stage Design',      // QUST EditorID, stages, objectives, fail conditions
-    'NPC Records',               // ACTR records, race, voice type, outfits (vanilla only)
-    'Scene & Placement',         // CELL/REFR table — where NPCs and objects go
-    'Build Instructions',        // numbered CK/xEdit steps the modder executes
+    'Papyrus Scripts',      // script_writer: produces named .psc files (one per script)
+    'ESP Records (JSON)',   // record_builder: produces mod_records.json with all xEdit-importable records
+    'xEdit Builder Script', // esp_builder: produces create_esp.pas — run in FO4Edit to build the .esp automatically
   ];
 
   // Legacy alias — keeps older code that references CD_REQUIRED_SECTIONS compiling.
@@ -17734,49 +17735,266 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       name: 'Build Verifier',
       systemPrompt:
         'You are the FO4 Build Verifier for MOSSY INDUSTRIES.\n\n' +
-        'Your job: REJECT incomplete sections before the modder wastes time in CK.\n\n' +
-        'AUTOMATIC FAIL CONDITIONS — fail immediately if ANY of these are true:\n' +
-        '• The section contains paragraphs of prose instead of tables/code/steps\n' +
-        '• There is commentary, explanation, or prose after the JSON block (JSON is the final deliverable — nothing follows it except ## SECTION COMPLETE)\n' +
-        '• Quest & Stage Design is missing: stage table, alias list, or start conditions\n' +
-        '• NPC Records is missing: actor record table, faction table, or voice type\n' +
-        '• Scene & Placement is missing: cell EditorID, dialogue topics, or numbered CK steps\n' +
-        '• Build Instructions contains NO compilable Papyrus code (pseudocode = FAIL)\n' +
-        '• Any EditorID or FormID is not in the Verified Reference Table\n' +
-        '• Any JSON field contains invented data, vague text, or a placeholder other than "[VERIFY]" or "[GENERATE]"\n' +
-        '• Any step is vague ("place the NPC somewhere appropriate" = FAIL)\n' +
-        '• The section ends without ## SECTION COMPLETE\n' +
-        '• The section does not contain a ```json xEdit record block before ## SECTION COMPLETE\n' +
-        '• The JSON block is missing any record that was defined in the section tables\n' +
-        '• Any JSON record uses a hardcoded hex FormID instead of "[GENERATE]"\n' +
-        '• JSON is malformed (trailing commas, comments inside the block, invalid syntax)\n' +
-        '• BOOK/TERM records are missing their full text content (summaries = FAIL)\n' +
-        '• The complete JSON has fewer than: 1 QUST, 2 BOOK records (1 holotape + 1 with IsNote flag), 1 TERM, 1 CELL, 1–2 NPC_, 4+ INFO per NPC\n' +
-        '• QUST record is missing a Scripts[] array with at least one script entry containing real Papyrus source\n' +
-        '• Any standalone SCPT record exists — scripts must be Scripts[] on the parent record, not separate records\n' +
-        '• Any BOOK record used as a note is missing "Flags": ["IsNote"]\n' +
-        '• Any "[WRITE]" or "[WRITE PAPYRUS]" remains in the JSON — these are template stubs the Builder must replace\n\n' +
-        'CONTENT CHECKS (after passing auto-fail):\n' +
-        '1. Are all stages numbered correctly (10/20/30.../100)?\n' +
-        '2. Do quest conditions actually reference the right records?\n' +
-        '3. Do Papyrus scripts use real API calls? (GetStage, SetStage, etc.)\n' +
-        '4. Are CK steps in the correct creation order?\n' +
-        '5. Would this compile without errors in the Papyrus compiler?\n' +
-        '6. Mossy Industries canon check: no Blue Hills/SPORE/Cultivator IDs/Dr. Moss fate.\n' +
-        '7. Does the xEdit JSON contain an entry for every new record introduced in this section?\n' +
-        '8. Are all cross-record references using EditorID strings, not hex FormIDs?\n' +
-        '9. Is every new record\'s FormID exactly "[GENERATE]"?\n' +
-        '10. Do INFO records include ResponseText, Topic reference, and Conditions array?\n\n' +
+        'Your ONLY job: check whether the builder\'s output satisfies the SECTION-SPECIFIC CHECKS\n' +
+        'listed in the instruction below. Do NOT apply checks from sections you are not currently reviewing.\n\n' +
+        'UNIVERSAL AUTO-FAIL CONDITIONS — fail immediately if ANY are true regardless of section:\n' +
+        '• The output is pure prose with no code blocks, tables, or structured data\n' +
+        '• Any "[WRITE]" placeholder remains — these must be replaced by the builder\n' +
+        '• Any hardcoded hex FormID (e.g. 00012345) instead of "[GENERATE]"\n' +
+        '• The required COMPLETION MARKER for this section is missing\n\n' +
+        'PAPYRUS SYNTAX AUTO-FAIL (applies only when reviewing Papyrus scripts):\n' +
+        '• switch/case syntax — Papyrus uses If/ElseIf/EndIf, there is NO switch/case\n' +
+        '• Event OnStageComplete() — this event does NOT exist in FO4 Papyrus\n' +
+        '• Event OnObjectiveCompleted() — this event does NOT exist in FO4 Papyrus\n' +
+        '• HasValue() — this function does NOT exist in FO4 Papyrus\n' +
+        '• Any C#, Java, or TypeScript syntax (foreach, enum, =>)\n\n' +
+        'JSON AUTO-FAIL (applies only when reviewing ESP Records JSON):\n' +
+        '• ## RECORDS COMPLETE appears INSIDE the json code block — it must be OUTSIDE the closing ``` fence\n' +
+        '• Malformed JSON (trailing commas, comments inside block, unclosed braces)\n' +
+        '• DIAL record used for holotape content — holotapes are BOOK records\n' +
+        '• Standalone SCPT record — scripts must be Scripts[] on the parent record\n\n' +
+        'PASCAL AUTO-FAIL (applies only when reviewing xEdit Pascal script):\n' +
+        '• Comment placeholder `{ ... all other records ... }` still present — this is a stub, not real code\n' +
+        '• Script under 80 lines of actual code (excluding blank lines and comments)\n' +
+        '• Missing function Initialize: Integer or function Finalize: Integer\n\n' +
+        'Read the SECTION-SPECIFIC CHECKS in the instruction carefully — they define exactly what PASSED means.\n' +
+        'Apply only those checks. Do not invent extra requirements.\n\n' +
         'Reply in EXACTLY this format:\n\n' +
         '## Verification: PASSED\n' +
         'or\n' +
         '## Verification: FAILED\n\n' +
         '## Issues Found\n' +
-        '[Specific problems — cite the exact missing deliverable or bad step number. "None" if clean.]\n\n' +
+        '[List each specific problem. "None" if all checks passed.]\n\n' +
         '## Required Corrections\n' +
-        '[Exact rewrite instructions for the Builder. "None — proceed to next section" if passed.]\n\n' +
+        '[Exact fix instructions for the builder. "None — proceed to next section" if passed.]\n\n' +
         '## Verdict\n' +
-        '[One sentence: what passed or what the blocker is. If PASSED, confirm: "Output is valid xEdit data — pasteable and buildable without modification other than FormID assignment."]',
+        '[One sentence. If PASSED: "Output is production-ready — files will be extracted and saved automatically."]',
+    },
+    'script_writer': {
+      name: 'Script Writer',
+      systemPrompt:
+        'You are the Script Writer for the Mossy Industries FO4 mod team.\n' +
+        'Your ONLY job: write EVERY Papyrus script this mod needs as complete, compilable .psc files.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT FORMAT — one named block per script:\n' +
+        '════════════════════════════════════════\n' +
+        '## Script: <ExactScriptName>.psc\n' +
+        '```papyrus\n' +
+        'Scriptname <ExactScriptName> extends <Quest|Actor|ObjectReference> Conditional\n' +
+        '; Properties\n' +
+        'ReferenceAlias Property <Name> Auto\n' +
+        '...\n' +
+        '; Events / Functions\n' +
+        'Event OnInit()\n' +
+        '  ...\n' +
+        'EndEvent\n' +
+        '```\n\n' +
+        'End with: ## SCRIPTS COMPLETE\n\n' +
+        '════════════════════════════════════════\n' +
+        'HARD RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• EVERY script is COMPLETE — no stubs, no "// TODO", no pseudocode. Real compilable code only.\n' +
+        '• Minimum 20 lines of real logic per script.\n' +
+        '• Quest main scripts: extend Quest Conditional — include OnInit, stage functions, all quest logic.\n' +
+        '• Quest fragment scripts: Scriptname QF_<QuestID>_<FormID> extends Quest Hidden — use Fragment_Stage_NNNN_Item_00() functions.\n' +
+        '• Actor/creature scripts: extend Actor — include behavior events.\n' +
+        '• ObjectReference trigger scripts: extend ObjectReference — include OnTriggerEnter or OnActivate.\n' +
+        '• Script names must EXACTLY match what the Record Builder will reference in Scripts[].\n' +
+        '• No enum, no foreach, no C# syntax, no TypeScript — Papyrus ONLY.\n\n' +
+        'REAL FO4 PAPYRUS API — use these exactly:\n' +
+        '  Game.GetPlayer() as Actor\n' +
+        '  SetStage(int stage) — advance quest\n' +
+        '  GetStage() as int — current stage\n' +
+        '  GetStageDone(int stage) as bool\n' +
+        '  SetObjectiveDisplayed(int obj, bool show)\n' +
+        '  SetObjectiveCompleted(int obj, bool done)\n' +
+        '  CompleteAllObjectives()\n' +
+        '  Actor.MoveTo(ObjectReference target)\n' +
+        '  Actor.EvaluatePackage()\n' +
+        '  Actor.AddItem(Form item, int count)\n' +
+        '  ReferenceAlias.GetActorRef() as Actor\n' +
+        '  ReferenceAlias.GetRef() as ObjectReference\n' +
+        '  StartTimer(float seconds, int timerID)\n' +
+        '  CancelTimer(int timerID)\n' +
+        '  Event OnTimer(int aiTimerID) / EndEvent\n' +
+        '  Debug.Trace(string msg)\n' +
+        '  Debug.Notification(string msg)\n' +
+        '  Utility.Wait(float seconds)\n' +
+        '  GlobalVariable.GetValueInt() / GlobalVariable.SetValue(float v)\n' +
+        '  RegisterForSingleUpdateGameTime(float hours)\n' +
+        '  Event OnUpdateGameTime() / EndEvent\n\n' +
+        'QUEST FRAGMENT PATTERN (for stage-triggered logic):\n' +
+        '  Scriptname QF_MI_EchoesFieldTest_00000D62 extends Quest Hidden\n' +
+        '  ReferenceAlias Property Alias_QuestNPC Auto\n' +
+        '  Function Fragment_Stage_0010_Item_00()\n' +
+        '    SetObjectiveDisplayed(10, True)\n' +
+        '    Alias_QuestNPC.GetActorRef().EvaluatePackage()\n' +
+        '  EndFunction\n' +
+        '  Function Fragment_Stage_0100_Item_00()\n' +
+        '    SetObjectiveCompleted(20, True)\n' +
+        '    CompleteAllObjectives()\n' +
+        '  EndFunction',
+    },
+    'record_builder': {
+      name: 'Record Builder',
+      systemPrompt:
+        'You are the Record Builder for the Mossy Industries FO4 mod team.\n' +
+        'Your ONLY job: write the COMPLETE xEdit-compatible JSON for this mod — every record, every field.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT FORMAT — ONE json block:\n' +
+        '════════════════════════════════════════\n' +
+        '```json\n' +
+        '{\n' +
+        '  "Plugin": "MI_ModName.esl",\n' +
+        '  "Records": [\n' +
+        '    { "Signature": "QUST", "EditorID": "MI_QuestID", "FormID": "[GENERATE]", "Fields": { ... } },\n' +
+        '    { "Signature": "NPC_", "EditorID": "MI_NPCName", "FormID": "[GENERATE]", "Fields": { ... } },\n' +
+        '    ...\n' +
+        '  ]\n' +
+        '}\n' +
+        '```\n\n' +
+        '## RECORDS COMPLETE\n\n' +
+        'CRITICAL: "## RECORDS COMPLETE" goes on its own line AFTER the closing ``` fence — NEVER inside the json block.\n\n' +
+        '════════════════════════════════════════\n' +
+        'HARD RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• FormID for ALL new records: exactly "[GENERATE]" — never invent hex values.\n' +
+        '• Script references: "Scripts": [{"Name": "MI_ScriptName", "Properties": [...]}] — name ONLY, no Source.\n' +
+        '• The Script Writer produced the .psc files. You reference them by name, not by source code.\n' +
+        '• Vanilla record refs: exact EditorID strings (e.g. "Race": "HumanRace", "VoiceType": "MaleBoston").\n' +
+        '• Use every EditorID from the analyst\'s Verified Reference Table — no invented references.\n\n' +
+        'SIGNATURE MAPPING (use EXACTLY these signatures — do not invent others):\n' +
+        '  Holotapes → BOOK  (Signature: "BOOK", FullName, Description, Text: ["line 1", ...])\n' +
+        '  Hand notes → BOOK with Flags: ["IsNote"]  — there is NO "NOTE" or "SCPT" signature in FO4\n' +
+        '  Terminals → TERM  (Header, Entries: [{Title, Text}])\n' +
+        '  Dialogue topics → DIAL  (NOT for holotapes — DIAL is only for spoken dialogue topics)\n' +
+        '  Dialogue responses → INFO  (under DIAL parent, ResponseText ≤80 chars, Conditions array)\n' +
+        '  DO NOT create standalone SCPT records — scripts attach as Scripts[] on the parent record\n\n' +
+        '• QUST "Stages": [{"Index": 10, "LogEntry": "exact journal text", "ObjectiveText": "exact objective"}]\n' +
+        '• NPC_ "Factions": [{"Faction": "EditorID", "Rank": 0}]\n' +
+        '• JSON must be valid — no trailing commas, no comments inside the json block.\n\n' +
+        'THREE MARKERS — use no others:\n' +
+        '  "[GENERATE]" → FormID field only\n' +
+        '  "[VERIFY]"   → value uncertain — modder resolves in CK/xEdit before import\n' +
+        '  Never leave "[WRITE]" in output — that is a template stub you must replace\n\n' +
+        'MINIMUM RECORD COUNTS — fail if missing any:\n' +
+        '  1 QUST | 1-2 NPC_ | 3+ DIAL | 4+ INFO per NPC | 2 BOOK (1 holotape, 1 IsNote) | 1 TERM | 1 CELL',
+    },
+    'esp_builder': {
+      name: 'xEdit Script Builder',
+      systemPrompt:
+        'You are the xEdit Script Builder for the Mossy Industries FO4 mod team.\n' +
+        'Your ONLY job: write a complete xEdit Pascal script that creates the mod\'s .esp file automatically.\n\n' +
+        'When the modder runs this in FO4Edit (Tools > Apply Script > select file), it will:\n' +
+        '1. Create a new .esp/.esl file\n' +
+        '2. Add Fallout4.esm as master\n' +
+        '3. Create every record: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL\n' +
+        '4. Fill all required fields\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT FORMAT — ONE pascal block:\n' +
+        '════════════════════════════════════════\n' +
+        '```pascal\n' +
+        '{  <ModName> — xEdit Pascal Build Script\n' +
+        '   Instructions:\n' +
+        '   1. Open FO4Edit, load Fallout4.esm only\n' +
+        '   2. Tools > Apply Script > select this .pas file\n' +
+        '   3. Name the new ESP when prompted\n}\n' +
+        'var\n' +
+        '  f: IInterface;\n\n' +
+        'procedure SetVal(e: IInterface; path, val: String);\n' +
+        'begin\n' +
+        '  try SetEditValue(ElementByPath(e, path), val); except end;\n' +
+        'end;\n\n' +
+        'function AddRec(grp: IInterface; sig: String): IInterface;\n' +
+        'begin\n' +
+        '  Result := Add(grp, sig, True);\n' +
+        'end;\n\n' +
+        'function Initialize: Integer;\n' +
+        'var\n' +
+        '  grp, rec, dial, info, book, term, cell, npc: IInterface;\n' +
+        'begin\n' +
+        '  f := AddNewFile;\n' +
+        '  if not Assigned(f) then begin AddMessage(\'ERROR: Could not create file\'); Result:=1; Exit; end;\n' +
+        '  AddRequiredElementMasters(f, \'Fallout4.esm\', False);\n' +
+        '  SetVal(ElementByPath(f, \'Record Header\\Record Flags\'), \'ESL\');\n\n' +
+        '  { ── QUST ── }\n' +
+        '  grp := GroupBySignature(f, \'QUST\');\n' +
+        '  rec := AddRec(grp, \'QUST\');\n' +
+        '  SetVal(rec, \'EDID\', \'MI_QuestEditorID\');\n' +
+        '  SetVal(rec, \'FULL\', \'Quest Display Name\');\n' +
+        '  SetVal(rec, \'DNAM\\Flags\\Start Game Enabled\', \'1\');\n\n' +
+        '  { ── NPC_ ── }\n' +
+        '  grp := GroupBySignature(f, \'NPC_\');\n' +
+        '  npc := AddRec(grp, \'NPC_\');\n' +
+        '  SetVal(npc, \'EDID\', \'MI_NPCEditorID\');\n' +
+        '  SetVal(npc, \'FULL\', \'NPC Display Name\');\n' +
+        '  SetVal(npc, \'RNAM\', \'HumanRace\');\n' +
+        '  SetVal(npc, \'VTCK\\Voice Type\', \'MaleBoston\');\n\n' +
+        '  { ── DIAL (dialogue topic) ── }\n' +
+        '  grp := GroupBySignature(f, \'DIAL\');\n' +
+        '  dial := AddRec(grp, \'DIAL\');\n' +
+        '  SetVal(dial, \'EDID\', \'MI_DialogueTopic01\');\n' +
+        '  SetVal(dial, \'FULL\', \'Player Prompt Text\');\n' +
+        '  SetVal(dial, \'SNAM\\Category\', \'Topic\');\n\n' +
+        '  { ── INFO (dialogue response under DIAL) ── }\n' +
+        '  info := Add(dial, \'INFO\', True);\n' +
+        '  SetVal(info, \'EDID\', \'MI_DialogueInfo01\');\n' +
+        '  SetVal(info, \'Responses\\Response\\NAM1\', \'NPC spoken response line here.\');\n\n' +
+        '  { ── BOOK (holotape) ── }\n' +
+        '  grp := GroupBySignature(f, \'BOOK\');\n' +
+        '  book := AddRec(grp, \'BOOK\');\n' +
+        '  SetVal(book, \'EDID\', \'MI_HolotapeEditorID\');\n' +
+        '  SetVal(book, \'FULL\', \'Holotape Name\');\n' +
+        '  SetVal(book, \'CNAM\', \'Holotape inventory description.\');\n' +
+        '  SetVal(book, \'DESC\', \'Full holotape transcript line 1.\');\n\n' +
+        '  { ── BOOK (note with IsNote flag) ── }\n' +
+        '  book := AddRec(grp, \'BOOK\');\n' +
+        '  SetVal(book, \'EDID\', \'MI_NoteEditorID\');\n' +
+        '  SetVal(book, \'FULL\', \'Note Name\');\n' +
+        '  SetVal(book, \'Record Header\\Record Flags\\Is Note\', \'1\');\n' +
+        '  SetVal(book, \'DESC\', \'Full note text here.\');\n\n' +
+        '  { ── TERM (terminal) ── }\n' +
+        '  grp := GroupBySignature(f, \'TERM\');\n' +
+        '  term := AddRec(grp, \'TERM\');\n' +
+        '  SetVal(term, \'EDID\', \'MI_TerminalEditorID\');\n' +
+        '  SetVal(term, \'FULL\', \'Terminal Name\');\n' +
+        '  SetVal(term, \'DNAM\', \'> MOSSY INDUSTRIES TERMINAL - LOGIN\');\n\n' +
+        '  { ── CELL ── }\n' +
+        '  grp := GroupBySignature(f, \'CELL\');\n' +
+        '  cell := AddRec(grp, \'CELL\');\n' +
+        '  SetVal(cell, \'EDID\', \'MI_CellEditorID\');\n' +
+        '  SetVal(cell, \'FULL\', \'Cell Display Name\');\n' +
+        '  SetVal(cell, \'DATA\\Flags\\Is Interior Cell\', \'1\');\n\n' +
+        '  Result := 0;\n' +
+        'end;\n\n' +
+        'function Finalize: Integer;\n' +
+        'begin\n' +
+        '  AddMessage(\'Build complete. Verify all records in xEdit before distributing.\');\n' +
+        '  Result := 0;\n' +
+        'end;\n' +
+        '```\n\n' +
+        'This is the MINIMUM structure. Your actual script must replace ALL EditorIDs, names, and text\n' +
+        'with real values from the Record Builder JSON, and must include EVERY record from that JSON.\n' +
+        'A real script will be 150-300+ lines. Do NOT copy the example above — expand it fully.\n\n' +
+        'End with: ## ESP BUILDER COMPLETE\n\n' +
+        '════════════════════════════════════════\n' +
+        'HARD RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• Use EVERY EditorID from the Record Builder JSON — create all records in the script.\n' +
+        '• SetVal() must handle all string fields: EDID, FULL, DNAM, etc.\n' +
+        '• Records must be created in dependency order: QUST → NPC_ → DIAL → INFO → BOOK → TERM → CELL.\n' +
+        '• Every INFO must be added as a sub-record under its DIAL (Add(dial, \'INFO\', True)).\n' +
+        '• For BOOK (holotape): set FULL, CNAM (description), MODL (model path).\n' +
+        '• For BOOK (IsNote): SetVal(rec, \'Record Header\\Record Flags\', \'Book\').\n' +
+        '• Script must be 100+ lines — a skeleton is a FAIL.\n\n' +
+        'REAL XEDIT PASCAL API:\n' +
+        '  AddNewFile → IInterface (new file, prompts for name)\n' +
+        '  AddRequiredElementMasters(f, \'Fallout4.esm\', False)\n' +
+        '  GroupBySignature(f, \'QUST\') → IInterface (the QUST group in the file)\n' +
+        '  Add(group, \'QUST\', True) → IInterface (new record)\n' +
+        '  ElementByPath(rec, \'EDID\') → IInterface (field)\n' +
+        '  SetEditValue(field, \'value\') — or use SetVal() helper above\n' +
+        '  AddMessage(\'text\') — log output during script execution',
     },
     'build-engineer': {
       name: 'Build Engineer',
@@ -17865,59 +18083,42 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   function cdMissingSections(project: CdProject): string[] {
     const allText = project.turns.map((t) => t.message).join('\n');
-    const lower   = allText.toLowerCase();
+    const missing: string[] = [];
 
-    return CD_REQUIRED_SECTIONS.filter((section) => {
-      // 1. Heading must exist
-      if (!lower.includes(`## ${section}`.toLowerCase())) return true;
+    // Section 0: Papyrus Scripts — must have ## SCRIPTS COMPLETE and ≥2 named papyrus blocks
+    const scriptWriterTurns = project.turns.filter(t => t.agent === ('script_writer' as CdAgentRole));
+    if (scriptWriterTurns.length === 0) {
+      missing.push('Papyrus Scripts');
+    } else {
+      const swText = scriptWriterTurns.map(t => t.message).join('\n');
+      const scriptBlocks = [...swText.matchAll(/## Script:\s*\S+\.psc/gi)];
+      const hasComplete = /## SCRIPTS COMPLETE/i.test(swText);
+      if (scriptBlocks.length < 1 || !hasComplete) missing.push('Papyrus Scripts');
+    }
 
-      // 2. There must be real content under the heading — not just a stub
-      const content = cdExtractSectionFromText(allText, section);
+    // Section 1: ESP Records (JSON) — must have ## RECORDS COMPLETE and a valid json block
+    const recordBuilderTurns = project.turns.filter(t => t.agent === ('record_builder' as CdAgentRole));
+    if (recordBuilderTurns.length === 0) {
+      missing.push('ESP Records (JSON)');
+    } else {
+      const rbText = recordBuilderTurns.map(t => t.message).join('\n');
+      const hasJson = /```json[\s\S]*?```/i.test(rbText);
+      const hasComplete = /## RECORDS COMPLETE/i.test(rbText);
+      if (!hasJson || !hasComplete) missing.push('ESP Records (JSON)');
+    }
 
-      switch (section) {
-        case 'Complete Papyrus Scripts': {
-          // Must contain a real papyrus block with ScriptName and ≥15 lines of code
-          const papBlock = allText.match(/```papyrus([\s\S]*?)```/i);
-          if (!papBlock || !papBlock[1].match(/ScriptName/i)) return true;
-          return papBlock[1].trim().split('\n').length < 15;
-        }
+    // Section 2: xEdit Builder Script — must have ## ESP BUILDER COMPLETE and a pascal block
+    const espBuilderTurns = project.turns.filter(t => t.agent === ('esp_builder' as CdAgentRole));
+    if (espBuilderTurns.length === 0) {
+      missing.push('xEdit Builder Script');
+    } else {
+      const ebText = espBuilderTurns.map(t => t.message).join('\n');
+      const hasPascal = /```pascal[\s\S]*?```/i.test(ebText);
+      const hasComplete = /## ESP BUILDER COMPLETE/i.test(ebText);
+      if (!hasPascal || !hasComplete) missing.push('xEdit Builder Script');
+    }
 
-        case 'Asset Manifest': {
-          // Must reference at least 10 real .nif paths — a 1-row stub doesn't count
-          const nifHits = (content.match(/\.nif/gi) || []).length;
-          return nifHits < 10;
-        }
-
-        case 'Cell Layout': {
-          // Must have at least 10 table rows with numeric X/Y/Z coordinates
-          const coordRows = (content.match(/\|\s*-?\d+\s*\|\s*-?\d+\s*\|\s*-?\d+\s*\|/g) || []).length;
-          if (coordRows >= 10) return false;
-          // Also accept if there are 10+ rows with any integer in a table column
-          const tableRows = (content.match(/\|\s*-?\d+\s*\|/g) || []).length;
-          return tableRows < 10;
-        }
-
-        case 'Dialogue Trees': {
-          // Must have at least 2 full TOPIC blocks — a single greeting isn't a tree
-          const topicCount = (content.match(/TOPIC:|Player prompt:|NPC response/gi) || []).length;
-          return topicCount < 4;
-        }
-
-        case 'Environment Blueprint':
-          // ASCII diagram must be substantial — stubs are < 300 chars
-          return content.length < 300;
-
-        case 'Build Guide': {
-          // Must have ≥ 5 numbered steps and ≥ 600 chars of real instructions
-          const steps = (content.match(/^\s*\d+\./gm) || []).length;
-          return steps < 5 || content.length < 600;
-        }
-
-        default:
-          // All other sections need ≥ 200 chars of real content
-          return content.length < 200;
-      }
-    });
+    return missing;
   }
 
   // Extract the content written under a ## heading from any block of text.
@@ -18130,6 +18331,51 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     throw new Error('No AI backend available - configure a Groq API key or start KoboldCpp (Local Capabilities panel).');
   }
 
+  // High-quality agent call — skips local Ollama (small model) and routes directly
+  // to Groq cloud. Used by the three specialist building roles where output quality
+  // determines whether the files are usable. Falls back to Ollama/KoboldCpp if Groq unavailable.
+  async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string): Promise<string> {
+    const s = loadSettings();
+
+    // PRIMARY: Groq cloud — larger, more capable model for specialist build tasks
+    try {
+      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+      const backend = getBackendConfig();
+      if (apiKey || backend) {
+        const messages: Array<{ role: 'system' | 'user'; content: string }> = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ];
+        const cdModel = GROQ_FALLBACK_MODEL;
+        if (backend) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120000);
+          try {
+            const res = await fetch(backendJoin(backend, '/v1/chat'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
+              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: 8192 }),
+              signal: controller.signal,
+            });
+            const json: any = await res.json().catch(() => ({}));
+            if (res.ok && json?.ok && json?.text) return String(json.text);
+          } catch { /* fall through */ } finally { clearTimeout(timeout); }
+        }
+        if (apiKey) {
+          const { default: Groq } = await import('groq-sdk');
+          const client = new Groq({ apiKey });
+          const text = await callGroqWithFallback(client as any, cdModel, messages, 8192);
+          if (text) return text;
+        }
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Groq high-quality path failed, falling back to Ollama:', err);
+    }
+
+    // FALLBACK: local Ollama (whatever model is configured)
+    return cdCallAgent(systemPrompt, userPrompt);
+  }
+
   function cdExtractCodeBlocks(message: string): Array<{ lang: string; content: string }> {
     const blocks: Array<{ lang: string; content: string }> = [];
     const re = /```(\w+)?\n([\s\S]*?)```/g;
@@ -18182,12 +18428,17 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   function cdNextAgent(project: CdProject): CdAgentRole {
     switch (project.phase) {
-      case 'planning':     return 'planner';
-      case 'reviewing':    return 'reviewer';
-      case 'analyzing':    return 'analyst';
-      case 'building':     return 'builder';
-      case 'verifying':    return 'verifier';
-      default:             return 'director';
+      case 'planning':   return 'planner';
+      case 'reviewing':  return 'reviewer';
+      case 'analyzing':  return 'analyst';
+      case 'building': {
+        if (project.buildSectionIdx === 0) return 'script_writer' as CdAgentRole;
+        if (project.buildSectionIdx === 1) return 'record_builder' as CdAgentRole;
+        if (project.buildSectionIdx === 2) return 'esp_builder' as CdAgentRole;
+        return 'builder';
+      }
+      case 'verifying':  return 'verifier';
+      default:           return 'director';
     }
   }
 
@@ -18219,43 +18470,123 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const outputDir = path.join(app.getPath('userData'), 'creative-director-projects', project.id);
     fs.mkdirSync(outputDir, { recursive: true });
 
-    // Pull every Papyrus code block any agent produced (not just the last one -
-    // a real mod usually needs more than a single script).
-    const questScripts: string[] = [];
+    // ── Extract named Papyrus scripts from script_writer output ─────────────
+    // Format: ## Script: name.psc\n```papyrus\n...\n```
+    const namedScriptRe = /##\s*Script:\s*(\S+\.psc)\s*\n```papyrus\s*\n([\s\S]*?)```/gi;
+    const namedScripts: Array<{ name: string; content: string }> = [];
+    for (const t of project.turns) {
+      if (t.agent !== ('script_writer' as CdAgentRole)) continue;
+      let nsMatch: RegExpExecArray | null;
+      const re2 = new RegExp(namedScriptRe.source, 'gi');
+      while ((nsMatch = re2.exec(t.message)) !== null) {
+        namedScripts.push({ name: nsMatch[1].trim(), content: nsMatch[2].trim() });
+      }
+    }
+
+    // ── Extract ESP records JSON from record_builder output ──────────────────
+    let modRecordsJson: string | null = null;
+    for (const t of [...project.turns].reverse()) {
+      if (t.agent !== ('record_builder' as CdAgentRole)) continue;
+      const jMatch = t.message.match(/```json\s*([\s\S]*?)```/i);
+      if (jMatch) {
+        try {
+          // Strip ## RECORDS COMPLETE if the LLM accidentally placed it inside the fence
+          let jsonContent = jMatch[1].replace(/\s*##\s*RECORDS\s*COMPLETE[\s\S]*/i, '').trim();
+          JSON.parse(jsonContent); // validate
+          modRecordsJson = jsonContent;
+          break;
+        } catch { /* malformed — try next */ }
+      }
+    }
+
+    // ── Extract xEdit Pascal script from esp_builder output ──────────────────
+    let espPascalScript: string | null = null;
+    for (const t of [...project.turns].reverse()) {
+      if (t.agent !== ('esp_builder' as CdAgentRole)) continue;
+      const pMatch = t.message.match(/```pascal\s*([\s\S]*?)```/i);
+      if (pMatch) { espPascalScript = pMatch[1].trim(); break; }
+    }
+
+    // ── Fallback: legacy papyrus blocks from older-style builder turns ────────
+    const questScripts: string[] = namedScripts.length > 0
+      ? namedScripts.map(s => s.content)
+      : (() => {
+          const r: string[] = [];
+          for (const t of project.turns) {
+            const blocks = cdExtractCodeBlocks(t.message);
+            for (const b of blocks) { if (b.lang === 'papyrus') r.push(b.content); }
+          }
+          return r;
+        })();
     const dialogueBlocks: string[] = [];
     const worldBlocks: string[] = [];
     for (const t of project.turns) {
       const blocks = cdExtractCodeBlocks(t.message);
       for (const b of blocks) {
-        if (b.lang === 'papyrus') questScripts.push(b.content);
-        else if (t.agent === 'dialogue') dialogueBlocks.push(b.content);
+        if (t.agent === 'dialogue') dialogueBlocks.push(b.content);
         else if (t.agent === 'world') worldBlocks.push(b.content);
       }
     }
 
+    // ── Save named Papyrus scripts to scripts/ subfolder + compile each ──────
+    const scriptsDir = path.join(outputDir, 'scripts');
     let verification: { attempted: boolean; compiled: boolean; detail: string } = {
-      attempted: false, compiled: false, detail: 'No Papyrus script was produced for this project.',
+      attempted: false, compiled: false, detail: 'No Papyrus scripts were produced for this project.',
     };
-    if (questScripts.length) {
+    const compilationResults: string[] = [];
+    if (namedScripts.length > 0) {
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      for (const ns of namedScripts) {
+        fs.writeFileSync(path.join(scriptsDir, ns.name), ns.content, 'utf-8');
+        const compResult = await cdCompilePapyrus(ns.content, path.join(outputDir, '_compile_check', ns.name));
+        compilationResults.push(`${ns.name}: ${compResult.attempted ? (compResult.compiled ? 'COMPILED OK' : 'FAILED - ' + compResult.detail.slice(0, 200)) : 'compiler not configured'}`);
+        if (!verification.attempted && compResult.attempted) {
+          verification = compResult;
+        } else if (compResult.attempted && !compResult.compiled) {
+          verification = compResult; // show the last failure
+        }
+      }
+      // If any script failed and we have turns left, send error back to script_writer
+      const anyFailed = compilationResults.some(r => r.includes('FAILED'));
+      const turnsLeft = CD_MAX_TURNS - project.turns.length;
+      if (anyFailed && verification.attempted && turnsLeft > 2) {
+        project.turns.push({
+          agent: 'director',
+          message: `Compile check failed against PapyrusCompiler.exe:\n\n${compilationResults.join('\n')}\n\nScript Writer — fix all compile errors and resubmit.`,
+          timestamp: Date.now(),
+        });
+        project.buildSectionIdx = 0; // restart from script writing
+        project.phase = 'building';
+        saveCdTeamState();
+        return false;
+      }
+    } else if (questScripts.length > 0) {
+      // Legacy fallback: unnamed scripts from older builder
       const combinedScript = questScripts.join('\n\n');
       fs.writeFileSync(path.join(outputDir, 'quest_script.psc'), combinedScript, 'utf-8');
       verification = await cdCompilePapyrus(questScripts[questScripts.length - 1], path.join(outputDir, '_compile_check'));
-
-      // If a real compiler is configured and it genuinely failed, don't hand off
-      // broken code as "finished" - send the real compiler error back to the
-      // Quest Designer for a fix and keep the project open (unless we're nearly
-      // out of rounds, in which case hand off honestly marked as failing).
       const turnsLeft = CD_MAX_TURNS - project.turns.length;
       if (verification.attempted && !verification.compiled && turnsLeft > 2) {
         project.turns.push({
           agent: 'director',
-          message: `Compile check failed against the real PapyrusCompiler.exe:\n${verification.detail}\n\nQuest & Systems Designer - fix the script above before we can finish.`,
+          message: `Compile check failed against the real PapyrusCompiler.exe:\n${verification.detail}\n\nFix the script above before we can finish.`,
           timestamp: Date.now(),
         });
         saveCdTeamState();
         return false;
       }
     }
+
+    // ── Save ESP records JSON ─────────────────────────────────────────────────
+    if (modRecordsJson) {
+      fs.writeFileSync(path.join(outputDir, 'mod_records.json'), modRecordsJson, 'utf-8');
+    }
+
+    // ── Save xEdit Pascal builder script ─────────────────────────────────────
+    if (espPascalScript) {
+      fs.writeFileSync(path.join(outputDir, 'create_esp.pas'), espPascalScript, 'utf-8');
+    }
+
     if (dialogueBlocks.length) fs.writeFileSync(path.join(outputDir, 'dialogue_and_lore.md'), dialogueBlocks.join('\n\n---\n\n'), 'utf-8');
     if (worldBlocks.length) fs.writeFileSync(path.join(outputDir, 'world_and_npc_notes.md'), worldBlocks.join('\n\n---\n\n'), 'utf-8');
 
@@ -18336,14 +18667,23 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       verification,
       filesProduced: [
         buildGuide ? 'BUILD_GUIDE.md' : null,
-        questScripts.length ? 'quest_script.psc' : null,
+        ...namedScripts.map(s => `scripts/${s.name}`),
+        questScripts.length && namedScripts.length === 0 ? 'quest_script.psc' : null,
+        modRecordsJson ? 'mod_records.json' : null,
+        espPascalScript ? 'create_esp.pas' : null,
+        compilationResults.length > 0 ? `COMPILE: ${compilationResults.join(' | ')}` : null,
         dialogueBlocks.length ? 'dialogue_and_lore.md' : null,
         worldBlocks.length ? 'world_and_npc_notes.md' : null,
         'transcript.md',
       ].filter(Boolean),
       notes: incomplete
-        ? `INCOMPLETE: ran out of work rounds before covering: ${missingSections.join(', ')}. Treat this as a rough draft, not a finished design - review the transcript before acting on it.`
-        : 'This is an IDEA STATION output: a fully designed mod concept plus a complete build guide - nothing was assembled in Creation Kit for you. Open BUILD_GUIDE.md and follow it step by step. In-game testing is NOT automated. Any provided Papyrus script was verified against your real PapyrusCompiler.exe if one was configured.',
+        ? `INCOMPLETE: ran out of work rounds before covering: ${missingSections.join(', ')}. Treat this as a rough draft.`
+        : [
+            modRecordsJson ? 'mod_records.json — paste into xEdit or use create_esp.pas to auto-build the .esp.' : '',
+            espPascalScript ? 'create_esp.pas — open FO4Edit, load Fallout4.esm, then Tools > Apply Script to create the .esp automatically.' : '',
+            namedScripts.length > 0 ? `scripts/ — ${namedScripts.length} Papyrus .psc file(s) compiled and ready. Copy to your Papyrus source folder and compile before attaching in CK.` : '',
+            'BUILD_GUIDE.md — step-by-step instructions if you prefer to build manually in CK.',
+          ].filter(Boolean).join('\n') || 'See BUILD_GUIDE.md for instructions.',
     };
     const manifestPath = path.join(outputDir, 'manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
@@ -18500,37 +18840,116 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
 
       else if (project.phase === 'building') {
-        const sectionName = CD_BUILD_SECTIONS[project.buildSectionIdx] ?? 'Final Review';
+        const sectionIdx = project.buildSectionIdx;
         const verifyFails = project.turns.filter(
           t => t.agent === 'verifier' && /Verification:\s*FAILED/i.test(t.message)
         ).length;
-        instruction =
+        const failNote = verifyFails > 0 ? `PREVIOUS ATTEMPT FAILED VERIFICATION — fix every issue listed before resubmitting.\n\n` : '';
+        const commonContext =
           `${MOSSY_INDUSTRIES_LORE}\n\n` +
-          `PROJECT: ${project.title}\n\n` +
-          `=== APPROVED PLAN ===\n${(project.phaseOutputs.plan || '(see earlier turns)').slice(0, 1500)}\n=== END ===\n\n` +
-          `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '(see earlier turns)').slice(0, 2000)}\n=== END ===\n\n` +
-          `=== REAL FO4 ASSET REFERENCE ===\n${buildCDGameDataBlock().slice(0, 4000)}\n=== END ASSET REFERENCE ===\n\n` +
-          (verifyFails > 0 ? `NOTE: Previous attempt for this section FAILED verification. Fix ALL issues before resubmitting.\n\n` : '') +
-          `Write SECTION ${project.buildSectionIdx + 1} OF ${CD_BUILD_SECTIONS.length}: "${sectionName}".\n` +
-          `All Mossy Industries references must match the established canon above.\n` +
-          `When specifying texture/mesh paths use exact paths from the Asset Reference above — never invent file paths.\n` +
-          `Be precise and numbered. Use only verified EditorIDs. End with: ## SECTION COMPLETE`;
+          `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
+          `=== APPROVED PLAN ===\n${(project.phaseOutputs.plan || '').slice(0, 1500)}\n=== END PLAN ===\n\n` +
+          `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 2000)}\n=== END REFERENCE ===\n\n`;
+
+        if (sectionIdx === 0) {
+          // Script Writer — produce all .psc files
+          instruction =
+            commonContext + failNote +
+            `YOUR TASK: Write EVERY Papyrus script this mod requires as complete, compilable .psc files.\n` +
+            `Use the plan and reference table above for all EditorIDs, stage numbers, and alias names.\n` +
+            `Required scripts based on the plan:\n` +
+            `- Main quest script (QuestScript): handles all stage logic, extends Quest Conditional\n` +
+            `- Quest fragment script (QF_ prefix): Fragment_Stage_NNNN_Item_00() functions, one per stage\n` +
+            `- Any creature/NPC behavior scripts needed\n` +
+            `- Any ObjectReference trigger scripts needed\n\n` +
+            `PRODUCE ALL SCRIPTS NOW. Output format for each:\n` +
+            `## Script: <ExactName>.psc\n\`\`\`papyrus\n...complete script...\n\`\`\`\n\n` +
+            `End with: ## SCRIPTS COMPLETE`;
+        } else if (sectionIdx === 1) {
+          // Record Builder — produce mod_records.json
+          const scriptsOutput = project.phaseOutputs.scripts || '(see transcript for script names)';
+          const scriptNames = [...(scriptsOutput.matchAll(/## Script:\s*(\S+\.psc)/gi))].map(m => m[1]);
+          instruction =
+            commonContext + failNote +
+            `YOUR TASK: Write the COMPLETE xEdit-compatible JSON for this mod — every record, every field.\n` +
+            `Script Writer has produced these .psc files: ${scriptNames.length > 0 ? scriptNames.join(', ') : 'see transcript'}\n` +
+            `Reference scripts by NAME ONLY in Scripts[] — do NOT include source code in the JSON.\n\n` +
+            `Output ONE complete json block with ALL records for this mod.\n` +
+            `Include: QUST, NPC_, DIAL, INFO, BOOK (holotape), BOOK (IsNote), TERM, CELL\n\n` +
+            `End with: ## RECORDS COMPLETE`;
+        } else if (sectionIdx === 2) {
+          // xEdit Script Builder — produce create_esp.pas
+          const recordsJson = project.phaseOutputs.records || '(see transcript for record list)';
+          instruction =
+            commonContext + failNote +
+            `YOUR TASK: Write a complete xEdit Pascal script that creates this mod's .esp file automatically.\n` +
+            `The Record Builder produced this JSON spec:\n=== RECORDS JSON ===\n${recordsJson.slice(0, 3000)}\n=== END JSON ===\n\n` +
+            `Create ONE pascal code block that creates EVERY record from the JSON above.\n` +
+            `The script must be 100+ lines of real xEdit Pascal — no skeletons, no stubs.\n` +
+            `Include all records: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL.\n` +
+            `Use the helpers: SetVal(), AddRec(), AddRequiredElementMasters().\n\n` +
+            `End with: ## ESP BUILDER COMPLETE`;
+        } else {
+          instruction = commonContext + `Complete the remaining build tasks for this mod.`;
+        }
       }
 
       else if (project.phase === 'verifying') {
-        const lastBuilderTurn = [...project.turns].reverse().find(t => t.agent === 'builder');
+        const builderRoles: CdAgentRole[] = ['script_writer', 'record_builder', 'esp_builder', 'builder'];
+        const lastBuilderTurn = [...project.turns].reverse().find(t => builderRoles.includes(t.agent));
         const sectionName = CD_BUILD_SECTIONS[project.buildSectionIdx] ?? 'section';
+        const sectionIdx = project.buildSectionIdx;
+        let sectionChecks = '';
+        if (sectionIdx === 0) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Papyrus Scripts):\n' +
+            '• Every script has a "## Script: name.psc" header before its ```papyrus block\n' +
+            '• Every script starts with "Scriptname X extends Y" on line 1\n' +
+            '• Quest scripts extend Quest Conditional; fragment scripts extend Quest Hidden\n' +
+            '• Minimum 20 lines of real logic per script — stubs FAIL\n' +
+            '• No pseudocode, no "// TODO", no [WRITE] placeholders\n' +
+            '• Ends with: ## SCRIPTS COMPLETE\n\n' +
+            'AUTO-FAIL: missing ## Script: header | fewer than 2 scripts | any script under 10 lines | no ## SCRIPTS COMPLETE';
+        } else if (sectionIdx === 1) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (ESP Records JSON):\n' +
+            '• Exactly ONE valid json code block\n' +
+            '• JSON has "Plugin" and "Records" keys at root\n' +
+            '• Minimum counts: 1 QUST, 1-2 NPC_, 3+ DIAL, 4+ INFO per NPC, 2 BOOK (1 holotape + 1 IsNote), 1 TERM, 1 CELL\n' +
+            '• Every new record FormID is exactly "[GENERATE]"\n' +
+            '• Scripts[] entries have "Name" only — NO "Source" field\n' +
+            '• BOOK holotape has "Text" array with full content | BOOK IsNote has "Flags": ["IsNote"]\n' +
+            '• INFO records have ResponseText ≤80 chars AND Conditions array\n' +
+            '• JSON is valid — no trailing commas, no inline comments\n' +
+            '• Ends with: ## RECORDS COMPLETE\n\n' +
+            'AUTO-FAIL: invalid JSON | missing minimum record counts | any "[WRITE]" remaining | Source in Scripts[]';
+        } else if (sectionIdx === 2) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (xEdit Pascal Script):\n' +
+            '• Exactly ONE pascal code block\n' +
+            '• Contains: function Initialize: Integer AND function Finalize: Integer\n' +
+            '• Contains: AddNewFile, AddRequiredElementMasters, GroupBySignature\n' +
+            '• Creates ALL record types: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL\n' +
+            '• Script is 100+ lines — skeletons FAIL\n' +
+            '• Every EditorID from the JSON is referenced\n' +
+            '• Ends with: ## ESP BUILDER COMPLETE\n\n' +
+            'AUTO-FAIL: missing Initialize or Finalize | script under 50 lines | missing record creation calls';
+        }
         instruction =
-          `${MOSSY_INDUSTRIES_LORE}\n\n` +
           `PROJECT: ${project.title}\n\n` +
-          `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 2000)}\n=== END ===\n\n` +
-          `=== BUILDER OUTPUT FOR "${sectionName}" ===\n${(lastBuilderTurn?.message || '').slice(0, 3000)}\n=== END ===\n\n` +
-          `Verify this section. Check EditorIDs, step order, Papyrus syntax, missing steps,\n` +
-          `AND flag any Mossy Industries lore contradictions against the canon above.\n` +
-          `Output exactly "## Verification: PASSED" or "## Verification: FAILED" as the first heading.`;
+          `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 1500)}\n=== END ===\n\n` +
+          `=== BUILDER OUTPUT FOR "${sectionName}" ===\n${(lastBuilderTurn?.message || '').slice(0, 4000)}\n=== END ===\n\n` +
+          sectionChecks + '\n\n' +
+          `Output exactly "## Verification: PASSED" or "## Verification: FAILED" as the first heading.\n` +
+          `If PASSED, confirm: "Output is production-ready — files will be extracted and saved automatically."`;
       }
 
-      const message = await cdCallAgent(persona.systemPrompt, instruction);
+      // These roles require real structured output — route through Groq (high quality)
+      // so the small local Ollama model cannot produce stub/empty responses.
+      const specialistRoles = new Set(['script_writer', 'record_builder', 'esp_builder', 'analyst']);
+      const message = specialistRoles.has(role)
+        ? await cdCallAgentHighQuality(persona.systemPrompt, instruction)
+        : await cdCallAgent(persona.systemPrompt, instruction);
       project.turns.push({ agent: role, message, timestamp: Date.now() });
       project.updatedAt = Date.now();
 
@@ -18555,8 +18974,30 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
 
       else if (project.phase === 'analyzing') {
-        project.phaseOutputs.analysis = message;
-        if (/##\s*ANALYSIS COMPLETE/i.test(message) || message.length > 300) {
+        // Require substantive content — a stub response ("## ANALYSIS COMPLETE" with nothing else)
+        // is a model failure, not a valid analysis. Minimum 400 chars of real content.
+        const hasMarker = /##\s*ANALYSIS COMPLETE/i.test(message);
+        const hasContent = message.replace(/##\s*ANALYSIS COMPLETE/i, '').trim().length > 400;
+        if (hasMarker && hasContent) {
+          project.phaseOutputs.analysis = message;
+          project.phase = 'awaiting_approval';
+          project.status = 'awaiting_approval';
+          project.turns.push({
+            agent: 'analyst',
+            message: '⏸ Waiting for your approval before building starts. Review the plan and analysis above, then approve or send feedback.',
+            timestamp: Date.now(),
+          });
+        } else if (!hasContent) {
+          // Analyst produced a stub — log the failure and retry this phase
+          project.turns.push({
+            agent: 'director',
+            message: `[Analysis retry] Analyst output was too short (${message.length} chars) — re-running analysis with improved prompt.`,
+            timestamp: Date.now(),
+          });
+          // Stay in 'analyzing' phase — the auto-chain will re-run the analyst
+        } else {
+          // Has content but missing marker — accept it anyway
+          project.phaseOutputs.analysis = message;
           project.phase = 'awaiting_approval';
           project.status = 'awaiting_approval';
           project.turns.push({
@@ -18568,7 +19009,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
 
       else if (project.phase === 'building') {
-        // Builder wrote a section — send to verifier
+        // Specialist wrote their section — save output and send to verifier
+        if (role === ('script_writer' as CdAgentRole)) project.phaseOutputs.scripts = message;
+        else if (role === ('record_builder' as CdAgentRole)) project.phaseOutputs.records = message;
         project.phase = 'verifying';
       }
 
@@ -18593,8 +19036,23 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       saveCdTeamState();
 
+      // Auto-chain: kick off the next tick immediately instead of waiting for
+      // the 60-second heartbeat. Skip only when paused for user input or done.
+      const _chainProject = cdTeamState.currentProject;
+      const _chainPhase = _chainProject?.phase;
+      if (_chainProject && _chainPhase !== 'done' && _chainPhase !== 'awaiting_approval') {
+        setTimeout(() => { void runCreativeDirectorTick(); }, 300);
+      }
+
     } catch (err) {
       console.error('[CreativeDirector] Tick failed:', err);
+      const _ep = cdTeamState.currentProject;
+      if (_ep && _ep.phase !== 'awaiting_approval' && _ep.phase !== 'done') {
+        _ep.turns.push({ agent: 'director', message: `[ERROR] AI call failed: ${err instanceof Error ? err.message : String(err)} — will retry on next tick.`, timestamp: Date.now() });
+        saveCdTeamState();
+        // Retry automatically after 10 seconds on error
+        setTimeout(() => { void runCreativeDirectorTick(); }, 10_000);
+      }
     } finally {
       cdTurnInFlight = false;
     }
@@ -18607,6 +19065,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       return {
         success: true,
         enabled: cdTeamState.enabled,
+        tickInFlight: cdTurnInFlight,
         currentProject: cdTeamState.currentProject,
         completedProjects: cdTeamState.completedProjects,
         pendingQueue: cdTeamState.pendingQueue.map((e, idx) => ({
@@ -18651,6 +19110,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         const raw = JSON.parse(fs.readFileSync(FO4_STRINGS_JSON, 'utf-8'));
         if (raw?.cd_context) FO4_VANILLA_WORLD = raw.cd_context as string;
       }
+      refreshWorldStringNeuron();
       const lines = stdout.split('\n').filter(Boolean);
       const summary = lines.slice(-8).join('\n');
       return { success: true, summary };
@@ -18700,7 +19160,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       project.turns.push({ agent: 'director', message: 'Plan approved by owner. Starting build phase.', timestamp: Date.now() });
       saveCdTeamState();
       void runCreativeDirectorTick();
-      return { success: true };
+      return { success: true, teamEnabled: cdTeamState.enabled };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -19321,6 +19781,15 @@ Keep scripts focused and real — no placeholder comments like TODO.`;
       const assetLines = (selectedAssets || []).slice(0, 60).join('\n');
       const guideTrunc = (guideContent || '').slice(0, 4000);
 
+      // Gather the scaffold's Papyrus scripts so the generator can attach them to
+      // their QUST records via VMAD (this is what makes a quest mod actually work).
+      let attachScripts: string[] = [];
+      try {
+        const srcDir = path.join(outputDir, 'scaffold', 'Data', 'Scripts', 'Source');
+        if (fs.existsSync(srcDir)) attachScripts = fs.readdirSync(srcDir).filter(f => /\.psc$/i.test(f)).map(f => path.basename(f, '.psc'));
+      } catch { /* no scaffold scripts */ }
+      const attachList = attachScripts.length ? attachScripts.join(', ') : '(none found — run Build Mod Structure + Compile first, then skip VMAD attachment)';
+
       // Extract Cell Layout table from transcript so REFR placements can be generated
       let cellLayoutTable = '';
       try {
@@ -19409,10 +19878,51 @@ ${assetLines || '(no assets selected — create representative records from the 
 ══ BUILD_GUIDE CONTEXT (determines what record types and names to use) ══
 ${guideTrunc}
 
+══ ADDITIONAL ALLOWED FUNCTIONS (for quests/dialogue/scripts) ══
+ElementAssign, HighInteger. ElementAssign(container, HighInteger, nil, False) appends a new array element and returns it (use for stages, log entries, script entries, responses).
+
+══ QUEST RECORDS (QUST) — create one per quest described in the guide ══
+questGrp := Add(pluginFile, 'QUST', True);
+qst := Add(questGrp, 'QUST', True);
+SetEditValue(ElementByPath(qst, 'EDID'), '<Prefix>_MainQuest');   { match the scaffold script EditorID }
+SetEditValue(ElementByPath(qst, 'FULL'), 'Quest Display Name');
+Add(qst, 'DNAM', True);
+SetEditValue(ElementByPath(qst, 'DNAM\\\\Flags'), '1');            { bit 0 = Start Game Enabled if it should auto-start }
+SetEditValue(ElementByPath(qst, 'DNAM\\\\Priority'), '50');
+Add(qst, 'Stages', True);
+stagesElem := ElementByPath(qst, 'Stages');
+stage := ElementAssign(stagesElem, HighInteger, nil, False);
+SetEditValue(ElementByPath(stage, 'INDX\\\\Stage Index'), '10');
+Add(stage, 'Log Entries', True);
+logEntry := ElementAssign(ElementByPath(stage, 'Log Entries'), HighInteger, nil, False);
+SetEditValue(ElementByPath(logEntry, 'CNAM'), 'Journal entry for stage 10');
+{ Repeat a new stage for each stage index in the guide: 10, 20, 30, ... }
+
+══ VMAD — ATTACH THE MOD'S PAPYRUS SCRIPTS TO THEIR QUST RECORD ══
+Scripts available to attach (already written by the scaffold; compile to .pex before testing): ${attachList}
+vmad := Add(qst, 'VMAD', True);
+Add(vmad, 'Scripts', True);
+scr := ElementAssign(ElementByPath(vmad, 'Scripts'), HighInteger, nil, False);
+SetEditValue(ElementByPath(scr, 'scriptName'), '<ExactScriptNameFromListAbove>');
+{ Attach each quest's matching script by its exact name. Skip if the list says none. }
+
+══ DIALOGUE (DIAL topic + INFO responses) — only if the guide has spoken dialogue ══
+dialGrp := Add(pluginFile, 'DIAL', True);
+dial := Add(dialGrp, 'DIAL', True);
+SetEditValue(ElementByPath(dial, 'EDID'), '<Prefix>_Topic01');
+SetEditValue(ElementByPath(dial, 'FULL'), 'Player prompt text');
+SetEditValue(ElementByPath(dial, 'QNAM'), '<Prefix>_MainQuest');  { owning quest EditorID }
+infoGrp := Add(dial, 'Children', True);
+info := Add(infoGrp, 'INFO', True);
+Add(info, 'Responses', True);
+resp := ElementAssign(ElementByPath(info, 'Responses'), HighInteger, nil, False);
+SetEditValue(ElementByPath(resp, 'NAM1'), 'The spoken NPC response line.');
+{ One INFO per NPC line; set NAM1 to the response text. }
+
 ══ OUTPUT REQUIREMENTS ══
 • Output ONLY the Pascal script. No markdown fences. No explanations outside the script's own comments.
 • Block comment at top: mod name, generated by Mossy Creative Director, today's date, what the script creates, usage instructions.
-• Script order: (1) all TXST records, (2) all STAT/ACTI/CONT/DOOR/WEAP/ARMO/NPC_/MISC base records, (3) one interior CELL record, (4) all REFR placement records inside the cell.
+• Script order: (1) all TXST records, (2) all STAT/ACTI/CONT/DOOR/WEAP/ARMO/NPC_/MISC base records, (3) one interior CELL record, (4) all REFR placement records inside the cell, (5) QUST records with their stages AND VMAD script attachment, (6) DIAL topics with INFO responses. If the guide describes a quest or dialogue, records (5) and (6) are REQUIRED — a quest mod is not finished without a QUST record.
 • Store created STAT/ACTI/etc. records in local variables so REFR records can reference their EditorIDs via NAME.
 • AddMessage() calls showing progress as each group of records is created.
 • Final ShowMessage() summarising: N texture sets, N statics, N other records, 1 CELL, N placements created.
@@ -19439,6 +19949,169 @@ ${guideTrunc}
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
+  });
+
+  // ── Honest completeness gate — scores REAL artifacts, not the guide text ──────
+  registerHandler('creative-director:assess-build', async (_event, outputDir: string) => {
+    try {
+      if (!outputDir || !fs.existsSync(outputDir)) return { success: false, error: 'Project folder not found' };
+      const scaffoldDir = path.join(outputDir, 'scaffold');
+
+      const walk = (dir: string, pred: (f: string) => boolean, cap = 8000): string[] => {
+        const out: string[] = []; const stack = [dir]; let n = 0;
+        while (stack.length && n < cap) {
+          const d = stack.pop() as string;
+          let ents: any[] = [];
+          try { ents = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
+          for (const e of ents) { n++; const full = path.join(d, e.name); if (e.isDirectory()) stack.push(full); else if (pred(full)) out.push(full); }
+        }
+        return out;
+      };
+
+      const scan = fs.existsSync(scaffoldDir) ? scaffoldDir : outputDir;
+      const espFiles   = walk(scan, f => /\.(esp|esm|esl)$/i.test(f));
+      const pscFiles   = walk(scan, f => /\.psc$/i.test(f));
+      const pexFiles   = walk(scan, f => /\.pex$/i.test(f));
+      const assetFiles = walk(scan, f => /\.(nif|dds|hkx|wav|xwm|fuz)$/i.test(f));
+
+      // Inspect the first ESP for real record types.
+      const recordTypes: Record<string, number> = {};
+      let vmadPresent = false;
+      if (espFiles.length) {
+        try {
+          const buf = Buffer.from(fs.readFileSync(espFiles[0]));
+          if (buf.slice(0, 4).toString('ascii') === 'TES4') {
+            const tes4End = 24 + buf.readUInt32LE(4);
+            _walkEspRecords(buf, tes4End, buf.length, (rType: string) => { recordTypes[rType] = (recordTypes[rType] ?? 0) + 1; });
+            vmadPresent = buf.includes(Buffer.from('VMAD'));
+          }
+        } catch { /* unreadable esp */ }
+      }
+      const questCount = recordTypes['QUST'] ?? 0;
+      const dialCount  = recordTypes['DIAL'] ?? 0;
+      const infoCount  = recordTypes['INFO'] ?? 0;
+      const refrCount  = recordTypes['REFR'] ?? 0;
+
+      // Is this a quest/dialogue mod? Determines which checks are REQUIRED vs n/a.
+      let isQuestMod = false, guideRefsAssets = false;
+      try {
+        const gp = path.join(outputDir, 'BUILD_GUIDE.md');
+        if (fs.existsSync(gp)) {
+          const g = fs.readFileSync(gp, 'utf-8');
+          isQuestMod = /\b(quest|dialogue|scene|stage|companion|follower)\b/i.test(g);
+          guideRefsAssets = /\.(nif|dds)\b|Meshes\\\\|Textures\\\\/i.test(g);
+        }
+      } catch { /* ignore */ }
+
+      const checks = [
+        { pass: espFiles.length > 0, label: 'Plugin (.esp) exists', detail: espFiles.length ? path.basename(espFiles[0]) : 'no plugin built yet — run the xEdit script or build in CK' },
+        { pass: pscFiles.length > 0 || !isQuestMod, label: 'Papyrus source present', detail: `${pscFiles.length} .psc` },
+        { pass: pscFiles.length === 0 || pexFiles.length > 0, label: 'Scripts compiled (.pex)', detail: pexFiles.length ? `${pexFiles.length} .pex` : (pscFiles.length ? 'sources NOT compiled — run Compile Scripts' : 'no scripts') },
+        { pass: !isQuestMod || questCount > 0, label: 'Quest records (QUST)', detail: isQuestMod ? `${questCount} QUST in plugin` : 'not a quest mod' },
+        { pass: !isQuestMod || dialCount > 0 || infoCount > 0, label: 'Dialogue (DIAL/INFO)', detail: isQuestMod ? `${dialCount} DIAL / ${infoCount} INFO` : 'n/a' },
+        { pass: pscFiles.length === 0 || vmadPresent, label: 'Scripts attached (VMAD)', detail: vmadPresent ? 'attached in plugin' : (pscFiles.length ? 'scripts exist but not attached to a record' : 'n/a') },
+        { pass: !guideRefsAssets || assetFiles.length > 0, label: 'Assets present', detail: guideRefsAssets ? `${assetFiles.length} asset file(s)` : 'no assets required' },
+      ];
+      const score = Math.round((checks.filter(c => c.pass).length / checks.length) * 5);
+      return {
+        success: true, score, checks,
+        artifacts: { espCount: espFiles.length, esp: espFiles.map(f => path.basename(f)), pscCount: pscFiles.length, pexCount: pexFiles.length, assetCount: assetFiles.length, questCount, dialCount, infoCount, refrCount, vmadPresent, isQuestMod },
+      };
+    } catch (error: any) { return { success: false, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  // ── Compile the scaffold's Papyrus .psc → .pex via PapyrusCompiler.exe ─────────
+  registerHandler('creative-director:compile-scripts', async (_event, outputDir: string) => {
+    try {
+      if (!outputDir || !fs.existsSync(outputDir)) return { success: false, error: 'Project folder not found' };
+      const scaffoldDir = path.join(outputDir, 'scaffold');
+      const sourceDir = path.join(scaffoldDir, 'Data', 'Scripts', 'Source');
+      if (!fs.existsSync(sourceDir)) return { success: false, error: 'No Papyrus source folder found. Run Build Mod Structure first.' };
+
+      const settings = loadSettings();
+      const fo4 = String(settings?.fallout4Path || '').trim();
+      let compiler = String(settings?.papyrusCompilerPath || '').trim();
+      if ((!compiler || !fs.existsSync(compiler)) && fo4) {
+        const guess = path.join(fo4, 'Papyrus Compiler', 'PapyrusCompiler.exe');
+        if (fs.existsSync(guess)) compiler = guess;
+      }
+      if (!compiler || !fs.existsSync(compiler)) {
+        return { success: false, error: 'PapyrusCompiler.exe not found. Set your Fallout 4 path (or Papyrus Compiler path) in Settings — it lives in <Fallout 4>/Papyrus Compiler/.' };
+      }
+
+      // Import paths: this scaffold's source + the base game sources.
+      const imports: string[] = [sourceDir];
+      if (fo4) for (const sub of ['Data/Scripts/Source/Base', 'Data/Scripts/Source/User', 'Data/Source/Scripts']) {
+        const p = path.join(fo4, sub); if (fs.existsSync(p)) imports.push(p);
+      }
+      const extra = String(settings?.papyrusImportPaths || '').trim();
+      if (extra) imports.push(...extra.split(';').map(s => s.trim()).filter(Boolean));
+
+      const outDir = path.join(scaffoldDir, 'Data', 'Scripts');
+      fs.mkdirSync(outDir, { recursive: true });
+
+      const pscFiles = fs.readdirSync(sourceDir).filter(f => /\.psc$/i.test(f));
+      if (pscFiles.length === 0) return { success: false, error: 'No .psc files to compile.' };
+
+      const { spawn } = await import('child_process');
+      const results: { script: string; ok: boolean; message: string }[] = [];
+      for (const f of pscFiles) {
+        const scriptName = path.basename(f, '.psc');
+        const args = [scriptName, `-i=${imports.join(';')}`, `-o=${outDir}`, '-f=Institute_Papyrus_Flags.flg', '-op'];
+        const r = await new Promise<{ code: number; out: string; err: string }>((resolve) => {
+          const c = spawn(compiler, args, { cwd: path.dirname(compiler), shell: false, windowsHide: true });
+          let out = '', err = '';
+          c.stdout?.on('data', (d: any) => { out += d.toString(); });
+          c.stderr?.on('data', (d: any) => { err += d.toString(); });
+          c.on('close', (code: number | null) => resolve({ code: code ?? 0, out, err }));
+          c.on('error', (e: any) => resolve({ code: 1, out: '', err: String(e) }));
+        });
+        const ok = fs.existsSync(path.join(outDir, `${scriptName}.pex`)) && r.code === 0;
+        results.push({ script: scriptName, ok, message: ok ? 'compiled' : (r.err || r.out || 'compile failed').trim().slice(-400) });
+      }
+      const compiled = results.filter(r => r.ok).length;
+      return { success: compiled > 0, compiled, total: results.length, results, outputDir: outDir, message: `Compiled ${compiled}/${results.length} script(s) → ${outDir}` };
+    } catch (error: any) { return { success: false, error: error instanceof Error ? error.message : String(error) }; }
+  });
+
+  // ── Package the scaffold's Data folder into a BA2 via Archive2 ─────────────────
+  registerHandler('creative-director:package-mod', async (_event, outputDir: string, modName: string) => {
+    try {
+      if (!outputDir || !fs.existsSync(outputDir)) return { success: false, error: 'Project folder not found' };
+      const scaffoldDir = path.join(outputDir, 'scaffold');
+      const dataDir = path.join(scaffoldDir, 'Data');
+      if (!fs.existsSync(dataDir)) return { success: false, error: 'No scaffold Data folder found. Run Build Mod Structure first.' };
+
+      const settings = loadSettings();
+      const fo4 = String(settings?.fallout4Path || '').trim();
+      let archive2 = String(settings?.archive2Path || '').trim();
+      if ((!archive2 || !fs.existsSync(archive2)) && fo4) {
+        const guess = path.join(fo4, 'Tools', 'Archive2', 'Archive2.exe');
+        if (fs.existsSync(guess)) archive2 = guess;
+      }
+      if (!archive2 || !fs.existsSync(archive2)) {
+        return { success: false, error: 'Archive2.exe not found. Set your Fallout 4 path in Settings — Archive2 lives in <Fallout 4>/Tools/Archive2/.' };
+      }
+
+      const safeName = String(modName || 'MyMod').replace(/[^A-Za-z0-9_ -]/g, '').trim() || 'MyMod';
+      const outBa2 = path.join(scaffoldDir, `${safeName} - Main.ba2`);
+      // Archive2 packs a folder into a General-format BA2 rooted at the Data dir.
+      const args = [dataDir, `-create=${outBa2}`, `-root=${dataDir}`, '-format=General', '-compression=Default'];
+
+      const { spawn } = await import('child_process');
+      const r = await new Promise<{ code: number; out: string; err: string }>((resolve) => {
+        const c = spawn(archive2, args, { cwd: path.dirname(archive2), shell: false, windowsHide: true });
+        let out = '', err = '';
+        c.stdout?.on('data', (d: any) => { out += d.toString(); });
+        c.stderr?.on('data', (d: any) => { err += d.toString(); });
+        c.on('close', (code: number | null) => resolve({ code: code ?? 0, out, err }));
+        c.on('error', (e: any) => resolve({ code: 1, out: '', err: String(e) }));
+      });
+      const ok = r.code === 0 && fs.existsSync(outBa2);
+      if (!ok) return { success: false, error: (r.err || r.out || 'Archive2 failed').trim().slice(-400) };
+      const sizeMB = (fs.statSync(outBa2).size / 1_048_576).toFixed(1);
+      return { success: true, ba2Path: outBa2, sizeMB, message: `Packed "${path.basename(outBa2)}" (${sizeMB} MB). Name it "${safeName} - Main.ba2" alongside "${safeName}.esp" so the game auto-loads it.` };
+    } catch (error: any) { return { success: false, error: error instanceof Error ? error.message : String(error) }; }
   });
 
   // ── Concept Art — read prompts file ──────────────────────────────────────────
@@ -26253,8 +26926,29 @@ print(json.dumps(result))
     ].join('\n');
   }
 
-  // Load existing neurons from disk at startup
+  // Registers the full FO4 world strings as a brain neuron so main chat gets
+  // the same 141K-entry game knowledge that Creative Director uses. Skips if
+  // FO4_VANILLA_WORLD hasn't been populated yet (first run, no scan).
+  function refreshWorldStringNeuron(): void {
+    if (!FO4_VANILLA_WORLD) return;
+    // Reframe for general modding assistance (not the "do not reuse" CD framing)
+    const chatContent = FO4_VANILLA_WORLD.replace(
+      /DO NOT reuse any name below as a mod location, NPC, or faction\./,
+      'Use these verified names when helping users with mods — they are confirmed real game content.'
+    );
+    addBrainNeuron({
+      id: 'fo4-world-strings',
+      domain: 'Game World Reference',
+      title: `FO4 Verified Game Content — 141K+ real entries (Fallout4.esm + DLCs)`,
+      priority: 82,
+      content: chatContent,
+      source: 'scan',
+    });
+  }
+
+  // Load existing neurons from disk at startup, then seed world strings neuron
   loadBrainNeuronsFromDisk();
+  refreshWorldStringNeuron();
 
   // IPC handlers for the Brain Neuron system
   registerHandler('brain:list-neurons', async () => {
@@ -36425,38 +37119,57 @@ ${steps}
     return { masters, tes4End };
   };
 
-  /**
-   * Build an ESL-flagged patch ESP from a master list and an array of complete record buffers.
-   * Each record in `records` must be a verbatim record (type+dataSize+flags+formId+vci+data).
-   */
-  const _buildPatchEsp = (masterNames: string[], records: Buffer[]): Buffer => {
-    const parts: Buffer[] = [];
-    // HEDR subrecord (12 bytes data: float version, int32 numRecords, uint32 nextFormID)
-    const hedr = Buffer.alloc(6 + 12);
-    hedr.write('HEDR', 0, 'ascii');
-    hedr.writeUInt16LE(12, 4);
-    hedr.writeFloatLE(0.95, 6);
-    hedr.writeInt32LE(0, 10);
-    hedr.writeUInt32LE(0x800, 14);   // ESL local FormID range starts at 0x800
-    parts.push(hedr);
-    // MAST + DATA subrecords for each master
-    const dataZero = Buffer.alloc(8);
-    for (const m of masterNames) {
-      const ms = Buffer.from(m + '\0', 'ascii');
-      const mh = Buffer.alloc(6); mh.write('MAST', 0, 'ascii'); mh.writeUInt16LE(ms.length, 4);
-      const dh = Buffer.alloc(6); dh.write('DATA', 0, 'ascii'); dh.writeUInt16LE(8, 4);
-      parts.push(mh, ms, dh, dataZero);
-    }
-    const subArea = Buffer.concat(parts);
-    // TES4 record header (24 bytes)
-    const tes4Hdr = Buffer.alloc(24);
-    tes4Hdr.write('TES4', 0, 'ascii');
-    tes4Hdr.writeUInt32LE(subArea.length, 4);
-    tes4Hdr.writeUInt32LE(0x200, 8);   // ESL flag
-    return Buffer.concat([tes4Hdr, subArea, ...records]);
-  };
+  // (Former _buildPatchEsp binary writer removed — patch writing is now delegated
+  //  to xEdit for both the PRP patch and the compatibility patch, which handles
+  //  GRUP nesting and FormID master remapping correctly.)
 
   // ── ck:inspect-plugin — full deep-scan binary parser ────────────────────────
+  // ── Shared xEdit / FO4Edit path resolver ─────────────────────────────────────
+  // Resolution order: (1) explicit path from the caller, (2) previously saved
+  // settings.xeditPath, (3) auto-detected candidate locations (plugin-relative
+  // first, then common installs). Any path found via (1) or (3) is persisted to
+  // settings so every CK tool remembers it afterward — the user only supplies it once.
+  const _persistXeditPath = (p: string) => {
+    try {
+      const s = loadSettings();
+      if (String(s?.xeditPath || '') !== p) saveSettings({ ...s, xeditPath: p });
+    } catch { /* non-fatal — persistence is best-effort */ }
+  };
+  const _resolveXeditPath = (explicit?: string, pluginPath?: string): string | null => {
+    // 1. Explicit path supplied by the UI this call
+    if (explicit && explicit.trim()) {
+      const ex = path.resolve(explicit.trim());
+      if (fs.existsSync(ex)) { _persistXeditPath(ex); return ex; }
+    }
+    // 2. Previously remembered path
+    try {
+      const saved = String(loadSettings()?.xeditPath || '').trim();
+      if (saved && fs.existsSync(saved)) return saved;
+    } catch { /* ignore */ }
+    // 3. Auto-detect
+    const candidates: string[] = [];
+    if (pluginPath) {
+      const dataDir = path.dirname(path.resolve(pluginPath));
+      const fo4Dir  = path.join(dataDir, '..');
+      candidates.push(
+        path.join(fo4Dir, 'FO4Edit64.exe'),
+        path.join(fo4Dir, 'FO4Edit.exe'),
+        path.join(fo4Dir, '..', 'FO4Edit', 'FO4Edit64.exe'),
+        path.join(fo4Dir, '..', 'FO4Edit', 'FO4Edit.exe'),
+        path.join(fo4Dir, '..', 'xEdit', 'FO4Edit.exe'),
+      );
+    }
+    candidates.push(
+      path.join(os.homedir(), 'Desktop', 'FO4Edit64.exe'),
+      path.join(os.homedir(), 'Desktop', 'FO4Edit.exe'),
+      'C:\\Games\\FO4Edit\\FO4Edit64.exe',
+      'C:\\Games\\FO4Edit\\FO4Edit.exe',
+    );
+    const found = candidates.find(c => fs.existsSync(c));
+    if (found) { _persistXeditPath(found); return found; }
+    return null;
+  };
+
   registerHandler('ck:inspect-plugin', async (_event, pluginPath: string) => {
     try {
       if (!pluginPath || typeof pluginPath !== 'string') return { success: false, error: 'No plugin path provided.' };
@@ -36602,20 +37315,13 @@ ${steps}
   });
 
   // ── ck:autofix-launch-xedit — open plugin in FO4Edit for clean / compact / inspect
-  registerHandler('ck:autofix-launch-xedit', async (_event, pluginPath: string, mode: 'clean' | 'compact' | 'open') => {
+  registerHandler('ck:autofix-launch-xedit', async (_event, pluginPath: string, mode: 'clean' | 'compact' | 'open', xeditPathHint?: string) => {
     try {
       const resolved   = path.resolve(pluginPath);
       const pluginName = path.basename(resolved);
       const dataDir    = path.dirname(resolved);
-      const xEditCandidates = [
-        path.join(dataDir, '..', 'FO4Edit.exe'),
-        path.join(dataDir, '..', '..', 'FO4Edit', 'FO4Edit.exe'),
-        path.join(dataDir, '..', '..', 'xEdit', 'FO4Edit.exe'),
-        'C:\\Games\\FO4Edit\\FO4Edit.exe',
-        path.join(os.homedir(), 'Desktop', 'FO4Edit.exe'),
-      ];
-      const xEditPath = xEditCandidates.find(p => fs.existsSync(p));
-      if (!xEditPath) return { success: false, error: 'FO4Edit.exe not found. Place it in the Fallout 4 root folder or add to PATH, then retry.' };
+      const xEditPath = _resolveXeditPath(xeditPathHint, resolved);
+      if (!xEditPath) return { success: false, error: 'FO4Edit.exe not found. Set its location in the Previsbines tab → Environment Check (Mossy remembers it after that), or place it in the Fallout 4 root, then retry.' };
       const args = ['-fo4', `-DataPath:${dataDir}`, '-autoload', pluginName];
       if (mode === 'clean') args.unshift('-quickautoclean');
       const { spawn } = await import('child_process');
@@ -36625,16 +37331,35 @@ ${steps}
   });
 
   // ── ck:autofix-rebuild-precombines — spawn CK with -GeneratePrevisiblesForPlugin ─
-  registerHandler('ck:autofix-rebuild-precombines', async (_event, pluginPath: string) => {
+  registerHandler('ck:autofix-rebuild-precombines', async (_event, pluginPath: string, xeditPathHint?: string) => {
     try {
       const resolved   = path.resolve(pluginPath);
-      const pluginName = path.basename(resolved);
-      const fo4Dir     = path.join(path.dirname(resolved), '..');
-      const ckPath     = path.join(fo4Dir, 'CreationKit.exe');
-      if (!fs.existsSync(ckPath)) return { success: false, error: 'CreationKit.exe not found. Ensure CK is installed in the Fallout 4 folder.' };
+      const pluginBase = path.basename(resolved, path.extname(resolved)); // no extension for the batch
       const { spawn } = await import('child_process');
-      spawn(ckPath, ['-GeneratePrevisiblesForPlugin', pluginName], { cwd: fo4Dir, detached: true, stdio: 'ignore' }).unref();
-      return { success: true, message: `Creation Kit launched to rebuild precombines for ${pluginName}. This may take 30–120 min. Monitor the CK log window.` };
+
+      // Preferred, reliable path: the community-standard PJM GeneratePrevisibines.bat.
+      // It orchestrates the full pipeline (CK -GeneratePrecombined → Archive2 → xEdit
+      // merge of PrecombinedObjects → CK -CompressPSG/-BuildCDX → CK -GeneratePreVisData
+      // → Archive2) and handles OG vs Next-Gen differences. This is the only way to get
+      // a correct rebuild in one action, so we drive it rather than a single CK flag.
+      const xeditExe = _resolveXeditPath(xeditPathHint, pluginPath);
+      if (xeditExe) {
+        const batPath = path.join(path.dirname(xeditExe), 'GeneratePrevisibines.bat');
+        if (fs.existsSync(batPath)) {
+          spawn('cmd.exe', ['/k', batPath, pluginBase], { cwd: path.dirname(xeditExe), detached: true, shell: false }).unref();
+          return {
+            success: true,
+            message: `Full previsbine rebuild started for "${pluginBase}" via GeneratePrevisibines.bat. In the CMD window: confirm the patch name (your mod name) and press Y to seed from xPrevisPatch/PRP. This runs CK + Archive2 + xEdit automatically and takes 30 min – 8 hrs depending on cell count.`,
+          };
+        }
+      }
+
+      // No batch found — we cannot do a correct rebuild without the toolchain.
+      // Point the user at the one-time setup instead of spawning a half-working CK call.
+      return {
+        success: false,
+        error: 'Precombine rebuild needs the PJM Scripts (GeneratePrevisibines.bat, Nexus #76442) placed in your xEdit folder, plus CK + CKPE. Open the Previsbines & PRP tab → Environment Check to see exactly what is missing and get the download links. Once installed, this button runs the whole rebuild in one click.',
+      };
     } catch (e: any) { return { success: false, error: e?.message }; }
   });
 
@@ -36676,7 +37401,7 @@ ${steps}
   });
 
   // ── ck:create-patch — write a compatibility patch ESP ─────────────────────────
-  registerHandler('ck:create-patch', async (_event, pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B') => {
+  registerHandler('ck:create-patch', async (_event, pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B', xeditPathHint?: string) => {
     try {
       const rA = path.resolve(pathA), rB = path.resolve(pathB);
       for (const p of [rA, rB]) if (!fs.existsSync(p)) return { success: false, error: `Not found: ${p}` };
@@ -36722,10 +37447,124 @@ ${steps}
         path.basename(rB).toLowerCase(),
       ])];
 
-      const patchBuf = _buildPatchEsp(masterSet, patchRecs);
-      const resolvedPatch = path.resolve(patchPath);
-      fs.writeFileSync(resolvedPatch, patchBuf);
-      return { success: true, patchPath: resolvedPatch, conflictCount: patchRecs.length, masterCount: masterSet.length, message: `Patch created — ${patchRecs.length} conflict records, ${masterSet.length} masters.` };
+      // ── Delegate the WRITE to xEdit ──────────────────────────────────────────
+      // Same reason as the PRP patch: a correct override patch needs valid GRUP
+      // nesting + FormID master remapping, which xEdit handles and a blind binary
+      // writer cannot. Detection above is only used to report the conflict count.
+      const xeditExe = _resolveXeditPath(xeditPathHint, rA);
+      if (!xeditExe) {
+        return { success: false, error: `Detected ${patchRecs.length} conflicting override(s), but xEdit/FO4Edit was not found to build the patch. Set your xEdit path in the Previsbines & PRP tab → Environment Check, then retry.` };
+      }
+      const xeditDir   = path.dirname(xeditExe);
+      const scriptsDir = path.join(xeditDir, 'Edit Scripts');
+      try { if (!fs.existsSync(scriptsDir)) fs.mkdirSync(scriptsDir, { recursive: true }); } catch { /* ignore */ }
+
+      const aBase = path.basename(rA), bBase = path.basename(rB);
+      const patchBase = path.basename(patchPath).replace(/\.(esp|esl|esm)$/i, '') + '.esp';
+
+      const MOSSY_MAKE_COMPAT_PATCH_PAS = `unit Mossy_MakeCompatPatch;
+
+var
+  aName, bName, winName, loseName, patchName: string;
+  aFile, bFile, winFile, loseFile, patchFile: IInterface;
+
+function ReadParams: Boolean;
+var sl: TStringList; fn, w: string;
+begin
+  Result := False;
+  fn := ScriptsPath + 'Mossy_CompatPatch_params.txt';
+  if not FileExists(fn) then begin AddMessage('[Mossy] Params file missing: ' + fn); Exit; end;
+  sl := TStringList.Create;
+  try
+    sl.LoadFromFile(fn);
+    aName := Trim(sl.Values['pluginA']);
+    bName := Trim(sl.Values['pluginB']);
+    w := Trim(sl.Values['winner']);
+    patchName := Trim(sl.Values['patch']);
+  finally sl.Free; end;
+  if SameText(w, 'A') then begin winName := aName; loseName := bName; end
+  else begin winName := bName; loseName := aName; end;
+  Result := (aName <> '') and (bName <> '') and (patchName <> '');
+end;
+
+function FindFileByName(n: string): IInterface;
+var i: Integer;
+begin
+  Result := nil;
+  for i := 0 to Pred(FileCount) do
+    if SameText(GetFileName(FileByIndex(i)), n) then begin Result := FileByIndex(i); Exit; end;
+end;
+
+function LoserAlsoOverrides(rec: IInterface): Boolean;
+var m, ov: IInterface; i: Integer;
+begin
+  Result := False;
+  m := MasterOrSelf(rec);
+  for i := 0 to Pred(OverrideCount(m)) do begin
+    ov := OverrideByIndex(m, i);
+    if SameText(GetFileName(GetFile(ov)), loseName) then begin Result := True; Exit; end;
+  end;
+end;
+
+function Initialize: Integer;
+var i, copied, seen: Integer; rec, res: IInterface;
+begin
+  Result := 0; copied := 0; seen := 0;
+  if not ReadParams then begin AddMessage('[Mossy] Could not read parameters. Aborting.'); Result := 1; Exit; end;
+  winFile  := FindFileByName(winName);
+  loseFile := FindFileByName(loseName);
+  if winFile = nil then begin AddMessage('[Mossy] Winner plugin not loaded: ' + winName + '. Activate both plugins in the load order.'); Result := 1; Exit; end;
+  if loseFile = nil then begin AddMessage('[Mossy] Other plugin not loaded: ' + loseName + '. Activate both plugins in the load order.'); Result := 1; Exit; end;
+
+  patchFile := AddNewFileName(patchName);
+  if patchFile = nil then begin AddMessage('[Mossy] Could not create patch (requires xEdit 4.0.4+): ' + patchName); Result := 1; Exit; end;
+  SetIsESL(patchFile, True);
+
+  for i := 0 to Pred(RecordCount(winFile)) do begin
+    rec := RecordByIndex(winFile, i);
+    if Signature(rec) = 'TES4' then Continue;
+    Inc(seen);
+    if not LoserAlsoOverrides(rec) then Continue;   { only records BOTH plugins edit = real conflicts }
+    try
+      res := wbCopyElementToFile(rec, patchFile, False, True);
+      if Assigned(res) then Inc(copied);
+    except
+      on E: Exception do AddMessage('[Mossy] Copy failed: ' + E.Message);
+    end;
+  end;
+
+  AddMessage(Format('[Mossy] Compat patch "%s": %d conflicting record(s) forwarded from %s.', [patchName, copied, winName]));
+  if copied = 0 then AddMessage('[Mossy] No conflicts copied — the two plugins may not overlap.');
+  AddMessage('[Mossy] Done. Load "' + patchName + '" LAST in the load order.');
+end;
+
+function Finalize: Integer;
+begin
+  Result := 0;
+end;
+
+end.
+`;
+
+      try {
+        fs.writeFileSync(path.join(scriptsDir, 'Mossy_CompatPatch_params.txt'), `pluginA=${aBase}\npluginB=${bBase}\nwinner=${winner}\npatch=${patchBase}\n`, 'utf-8');
+        fs.writeFileSync(path.join(scriptsDir, 'Mossy_MakeCompatPatch.pas'), MOSSY_MAKE_COMPAT_PATCH_PAS, 'utf-8');
+      } catch (e: any) {
+        return { success: false, error: `Could not write the xEdit script to ${scriptsDir}: ${e?.message}` };
+      }
+
+      const { spawn } = await import('child_process');
+      spawn(xeditExe, ['-fo4', '-autoexit', '-script:Mossy_MakeCompatPatch.pas', '-autoload', aBase, bBase], {
+        cwd: xeditDir, detached: true, stdio: 'ignore',
+      }).unref();
+
+      return {
+        success: true,
+        patchPath: patchBase,
+        conflictCount: patchRecs.length,
+        masterCount: masterSet.length,
+        message: `Detected ${patchRecs.length} conflicting override(s). FO4Edit is building "${patchBase}" using Plugin ${winner}'s version of each conflict, then saving to Data. Ensure both plugins are active in the load order; load the patch LAST.`,
+      };
     } catch (e: any) { return { success: false, error: e?.message }; }
   });
 
@@ -36810,7 +37649,14 @@ ${steps}
         path.join(fo4Dir, '..', 'xEdit', 'FO4Edit.exe'),
         'C:\\Games\\FO4Edit\\FO4Edit.exe',
       ];
-      const xeditPath = xeditCandidates.find(p => fs.existsSync(p));
+      let xeditPath = xeditCandidates.find(p => fs.existsSync(p));
+      // Remember a freshly detected path; otherwise fall back to one saved earlier.
+      if (xeditPath) {
+        _persistXeditPath(xeditPath);
+      } else {
+        const saved = String(loadSettings()?.xeditPath || '').trim();
+        if (saved && fs.existsSync(saved)) xeditPath = saved;
+      }
       result['xedit'] = { found: !!xeditPath, path: xeditPath ?? '' };
 
       // PJM Scripts (FO4Check_Previsbines.pas, GeneratePrevisibines.bat)
@@ -36925,7 +37771,7 @@ ${steps}
   // with the user's mod changes. Based on the "Quick PRP Patch" approach where you
   // override the conflicting cells with PRP's CELL records so the game uses PRP's
   // precombine data for those cells.
-  registerHandler('ck:create-prp-patch', async (_event, pluginPath: string, prpPath: string, patchPath: string) => {
+  registerHandler('ck:create-prp-patch', async (_event, pluginPath: string, prpPath: string, patchPath: string, xeditPathHint?: string) => {
     try {
       const rPlugin = path.resolve(pluginPath);
       const rPrp    = path.resolve(prpPath);
@@ -36948,59 +37794,161 @@ ${steps}
 
       if (affectedFids.size === 0) return { success: false, error: 'No CELL overrides found in this plugin — no PRP patch needed.' };
 
-      // Step 2: read PRP.esp and collect its CELL records for those FormIDs
-      const prpBuf  = Buffer.from(fs.readFileSync(rPrp));
-      const { masters: prpMasters, tes4End: prpTes4End } = _readEspMasters(prpBuf);
-      const numPrpMasters = prpMasters.length;
-      const patchRecs: Buffer[] = [];
-      const matchedFids: number[] = [];
+      // ── Delegate the actual patch WRITING to xEdit ───────────────────────────
+      // A correct PRP patch needs valid GRUP nesting, FormID master-index remapping,
+      // and the CELL precombine/previs subrecords carried intact. That is precisely
+      // what xEdit does correctly, so we drive FO4Edit with a generated script rather
+      // than hand-building the ESP in binary (which cannot be verified blind). The
+      // in-process detection above is used only to report how many cells are involved.
+      const xeditExe = _resolveXeditPath(xeditPathHint, pluginPath);
+      if (!xeditExe) {
+        return { success: false, error: `Detected ${affectedFids.size} affected cell(s), but xEdit/FO4Edit was not found to build the patch. Set your xEdit path in the Previsbines & PRP tab → Environment Check, then retry.` };
+      }
+      const xeditDir   = path.dirname(xeditExe);
+      const scriptsDir = path.join(xeditDir, 'Edit Scripts');
+      try { if (!fs.existsSync(scriptsDir)) fs.mkdirSync(scriptsDir, { recursive: true }); } catch { /* ignore */ }
 
-      _walkEspRecords(prpBuf, prpTes4End, prpBuf.length, (rType, flagsOff, _flags, formId, dataStart, dataSize) => {
-        if (rType !== 'CELL') return;
-        const mi = formId >>> 24;
-        if (mi >= numPrpMasters) return; // skip PRP's own new cells
-        // Normalize: both plugins should have FO4.esm as master 0 → compare lower 24 bits of Fallout4.esm records
-        // For DLC cells, normalize by checking master name match
-        const prpMasterName = (prpMasters[mi] ?? '').toLowerCase();
-        // Find same master in user's plugin
-        const plugMi = plugMasters.findIndex(m => m.toLowerCase() === prpMasterName);
-        if (plugMi < 0) return; // master not shared
-        // Reconstruct the FormID as the plugin would store it
-        const plugStoredFid = (plugMi << 24) | (formId & 0x00FFFFFF);
-        if (!affectedFids.has(plugStoredFid)) return;
+      const userBase  = path.basename(rPlugin);
+      const prpBase   = path.basename(rPrp);
+      const patchBase = path.basename(patchPath).replace(/\.(esp|esl|esm)$/i, '') + '.esp';
 
-        const recEnd = dataStart + dataSize;
-        if (recEnd <= prpBuf.length) {
-          patchRecs.push(prpBuf.slice(flagsOff - 8, recEnd));
-          matchedFids.push(formId);
-        }
-      });
+      // xEdit Pascal script: for every CELL your plugin overrides, copy PRP's version
+      // (with its precombine/previs data) into a new ESL-flagged patch, PRP as master.
+      const MOSSY_MAKE_PRP_PATCH_PAS = `unit Mossy_MakePRPPatch;
 
-      if (patchRecs.length === 0) {
-        return { success: false, error: `No matching CELL records found in PRP for the ${affectedFids.size} affected cells. PRP may not cover these cells.` };
+var
+  userName, prpName, patchName: string;
+  userFile, prpFile, patchFile: IInterface;
+
+function ReadParams: Boolean;
+var
+  sl: TStringList;
+  fn: string;
+begin
+  Result := False;
+  fn := ScriptsPath + 'Mossy_PRPPatch_params.txt';
+  if not FileExists(fn) then begin
+    AddMessage('[Mossy] Params file missing: ' + fn);
+    Exit;
+  end;
+  sl := TStringList.Create;
+  try
+    sl.LoadFromFile(fn);
+    userName  := Trim(sl.Values['plugin']);
+    prpName   := Trim(sl.Values['prp']);
+    patchName := Trim(sl.Values['patch']);
+  finally
+    sl.Free;
+  end;
+  Result := (userName <> '') and (prpName <> '') and (patchName <> '');
+end;
+
+function FindFileByName(aName: string): IInterface;
+var
+  i: Integer;
+begin
+  Result := nil;
+  for i := 0 to Pred(FileCount) do
+    if SameText(GetFileName(FileByIndex(i)), aName) then begin
+      Result := FileByIndex(i);
+      Exit;
+    end;
+end;
+
+function PrpOverrideOf(rec: IInterface): IInterface;
+var
+  m, ov: IInterface;
+  i: Integer;
+begin
+  Result := nil;
+  m := MasterOrSelf(rec);
+  for i := 0 to Pred(OverrideCount(m)) do begin
+    ov := OverrideByIndex(m, i);
+    if SameText(GetFileName(GetFile(ov)), prpName) then begin
+      Result := ov;
+      Exit;
+    end;
+  end;
+end;
+
+function Initialize: Integer;
+var
+  i, copied, seen: Integer;
+  rec, prpCell, res: IInterface;
+begin
+  Result := 0;
+  copied := 0;
+  seen := 0;
+
+  if not ReadParams then begin
+    AddMessage('[Mossy] Could not read parameters. Aborting.');
+    Result := 1; Exit;
+  end;
+
+  userFile := FindFileByName(userName);
+  prpFile  := FindFileByName(prpName);
+  if userFile = nil then begin
+    AddMessage('[Mossy] Your plugin is not loaded: ' + userName + '. Activate it (and PRP) in the load order and retry.');
+    Result := 1; Exit;
+  end;
+  if prpFile = nil then begin
+    AddMessage('[Mossy] PRP is not loaded: ' + prpName + '. Activate PRP in the load order and retry.');
+    Result := 1; Exit;
+  end;
+
+  patchFile := AddNewFileName(patchName);
+  if patchFile = nil then begin
+    AddMessage('[Mossy] Could not create patch file: ' + patchName + '. Requires xEdit 4.0.4+.');
+    Result := 1; Exit;
+  end;
+  SetIsESL(patchFile, True);
+  AddMasterIfMissing(patchFile, prpName);
+
+  for i := 0 to Pred(RecordCount(userFile)) do begin
+    rec := RecordByIndex(userFile, i);
+    if Signature(rec) <> 'CELL' then Continue;
+    Inc(seen);
+    prpCell := PrpOverrideOf(rec);
+    if prpCell = nil then Continue;
+    try
+      res := wbCopyElementToFile(prpCell, patchFile, False, True);
+      if Assigned(res) then Inc(copied);
+    except
+      on E: Exception do AddMessage('[Mossy] Copy failed for a cell: ' + E.Message);
+    end;
+  end;
+
+  AddMessage(Format('[Mossy] PRP patch "%s": %d of %d CELL overrides covered by PRP were copied.', [patchName, copied, seen]));
+  if copied = 0 then
+    AddMessage('[Mossy] Patch is empty — PRP may not cover the cells your mod edits, or the mod has no CELL overrides.');
+  AddMessage('[Mossy] Done. In the load order, place "' + patchName + '" AFTER your mod AND PRP.');
+end;
+
+function Finalize: Integer;
+begin
+  Result := 0;
+end;
+
+end.
+`;
+
+      try {
+        fs.writeFileSync(path.join(scriptsDir, 'Mossy_PRPPatch_params.txt'), `plugin=${userBase}\nprp=${prpBase}\npatch=${patchBase}\n`, 'utf-8');
+        fs.writeFileSync(path.join(scriptsDir, 'Mossy_MakePRPPatch.pas'), MOSSY_MAKE_PRP_PATCH_PAS, 'utf-8');
+      } catch (e: any) {
+        return { success: false, error: `Could not write the xEdit script to ${scriptsDir}: ${e?.message}` };
       }
 
-      // Step 3: build master list — all shared masters + user's plugin + PRP
-      const sharedMasters = [...new Set([
-        ...plugMasters.map(m => m.toLowerCase()),
-        ...prpMasters.map(m => m.toLowerCase()),
-      ])];
-      sharedMasters.push(path.basename(rPlugin).toLowerCase());
-      sharedMasters.push(path.basename(rPrp).toLowerCase());
-      const masterList = [...new Set(sharedMasters)];
-
-      // Step 4: write patch
-      const patchBuf = _buildPatchEsp(masterList, patchRecs);
-      const rPatch   = path.resolve(patchPath);
-      fs.writeFileSync(rPatch, patchBuf);
+      const { spawn } = await import('child_process');
+      spawn(xeditExe, ['-fo4', '-autoexit', '-script:Mossy_MakePRPPatch.pas', '-autoload', userBase, prpBase], {
+        cwd: xeditDir, detached: true, stdio: 'ignore',
+      }).unref();
 
       return {
         success: true,
-        patchPath: rPatch,
         cellsAffected: affectedFids.size,
-        cellsPatched: patchRecs.length,
-        masterCount: masterList.length,
-        message: `PRP patch created — ${patchRecs.length} of ${affectedFids.size} affected cells covered by PRP. Load the patch AFTER both your mod AND PRP in your load order.`,
+        patchPath: patchBase,
+        message: `Detected ${affectedFids.size} affected cell(s). FO4Edit is now building "${patchBase}" — it copies PRP's precombine/previs for those cells into a new ESL-flagged patch and saves it to your Data folder. Make sure your mod and PRP are active in the load order. When it finishes, load the patch AFTER your mod AND PRP.`,
       };
     } catch (e: any) { return { success: false, error: e?.message }; }
   });
@@ -37012,10 +37960,9 @@ ${steps}
     try {
       const resolved   = path.resolve(pluginPath);
       const pluginName = path.basename(resolved, path.extname(resolved));
-      const xeditDir   = path.dirname(path.resolve(xeditPath));
-      const xeditExe   = path.resolve(xeditPath);
-
-      if (!fs.existsSync(xeditExe)) return { success: false, error: 'xEdit/FO4Edit not found at the specified path.' };
+      const xeditExe   = _resolveXeditPath(xeditPath, pluginPath);
+      if (!xeditExe) return { success: false, error: 'xEdit/FO4Edit not found. Run Environment Check or enter the FO4Edit path first — Mossy remembers it after that.' };
+      const xeditDir   = path.dirname(xeditExe);
 
       const { spawn } = await import('child_process');
 
@@ -37054,9 +38001,9 @@ ${steps}
   // regenerating. Prevents conflicts from stale precombine references.
   registerHandler('ck:clean-plugin-precombines', async (_event, pluginPath: string, xeditPath: string) => {
     try {
-      const xeditExe = path.resolve(xeditPath);
+      const xeditExe = _resolveXeditPath(xeditPath, pluginPath);
       const plugName = path.basename(path.resolve(pluginPath));
-      if (!fs.existsSync(xeditExe)) return { success: false, error: 'xEdit not found.' };
+      if (!xeditExe) return { success: false, error: 'xEdit not found. Run Environment Check or enter the FO4Edit path first — Mossy remembers it after that.' };
       const { spawn } = await import('child_process');
       spawn(xeditExe, ['-fo4', '-script:FO4RemovePrecombines.pas', '-autoload', plugName], {
         cwd: path.dirname(xeditExe), detached: true,

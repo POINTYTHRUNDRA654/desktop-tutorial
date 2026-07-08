@@ -115,6 +115,15 @@ async function main() {
   console.log('Deployed to: ' + DEST);
   console.log('Backup at:   ' + BACKUP);
   console.log('\nClose and relaunch Mossy NVIDIA to load the new build.\n');
+
+  // Platform audit — run after every deploy to catch regressions immediately
+  const { execSync } = require('child_process');
+  try {
+    execSync('node scripts/platform-audit.mjs', { stdio: 'inherit', cwd: ROOT });
+  } catch {
+    // Audit exits with code 1 on FAIL — don't block the deploy, just surface it
+    console.warn('[AUDIT] Platform audit reported failures — check output above.\n');
+  }
 }
 
 main().catch(err => { console.error('FATAL:', err); process.exit(1); });
