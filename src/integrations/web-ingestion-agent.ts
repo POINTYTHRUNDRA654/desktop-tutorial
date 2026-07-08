@@ -16,18 +16,26 @@ export interface TutorialSource {
 // NOTE: nexusmods.com and forums.nexusmods.com URLs are intentionally excluded.
 // Scraping Nexus Mods HTML violates their Terms of Service (no text/data mining or
 // web scraping). Use the official Nexus Mods API (nexus-mods-integration.ts) instead.
+//
+// NOTE: youtube.com is excluded — YouTube's ToS (§5.B.3) prohibits automated
+// scraping or data mining of their service.
+//
+// NOTE: reddit.com HTML scraping is excluded. Reddit's ToS (§5.4) and API terms
+// prohibit scraping. Use Reddit's public JSON API endpoints (/r/sub.json) if needed.
 const SOURCES = [
     'https://www.creationkit.com/fallout4/index.php',
-    'https://www.reddit.com/r/FalloutMods/',
-    'https://www.youtube.com/results?search_query=fallout+4+modding+tutorial',
     'https://www.darkfox127.co.uk/',
-    // Add more as needed
+    // Add more sources here — avoid platforms that prohibit web scraping in their ToS
 ];
 
 export async function crawlAndIngestTutorials() {
     for (const url of SOURCES) {
         try {
-            const resp = await fetch(url);
+            const resp = await fetch(url, {
+                headers: {
+                    'User-Agent': 'Mossy-Modding-Assistant/1.0 (Fallout 4 tutorial ingestion; +https://github.com/POINTYTHRUNDRA654/mossy-ai)',
+                },
+            });
             const html = await resp.text();
             const dom = new JSDOM(html);
             const title = dom.window.document.title || 'Fallout 4 Tutorial';
@@ -61,10 +69,15 @@ export async function crawlAndIngestTutorials() {
     }
 }
 
-// Schedule regular updates (every 24h)
-setInterval(crawlAndIngestTutorials, 24 * 60 * 60 * 1000);
-
-// Manual trigger for immediate ingestion
+// Manual trigger — call this explicitly; do not run on import.
 export async function triggerManualIngestion() {
     await crawlAndIngestTutorials();
+}
+
+/**
+ * Start periodic background ingestion (every 24 h).
+ * Called explicitly by the main process — not run automatically on module load.
+ */
+export function startPeriodicIngestion(): ReturnType<typeof setInterval> {
+    return setInterval(crawlAndIngestTutorials, 24 * 60 * 60 * 1000);
 }

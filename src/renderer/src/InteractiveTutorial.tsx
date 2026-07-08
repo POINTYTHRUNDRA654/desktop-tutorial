@@ -214,9 +214,10 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
           }
         }
 
+        // NOTE: Never check VITE_OPENAI_API_KEY here — that would encourage committing
+        // real API keys as VITE_ vars, which Vite exposes in the renderer bundle.
+        // Key detection relies on the main-process IPC call above (getSecretStatus).
         if (
-          Boolean(process?.env?.REACT_APP_OPENAI_API_KEY) ||
-          Boolean((import.meta as any).env?.VITE_OPENAI_API_KEY) ||
           Boolean(localStorage.getItem('openai_api_key')) ||
           Boolean(localStorage.getItem('mossy_backend_token'))
         ) {
