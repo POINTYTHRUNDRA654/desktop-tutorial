@@ -155,7 +155,7 @@ const AIImageStudio: React.FC = () => {
     try {
       const r = await bridge.invoke('textures:comfyui-list-checkpoints');
       if (r.success) setInstalledFiles((r.files as any[]).map((f: any) => f.name));
-    } catch {}
+    } catch { /* intentionally empty */ }
   };
 
   const downloadModel = async (model: typeof RECOMMENDED_MODELS[0]) => {
@@ -301,7 +301,7 @@ const AIImageStudio: React.FC = () => {
       const res  = await fetch(resultImage);
       const blob = await res.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-    } catch {}
+    } catch { /* intentionally empty */ }
   };
 
   const fmtBytes = (n: number) =>
