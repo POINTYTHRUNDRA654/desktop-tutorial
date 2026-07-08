@@ -120,5 +120,11 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Run npm audit
-        run: npm audit --audit-level=moderate
-        continue-on-error: true
+        run: |
+          set +e
+          npm audit --audit-level=moderate
+          audit_exit_code=$?
+          if [ "$audit_exit_code" -ne 0 ]; then
+            echo "::warning title=Security Scan::npm audit reported vulnerabilities (exit code $audit_exit_code)."
+          fi
+          exit 0
