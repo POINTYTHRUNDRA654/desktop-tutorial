@@ -77,7 +77,15 @@ export async function triggerManualIngestion() {
 /**
  * Start periodic background ingestion (every 24 h).
  * Called explicitly by the main process — not run automatically on module load.
+ * Callers should store the returned handle and call `clearInterval(handle)` on shutdown.
  */
 export function startPeriodicIngestion(): ReturnType<typeof setInterval> {
     return setInterval(crawlAndIngestTutorials, 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Stop periodic ingestion started by `startPeriodicIngestion`.
+ */
+export function stopPeriodicIngestion(handle: ReturnType<typeof setInterval>): void {
+    clearInterval(handle);
 }
