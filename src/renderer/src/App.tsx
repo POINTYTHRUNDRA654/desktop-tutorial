@@ -236,7 +236,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/wizards', '/devtools', '/settings', '/project', '/support', '/assembler', '/diagnostics',
   '/community', '/capabilities', '/asset-analysis', '/plugin-tools', '/packaging-release', '/extensions/mo2',
   '/extensions/comfyui', '/extensions/upscayl', '/journey-hub', '/runtime-hub', '/system-hub', '/guides-hub',
-  '/ext-tools', '/creative-director', '/fo4-npc-director',
+  '/ext-tools', '/creative-director', '/fo4-npc-director', '/mod-builder',
   // Special routes rendered directly inside <Routes>
   '/tutorial', '/whats-new',
 ]);

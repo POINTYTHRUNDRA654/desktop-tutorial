@@ -26,6 +26,10 @@ AFTER TRAINING:
 import argparse, os, sys
 from pathlib import Path
 
+# Must be set BEFORE unsloth/unsloth_zoo imports to disable torch.compile
+# (Windows: MSVC cl.exe not in PATH, torch.compile crashes on import)
+os.environ['UNSLOTH_COMPILE_DISABLE'] = '1'
+
 # ─── Argument parsing ────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--model",       default="4b",   choices=["4b", "12b"], help="Model size (4b fits 8GB VRAM, 12b needs 15GB)")
@@ -37,8 +41,10 @@ parser.add_argument("--no-export",   action="store_true", help="Skip GGUF export
 args = parser.parse_args()
 
 MODEL_MAP = {
-    "4b":  "unsloth/gemma-4-it-unsloth-bnb-4bit",   # ~4GB download, 8GB VRAM for training
-    "12b": "unsloth/gemma-4-12b-it-unsloth-bnb-4bit", # ~12GB download, 15GB VRAM for training
+    # Gemma 3 4B -- confirmed public on HuggingFace, fits 8GB VRAM
+    "4b":  "unsloth/gemma-3-4b-it-unsloth-bnb-4bit",
+    # Gemma 3 12B -- for Colab (15GB VRAM), or when Gemma 4 Unsloth weights release
+    "12b": "unsloth/gemma-3-12b-it-unsloth-bnb-4bit",
 }
 
 MODEL_NAME = MODEL_MAP[args.model]

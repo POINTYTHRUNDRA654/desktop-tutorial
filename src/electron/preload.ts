@@ -1339,13 +1339,13 @@ const electronAPI = {
    * mode 'compact' → opens plugin for user to run Compact FormIDs for ESL
    * mode 'open'    → just open the plugin in xEdit
    */
-  ckAutofixLaunchXedit: (pluginPath: string, mode: 'clean' | 'compact' | 'open'): Promise<{ success: boolean; message?: string; error?: string }> => {
-    return ipcRenderer.invoke('ck:autofix-launch-xedit', pluginPath, mode);
+  ckAutofixLaunchXedit: (pluginPath: string, mode: 'clean' | 'compact' | 'open', xeditPathHint?: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-launch-xedit', pluginPath, mode, xeditPathHint);
   },
 
-  /** Launch Creation Kit with -GeneratePrevisiblesForPlugin to rebuild precombines. */
-  ckAutofixRebuildPrecombines: (pluginPath: string): Promise<{ success: boolean; message?: string; error?: string }> => {
-    return ipcRenderer.invoke('ck:autofix-rebuild-precombines', pluginPath);
+  /** Rebuild precombines/previs via the PJM GeneratePrevisibines pipeline (resolves xEdit path). */
+  ckAutofixRebuildPrecombines: (pluginPath: string, xeditPathHint?: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:autofix-rebuild-precombines', pluginPath, xeditPathHint);
   },
 
   // ── Previsbines & PRP automated system ────────────────────────────────────
@@ -1393,7 +1393,7 @@ const electronAPI = {
    * a patch that lets PRP's precombines coexist with the mod's changes.
    * Load the patch AFTER your mod AND PRP.
    */
-  ckCreatePrpPatch: (pluginPath: string, prpPath: string, patchPath: string): Promise<{
+  ckCreatePrpPatch: (pluginPath: string, prpPath: string, patchPath: string, xeditPathHint?: string): Promise<{
     success: boolean; error?: string;
     patchPath?: string;
     cellsAffected?: number;
@@ -1401,7 +1401,7 @@ const electronAPI = {
     masterCount?: number;
     message?: string;
   }> => {
-    return ipcRenderer.invoke('ck:create-prp-patch', pluginPath, prpPath, patchPath);
+    return ipcRenderer.invoke('ck:create-prp-patch', pluginPath, prpPath, patchPath, xeditPathHint);
   },
 
   /**
@@ -1439,7 +1439,7 @@ const electronAPI = {
    * The patch takes the `winner` plugin's version of each conflicting record.
    * Writes an ESL-flagged patch to `patchPath`.
    */
-  ckCreatePatch: (pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B'): Promise<{
+  ckCreatePatch: (pathA: string, pathB: string, patchPath: string, winner: 'A' | 'B', xeditPathHint?: string): Promise<{
     success: boolean;
     error?: string;
     patchPath?: string;
@@ -1447,7 +1447,7 @@ const electronAPI = {
     masterCount?: number;
     message?: string;
   }> => {
-    return ipcRenderer.invoke('ck:create-patch', pathA, pathB, patchPath, winner);
+    return ipcRenderer.invoke('ck:create-patch', pathA, pathB, patchPath, winner, xeditPathHint);
   },
 
   /**
@@ -3926,6 +3926,12 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:approve-plan'),
     rejectPlan: (feedback: string): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('creative-director:reject-plan', feedback),
+    assessBuild: (outputDir: string): Promise<{ success: boolean; score?: number; checks?: { pass: boolean; label: string; detail?: string }[]; artifacts?: any; error?: string }> =>
+      ipcRenderer.invoke('creative-director:assess-build', outputDir),
+    compileScripts: (outputDir: string): Promise<{ success: boolean; compiled?: number; total?: number; results?: { script: string; ok: boolean; message: string }[]; outputDir?: string; message?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:compile-scripts', outputDir),
+    packageMod: (outputDir: string, modName: string): Promise<{ success: boolean; ba2Path?: string; sizeMB?: string; message?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:package-mod', outputDir, modName),
   },
 
   // Personal R&D Network (dev-only) - proxies to the user's own separate local
