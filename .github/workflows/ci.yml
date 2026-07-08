@@ -79,11 +79,17 @@ jobs:
           Write-Host "npm ci failed after $retries attempts."
           exit 1
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
       - name: IPC handler contract guardrail
         run: npm run test:ipc-contract
 
-      - name: Verify
-        run: npm run verify
+      - name: Build
+        run: npm run build
 
   security-scan:
     name: Security Scan
