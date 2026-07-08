@@ -207,7 +207,7 @@ const PluginInspectorPanel: React.FC = () => {
     if (!patchOut.trim()) { setPatchErr('Enter a path for the patch file (e.g. C:\\FO4\\Data\\Patch.esp).'); return; }
     setPatchBusy(true); setPatchErr(''); setPatchMsg('');
     try {
-      const res = await a.ckCreatePatch(patchA, patchB, patchOut, patchWinner);
+      const res = await a.ckCreatePatch(patchA, patchB, patchOut, patchWinner, xeditPathInput.trim() || undefined);
       if (!res?.success) { setPatchErr(res?.error ?? 'Patch creation failed.'); return; }
       setPatchMsg(res.message ?? `Patch written to ${res.patchPath}`);
     } catch (e: any) { setPatchErr(e?.message ?? 'Error.'); }
@@ -292,7 +292,7 @@ const PluginInspectorPanel: React.FC = () => {
     if (!prpPlugin.trim() || !prpFile.trim() || !prpOut.trim()) { setPrpErr('All three paths are required.'); return; }
     setPrpBusy(true); setPrpErr(''); setPrpMsg('');
     try {
-      const r = await a.ckCreatePrpPatch(prpPlugin.trim(), prpFile.trim(), prpOut.trim());
+      const r = await a.ckCreatePrpPatch(prpPlugin.trim(), prpFile.trim(), prpOut.trim(), xeditPathInput.trim() || undefined);
       if (!r?.success) { setPrpErr(r?.error ?? 'Failed.'); return; }
       setPrpMsg(r.message ?? `Patch written to ${r.patchPath}`);
     } catch (e: any) { setPrpErr(e?.message ?? 'Error.'); }

@@ -37,6 +37,7 @@
     "dev:tsc": "tsc -p tsconfig.electron.json -w",
     "dev:electron": "node -e \"const path=require('path'); const { spawn }=require('child_process'); const port=Number(process.env.VITE_DEV_SERVER_PORT||5174); const url='http://127.0.0.1:'+port; const electronBin=process.platform==='win32'?path.join(process.cwd(),'node_modules','.bin','electron.cmd'):'electron'; console.log('[dev:electron] Delaying Electron launch for Vite...'); setTimeout(()=>{ const env={...process.env, ELECTRON_START_URL:url}; const child=spawn(electronBin,['.'],{ stdio:'inherit', env, shell:true, windowsHide:true }); child.on('exit',(code)=>process.exit(code||0)); child.on('error',(err)=>{ console.error('[dev:electron] spawn error:', err?.message||err); process.exit(1); }); }, 2000);\"",
     "build": "npm run validate-version && npm run build:vite && npm run build:electron",
+  "postbuild": "node scripts/platform-audit.mjs",
     "build:vite": "vite build",
     "prebuild:vite": "node scripts/precheck-renderer.mjs && node scripts/fetch-community-knowledge.mjs && node scripts/copy-knowledge.mjs",
     "build:electron": "tsc -p tsconfig.electron.json",
