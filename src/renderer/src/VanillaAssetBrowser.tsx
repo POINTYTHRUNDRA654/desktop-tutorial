@@ -86,6 +86,7 @@ function parseBgsmTextures(raw: string): string[] {
 }
 
 function parseNifTextures(raw: string): string[] {
+  // eslint-disable-next-line no-control-regex
   const matches = raw.match(/textures[/\\][^\x00"<>|?*\r\n]{3,200}\.dds/gi) ?? [];
   return [...new Set(matches)];
 }
