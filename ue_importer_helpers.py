@@ -98,7 +98,17 @@ def _load_module():
                 continue
             mod_file = getattr(mod_obj, "__file__", None) or ""
             if _importer_dir_str in mod_file:
-                sys.modules[f"{_module_key}.{key}"] = mod_obj
+                new_key = f"{_module_key}.{key}"
+                sys.modules[new_key] = mod_obj
+                # Update __module__ on every class so that typing.get_type_hints()
+                # (called by Blender 5.1 during register_class) can still resolve
+                # the class's annotation strings after the bare key is removed.
+                for _attr_val in vars(mod_obj).values():
+                    if isinstance(_attr_val, type) and getattr(_attr_val, "__module__", None) == key:
+                        try:
+                            _attr_val.__module__ = new_key
+                        except Exception:
+                            pass
                 del sys.modules[key]
 
         _state["module"] = module
@@ -187,11 +197,46 @@ def load_and_register() -> tuple[bool, str]:
     if _state["status"] in ("registered", "loaded"):
         return True, "UE importer already loaded"
 
+    # Survive module reloads (e.g. Phase 2 AI module reimport resets _state).
+    # Check Blender's actual type registry — if the operators are already there,
+    # we don't need to re-register and doing so would cause "registered before" warnings.
+    try:
+        import bpy as _bpy
+        if hasattr(_bpy.types, "ImportUMat") or hasattr(_bpy.types, "ImportUMesh"):
+            _state["status"] = "registered"
+            return True, "UE importer already registered"
+    except Exception:
+        pass
+
     ok, msg = _load_module()
     if not ok:
         return False, msg
 
     module = _state.get("module")
+
+    # Blender 5.1+ calls typing.get_type_hints() on every operator class during
+    # register_class().  If a sub-module (e.g. umat.py) forgot to import
+    # bpy.props names, annotation strings like "StringProperty" fail to resolve.
+    # Inject them into the main module AND every namespaced sub-module so that
+    # sys.modules[cls.__module__].__dict__ always contains the needed names.
+    if module is not None:
+        try:
+            import bpy.props as _bpy_props
+            _props = {n: getattr(_bpy_props, n) for n in dir(_bpy_props) if n.endswith("Property")}
+            _prefix = module.__name__
+            for _k, _m in list(sys.modules.items()):
+                if _m is None:
+                    continue
+                if _k == _prefix or _k.startswith(_prefix + "."):
+                    for _pn, _pv in _props.items():
+                        if not hasattr(_m, _pn):
+                            try:
+                                setattr(_m, _pn, _pv)
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+
     try:
         if module and hasattr(module, "register"):
             try:

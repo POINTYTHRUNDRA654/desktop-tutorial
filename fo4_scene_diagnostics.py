@@ -67,7 +67,7 @@ The ``auto_fix`` method addresses all automatically fixable issues:
 import bpy
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Severity constants
 ERROR   = "ERROR"
@@ -143,7 +143,7 @@ class SceneDiagnostics:
           scene      – list of scene-level CheckResult dicts
         """
         report = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "objects":   [],
             "scene":     [],
         }
@@ -408,9 +408,12 @@ class SceneDiagnostics:
 
         # ── No UCX_ collision ──────────────────────────────────────────────────
         ucx_name_upper = f"UCX_{obj.name}".upper()
+        _fb_scene = getattr(bpy.context, 'scene', None)
+        _scene_objs = (obj.users_scene[0].objects if obj.users_scene
+                       else (_fb_scene.objects if _fb_scene else []))
         collision_found = any(
             o.name.upper() == ucx_name_upper
-            for o in bpy.context.scene.objects
+            for o in _scene_objs
         )
         if collision_found:
             results.append(CheckResult(
@@ -472,7 +475,7 @@ class SceneDiagnostics:
                 results.append(CheckResult(
                     ERROR, "GRASS",
                     f"Material '{mat.name}' does not use nodes. "
-                    "Niftools requires node-based materials.",
+                    "PyNifly requires node-based materials.",
                 ))
             else:
                 results.append(CheckResult(OK, "GRASS", "Material uses nodes"))
@@ -540,7 +543,8 @@ class SceneDiagnostics:
             results.append(CheckResult(OK, "GRASS", "Grass mesh is fully triangulated"))
 
         # ── Vertex colors (optional but recommended) ───────────────────────────
-        if not mesh.vertex_colors and not mesh.color_attributes:
+        has_vertex_colors = bool(getattr(mesh, 'color_attributes', None))
+        if not has_vertex_colors:
             results.append(CheckResult(
                 OK, "GRASS",
                 "No vertex colors (optional). Vertex colors can encode per-vertex "
@@ -707,37 +711,70 @@ class SceneDiagnostics:
             results.append(CheckResult(
                 ERROR, "MATERIAL",
                 f"Material '{mat.name}' does not use nodes. "
-                "Niftools requires node-based materials.",
+                "PyNifly requires node-based materials.",
             ))
             return results
 
         results.append(CheckResult(OK, "MATERIAL", "Material uses nodes"))
 
         # Standard texture nodes
-        node_names = {n.label or n.name for n in mat.node_tree.nodes}
-        for slot_name, severity in [
-            ("Diffuse",  ERROR),
-            ("Normal",   WARNING),
-            ("Specular", WARNING),
+        # Check for both naming conventions:
+        # - Niftools format: Image Texture node with label/name "Diffuse" / "Normal" / etc.
+        # - PyNifly import format: Image Texture connected to Principled BSDF sockets
+        node_names = {n.label or n.name for n in mat.node_tree.nodes if n.type == 'TEX_IMAGE'}
+
+        def _bsdf_socket_has_image(socket_name):
+            """Return True if a Principled BSDF input socket has an Image Texture wired to it."""
+            for node in mat.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get(socket_name)
+                    if sock and sock.links:
+                        from_node = sock.links[0].from_node
+                        if from_node.type == 'TEX_IMAGE':
+                            return True
+            return False
+
+        for slot_name, aliases, bsdf_socket, severity in [
+            ("Diffuse",  {"Diffuse", "Base"},  "Base Color", ERROR),
+            ("Normal",   {"Normal"},           "Normal",     WARNING),
+            ("Specular", {"Specular", "Spec"}, "Specular",   WARNING),
         ]:
-            if slot_name in node_names:
-                results.append(CheckResult(OK,       "MATERIAL", f"'{slot_name}' texture node present"))
+            has_named = bool(node_names & aliases)
+            has_bsdf  = _bsdf_socket_has_image(bsdf_socket)
+            if has_named:
+                results.append(CheckResult(OK, "MATERIAL", f"'{slot_name}' texture node present"))
+            elif has_bsdf:
+                results.append(CheckResult(OK, "MATERIAL",
+                    f"'{slot_name}' texture connected to Principled BSDF (PyNifly format — OK)"))
             else:
                 results.append(CheckResult(severity, "MATERIAL",
-                    f"'{slot_name}' texture node missing – Niftools will skip this slot"))
+                    f"'{slot_name}' texture not connected – will be missing in exported NIF"))
 
-        # Diffuse texture actually loaded?
+        # Diffuse texture actually loaded? (supports both naming conventions)
+        diffuse_node = None
         for node in mat.node_tree.nodes:
-            if node.type == 'TEX_IMAGE' and (node.label == "Diffuse" or node.name == "Diffuse"):
-                if node.image:
-                    results.append(CheckResult(OK, "MATERIAL", "Diffuse texture image loaded"))
-                else:
-                    results.append(CheckResult(
-                        WARNING, "MATERIAL",
-                        "Diffuse texture node has no image – "
-                        "object will be invisible in-game without a texture",
-                    ))
+            if node.type == 'TEX_IMAGE' and (
+                node.label in {"Diffuse", "Base"} or node.name in {"Diffuse", "Base"}
+            ):
+                diffuse_node = node
                 break
+        if diffuse_node is None:
+            # PyNifly format: Image Texture wired to BSDF Base Color
+            for node in mat.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get("Base Color")
+                    if sock and sock.links and sock.links[0].from_node.type == 'TEX_IMAGE':
+                        diffuse_node = sock.links[0].from_node
+                        break
+        if diffuse_node is not None:
+            if diffuse_node.image:
+                results.append(CheckResult(OK, "MATERIAL", "Diffuse texture image loaded"))
+            else:
+                results.append(CheckResult(
+                    WARNING, "MATERIAL",
+                    "Diffuse texture node has no image – "
+                    "object will be invisible in-game without a texture",
+                ))
 
         return results
 
@@ -764,12 +801,15 @@ class SceneDiagnostics:
             return results
 
         ucx_name = f"UCX_{obj.name}"
+        _fb_scene2 = getattr(bpy.context, 'scene', None)
+        _scene_objs2 = (obj.users_scene[0].objects if obj.users_scene
+                        else (_fb_scene2.objects if _fb_scene2 else []))
         found = any(
-            o.name == ucx_name or o.get("fo4_collision")
+            o.name.upper() == ucx_name.upper() or o.get("fo4_collision")
             for o in obj.children
         ) or any(
             o.name.upper() == ucx_name.upper()
-            for o in bpy.context.scene.objects
+            for o in _scene_objs2
         )
 
         if found:
@@ -994,7 +1034,7 @@ class SceneDiagnostics:
             lines = []
             lines.append("=" * 70)
             lines.append("FALLOUT 4 SCENE DIAGNOSTICS REPORT")
-            lines.append(f"Generated: {report['timestamp']}")
+            lines.append(f"Generated: {report.get('timestamp', 'unknown')}")
             lines.append("=" * 70)
 
             s = report.get("summary", {})

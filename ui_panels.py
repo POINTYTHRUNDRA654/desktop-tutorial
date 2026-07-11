@@ -8,6 +8,28 @@ import threading
 from bpy.types import Panel
 import importlib
 
+import textwrap
+
+try:
+    from . import preset_library as _preset_lib
+except Exception:
+    _preset_lib = None
+
+try:
+    from . import addon_integration as _addon_integration
+except Exception:
+    _addon_integration = None
+
+try:
+    from . import desktop_tutorial_client as _desktop_client
+except Exception:
+    _desktop_client = None
+
+try:
+    from . import notification_system as _ns
+except Exception:
+    _ns = None
+
 # ──────────────────────────────────────────────────────────────────────────
 # Dual-install conflict detection (RECURRING BUG #1 scenario).
 #
@@ -741,18 +763,12 @@ class FO4_PT_MainPanel(Panel):
         elif bv < (4, 0, 0):
             compat_box.label(text="✓ NIF export: fully supported (Blender 3.x)", icon='CHECKMARK')
             compat_box.label(text="  Install Niftools v0.1.1 add-on to export .nif directly.")
-        elif bv < (4, 1, 0):
-            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
-            compat_box.label(text="  Export .fbx and convert with Cathedral Assets Optimizer.")
         elif bv < (5, 0, 0):
-            # 4.1–4.x - use_auto_smooth removed; FBX-only NIF path
-            compat_box.label(text="✓ NIF export: FBX fallback (Niftools needs Blender 3.6)", icon='INFO')
-            compat_box.label(text="  Shade-by-angle is automatic in Blender 4.1+.")
+            compat_box.label(text="✓ NIF import/export: use PyNifly", icon='CHECKMARK')
+            compat_box.label(text="  File → Import/Export → NIF (PyNifly)")
         else:
-            # 5.0+ - Niftools works with runtime patches applied by this add-on
-            compat_box.label(text="✓ NIF export: Niftools works with runtime patches", icon='CHECKMARK')
-            compat_box.label(text="  Install Niftools (legacy add-on) + enable 'Allow Legacy Add-ons'.")
-            compat_box.label(text="  API patches applied automatically before every export.")
+            compat_box.label(text="✓ NIF import/export: PyNifly 27.0.0 fully supported", icon='CHECKMARK')
+            compat_box.label(text="  File → Import/Export → NIF (PyNifly)")
 
         # ── Getting Started Guide (Mossy-First Approach) ────────────────────
         getting_started = layout.box()
@@ -907,12 +923,14 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        prefs = preferences.get_preferences() if preferences else None
 
-        unified = getattr(scene, "fo4_mesh_panel_unified", False)
+        # Read from prefs when available so Setup & Status toggle takes effect
+        # immediately without requiring a restart or file reload.
+        unified = prefs.mesh_panel_unified if prefs is not None else getattr(scene, "fo4_mesh_panel_unified", False)
 
         obj = context.active_object
         has_mesh = bool(obj and obj.type == 'MESH')
-        prefs = preferences.get_preferences() if preferences else None
 
         # ── Game Asset Paths – always shown at the top of the Mesh panel ──
         self._draw_asset_paths_box(layout, has_mesh, scene, context)
@@ -1449,6 +1467,26 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
         dec_row.scale_y = 1.3
         dec_row.operator("fo4.decimate_to_fo4", text="Decimate to FO4 Target", icon='MOD_DECIM')
 
+        # ── Hunyuan3D-2 (primary AI image-to-3D) ─────────────────────────────
+        layout.separator()
+        hun_box = layout.box()
+        hun_box.label(text="Hunyuan3D-2  —  Image to 3D (AI)", icon='MESH_ICOSPHERE')
+        if hunyuan3d_helpers and hasattr(hunyuan3d_helpers, "get_cached_availability"):
+            hun_ok, hun_msg = hunyuan3d_helpers.get_cached_availability()
+        elif hunyuan3d_helpers and hasattr(hunyuan3d_helpers, "check_hunyuan3d_availability"):
+            hun_ok, hun_msg = hunyuan3d_helpers.check_hunyuan3d_availability()
+        else:
+            hun_ok, hun_msg = False, "hunyuan3d_helpers not loaded"
+        if hun_ok:
+            hun_box.label(text="Ready ✓", icon='CHECKMARK')
+        else:
+            hun_box.label(text="Not available — install from Setup & Status", icon='ERROR')
+        row = hun_box.row()
+        row.enabled = bool(hun_ok)
+        row.scale_y = 1.5
+        row.operator("fo4.generate_mesh_from_image_ai",
+                     text="Generate from Image", icon='MESH_ICOSPHERE')
+
         layout.separator()
         box = layout.box()
         box.label(text="Create Mesh from Image", icon='IMAGE_DATA')
@@ -1561,7 +1599,7 @@ class FO4_PT_ImageToMeshPanel(_FO4SubPanel):
 
 class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
     """Hunyuan3D-2 AI mesh generation - sub-panel inside Setup & Status."""
-    bl_label = "AI: Hunyuan3D-2 (Text/Image to 3D)"
+    bl_label = "AI: Hunyuan3D-2/2.1 — Bulk Environment Assets"
     bl_idname = "FO4_PT_setup_ai_hunyuan3d"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
@@ -1579,6 +1617,9 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
         else:
             hun_status, hun_msg = None, "Hunyuan3D-2 status unavailable"
 
+        # Purpose hint
+        layout.label(text="Best for: trees, rocks, clutter, mutated plants", icon='PARTICLE_POINT')
+
         # Status box
         status_box = layout.box()
         if hun_status is True:
@@ -1588,6 +1629,7 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
         else:
             status_box.label(text="Status: Not checked", icon='INFO')
         status_box.label(text=hun_msg, icon='INFO')
+        status_box.operator("fo4.check_hunyuan3d_status", text="Check Status", icon='FILE_REFRESH')
         if hun_status is not True:
             status_box.label(text="Use the 'Install Tools' hub to install.", icon='DOT')
 
@@ -1603,6 +1645,189 @@ class FO4_PT_SetupAIHunyuan3D(_FO4SubPanel):
         row = box.row()
         row.enabled = hun_status is True
         row.operator("fo4.generate_mesh_from_image_ai", text="Generate from Image (AI)", icon='MESH_ICOSPHERE')
+
+
+
+
+class FO4_PT_CreaturePipeline(_FO4SubPanel):
+    """FO4 creature rigging + animation pipeline."""
+    bl_label   = "FO4: Creature Rigging + Animation Pipeline"
+    bl_idname  = "FO4_PT_creature_pipeline"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category    = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_setup_panel"
+    bl_options     = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        has_mesh = bool(obj and obj.type == 'MESH')
+
+        # ── Skeleton import ──────────────────────────────────────────────
+        imp = layout.box()
+        imp.label(text="Step 1 — Import creature skeleton NIF", icon='ARMATURE_DATA')
+        imp.label(text="Skeletons: Deathclaw / Radroach / Ghoul / Super Mutant", icon='DOT')
+        imp.label(text="Import Skeleton + Skin Weights + Partitions = ON", icon='DOT')
+        imp.prop(context.scene, "fo4_creature_type_choice", text="")
+        imp.operator("fo4.copy_creature_template", text="Copy Creature Type Template", icon='COPYDOWN').creature_type = context.scene.fo4_creature_type_choice
+
+        # ── Bind + transfer ──────────────────────────────────────────────
+        layout.separator()
+        rig = layout.box()
+        rig.label(text="Steps 3–4 — Bind + Transfer Weights", icon='WPAINT_HLT')
+        rig.label(text="Add Armature modifier → Object: creature armature", icon='DOT')
+        row = rig.row()
+        row.enabled = has_mesh
+        row.operator("fo4.transfer_armor_weights", text="Transfer Creature Weights", icon='WPAINT_HLT')
+        rig.label(text="Shift-select vanilla creature first, then make yours active", icon='INFO')
+
+        # ── Partition ────────────────────────────────────────────────────
+        layout.separator()
+        part = layout.box()
+        part.label(text="Step 5 — Partition (if gore needed)", icon='GROUP_VERTEX')
+        part.enabled = has_mesh
+        part.prop(context.scene, "fo4_sbp_slot_choice", text="Slot")
+        part.operator("fo4.add_dismember_partition", text="Add Partition", icon='PLUS').slot = context.scene.fo4_sbp_slot_choice
+
+        # ── Export ───────────────────────────────────────────────────────
+        layout.separator()
+        exp = layout.box()
+        exp.label(text="Step 6 — pyNIF export (same as rigged armor)", icon='EXPORT')
+        exp.operator("fo4.copy_pynif_rigged_settings", text="Copy Creature pyNIF Settings", icon='COPYDOWN')
+        exp.operator("fo4.save_pynif_creature_preset", text="Save Creature Preset JSON", icon='FILE_TICK')
+
+        # ── Animation ────────────────────────────────────────────────────
+        layout.separator()
+        anim = layout.box()
+        anim.label(text="Animation Pipeline", icon='ANIM')
+        anim.label(text="1. Create Actions: Idle/Walk/Run/Attack/Roar", icon='DOT')
+        anim.label(text="2. Export each Action as FBX (Bake Anim=ON)", icon='DOT')
+        anim.label(text="3. FBX → HKX via hkxcmd / Havok Content Tools", icon='DOT')
+        anim.label(text="4. Place HKX in Meshes\\Actors\\YourCreature\\Animations\\", icon='DOT')
+        anim.label(text="5. Clone vanilla behavior graph, swap clips, point to NIF", icon='DOT')
+        anim.label(text="First-pass: reuse vanilla animations on custom creature mesh", icon='INFO')
+        anim.operator("fo4.copy_creature_pipeline", text="Copy Full Creature Pipeline", icon='COPYDOWN')
+
+
+class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
+    """FO4 LOD generation + collision mesh pipeline."""
+    bl_label   = "FO4: LOD + Collision Pipeline"
+    bl_idname  = "FO4_PT_lod_collision_pipeline"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category    = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_setup_panel"
+    bl_options     = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        has_mesh = bool(obj and obj.type == 'MESH')
+
+        # ── LOD Generation ───────────────────────────────────────────────
+        lod_box = layout.box()
+        lod_box.label(text="Step 1 — Generate LODs", icon='MOD_DECIM')
+        lod_box.label(text="LOD0=original  LOD1=60%%  LOD2=30%%  LOD3=10%%", icon='DOT')
+        row = lod_box.row()
+        row.enabled = has_mesh
+        row.operator("fo4.generate_lods", text="Generate LOD0–LOD3", icon='DUPLICATE')
+        lod_box.label(text="LOD3 materials cleared — collision candidate", icon='DOT')
+
+        # ── Collision Mesh ───────────────────────────────────────────────
+        layout.separator()
+        col_box = layout.box()
+        col_box.label(text="Step 2 — Set Up Collision Mesh", icon='PHYSICS')
+        col_box.label(text="Select LOD3 → mark as Mesh_LOD3_COL", icon='DOT')
+        sub = col_box.column(align=True)
+        sub.enabled = has_mesh
+        sub.prop(context.scene, "fo4_collision_type_choice", text="Type")
+        sub.operator("fo4.setup_collision_mesh", text="Mark as Collision Mesh", icon='META_CUBE').collision_type = context.scene.fo4_collision_type_choice
+
+        # ── pyNIF collision export ───────────────────────────────────────
+        layout.separator()
+        nif_box = layout.box()
+        nif_box.label(text="Step 3 — pyNIF Export", icon='EXPORT')
+        nif_box.label(text="Collision Source: Mesh_LOD3_COL", icon='DOT')
+        nif_box.label(text="Mark collision-only (exclude from render)", icon='DOT')
+        nif_box.operator("fo4.copy_pynif_lod_settings", text="Copy LOD + Collision Settings", icon='COPYDOWN')
+        nif_box.operator("fo4.copy_full_lod_pipeline", text="Copy Full Pipeline Checklist", icon='COPYDOWN')
+
+        # ── BGSM file generator ─────────────────────────────────────────────
+        layout.separator()
+        bgsm_box = layout.box()
+        bgsm_box.label(text="Generate BGSM Material File", icon='MATERIAL')
+        bgsm_box.prop(context.scene, "fo4_bgsm_template_choice", text="")
+        bgsm_box.operator("fo4.generate_bgsm_file", text="Save .bgsm File", icon='FILE_TICK').template = context.scene.fo4_bgsm_template_choice
+        bgsm_box.label(text="Fill DDS paths in NifSkope / Material Editor", icon='DOT')
+
+        # ── Materials reminder ───────────────────────────────────────────
+        layout.separator()
+        mat_box = layout.box()
+        mat_box.label(text="Materials — keep intact", icon='MATERIAL')
+        mat_box.label(text="Do NOT rename/remove BGSM slots", icon='ERROR')
+        mat_box.label(text="Replace mesh geometry only", icon='DOT')
+
+
+class FO4_PT_RiggedArmorPipeline(_FO4SubPanel):
+    """FO4 rigged armor / clothing pipeline — sub-panel inside Setup & Status."""
+    bl_label   = "FO4: Rigged Armor / Clothing Pipeline"
+    bl_idname  = "FO4_PT_rigged_armor_pipeline"
+    bl_space_type  = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category    = 'Fallout 4'
+    bl_parent_id   = "FO4_PT_setup_panel"
+    bl_options     = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        has_mesh = bool(obj and obj.type == 'MESH')
+
+        layout.label(text="Skeleton NIF import settings:", icon='ARMATURE_DATA')
+        info = layout.box()
+        info.label(text="Import Skeleton / Skin Weights / Partitions = ON", icon='INFO')
+        info.label(text="Look for: NPC Root [Root] → Bip01 hierarchy", icon='DOT')
+
+        layout.separator()
+        layout.label(text="Step 4 — Bind mesh to FO4 skeleton:", icon='MOD_ARMATURE')
+        layout.label(text="Add Modifier → Armature → NPC Root [Root]", icon='DOT')
+
+        layout.separator()
+        layout.label(text="Step 5 — Transfer skin weights:", icon='WPAINT_HLT')
+        row = layout.row()
+        row.enabled = has_mesh
+        row.operator("fo4.transfer_armor_weights", text="Transfer FO4 Weights", icon='WPAINT_HLT')
+        layout.label(text="Shift-select FO4 body first, then make armor active", icon='DOT')
+
+        layout.separator()
+        layout.label(text="Step 6 — Dismember partitions:", icon='GROUP_VERTEX')
+        col = layout.column(align=True)
+        col.enabled = has_mesh
+        col.prop(context.scene, "fo4_sbp_slot_choice", text="Slot")
+        col.operator("fo4.add_dismember_partition", text="Add Partition Slot", icon='PLUS').slot = context.scene.fo4_sbp_slot_choice
+
+        layout.separator()
+        layout.label(text="Step 6b — Cloth / Strap physics bones (optional):", icon='PHYSICS')
+        phys = layout.box()
+        phys.label(text="Adds NPC L/R Breast, Skirt, Cloth, Strap groups", icon='DOT')
+        phys.enabled = has_mesh
+        phys.operator("fo4.add_physics_bones", text="Add Physics Bone Groups", icon='BONE_DATA')
+        phys.label(text="Weight cloth geo to these, then add Havok XML in CK", icon='DOT')
+
+        layout.separator()
+        layout.label(text="Step 7 — pyNIF export (rigged settings):", icon='EXPORT')
+        box = layout.box()
+        box.operator("fo4.copy_pynif_rigged_settings", text="Copy Rigged pyNIF Settings", icon='COPYDOWN')
+        box.operator("fo4.save_pynif_rigged_preset", text="Save Rigged Preset JSON", icon='FILE_TICK')
+        box.label(text="Enable Skinning + BSDismember + Export Partitions", icon='DOT')
+
+        layout.separator()
+        layout.label(text="Step 8 — Creation Kit:", icon='WORLD')
+        ck = layout.box()
+        ck.label(text="ArmorAddon → New → NIF + Biped Slots", icon='DOT')
+        ck.label(text="Armor → New → Add ArmorAddon", icon='DOT')
+        ck.label(text="Test: bending, deformation, clipping, partitions", icon='DOT')
 
 
 class FO4_PT_SetupAIGradio(_FO4SubPanel):
@@ -2680,6 +2905,14 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         obj = context.active_object
         has_mesh = bool(obj and obj.type == 'MESH')
 
+        # ── PyNifly quick-access import/export ───────────────────────────────
+        imp_box = layout.box()
+        imp_row = imp_box.row(align=True)
+        imp_row.label(text="NIF Import/Export (PyNifly):", icon='FILE')
+        imp_row2 = imp_box.row(align=True)
+        imp_op = imp_row2.operator("wm.call_menu", text="Import NIF…", icon='IMPORT')
+        imp_op.name = "TOPBAR_MT_file_import"
+
         # ── Fallout 4 game version ────────────────────────────────────────────
         ver_box = layout.box()
         ver_row = ver_box.row(align=True)
@@ -2714,7 +2947,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
                 from . import export_helpers as _eh
                 mtype_val = getattr(obj, 'fo4_mesh_type', 'AUTO')
                 if mtype_val == 'AUTO':
-                    detected = _eh.ExportHelpers._classify_fo4_mesh_type(obj)
+                    detected = _eh.ExportHelpers.detect_fo4_object_class(obj)
                     mtype_hint = mtype_box.column(align=True)
                     mtype_hint.scale_y = 0.75
                     mtype_hint.label(
@@ -3062,8 +3295,8 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         box.label(text="One-Click Preparation", icon='TOOL_SETTINGS')
         row = box.row()
         row.enabled = bool(obj and obj.type == 'MESH')
-        row.operator("fo4.quick_prepare_export", text="Quick Prepare for Export", icon='CHECKMARK')
         row.scale_y = 1.5
+        row.operator("fo4.quick_prepare_export", text="Quick Prepare for Export", icon='CHECKMARK')
 
         # Auto-fix
         box = layout.box()
@@ -3275,9 +3508,81 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         obj    = context.active_object
         has_mesh = bool(obj is not None and obj.type == 'MESH')
 
+        # ── FO4 Assets Path status ────────────────────────────────────────────
+        _fo4_assets_root = None
+        try:
+            from . import preferences as _armor_prefs
+            _fo4_assets_root = _armor_prefs.get_fo4_assets_path()
+        except Exception:
+            pass
+
+        asset_row = layout.box()
+        arow = asset_row.row(align=True)
+        if _fo4_assets_root:
+            arow.label(text="FO4 Assets: Connected", icon='CHECKMARK')
+        else:
+            arow.label(text="FO4 Assets: Not set", icon='ERROR')
+        arow.operator("preferences.addon_show", text="", icon='PREFERENCES').module = __package__
+
+        # ── Quick FBX Armor Setup (one-click hero) ────────────────────────────
+        hero = layout.box()
+        hero.label(text="Quick FBX Armor Setup", icon='SHADERFX')
+        hcol = hero.column(align=True)
+        hcol.scale_y = 0.78
+        hcol.label(text="1. Import your FBX/OBJ/GLB armor into Blender.")
+        hcol.label(text="2. Select the armor mesh, then click the button below.")
+        hcol.label(text="   Skeleton & scale auto-handled — no manual setup needed.")
+
+        # Skeleton status in scene
+        _has_skel = any(
+            {b.name for b in o.data.bones} & {
+                "NPC Root [Root]", "NPC Pelvis [Pelv]", "Pelvis", "COM", "LArm_Hand",
+            }
+            for o in context.scene.objects if o.type == 'ARMATURE'
+        )
+        skel_row = hero.row(align=True)
+        skel_row.scale_y = 0.85
+        if _has_skel:
+            skel_row.label(text="FO4 skeleton: in scene", icon='CHECKMARK')
+        else:
+            skel_row.label(text="FO4 skeleton: will auto-load", icon='INFO')
+        skel_row.operator("fo4.load_fo4_skeleton", text="Load Now", icon='ARMATURE_DATA')
+
+        btn = hero.row()
+        btn.enabled = bool(has_mesh)
+        btn.scale_y = 1.5
+        btn.operator(
+            "fo4.quick_fbx_armor_setup",
+            text="One-Click: Clean + Scale + Auto-Weight",
+            icon='ARMATURE_DATA',
+        )
+        hero.separator(factor=0.3)
+        hint = hero.column(align=True)
+        hint.scale_y = 0.72
+        hint.label(text="Skeleton auto-scales & aligns to your mesh. Run on each piece separately.", icon='INFO')
+        hint.label(text="Skeleton shared: 2nd/3rd piece reuses the fitted skeleton.", icon='INFO')
+
+        # Skeleton orientation fix + NIF scale fix
+        tool_row = hero.row(align=True)
+        tool_row.scale_y = 0.9
+        tool_row.operator("fo4.flip_skeleton_facing", text="Flip Skeleton 180°", icon='LOOP_BACK')
+        tool_row.operator("fo4.fix_nif_scale", text="Fix NIF Scale ÷100", icon='MOD_LENGTH')
+
+        # Texture auto-connect
+        tex_row = hero.row()
+        tex_row.enabled = bool(has_mesh)
+        tex_row.scale_y = 0.9
+        tex_row.operator(
+            "fo4.auto_connect_armor_textures",
+            text="Auto-Connect Textures",
+            icon='NODE_TEXTURE',
+        )
+
+        layout.separator()
+
         # ── Workflow guide + guide mod link ──────────────────────────────────
         top_box = layout.box()
-        top_box.label(text="Free-Tools Workflow  (Blender + Outfit Studio)", icon='INFO')
+        top_box.label(text="Manual Steps  (Blender + Outfit Studio)", icon='INFO')
         top_col = top_box.column(align=True)
         top_col.scale_y = 0.78
         top_col.label(text="Based on Nexus mod 17785 - skeleton fo4.blend guide.")
@@ -3333,7 +3638,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         # ── Step 2 helpers ────────────────────────────────────────────────────
         layout.separator()
         s2_box = layout.box()
-        s2_box.label(text="Step 2 - Weight Paint Armor from Body", icon='WPAINT_FACE')
+        s2_box.label(text="Step 2 - Weight Paint Armor from Body", icon='WPAINT_HLT')
         s2_col = s2_box.column(align=True)
         s2_col.scale_y = 0.78
         s2_col.label(text="Select your armor (active) + reference body (shift-click).")
@@ -3351,49 +3656,93 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         hint.label(text="After transfer: check deformation in Pose mode.")
         hint.label(text="Clean up tiny weight groups (< 0.01) for performance.")
 
-        # ── Step 3 helpers ────────────────────────────────────────────────────
+        # ── Step 3 / Step 4 - NIF Export (PyNifly direct or FBX fallback) ──────
         layout.separator()
-        s3_box = layout.box()
-        s3_box.label(text="Step 3 - Prepare for FBX Export to Outfit Studio", icon='EXPORT')
-        s3_col = s3_box.column(align=True)
-        s3_col.scale_y = 0.78
-        s3_col.label(text="IMPORTANT: split UV seam edges before FBX export.")
-        s3_col.label(text="Without this, UV coords are corrupted in Outfit Studio.")
-        row4 = s3_box.row(align=True)
-        row4.enabled = bool(has_mesh)
-        row4.operator(
-            "fo4.split_uv_seam_edges",
-            text="Split UV Seam Edges",
-            icon='UV',
-        )
-        s3_box.separator(factor=0.3)
-        exp_col = s3_box.column(align=True)
-        exp_col.scale_y = 0.72
-        exp_col.label(text="FBX export settings:")
-        exp_col.label(text="  Apply transforms  ✓   Scale: 1.0")
-        exp_col.label(text="  Armature: Only Deform Bones  ✓")
-        exp_col.label(text="  Bake Animation: OFF")
-        exp_col.label(text="  Origin: same as reference body (0, 0, 120)")
-        exp_col.label(text="Note: if UV seams must stay joined, export OBJ")
-        exp_col.label(text="for geometry + FBX for weights, then merge in OS.")
 
-        # ── Step 4 - Outfit Studio + NIF ─────────────────────────────────────
-        layout.separator()
-        s4_box = layout.box()
-        s4_box.label(text="Step 4 - Outfit Studio → NIF", icon='MODIFIER')
-        s4_col = s4_box.column(align=True)
-        s4_col.scale_y = 0.78
-        s4_col.label(text="1. Import your FBX in Outfit Studio.")
-        s4_col.label(text="2. Assign a material. Invert the Y UV coordinate.")
-        s4_col.label(text="3. Conform to CBBE body for BodySlide slider support.")
-        s4_col.label(text="4. Export as .nif to Data\\Meshes\\...")
-        s4_box.separator(factor=0.3)
-        s4_box.operator(
-            "fo4.open_bodyslide_outfit_studio",
-            text="Get BodySlide & Outfit Studio  (Nexus 25)",
-            icon='URL',
-        )
-        s4_box.operator("fo4.open_cbbe", text="Get CBBE Body  (Nexus 15)", icon='URL')
+        _pynifly_ok = False
+        try:
+            from . import export_helpers as _armor_eh
+            _pynifly_ok, _ = _armor_eh.ExportHelpers.pynifly_exporter_available()
+        except Exception:
+            pass
+
+        if _pynifly_ok:
+            # ── Step 3 (fast path) - Export NIF directly via PyNifly ─────────
+            s3_box = layout.box()
+            s3_box.label(text="Step 3 - Export Direct to NIF  (PyNifly)", icon='EXPORT')
+            s3_info = s3_box.column(align=True)
+            s3_info.scale_y = 0.78
+            s3_info.label(text="✓ PyNifly found — no Outfit Studio needed.", icon='CHECKMARK')
+            s3_info.label(text="Works with FBX, OBJ, GLB or any imported mesh.")
+            s3_info.label(text="Save to: Data\\Meshes\\Armor\\YourMod\\piece.nif")
+            btn_nif = s3_box.row(align=True)
+            btn_nif.enabled = bool(has_mesh)
+            btn_nif.scale_y = 1.5
+            btn_nif.operator("fo4.export_mesh", text="Export as NIF  (PyNifly)", icon='EXPORT')
+
+            # ── Step 4 (optional) - Outfit Studio for BodySlide sliders ──────
+            layout.separator()
+            s4_box = layout.box()
+            s4_box.label(text="Step 4 (Optional) - BodySlide Sliders via Outfit Studio", icon='MODIFIER')
+            s4_col = s4_box.column(align=True)
+            s4_col.scale_y = 0.78
+            s4_col.label(text="Skip this unless you need BodySlide body-shape sliders.")
+            s4_col.label(text="1. Split UV seams (required for FBX UV accuracy).")
+            row_uv = s4_box.row(align=True)
+            row_uv.enabled = bool(has_mesh)
+            row_uv.operator("fo4.split_uv_seam_edges", text="Split UV Seam Edges", icon='UV')
+            s4_col2 = s4_box.column(align=True)
+            s4_col2.scale_y = 0.78
+            s4_col2.label(text="2. Export FBX  (Apply Transforms ✓ · Deform Bones ✓).")
+            s4_col2.label(text="3. Import FBX in Outfit Studio.")
+            s4_col2.label(text="4. Conform to CBBE body → export NIF.")
+            s4_box.separator(factor=0.3)
+            s4_box.operator(
+                "fo4.open_bodyslide_outfit_studio",
+                text="Get BodySlide & Outfit Studio  (Nexus 25)",
+                icon='URL',
+            )
+            s4_box.operator("fo4.open_cbbe", text="Get CBBE Body  (Nexus 15)", icon='URL')
+
+        else:
+            # ── Step 3 (fallback) - FBX export for Outfit Studio ─────────────
+            s3_box = layout.box()
+            s3_box.label(text="Step 3 - Prepare FBX for Outfit Studio", icon='EXPORT')
+            s3_warn = s3_box.column(align=True)
+            s3_warn.scale_y = 0.78
+            s3_warn.label(text="PyNifly not found — using FBX + Outfit Studio path.", icon='INFO')
+            s3_warn.label(text="Install PyNifly (Setup panel) to export NIF directly.")
+            s3_warn.label(text="IMPORTANT: split UV seams before FBX export.")
+            s3_warn.label(text="Without this, UV coords are corrupted in Outfit Studio.")
+            row4 = s3_box.row(align=True)
+            row4.enabled = bool(has_mesh)
+            row4.operator("fo4.split_uv_seam_edges", text="Split UV Seam Edges", icon='UV')
+            s3_box.separator(factor=0.3)
+            exp_col = s3_box.column(align=True)
+            exp_col.scale_y = 0.72
+            exp_col.label(text="FBX export settings:")
+            exp_col.label(text="  Apply transforms ✓   Scale: 1.0")
+            exp_col.label(text="  Armature: Only Deform Bones ✓")
+            exp_col.label(text="  Bake Animation: OFF")
+            exp_col.label(text="  Origin: same as reference body (0, 0, 120)")
+
+            # ── Step 4 - Outfit Studio ────────────────────────────────────────
+            layout.separator()
+            s4_box = layout.box()
+            s4_box.label(text="Step 4 - Outfit Studio → NIF", icon='MODIFIER')
+            s4_col = s4_box.column(align=True)
+            s4_col.scale_y = 0.78
+            s4_col.label(text="1. Import your FBX in Outfit Studio.")
+            s4_col.label(text="2. Assign a material. Invert the Y UV coordinate.")
+            s4_col.label(text="3. Conform to CBBE body for BodySlide slider support.")
+            s4_col.label(text="4. Export as .nif to Data\\Meshes\\...")
+            s4_box.separator(factor=0.3)
+            s4_box.operator(
+                "fo4.open_bodyslide_outfit_studio",
+                text="Get BodySlide & Outfit Studio  (Nexus 25)",
+                icon='URL',
+            )
+            s4_box.operator("fo4.open_cbbe", text="Get CBBE Body  (Nexus 15)", icon='URL')
 
         # ── Tool links ────────────────────────────────────────────────────────
         layout.separator()
@@ -3411,6 +3760,9 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
             text="Story Action Poses Setup Guide",
             icon='QUESTION',
         )
+
+
+class FO4_PT_PresetLibraryPanel(_FO4SubPanel):
     """Preset library panel for saving and loading creations"""
     bl_label = "Preset Library"
     bl_idname = "FO4_PT_preset_library_panel"
@@ -3438,10 +3790,9 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
 
         # Recent presets
         try:
-            from . import preset_library as _preset_library
+            recent = _preset_lib.PresetLibrary.get_recent_presets(5) if _preset_lib else []
         except Exception:
-            _preset_library = None
-        recent = _preset_library.PresetLibrary.get_recent_presets(5) if _preset_library else []
+            recent = []
 
         if recent:
             recent_box = layout.box()
@@ -3455,7 +3806,10 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
                 op.filepath = preset['filepath']
 
         # Popular presets
-        popular = _preset_library.PresetLibrary.get_popular_presets(5) if _preset_library else []
+        try:
+            popular = _preset_lib.PresetLibrary.get_popular_presets(5) if _preset_lib else []
+        except Exception:
+            popular = []
         if popular:
             pop_box = layout.box()
             pop_box.label(text="Most Used", icon='SOLO_ON')
@@ -3511,8 +3865,9 @@ class FO4_PT_AddonIntegrationPanel(_FO4SubPanel):
         box.label(text="Useful Add-ons for FO4", icon='PLUGIN')
 
         try:
-            from . import addon_integration
-            detected = addon_integration.AddonIntegrationSystem.scan_for_known_addons()
+            if not _addon_integration:
+                raise ImportError("addon_integration module unavailable")
+            detected = _addon_integration.AddonIntegrationSystem.scan_for_known_addons()
         except Exception as _err:
             import traceback
             traceback.print_exc()
@@ -3641,6 +3996,10 @@ class FO4_PT_DesktopTutorialPanel(_FO4SubPanel):
         layout = self.layout
         scene = context.scene
 
+        if not hasattr(scene, 'fo4_desktop_connected'):
+            layout.label(text="Loading desktop client...", icon='TIME')
+            return
+
         # Connection status
         status_box = layout.box()
         status_box.label(text="Connection Status", icon='LINKED')
@@ -3650,9 +4009,11 @@ class FO4_PT_DesktopTutorialPanel(_FO4SubPanel):
 
             # Server info
             try:
-                from . import desktop_tutorial_client
-                status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-                status_box.label(text=f"Server: {status['server_url']}")
+                if _desktop_client:
+                    status = _desktop_client.DesktopTutorialClient.get_connection_status()
+                    status_box.label(text=f"Server: {status['server_url']}")
+                else:
+                    status_box.label(text="Client module unavailable", icon='INFO')
             except Exception:
                 status_box.label(text="Server info unavailable", icon='INFO')
 
@@ -3753,22 +4114,15 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         # Modding tools
         tools_col = hub.column(align=True)
         tools_col.label(text="Modding Tools:", icon='TOOL_SETTINGS')
+        tools_col.operator("fo4.install_pynifly",   text="Install PyNifly (NIF import/export)",         icon='IMPORT')
         tools_col.operator("fo4.install_ffmpeg",    text="Install FFmpeg",                              icon='IMPORT')
         tools_col.operator("fo4.install_nvtt",      text="Install NVTT (nvcompress)",                   icon='IMPORT')
         tools_col.operator("fo4.install_texconv",   text="Install texconv",                             icon='IMPORT')
         tools_col.operator("fo4.install_whisper",   text="Install Whisper CLI",                         icon='IMPORT')
-        tools_col.operator("fo4.install_niftools",  text="Install Niftools Add-on",                     icon='IMPORT')
-        tools_col.operator("fo4.install_pynifly",   text="Install PyNifly (recommended NIF exporter)",  icon='IMPORT')
-        tools_col.operator("fo4.install_havok2fbx", text="Get Havok2FBX (legacy)",                         icon='IMPORT')
-        tools_col.operator("fo4.install_ckcmd",    text="Install ck-cmd (FBX→HKX, recommended)",          icon='IMPORT')
-
-        if bpy.app.version >= (4, 2, 0):
-            nif_note = hub.box()
-            nif_note.scale_y = 0.75
-            nif_note.label(text="After Niftools install: Edit → Preferences → Add-ons", icon='INFO')
-            nif_note.label(text="→ enable 'Allow Legacy Add-ons' → enable NIF format")
-            if bpy.app.version >= (5, 0, 0):
-                nif_note.label(text="Blender 5.x: API patches applied automatically", icon='CHECKMARK')
+        tools_col.operator("fo4.install_havok2fbx", text="Get Havok2FBX",                              icon='IMPORT')
+        tools_col.operator("fo4.install_ckcmd",     text="Install ck-cmd (FBX→HKX)",                   icon='IMPORT')
+        if bpy.app.version < (4, 1, 0):
+            tools_col.operator("fo4.install_niftools", text="Install Niftools (Blender 3.x only)", icon='IMPORT')
 
         hub.separator()
 
@@ -3778,9 +4132,10 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         ai_col.operator("fo4.install_upscaler_deps",     text="Install Real-ESRGAN (texture upscaler)",      icon='IMPORT')
         ai_col.operator("fo4.install_zoedepth",          text="Install ZoeDepth (depth estimation)",         icon='IMPORT')
         ai_col.operator("fo4.install_triposr",           text="Install TripoSR (image to 3D)",               icon='IMPORT')
+        ai_col.operator("fo4.install_triposr_light",     text="Install TripoSR Light (2x faster, CPU-viable)", icon='IMPORT')
         ai_col.operator("fo4.install_shap_e",            text="Install Shap-E (text/image to 3D)",           icon='IMPORT')
         ai_col.operator("fo4.install_point_e",           text="Install Point-E (text/image to point cloud)", icon='IMPORT')
-        ai_col.operator("fo4.install_hunyuan3d",         text="Install Hunyuan3D-2 (text/image to 3D)",      icon='IMPORT')
+        ai_col.operator("fo4.install_hunyuan3d",         text="Install Hunyuan3D-2/2.1 (bulk env assets)",   icon='IMPORT')
         ai_col.operator("fo4.install_gradio",            text="Install Gradio (web interface)",              icon='IMPORT')
         ai_col.operator("fo4.install_hymotion",          text="Install HY-Motion (animation AI)",            icon='IMPORT')
         ai_col.operator("fo4.install_instantngp",        text="Install Instant-NGP (NeRF)",                  icon='IMPORT')
@@ -3907,11 +4262,9 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         else:
             _draw_torch_error(torch_box, torch_info)
             row = torch_box.row(align=True)
-            if hasattr(bpy.types, 'TORCH_OT_install_custom_path'):
-                row.operator("torch.install_custom_path", text="Setup Instructions", icon='INFO')
+            row.operator("torch.install_custom_path", text="Setup Instructions", icon='INFO')
             row.operator("torch.recheck_status", text="", icon='FILE_REFRESH')
 
-        prefs = preferences.get_preferences() if preferences else None
         if prefs is not None:
             torch_box.prop(prefs, "torch_custom_path", text="PyTorch Custom Path")
             torch_box.prop(prefs, "extra_python_paths", text="Extra Python Paths")
@@ -4163,9 +4516,8 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             else:
                 http_sub.label(text="Mossy HTTP settings unavailable", icon='INFO')
 
-        if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
-            ml_box.operator("wm.mossy_check_http",
-                            text="Check Mossy HTTP", icon="QUESTION")
+        ml_box.operator("wm.mossy_check_http",
+                        text="Check Mossy HTTP", icon="QUESTION")
 
         # ── Add-on Update ─────────────────────────────────────────────────────
         if addon_updater:
@@ -4223,7 +4575,7 @@ class FO4_PT_DiagnosticsPanel(_FO4SubPanel):
     bl_region_type = 'UI'
     bl_category   = 'Fallout 4'
     bl_parent_id  = "FO4_PT_main_panel"
-    bl_order      = -15  # Just below Setup & Status (-20), above all other sub-panels
+    bl_order      = -14  # Just below Setup & Status (-20), above all other sub-panels
 
     def draw(self, context):
         layout = self.layout
@@ -4266,12 +4618,7 @@ class FO4_PT_OperationLogPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
-        import textwrap
         layout = self.layout
-        try:
-            from . import notification_system as _ns
-        except Exception:
-            _ns = None
 
         if _ns is None:
             layout.label(text="notification_system unavailable", icon='ERROR')
@@ -4459,36 +4806,6 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         help_box.label(text="6. PyTorch AI features become available via Mossy")
 
 
-classes = (
-    FO4_PT_MainPanel,
-    FO4_PT_SetupPanel,
-    # AI Generation sub-panels nested inside Setup & Status
-    FO4_PT_SetupAIHunyuan3D,
-    FO4_PT_SetupAIGradio,
-    FO4_PT_SetupAIHyMotion,
-    FO4_PT_MeshPanel,
-    FO4_PT_TexturePanel,
-    # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
-    FO4_PT_NVTTPanel,
-    FO4_PT_ImageToMeshPanel,
-    FO4_PT_AnimationPanel,
-    FO4_PT_RigNetPanel,
-    FO4_PT_AdvisorPanel,
-    FO4_PT_ExportPanel,
-    # New panels for enhancements
-    FO4_PT_BatchProcessingPanel,
-    FO4_PT_AutomationQuickPanel,
-    FO4_PT_Havok2FBXPanel,
-    FO4_PT_ArmorClothingPanel,
-    FO4_PT_AddonIntegrationPanel,
-    FO4_PT_DesktopTutorialPanel,
-    # Diagnostics quick-access panel — always visible, no DEFAULT_CLOSED
-    FO4_PT_DiagnosticsPanel,
-    # Operation log - records every process for reference
-    FO4_PT_OperationLogPanel,
-    # Mossy tab - dedicated 'Mossy' category in the sidebar
-    FO4_PT_MossyPanel,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -4502,6 +4819,9 @@ class FO4_PT_NPCAnimPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_npc_description'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         obj = context.active_object; has_arm = bool(obj and obj.type == 'ARMATURE')
         box = layout.box(); box.label(text="AI NPC & Creature Animations", icon='SHADERFX')
         desc_box = box.box()
@@ -4554,6 +4874,9 @@ class FO4_PT_WeaponPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_weapon_description'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         obj = context.active_object
         has_mesh = bool(obj and obj.type == 'MESH')
         has_arm = bool(obj and obj.type == 'ARMATURE')
@@ -4606,6 +4929,9 @@ class FO4_PT_GlowEffectsPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_glow_color'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         obj = context.active_object; has_mesh = bool(obj and obj.type == 'MESH')
         box = layout.box(); box.label(text="Animated Glow & Spore Effects", icon='LIGHT')
         ctrl = box.box(); ctrl.label(text="Settings:", icon='MODIFIER')
@@ -4662,6 +4988,9 @@ class FO4_PT_ESPGeneratorPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_plugin_name'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         selected = [o for o in context.selected_objects if o.type == 'MESH']
         box = layout.box(); box.label(text="Auto-Generate ESP Records", icon='FILE_SCRIPT')
         info = box.column(align=True); info.scale_y = 0.75
@@ -4683,6 +5012,9 @@ class FO4_PT_TextureGeneratorPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_tex_name'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         box = layout.box(); box.label(text="Generate New Textures from Description", icon='SHADERFX')
         box.prop(scene, "fo4_tex_name",        text="Base Name")
         box.prop(scene, "fo4_tex_description", text="")
@@ -4712,6 +5044,9 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_batch_output'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         selected = [o for o in context.selected_objects if o.type == 'MESH']
         exp = layout.box(); exp.label(text=f"Batch Export ({len(selected)} selected)", icon='EXPORT')
         exp.prop(scene, "fo4_batch_output",   text="Output Folder")
@@ -4719,7 +5054,7 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
         go = exp.row(); go.scale_y = 1.3; go.enabled = len(selected) > 0
         go.operator("fo4.batch_export", text=f"Export {len(selected)} Objects as NIFs", icon='FILE_NEW')
         lod = layout.box(); lod.label(text="Batch LOD Generate + Export", icon='MOD_DECIM')
-        lod.operator("fo4.batch_lod_export", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
+        lod.operator("fo4.batch_generate_lod", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
         pre = layout.box(); pre.label(text="Workflow Presets", icon='PRESET')
         row = pre.row(align=True)
         row.operator("fo4.save_preset", text="Save Current Settings", icon='FILE_TICK')
@@ -4733,6 +5068,9 @@ class FO4_PT_WorkshopPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_plugin_name'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         sel = [o for o in context.selected_objects if o.type == 'MESH']
         box = layout.box(); box.label(text="Settlement Workshop Setup", icon='COMMUNITY')
         box.label(text=f"{len(sel)} mesh(es) selected", icon='MESH_DATA')
@@ -4762,6 +5100,9 @@ class FO4_PT_CompatibilityPanel(_FO4SubPanel):
     bl_options = {'DEFAULT_CLOSED'}
     def draw(self, context):
         layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_compat_data_path'):
+            layout.label(text="Loading...", icon='TIME')
+            return
         box = layout.box(); box.label(text="Mod Compatibility Check", icon='CHECKMARK')
         box.label(text="Detects: CBBE conflicts, bone limits, naming issues", icon='INFO')
         box.prop(scene, "fo4_compat_data_path", text="FO4 Data Folder")
@@ -4835,6 +5176,55 @@ class FO4_PT_NavMeshPanel(_FO4SubPanel):
         for ctype, label in [("LEFT","Left Cover"),("RIGHT","Right Cover"),
                               ("EDGE","Edge Cover"),("NONE","Clear")]:
             op = row.operator("fo4.add_cover_marker", text=label); op.cover_type = ctype
+
+
+classes = (
+    FO4_PT_MainPanel,
+    FO4_PT_SetupPanel,
+    # AI Generation sub-panels nested inside Setup & Status
+    FO4_PT_SetupAIHunyuan3D,
+    FO4_PT_CreaturePipeline,
+    FO4_PT_LODCollisionPipeline,
+    FO4_PT_RiggedArmorPipeline,
+    FO4_PT_SetupAIGradio,
+    FO4_PT_SetupAIHyMotion,
+    FO4_PT_MeshPanel,
+    FO4_PT_TexturePanel,
+    # Texture Conversion sub-panel (child of FO4_PT_texture_panel)
+    FO4_PT_NVTTPanel,
+    FO4_PT_ImageToMeshPanel,
+    FO4_PT_AnimationPanel,
+    FO4_PT_RigNetPanel,
+    FO4_PT_AdvisorPanel,
+    FO4_PT_ExportPanel,
+    # New panels for enhancements
+    FO4_PT_BatchProcessingPanel,
+    FO4_PT_AutomationQuickPanel,
+    FO4_PT_Havok2FBXPanel,
+    FO4_PT_ArmorClothingPanel,
+    FO4_PT_PresetLibraryPanel,
+    FO4_PT_AddonIntegrationPanel,
+    FO4_PT_DesktopTutorialPanel,
+    # Diagnostics quick-access panel — always visible, no DEFAULT_CLOSED
+    FO4_PT_DiagnosticsPanel,
+    # Operation log - records every process for reference
+    FO4_PT_OperationLogPanel,
+    # Mossy tab - dedicated 'Mossy' category in the sidebar
+    FO4_PT_MossyPanel,
+    # v5.2 panels — defined after this tuple (must stay here, after all class defs)
+    FO4_PT_NPCAnimPanel,
+    FO4_PT_WeaponPanel,
+    FO4_PT_GlowEffectsPanel,
+    FO4_PT_CKCellPanel,
+    FO4_PT_ESPGeneratorPanel,
+    FO4_PT_TextureGeneratorPanel,
+    FO4_PT_BatchToolsPanel,
+    FO4_PT_WorkshopPanel,
+    FO4_PT_CompatibilityPanel,
+    FO4_PT_DialoguePanel,
+    FO4_PT_WeatherInteriorPanel,
+    FO4_PT_NavMeshPanel,
+)
 
 
 def register():

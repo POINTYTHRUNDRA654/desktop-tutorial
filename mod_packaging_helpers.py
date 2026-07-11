@@ -642,8 +642,8 @@ REM Download Archive2.exe from:
 REM   https://www.nexusmods.com/fallout4/mods/78449  (ba2utils)
 REM   OR extract from the Creation Kit installation.
 
-set ARCHIVE2_PATH=C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\Tools\\Archive2\\Archive2.exe
-set GAME_DATA_PATH=C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4\\Data
+set ARCHIVE2_PATH=E:\\Steam\\steamapps\\common\\Fallout 4\\Tools\\Archive2\\Archive2.exe
+set GAME_DATA_PATH=E:\\Steam\\steamapps\\common\\Fallout 4\\Data
 
 REM --- General archive (meshes, sounds, scripts, etc.) ---
 "%ARCHIVE2_PATH%" "%~dp0Data" -c="{plugin_base} - Main.ba2" -f=General

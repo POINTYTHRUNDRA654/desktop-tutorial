@@ -146,85 +146,71 @@ class TextureHelpers:
     
     @staticmethod
     def setup_vegetation_material(obj):
-        """Setup a Fallout 4 vegetation/foliage material with alpha cutout and translucency.
+        """Set up FO4 vegetation material settings on *obj*.
 
-        Configures the material for leaf cards:
-        - Alpha CLIP (cutout transparency for leaf silhouettes)
-        - Two-sided so leaf backs are visible in-game
-        - SF1_BACK_LIGHTING flag so sunlight shines through leaves
-        - Translucency block: mixes the leaf colour into transmitted light
-          so leaves glow green/yellow when backlit
-        - Translucent BSDF mixed into the viewport shader for a preview
-          of the backlit effect inside Blender
+        Preserves existing materials: if the object already has a material with
+        a diffuse texture connected (PyNifly import format or named-node format)
+        only the render settings and custom properties are patched — the node
+        tree and texture links are left untouched.
+
+        A fresh material is created only when there is no usable material.
         """
-        mat = TextureHelpers.setup_fo4_material(obj)
-        if mat is None:
-            return None
+        def _has_diffuse(m):
+            """Return True if *m* already has a diffuse texture connected."""
+            if not (m and m.use_nodes):
+                return False
+            for node in m.node_tree.nodes:
+                # PyNifly format: Image Texture → Principled BSDF Base Color
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get('Base Color')
+                    if sock and sock.links and sock.links[0].from_node.type == 'TEX_IMAGE':
+                        return True
+                # Named-node format: node.name/label == "Diffuse" or "Base"
+                if node.type == 'TEX_IMAGE' and (
+                    node.name  in {'Diffuse', 'Base'} or
+                    node.label in {'Diffuse', 'Base'}
+                ):
+                    return True
+            return False
+
+        existing = obj.data.materials[0] if obj.data.materials else None
+        if _has_diffuse(existing):
+            mat = existing
+        else:
+            mat = TextureHelpers.setup_fo4_material(obj)
+            if mat is None:
+                return None
 
         # Alpha clip — standard FO4 foliage
-        mat.blend_method    = 'CLIP'
-        mat.alpha_threshold = 0.5
+        mat.blend_method     = 'CLIP'
+        mat.alpha_threshold  = 0.5
         mat.use_backface_culling = False
 
         # Custom properties read by BGSM export to set shader flags + translucency block
         mat["fo4_shader_type"]               = "vegetation"
         mat["fo4_core_profile"]              = "foliage"
         mat["fo4_translucency"]              = True
-        mat["fo4_translucency_subsurface_r"] = 0.35   # warm leaf-green (R)
-        mat["fo4_translucency_subsurface_g"] = 0.60   # (G)
-        mat["fo4_translucency_subsurface_b"] = 0.15   # (B)
-        mat["fo4_translucency_scale"]        = 0.55   # how much light passes through
-        mat["fo4_translucency_mix_albedo"]   = True   # tint transmitted light with leaf colour
+        mat["fo4_translucency_subsurface_r"] = 0.35
+        mat["fo4_translucency_subsurface_g"] = 0.60
+        mat["fo4_translucency_subsurface_b"] = 0.15
+        mat["fo4_translucency_scale"]        = 0.55
+        mat["fo4_translucency_mix_albedo"]   = True
 
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
-
-        bsdf = None
-        output_node = None
-        for node in nodes:
-            if node.type == 'BSDF_PRINCIPLED':
-                bsdf = node
-            elif node.type == 'OUTPUT_MATERIAL':
-                output_node = node
-
+        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
         if bsdf is not None:
-            # Emission off for vegetation
             strength = bsdf.inputs.get('Emission Strength')
             if strength:
                 strength.default_value = 0.0
-
-            # Subsurface gives a soft backlit look in Blender's viewport
             subsurface = bsdf.inputs.get('Subsurface Weight') or bsdf.inputs.get('Subsurface')
             if subsurface:
                 subsurface.default_value = 0.25
-            subsurface_color = bsdf.inputs.get('Subsurface Color') or bsdf.inputs.get('Subsurface Radius')
+            subsurface_color = (bsdf.inputs.get('Subsurface Color') or
+                                bsdf.inputs.get('Subsurface Radius'))
             if subsurface_color and hasattr(subsurface_color, 'default_value'):
                 try:
                     subsurface_color.default_value = (0.35, 0.60, 0.15, 1.0)
                 except Exception:
                     pass
-
-            # Add a Translucent BSDF mixed with Principled so the viewport
-            # actually shows light coming through the leaf backs.
-            if output_node is not None:
-                translucent = nodes.new('ShaderNodeBsdfTranslucent')
-                translucent.location = (bsdf.location[0], bsdf.location[1] - 280)
-                translucent.inputs['Color'].default_value = (0.35, 0.60, 0.15, 1.0)
-
-                mix_shader = nodes.new('ShaderNodeMixShader')
-                mix_shader.location = (output_node.location[0] - 180, output_node.location[1])
-                mix_shader.inputs['Fac'].default_value = 0.35  # 35% translucent
-
-                # Re-route: Principled + Translucent → Mix → Output
-                # Disconnect existing Principled→Output link first
-                for lnk in list(links):
-                    if lnk.to_node == output_node and lnk.to_socket.name == 'Surface':
-                        links.remove(lnk)
-                        break
-
-                links.new(bsdf.outputs['BSDF'],         mix_shader.inputs[1])
-                links.new(translucent.outputs['BSDF'],  mix_shader.inputs[2])
-                links.new(mix_shader.outputs['Shader'], output_node.inputs['Surface'])
 
         return mat
 
@@ -296,26 +282,38 @@ class TextureHelpers:
     def validate_textures(obj):
         """Validate textures for Fallout 4 compatibility"""
         issues = []
-        
+
         if not obj.data.materials:
             issues.append("Object has no materials")
             return False, issues
-        
+
         mat = obj.data.materials[0]
-        
+
         if not mat.use_nodes:
             issues.append("Material does not use nodes")
             return False, issues
-        
+
+        nodes = mat.node_tree.nodes
+
+        # PyNifly-imported materials don't use node names 'Diffuse'/'Normal' — they
+        # name nodes after the texture filename.  Detect this case up-front: if the
+        # material has *any* TEX_IMAGE nodes with images loaded, treat it as textured.
+        has_any_tex_image = any(
+            n.type == 'TEX_IMAGE' and n.image
+            for n in nodes
+        )
+
         # Check for required texture nodes (Diffuse and Normal are mandatory for FO4)
         required_textures = ['Diffuse', 'Normal']
         # Non-colour texture nodes that must use Non-Color colorspace
         non_color_nodes = {'Normal', 'Specular', 'Glow', 'Environment'}
-        nodes = mat.node_tree.nodes
-        
+
         for tex_name in required_textures:
             tex_node = nodes.get(tex_name)
             if not tex_node:
+                if has_any_tex_image:
+                    # PyNifly material — image texture nodes exist but with different names
+                    continue
                 issues.append(f"Missing {tex_name} texture node")
             elif not tex_node.image:
                 issues.append(f"{tex_name} texture is not loaded")

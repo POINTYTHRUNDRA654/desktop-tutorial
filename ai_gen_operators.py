@@ -23,6 +23,8 @@ def _safe_import(name):
 # Modules used by AI/ML generation operators
 image_to_mesh_helpers     = _safe_import("image_to_mesh_helpers")
 hunyuan3d_helpers         = _safe_import("hunyuan3d_helpers")
+fo4_generation_log        = _safe_import("fo4_generation_log")
+mossy_link                = _safe_import("mossy_link")
 zoedepth_helpers          = _safe_import("zoedepth_helpers")
 gradio_helpers            = _safe_import("gradio_helpers")
 hymotion_helpers          = _safe_import("hymotion_helpers")
@@ -237,9 +239,19 @@ class FO4_OT_GenerateMeshFromText(Operator):
         resolution = self.resolution
 
         def _run():
-            success, path_or_error = hunyuan3d_helpers.run_text_inference(
-                prompt, resolution=resolution
-            )
+            try:
+                success, path_or_error = hunyuan3d_helpers.generate_mesh_from_text(
+                    prompt, resolution=resolution
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"AI error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
                 if success:
@@ -268,7 +280,7 @@ class FO4_OT_GenerateMeshFromText(Operator):
             "AI generation started…", 'INFO'
         )
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=400)
     
@@ -312,29 +324,91 @@ class FO4_OT_GenerateMeshFromImageAI(Operator):
         filepath = self.filepath
         resolution = self.resolution
 
+        # Use adaptive settings learned from previous successful generations
+        _adaptive = {}
+        if fo4_generation_log:
+            _adaptive = fo4_generation_log.get_adaptive_settings()
+            if _adaptive.get("description") != "defaults (no history yet)":
+                print(f"[AI Gen] Using learned settings: {_adaptive['description']}")
+
+        _resolution = _adaptive.get("resolution", resolution)
+        _target_polys = _adaptive.get("target_polys", 20000)
+
         def _run():
-            success, path_or_error = hunyuan3d_helpers.run_image_inference(
-                filepath, resolution=resolution
-            )
+            try:
+                success, path_or_error = hunyuan3d_helpers.generate_mesh_from_image(
+                    filepath, resolution=_resolution, target_polys=_target_polys
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"AI error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
-                if success:
-                    ok, obj_or_msg = hunyuan3d_helpers.import_mesh_file(
-                        path_or_error,
-                        mesh_name=f"Hunyuan3D_{os.path.splitext(os.path.basename(filepath))[0]}",
-                    )
-                    if ok:
-                        notification_system.FO4_NotificationSystem.notify(
-                            f"AI generated 3D model: {obj_or_msg.name}", 'INFO'
-                        )
-                    else:
-                        notification_system.FO4_NotificationSystem.notify(
-                            obj_or_msg, 'WARNING'
-                        )
-                else:
+                if not success:
                     notification_system.FO4_NotificationSystem.notify(
                         path_or_error, 'WARNING'
                     )
+                    return
+
+                mesh_name = f"Hunyuan3D_{_os.path.splitext(_os.path.basename(filepath))[0]}"
+                ok, obj_or_msg = hunyuan3d_helpers.import_mesh_file(
+                    path_or_error, mesh_name=mesh_name,
+                )
+                if not ok:
+                    notification_system.FO4_NotificationSystem.notify(obj_or_msg, 'WARNING')
+                    return
+
+                obj = obj_or_msg
+
+                # ── Auto FO4 post-processing ──────────────────────────────
+                post_ok, post_msg = hunyuan3d_helpers._fo4_post_process(
+                    obj, target_polys=_target_polys, name=mesh_name
+                )
+                if post_ok:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"AI mesh ready: {obj.name} ({post_msg})", 'INFO'
+                    )
+                else:
+                    notification_system.FO4_NotificationSystem.notify(
+                        f"AI mesh imported (post-process warning: {post_msg})", 'WARNING'
+                    )
+
+                # ── Log the generation + ask Mossy in background ──────────
+                def _mossy_feedback_and_log():
+                    if not fo4_generation_log:
+                        return
+                    score = fo4_generation_log._score_mesh(obj)
+                    advice = None
+                    if mossy_link:
+                        try:
+                            query = fo4_generation_log.build_mossy_context(
+                                filepath, score,
+                                {"resolution": _resolution, "target_polys": _target_polys},
+                            )
+                            advice = mossy_link.ask_mossy_fo4(query, mesh_obj=obj)
+                        except Exception as _me:
+                            print(f"[AI Gen] Mossy feedback error: {_me}")
+
+                    fo4_generation_log.record(
+                        filepath, obj,
+                        settings={"resolution": _resolution, "target_polys": _target_polys},
+                        mossy_advice=advice,
+                    )
+
+                    if advice:
+                        def _show_advice(_adv=advice):
+                            notification_system.FO4_NotificationSystem.notify(
+                                f"Mossy: {_adv[:120]}", 'INFO'
+                            )
+                        bpy.app.timers.register(_show_advice, first_interval=0.5)
+
+                threading.Thread(target=_mossy_feedback_and_log, daemon=True).start()
 
             bpy.app.timers.register(_finish, first_interval=0.0)
 
@@ -1953,7 +2027,7 @@ class FO4_OT_CheckAllImageTo3D(Operator):
             ('Shap-E', imageto3d_helpers.ImageTo3DHelpers.check_shap_e_installation),
             ('Instant-NGP', instantngp_helpers.InstantNGPHelpers.check_instantngp_installation),
             ('GET3D', get3d_helpers.GET3DHelpers.check_get3d_installation),
-            ('Hunyuan3D-2', hunyuan3d_helpers.Hunyuan3DHelpers.check_installation),
+            ('Hunyuan3D-2', hunyuan3d_helpers.check_hunyuan3d_availability),
         ]
         
         installed_count = 0
@@ -2997,11 +3071,21 @@ class FO4_OT_GenerateShapEText(Operator):
         inference_steps = scene.fo4_shap_e_inference_steps
         
         def _run():
-            success, result = shap_e_helpers.ShapEHelpers.generate_from_text_background(
-                prompt,
-                guidance_scale=guidance_scale,
-                num_inference_steps=inference_steps
-            )
+            try:
+                success, result = shap_e_helpers.ShapEHelpers.generate_from_text_background(
+                    prompt,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=inference_steps
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"Shap-E error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
                 if success:
@@ -3064,11 +3148,21 @@ class FO4_OT_GenerateShapEImage(Operator):
         inference_steps = scene.fo4_shap_e_inference_steps
         
         def _run():
-            success, result = shap_e_helpers.ShapEHelpers.generate_from_image_background(
-                image_path,
-                guidance_scale=guidance_scale,
-                num_inference_steps=inference_steps
-            )
+            try:
+                success, result = shap_e_helpers.ShapEHelpers.generate_from_image_background(
+                    image_path,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=inference_steps
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"Shap-E error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
                 if success:
@@ -3194,12 +3288,22 @@ class FO4_OT_GeneratePointEText(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = _pe.generate_from_text_background(
-                prompt,
-                num_samples=num_samples,
-                grid_size=grid_size,
-                num_steps=num_steps,
-            )
+            try:
+                success, result = _pe.generate_from_text_background(
+                    prompt,
+                    num_samples=num_samples,
+                    grid_size=grid_size,
+                    num_steps=num_steps,
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"Point-E error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
                 if success:
@@ -3269,12 +3373,22 @@ class FO4_OT_GeneratePointEImage(Operator):
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
-            success, result = _pe.generate_from_image_background(
-                image_path,
-                num_samples=num_samples,
-                grid_size=grid_size,
-                num_steps=num_steps,
-            )
+            try:
+                success, result = _pe.generate_from_image_background(
+                    image_path,
+                    num_samples=num_samples,
+                    grid_size=grid_size,
+                    num_steps=num_steps,
+                )
+            except Exception as _exc:
+                _err = str(_exc)
+                bpy.app.timers.register(
+                    lambda _m=_err: notification_system.FO4_NotificationSystem.notify(
+                        f"Point-E error: {_m}", 'ERROR'
+                    ),
+                    first_interval=0.0,
+                )
+                return
 
             def _finish():
                 if success:
@@ -3445,6 +3559,894 @@ class FO4_OT_MossyAnalyzeTextures(bpy.types.Operator):
         return {'FINISHED'}
 
 
+
+
+# BGSM material template names → preset filenames
+_BGSM_TEMPLATES = [
+    ("metal_rusty",          "Metal (Rusty FO4)",              "bgsm_metal_rusty.json"),
+    ("wood_weathered",       "Wood (Weathered FO4)",           "bgsm_wood_weathered.json"),
+    ("plastic_painted",      "Plastic / Painted Metal",        "bgsm_plastic_painted_metal.json"),
+    ("vegetation_irradiated","Glowing Sea Vegetation",         "bgsm_vegetation_irradiated.json"),
+]
+
+_BGSM_TEMPLATE_ENUM = [(k, lbl, lbl) for k, lbl, _ in _BGSM_TEMPLATES]
+
+
+
+
+# FO4 AI prompt pack — mirrors presets/fo4_ai_prompts.json
+_FO4_PROMPT_PACK = [
+    ("metal_junk",            "FO4 Metal Junk",                 "small_prop",
+     "rusted metal fallout 4 junk item, chipped paint, worn edges, scratches, "
+     "retro-futuristic industrial design, muted green-yellow tint, medium poly "
+     "silhouette, strong AO, believable Commonwealth clutter"),
+    ("wooden_furniture",      "FO4 Wooden Furniture",           "medium_object",
+     "weathered fallout 4 wooden furniture, chipped varnish, faded paint, rough "
+     "surface, muted colors, retro 1950s influence, medium poly, strong AO, fits "
+     "Commonwealth interior style"),
+    ("plastic_prop",          "FO4 Plastic / Painted Props",    "small_prop",
+     "fallout 4 plastic prop, retro-futuristic 1950s design, worn edges, dirt "
+     "buildup, muted colors, slight green tint, medium poly, realistic FO4 clutter "
+     "aesthetic"),
+    ("glowing_sea_vegetation","Glowing Sea Mutated Vegetation", "medium_object",
+     "irradiated mutated plant from fallout 4 glowing sea, glowing veins, rough "
+     "bark, organic deformation, green-yellow tint, weathered texture, medium poly, "
+     "strong AO, fits FO4 wasteland biome"),
+]
+
+_PROMPT_ENUM = [(k, lbl, lbl) for k, lbl, _, _ in _FO4_PROMPT_PACK]
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FO4 Rigged Armor Operators
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Common FO4 body slot partition names
+_FO4_SBP_SLOTS = [
+    ("SBP_32", "SBP_32 — Body"),
+    ("SBP_33", "SBP_33 — Head"),
+    ("SBP_34", "SBP_34 — Hair"),
+    ("SBP_37", "SBP_37 — Hands"),
+    ("SBP_38", "SBP_38 — Forearms"),
+    ("SBP_41", "SBP_41 — Torso"),
+    ("SBP_46", "SBP_46 — Legs"),
+    ("SBP_47", "SBP_47 — Feet"),
+    ("SBP_130","SBP_130 — FX01"),
+]
+_SBP_ENUM = [(k, lbl, lbl) for k, lbl in _FO4_SBP_SLOTS]
+
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FO4 LOD + Collision Operators
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
+class FO4_OT_CopyCreatureTemplate(bpy.types.Operator):
+    """Copy the skeleton path, behavior graph, and animation list for a FO4 creature type.
+    Paste into your notes before starting rigging."""
+    bl_idname  = "fo4.copy_creature_template"
+    bl_label   = "Copy Creature Type Template"
+    bl_options = {'REGISTER'}
+
+    creature_type: bpy.props.EnumProperty(
+        name="Creature Type",
+        items=[
+            ("deathclaw_quadruped", "Deathclaw-Style (Large Monster)",   ""),
+            ("dog_mammal",          "Mutant Animal (Quadruped Mammal)",   ""),
+            ("robot",               "Robot (Biped/Quadruped)",            ""),
+            ("alien_humanoid",      "Alien / Humanoid Monster",           ""),
+            ("insect_flying",       "Insect (Flying / Crawling)",         ""),
+            ("aquatic_crawler",     "Aquatic / Crawler",                  ""),
+        ],
+        default="deathclaw_quadruped",
+    )
+
+    _TEMPLATES = {
+        "deathclaw_quadruped": {
+            "label": "Deathclaw-Style (Large Quadruped Monster)",
+            "skeleton": "Data\\Meshes\\Actors\\Deathclaw\\CharacterAssets\\Skeleton.nif",
+            "behavior": "Deathclaw_Behavior.hkx",
+            "animations": ["Idle","WalkForward","RunForward","AttackLeft","AttackRight","AttackPower","Roar","HitFront","HitBack","Death"],
+            "best_for": "Dragons, Demons, Mutant beasts, Large monsters, Alien predators",
+        },
+        "dog_mammal": {
+            "label": "Mutant Animal (Quadruped Mammal)",
+            "skeleton": "Dog\\Skeleton.nif  /  Radstag\\Skeleton.nif  /  Brahmin\\Skeleton.nif",
+            "behavior": "Dog_Behavior.hkx  /  Radstag_Behavior.hkx",
+            "animations": ["Idle","Walk","Run","AttackBite","AttackKick","Hit","Death"],
+            "best_for": "Wolves, Bears, Mutant dogs, Mutant deer, Mammal-like creatures",
+        },
+        "robot": {
+            "label": "Robot Creature (Biped or Quadruped)",
+            "skeleton": "Protectron\\Skeleton.nif  /  Assaultron\\Skeleton.nif  /  SentryBot\\Skeleton.nif",
+            "behavior": "Protectron_Behavior.hkx  /  Assaultron_Behavior.hkx",
+            "animations": ["Idle","Walk","Run","AttackLaser","AttackPunch","Shutdown","Death"],
+            "best_for": "Mechs, Androids, Combat robots, Sci-fi creatures",
+        },
+        "alien_humanoid": {
+            "label": "Alien / Humanoid Monster",
+            "skeleton": "FeralGhoul\\Skeleton.nif  /  Human\\Skeleton.nif  /  SuperMutant\\Skeleton.nif",
+            "behavior": "Ghoul_Behavior.hkx  /  Human_Behavior.hkx",
+            "animations": ["Idle","Walk","Run","AttackClaw","AttackPunch","Roar","Hit","Death"],
+            "best_for": "Aliens, Humanoid mutants, Zombies, Intelligent monsters",
+        },
+        "insect_flying": {
+            "label": "Insect Creature (Flying or Crawling)",
+            "skeleton": "Radroach\\Skeleton.nif  /  Bloatfly\\Skeleton.nif  /  Stingwing\\Skeleton.nif",
+            "behavior": "Bloatfly_Behavior.hkx  /  Stingwing_Behavior.hkx",
+            "animations": ["Idle","Hover","FlyForward","AttackSting","AttackSpit","Hit","Death"],
+            "best_for": "Giant insects, Flying monsters, Mutated bugs",
+        },
+        "aquatic_crawler": {
+            "label": "Aquatic / Crawler",
+            "skeleton": "Mirelurk\\Skeleton.nif  /  MirelurkKing\\Skeleton.nif",
+            "behavior": "Mirelurk_Behavior.hkx",
+            "animations": ["Idle","Crawl","AttackClaw","AttackGrab","Hit","Death"],
+            "best_for": "Crabs, Sea monsters, Crawling mutants",
+        },
+    }
+
+    def execute(self, context):
+        t = self._TEMPLATES.get(self.creature_type, {})
+        anims = "\n  ".join(f + ".hkx" for f in t.get("animations", []))
+        txt = (
+            f"=== {t.get('label','')} ===\n"
+            f"Skeleton: {t.get('skeleton','')}\n"
+            f"Behavior: {t.get('behavior','')}\n"
+            f"Animations:\n  {anims}\n"
+            f"Best for: {t.get('best_for','')}\n"
+        )
+        context.window_manager.clipboard = txt
+        self.report({'INFO'}, f"Template copied: {t.get('label','')}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyCreaturePipeline(bpy.types.Operator):
+    """Copy the full FO4 creature rigging + animation pipeline to clipboard."""
+    bl_idname  = "fo4.copy_creature_pipeline"
+    bl_label   = "Copy Creature Pipeline"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import pathlib
+        ref = pathlib.Path(__file__).parent / "presets" / "fo4_creature_pipeline.txt"
+        txt = ref.read_text(encoding="utf-8") if ref.exists() else "fo4_creature_pipeline.txt not found"
+        context.window_manager.clipboard = txt
+        self.report({'INFO'}, "Creature pipeline copied to clipboard")
+        return {'FINISHED'}
+
+
+class FO4_OT_SavePyNIFCreaturePreset(bpy.types.Operator):
+    """Save the FO4 creature pyNIF export preset JSON to disk.
+    Same settings as rigged armor — Enable Skinning=True, BSDismember=True."""
+    bl_idname  = "fo4.save_pynif_creature_preset"
+    bl_label   = "Save pyNIF Creature Preset"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="pynif_fo4_creature_preset.json")
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        self.filepath = "pynif_fo4_creature_preset.json"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import json, pathlib
+        preset = {
+            "label": "pyNIF Export — Rigged Creature (Fallout 4)",
+            "game": "Fallout4", "version": "20.2.0.7",
+            "user_version": 12, "user_version_2": 83,
+            "nodes": {"root": "BSFadeNode", "enable_skinning": True,
+                      "enable_tangents": True, "enable_havok": True},
+            "skeleton": {"export_armature": True, "preserve_bone_names": True,
+                         "preserve_hierarchy": True},
+            "geometry": {"triangulate": True, "apply_modifiers": True,
+                         "remove_doubles": True, "recalculate_normals": True,
+                         "auto_smooth_angle": 30},
+            "skinning": {"export_skin_weights": True,
+                         "export_bs_dismember_skin_instance": True,
+                         "export_partitions": True,
+                         "partition_source": "vertex_groups"},
+            "materials": {"material_type": "BGSM", "use_external_bgsm": True,
+                          "texture_format": "DDS"},
+            "collision": {"type": "None"},
+            "animation_notes": (
+                "1. Animate on imported FO4 creature armature (separate Actions per clip)"
+                " | 2. Export each Action as FBX (Bake Animation=ON)"
+                " | 3. Convert FBX→HKX via hkxcmd / Havok Content Tools"
+                " | 4. Place HKX in Data\\Meshes\\Actors\\YourCreature\\Animations\\"
+                " | 5. Clone vanilla behavior graph, swap animation clips, point to your NIF"
+            ),
+        }
+        dst = pathlib.Path(self.filepath)
+        dst.write_text(json.dumps(preset, indent=2))
+        self.report({'INFO'}, f"Creature preset saved: {dst.name}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyFullLODPipeline(bpy.types.Operator):
+    """Copy the full FO4 LOD + Collision pipeline checklist to clipboard.
+    Covers all 6 steps: import → LODs → collision → cleanup → pyNIF export → CK."""
+    bl_idname  = "fo4.copy_full_lod_pipeline"
+    bl_label   = "Copy Full LOD Pipeline"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import pathlib
+        ref = pathlib.Path(__file__).parent / "presets" / "fo4_full_lod_pipeline.txt"
+        if ref.exists():
+            txt = ref.read_text(encoding="utf-8")
+        else:
+            txt = (
+                "FO4 LOD + Collision Pipeline\n"
+                "STEP 1 Import mesh\n"
+                "STEP 2 Run fo4_lod_generator.py → LOD0/1/2/3\n"
+                "STEP 3 Run fo4_collision_from_lod3.py → LOD3_COL\n"
+                "STEP 4 Clean LOD0: Merge by Distance, Triangulate, Apply Transforms, Normals, Auto Smooth 30°\n"
+                "STEP 5 pyNIF export: Main=Mesh_LOD0, Collision=Mesh_LOD3_COL, "
+                "bhkConvexShape/MO_SYS_STATIC/Mass=0, Header 20.2.0.7/12/83, BSFadeNode\n"
+                "STEP 6 Creation Kit: Static → New → Model → NIF\n"
+            )
+        context.window_manager.clipboard = txt
+        self.report({'INFO'}, "Full LOD pipeline copied to clipboard")
+        return {'FINISHED'}
+
+
+class FO4_OT_GenerateLODs(bpy.types.Operator):
+    """Generate FO4 LOD meshes from the active mesh.
+    Creates LOD0 (original), LOD1 (60%), LOD2 (30%), LOD3 (10% — collision candidate).
+    LOD3 has its materials cleared — ready to mark as collision in pyNIF."""
+    bl_idname  = "fo4.generate_lods"
+    bl_label   = "Generate FO4 LODs"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    lod1_ratio: bpy.props.FloatProperty(name="LOD1 Ratio", default=0.6, min=0.1, max=0.9, step=0.05)
+    lod2_ratio: bpy.props.FloatProperty(name="LOD2 Ratio", default=0.3, min=0.05, max=0.8, step=0.05)
+    lod3_ratio: bpy.props.FloatProperty(name="LOD3 (Collision) Ratio", default=0.1, min=0.01, max=0.5, step=0.01)
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        base = obj.name.removesuffix("_LOD0")
+        col  = context.collection
+
+        def make_lod(source, suffix):
+            dup = source.copy()
+            dup.data = source.data.copy()
+            col.objects.link(dup)
+            dup.name = f"{base}_{suffix}"
+            return dup
+
+        lod0 = obj; lod0.name = f"{base}_LOD0"
+        lod1 = make_lod(obj, "LOD1")
+        lod2 = make_lod(obj, "LOD2")
+        lod3 = make_lod(obj, "LOD3")
+
+        def apply_decimate(target, ratio):
+            context.view_layer.objects.active = target
+            target.select_set(True)
+            mod = target.modifiers.new("Decimate", 'DECIMATE')
+            mod.ratio = ratio
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+            target.select_set(False)
+
+        apply_decimate(lod1, self.lod1_ratio)
+        apply_decimate(lod2, self.lod2_ratio)
+        apply_decimate(lod3, self.lod3_ratio)
+
+        # LOD3 = collision candidate — clear materials
+        lod3.data.materials.clear()
+
+        context.view_layer.objects.active = lod0
+        self.report({'INFO'}, f"LODs created: {lod0.name} / {lod1.name} / {lod2.name} / {lod3.name}")
+        print(f"[FO4 LOD] {lod0.name}, {lod1.name}, {lod2.name}, {lod3.name}")
+        return {'FINISHED'}
+
+
+class FO4_OT_SetupCollisionMesh(bpy.types.Operator):
+    """Mark the active mesh as a FO4 collision-only object.
+    Renames it to Mesh_Collision, clears materials, and prints pyNIF steps."""
+    bl_idname  = "fo4.setup_collision_mesh"
+    bl_label   = "Mark as Collision Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: bpy.props.EnumProperty(
+        name="Collision Type",
+        items=[
+            ('CONVEX',    "bhkConvexShape (complex props, rocks, trees)", ""),
+            ('BOX',       "bhkBoxShape (simple props — use a cube)",      ""),
+            ('RIGIDBODY', "bhkRigidBody (physics/movable props)",         ""),
+        ],
+        default='CONVEX',
+    )
+    mass: bpy.props.FloatProperty(name="Mass (kg)", default=0.0, min=0.0)
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        obj.name = "Mesh_Collision"
+        obj.display_type = 'WIRE'        # Visual cue — won't render
+        obj.data.materials.clear()
+
+        type_map = {
+            'CONVEX':    "bhkConvexShape / MO_SYS_STATIC",
+            'BOX':       "bhkBoxShape / MO_SYS_STATIC",
+            'RIGIDBODY': f"bhkRigidBody / MO_SYS_DYNAMIC (mass={self.mass})",
+        }
+        hint = type_map.get(self.collision_type, "")
+        print(f"[FO4 Collision] {obj.name} marked as: {hint}")
+        print("In pyNIF: mark this object as collision-only, exclude from render")
+        self.report({'INFO'}, f"Collision mesh ready: {hint}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyPyNIFLODSettings(bpy.types.Operator):
+    """Copy pyNIF LOD + collision export settings to clipboard."""
+    bl_idname  = "fo4.copy_pynif_lod_settings"
+    bl_label   = "Copy pyNIF LOD Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        txt = (
+            "# pyNIF Export — LOD + Collision (Fallout 4)\n"
+            "Game: Fallout4 | Version: 20.2.0.7 | UV12 | UV2-83\n"
+            "Geometry: Triangulate=On, Apply Modifiers=On, Remove Doubles=On, Normals=Recalculate, Auto Smooth=30°\n"
+            "Materials: BGSM, Use External BGSM=On  ← do NOT rename/remove material slots\n"
+            "Collision Static:  bhkConvexShape | Source=Mesh_Collision | MO_SYS_STATIC | Mass=0\n"
+            "Collision Dynamic: bhkRigidBody   | Source=Mesh_Collision | MO_SYS_DYNAMIC | Mass=5-20\n"
+            "LOD Decimation: LOD1=0.6, LOD2=0.3, LOD3=0.1 (collision)\n"
+            "Mark Mesh_Collision as collision-only (no render) in pyNIF\n"
+        )
+        context.window_manager.clipboard = txt
+        self.report({'INFO'}, "LOD + collision settings copied to clipboard")
+        return {'FINISHED'}
+
+
+class FO4_OT_AddPhysicsBones(bpy.types.Operator):
+    """Add FO4 cloth/strap physics bone vertex groups to the active armor mesh.
+    Weight your cloth geometry to these groups, then add Havok XML in CK."""
+    bl_idname  = "fo4.add_physics_bones"
+    bl_label   = "Add FO4 Physics Bone Groups"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _PHYSICS_BONES = [
+        "NPC L Breast", "NPC R Breast",
+        "NPC L Skirt",  "NPC R Skirt",
+        "NPC L Cloth",  "NPC R Cloth",
+        "NPC L Strap",  "NPC R Strap",
+    ]
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+        added = []
+        for bone in self._PHYSICS_BONES:
+            if bone not in obj.vertex_groups:
+                obj.vertex_groups.new(name=bone)
+                added.append(bone)
+        msg = f"Added {len(added)} physics bone groups" if added else "All physics bone groups already present"
+        self.report({'INFO'}, msg)
+        print(f"[FO4] Physics bones: {added or 'already present'}")
+        return {'FINISHED'}
+
+
+class FO4_OT_AddDismemberPartition(bpy.types.Operator):
+    """Add an FO4 BSDismember partition vertex group to the active mesh.
+    Creates the group (if missing) and assigns all selected vertices to it.
+    pyNIF converts this to BSDismemberSkinInstance on export."""
+    bl_idname  = "fo4.add_dismember_partition"
+    bl_label   = "Add FO4 Partition Slot"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    slot: bpy.props.EnumProperty(
+        name="Slot",
+        items=_SBP_ENUM,
+        default="SBP_32",
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Create group if absent
+        vg = obj.vertex_groups.get(self.slot) or obj.vertex_groups.new(name=self.slot)
+
+        # In edit mode assign selected; in object mode assign all
+        if context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
+            sel = [v.index for v in obj.data.vertices if v.select]
+            bpy.ops.object.mode_set(mode='EDIT')
+        else:
+            sel = [v.index for v in obj.data.vertices]
+
+        vg.add(sel, 1.0, 'ADD')
+        self.report({'INFO'}, f"Partition {self.slot} assigned to {len(sel)} vertices")
+        print(f"[FO4] Dismember partition {self.slot} → {len(sel)} verts")
+        return {'FINISHED'}
+
+
+class FO4_OT_TransferArmorWeights(bpy.types.Operator):
+    """Transfer FO4 body skin weights to the active armor mesh.
+    Select the FO4 body mesh first, then Shift-select your armor (active).
+    Runs: Data Transfer modifier → Nearest Face Interpolated → apply → clean."""
+    bl_idname  = "fo4.transfer_armor_weights"
+    bl_label   = "Transfer FO4 Skin Weights"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    clean_threshold: bpy.props.FloatProperty(
+        name="Clean Threshold",
+        description="Remove weights below this value",
+        default=0.001, min=0.0, max=0.1, step=0.001,
+    )
+    limit_total: bpy.props.IntProperty(
+        name="Max Influences",
+        description="Maximum bone influences per vertex (FO4 prefers 4)",
+        default=4, min=1, max=8,
+    )
+
+    def execute(self, context):
+        import math
+
+        armor = context.active_object
+        sel = [o for o in context.selected_objects if o != armor and o.type == 'MESH']
+        if not sel:
+            self.report({'ERROR'}, "Shift-select the FO4 body mesh first, then make your armor active")
+            return {'CANCELLED'}
+        body = sel[0]
+
+        if armor is None or armor.type != 'MESH':
+            self.report({'ERROR'}, "Active object must be your armor mesh")
+            return {'CANCELLED'}
+
+        # Add Data Transfer modifier
+        dt = armor.modifiers.new(name="FO4_WeightTransfer", type='DATA_TRANSFER')
+        dt.object = body
+        dt.use_vert_data = True
+        dt.data_types_verts = {'VGROUP_WEIGHTS'}
+        dt.vert_mapping = 'POLYINTERP_NEAREST'
+        dt.layers_vgroup_select_src = 'ALL'
+        dt.layers_vgroup_select_dst = 'NAME'
+
+        # Apply modifier
+        bpy.ops.object.modifier_apply(modifier="FO4_WeightTransfer")
+
+        # Clean weights
+        bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+        bpy.ops.object.vertex_group_clean(group_select_mode='ALL',
+                                          limit=self.clean_threshold,
+                                          keep_single=False)
+        bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL',
+                                                limit=self.limit_total)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        self.report({'INFO'}, f"Weights transferred from {body.name} → {armor.name} (clean={self.clean_threshold}, limit={self.limit_total})")
+        print(f"[FO4] Weight transfer complete: {body.name} → {armor.name}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyPyNIFRiggedSettings(bpy.types.Operator):
+    """Copy pyNIF export settings for FO4 rigged armor/clothing to clipboard."""
+    bl_idname  = "fo4.copy_pynif_rigged_settings"
+    bl_label   = "Copy pyNIF Rigged Armor Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        txt = "Game: Fallout4 | Version: 20.2.0.7 | UV12/UV2-83 | Skinning: ON | BSDismember: ON"
+        context.window_manager.clipboard = txt
+        self.report({'INFO'}, "pyNIF rigged armor settings copied to clipboard")
+        return {'FINISHED'}
+
+
+class FO4_OT_SavePyNIFRiggedPreset(bpy.types.Operator):
+    """Save the FO4 rigged armor pyNIF preset JSON to disk.
+    Load via pyNIF: File → Import Preset."""
+    bl_idname  = "fo4.save_pynif_rigged_preset"
+    bl_label   = "Save pyNIF Rigged Preset"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="pynif_fo4_rigged_preset.json")
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        self.filepath = "pynif_fo4_rigged_preset.json"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import pathlib, shutil
+        bundled = pathlib.Path(__file__).parent / "presets" / "pynif_fo4_rigged_preset.json"
+        dst = pathlib.Path(self.filepath)
+        if bundled.exists():
+            shutil.copy2(str(bundled), str(dst))
+            self.report({'INFO'}, f"Rigged preset saved: {dst.name}")
+        else:
+            self.report({'WARNING'}, "Bundled rigged preset not found")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyAIPrompt(bpy.types.Operator):
+    """Copy a FO4-style AI generation prompt to clipboard.
+    Paste into KREA or Hunyuan3D image prompt field."""
+    bl_idname  = "fo4.copy_ai_prompt"
+    bl_label   = "Copy FO4 AI Prompt"
+    bl_options = {'REGISTER'}
+
+    prompt_id: bpy.props.EnumProperty(
+        name="Prompt",
+        items=_PROMPT_ENUM,
+        default="metal_junk",
+    )
+
+    def execute(self, context):
+        txt = next((p for k, _, _, p in _FO4_PROMPT_PACK if k == self.prompt_id), "")
+        if not txt:
+            self.report({'ERROR'}, "Prompt not found")
+            return {'CANCELLED'}
+        context.window_manager.clipboard = txt
+        label = next((lbl for k, lbl, _, _ in _FO4_PROMPT_PACK if k == self.prompt_id), "")
+        print(f"[FO4 Prompt] {label}:\n{txt}")
+        self.report({'INFO'}, f"Copied: {label}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CreateFO4MaterialNodes(bpy.types.Operator):
+    """Create a FO4-style Principled BSDF node group on the active object.
+    Wires: BaseColor → ColorRamp → BSDF, Roughness × 1.2, AO multiply, Normal map node.
+    Leaves image slots empty — assign your DDS textures in the Shader Editor."""
+    bl_idname  = "fo4.create_fo4_material_nodes"
+    bl_label   = "Create FO4 Material Node Group"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        # Create or reuse material
+        mat_name = f"FO4_{obj.name}"
+        mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
+        mat.use_nodes = True
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+
+        # ── Positions (left → right) ─────────────────────────────────────
+        X0, X1, X2, X3 = -900, -600, -250, 100
+        Y_BASE, Y_ROUGH, Y_METAL, Y_AO, Y_NORM = 400, 100, -100, -300, -500
+
+        def img(name, pos):
+            n = nodes.new("ShaderNodeTexImage")
+            n.name = name; n.label = name; n.location = pos
+            return n
+
+        # Image textures
+        n_base  = img("BaseColor", (X0, Y_BASE))
+        n_rough = img("Roughness", (X0, Y_ROUGH))
+        n_metal = img("Metallic",  (X0, Y_METAL))
+        n_ao    = img("AO",        (X0, Y_AO))
+        n_norm  = img("Normal",    (X0, Y_NORM))
+
+        # Mark non-colour maps as Non-Color
+        for n in (n_rough, n_metal, n_ao, n_norm):
+            n.image_user  # access forces update
+            try: n.colorspace_settings.name = 'Non-Color'
+            except Exception: pass
+
+        # ColorRamp — FO4 palette compression
+        cr = nodes.new("ShaderNodeValToRGB")
+        cr.location = (X1, Y_BASE)
+        cr.label = "FO4 Palette"
+        # FO4 colour signature: greenish shadows → yellowish mids → desaturated highlights
+        ramp = cr.color_ramp
+        ramp.elements[0].position = 0.0
+        ramp.elements[0].color = (0xA8/255, 0xA8/255, 0x8A/255, 1.0)  # #A8A88A
+        # Add mid stop
+        mid = ramp.elements.new(0.5)
+        mid.color = (0xC7/255, 0xC7/255, 0xA1/255, 1.0)                # #C7C7A1
+        ramp.elements[-1].position = 1.0
+        ramp.elements[-1].color = (0xE0/255, 0xDC/255, 0xC0/255, 1.0)  # #E0DCC0
+
+        # Roughness multiply ×1.2
+        mul = nodes.new("ShaderNodeMath")
+        mul.operation = 'MULTIPLY'
+        mul.inputs[1].default_value = 1.2
+        mul.location = (X1, Y_ROUGH)
+        mul.label = "Roughness ×1.2"
+
+        # AO multiply into base colour
+        mix_ao = nodes.new("ShaderNodeMixRGB")
+        mix_ao.blend_type = 'MULTIPLY'
+        mix_ao.inputs[0].default_value = 1.0   # fac = full multiply
+        mix_ao.location = (X2, Y_BASE - 60)
+        mix_ao.label = "AO Multiply"
+
+        # Normal map
+        norm_node = nodes.new("ShaderNodeNormalMap")
+        norm_node.location = (X1, Y_NORM)
+
+        # Principled BSDF
+        bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+        bsdf.location = (X3, 300)
+
+        # Output
+        out = nodes.new("ShaderNodeOutputMaterial")
+        out.location = (X3 + 350, 300)
+
+        # ── Links ────────────────────────────────────────────────────────
+        # BaseColor → ColorRamp → MixAO → BSDF Base Color
+        links.new(n_base.outputs["Color"],  cr.inputs["Fac"])
+        links.new(cr.outputs["Color"],      mix_ao.inputs[1])
+        links.new(n_ao.outputs["Color"],    mix_ao.inputs[2])
+        links.new(mix_ao.outputs["Color"],  bsdf.inputs["Base Color"])
+
+        # Roughness → ×1.2 → BSDF Roughness
+        links.new(n_rough.outputs["Color"], mul.inputs[0])
+        links.new(mul.outputs["Value"],     bsdf.inputs["Roughness"])
+
+        # Metallic → BSDF Metallic
+        links.new(n_metal.outputs["Color"], bsdf.inputs["Metallic"])
+
+        # Normal → Normal Map → BSDF Normal
+        links.new(n_norm.outputs["Color"],  norm_node.inputs["Color"])
+        links.new(norm_node.outputs["Normal"], bsdf.inputs["Normal"])
+
+        # BSDF → Output
+        links.new(bsdf.outputs["BSDF"],    out.inputs["Surface"])
+
+        # Assign to object
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+
+        self.report({'INFO'}, f"FO4 node group created: {mat_name} — assign your DDS textures")
+        print(f"[FO4] Material node group created: {mat_name}")
+        return {'FINISHED'}
+
+
+
+class FO4_OT_GenerateBGSMFile(bpy.types.Operator):
+    """Generate a FO4 .bgsm material file from a bundled template.
+    Opens a file dialog — save to your mod's Materials\ folder.
+    Fill in DDS texture paths in NifSkope or Material Editor afterward."""
+    bl_idname  = "fo4.generate_bgsm_file"
+    bl_label   = "Generate BGSM File"
+    bl_options = {'REGISTER'}
+
+    template: bpy.props.EnumProperty(
+        name="Material Template",
+        items=[
+            ("metal_rusty",           "Metal (Rusty)",                ""),
+            ("wood_weathered",        "Wood (Weathered)",             ""),
+            ("plastic_painted",       "Plastic / Painted Metal",      ""),
+            ("vegetation_irradiated", "Glowing Sea Vegetation",       ""),
+        ],
+        default="metal_rusty",
+    )
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="material.bgsm")
+    filter_glob: bpy.props.StringProperty(default="*.bgsm", options={'HIDDEN'})
+
+    # BGSM data per template
+    _BGSM_DATA = {
+        "metal_rusty": {
+            "Smoothness": 0.15, "Specular": 0.2, "Roughness": 0.85, "Metallic": 1.0,
+            "EnableRimLighting": False, "EnableSubsurface": False, "EnableGlow": False,
+            "EnableEnvironmentMapping": True, "EnvironmentMapScale": 0.15,
+        },
+        "wood_weathered": {
+            "Smoothness": 0.05, "Specular": 0.1, "Roughness": 0.9, "Metallic": 0.0,
+            "EnableEnvironmentMapping": False, "EnableGlow": False,
+        },
+        "plastic_painted": {
+            "Smoothness": 0.25, "Specular": 0.3, "Roughness": 0.75, "Metallic": 0.2,
+            "EnableEnvironmentMapping": True, "EnvironmentMapScale": 0.1,
+        },
+        "vegetation_irradiated": {
+            "Smoothness": 0.1, "Specular": 0.05, "Roughness": 0.85, "Metallic": 0.0,
+            "EnableGlow": True, "GlowColor": [0.3, 1.0, 0.3], "GlowStrength": 0.2,
+            "EnableEnvironmentMapping": False,
+        },
+    }
+
+    def invoke(self, context, event):
+        self.filepath = f"{self.template}.bgsm"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import json, pathlib
+        data = dict(self._BGSM_DATA.get(self.template, {}))
+        # Add empty texture slots
+        data = {
+            "Diffuse":          "<your _d.dds>",
+            "Normal":           "<your _n.dds>",
+            "SmoothSpec":       "<your _s.dds>",
+            "AmbientOcclusion": "<your _ao.dds>",
+            **data,
+        }
+        dst = pathlib.Path(self.filepath)
+        dst.write_text(json.dumps(data, indent=4))
+        print(f"[BGSM] Written: {dst}")
+        self.report({'INFO'}, f"BGSM saved: {dst.name} — fill in DDS paths")
+        return {'FINISHED'}
+
+
+class FO4_OT_SaveBGSMTemplate(bpy.types.Operator):
+    """Save a FO4 BGSM material template JSON to disk.
+    Open it in NifSkope / Material Editor and fill in your DDS paths."""
+    bl_idname  = "fo4.save_bgsm_template"
+    bl_label   = "Save BGSM Material Template"
+    bl_options = {'REGISTER'}
+
+    template: bpy.props.EnumProperty(
+        name="Material",
+        items=_BGSM_TEMPLATE_ENUM,
+        default="metal_rusty",
+    )
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="material.json")
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        # Pre-fill filename from template choice
+        fname = next((fn for k, _, fn in _BGSM_TEMPLATES if k == self.template), "material.json")
+        self.filepath = fname
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import pathlib, shutil
+        fname = next((fn for k, _, fn in _BGSM_TEMPLATES if k == self.template), None)
+        if fname is None:
+            self.report({'ERROR'}, "Unknown template")
+            return {'CANCELLED'}
+        bundled = pathlib.Path(__file__).parent / "presets" / fname
+        dst = pathlib.Path(self.filepath)
+        if bundled.exists():
+            shutil.copy2(str(bundled), str(dst))
+            self.report({'INFO'}, f"BGSM template saved: {dst.name} — fill in your DDS paths")
+        else:
+            self.report({'WARNING'}, f"Bundled preset not found: {bundled}")
+            return {'CANCELLED'}
+        print(f"[BGSM] Template saved: {dst}")
+        return {'FINISHED'}
+
+
+class FO4_OT_SavePyNIFPreset(bpy.types.Operator):
+    """Save the FO4 pyNIF preset JSON to a location you choose.
+    Load it in pyNIF via File → Import Preset to pre-fill all export settings."""
+    bl_idname  = "fo4.save_pynif_preset"
+    bl_label   = "Save pyNIF Preset File"
+    bl_options = {'REGISTER'}
+
+    filepath: bpy.props.StringProperty(
+        subtype='FILE_PATH',
+        default="pynif_fo4_preset.json",
+    )
+    filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        self.filepath = "pynif_fo4_preset.json"
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import os, json, pathlib
+
+        preset = {
+            "game": "Fallout4",
+            "export_format": "NIF",
+            "version": "20.2.0.7",
+            "user_version": 12,
+            "user_version_2": 83,
+            "geometry": {
+                "triangulate": True,
+                "apply_modifiers": True,
+                "remove_doubles": True,
+                "recalculate_normals": True,
+                "auto_smooth_angle": 30,
+                "enable_tangents": True,
+            },
+            "materials": {
+                "material_type": "BGSM",
+                "embed_material_path": False,
+                "use_external_bgsm": True,
+                "texture_format": "DDS",
+                "basecolor": "",
+                "normal": "",
+                "roughness": "",
+                "metallic": "",
+                "ao": "",
+            },
+            "collision": {
+                "type": "bhkConvexShape",
+                "mass": 1,
+                "motion_system": "MO_SYS_KEYFRAMED",
+                "enable_havok": True,
+            },
+            "nodes": {
+                "root": "BSFadeNode",
+                "enable_skinning": False,
+            },
+        }
+
+        # Also try to copy from bundled preset if present
+        bundled = pathlib.Path(__file__).parent / "presets" / "pynif_fo4_preset.json"
+        if bundled.exists():
+            try:
+                preset = json.loads(bundled.read_text(encoding="utf-8"))
+            except Exception:
+                pass  # fall back to inline dict above
+
+        out = pathlib.Path(self.filepath)
+        out.write_text(json.dumps(preset, indent=2), encoding="utf-8")
+        print(f"[pyNIF] Preset saved to: {out}")
+        self.report({'INFO'}, f"pyNIF FO4 preset saved: {out.name}")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyPyNIFSettings(bpy.types.Operator):
+    """Copy the full pyNIF export settings for Fallout 4 to clipboard.
+    Covers: NIF header, geometry, materials (BGSM), collision, nodes, and export path."""
+    bl_idname = "fo4.copy_pynif_settings"
+    bl_label  = "Copy pyNIF Export Settings"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        txt = (
+                "Game: Fallout 4\nExport Format: NIF\n"
+                "Version: 20.2.0.7\nUser Version: 12\nUser Version 2: 83\n"
+                "Triangulate Mesh: On\nApply Modifiers: On\n"
+                "Remove Doubles: On\nNormals: Recalculate\nAuto Smooth: 30 deg\n"
+                "Material Type: BGSM\nTexture Format: DDS (BC7)\n"
+                "Root Node: BSFadeNode\nEnable Havok: On\n"
+                "Enable Tangents: On\nEnable Skinning: Off\n"
+            )
+        context.window_manager.clipboard = txt
+        print(f"[pyNIF] FO4 export settings copied to clipboard")
+        self.report({'INFO'}, "pyNIF FO4 export settings copied to clipboard")
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyKreaPreset(bpy.types.Operator):
+    """Copy the KREA AI Low-VRAM preset to clipboard.
+    Paste into KREA Advanced Settings panel (RTX 2070 optimised)."""
+    bl_idname = "fo4.copy_krea_preset"
+    bl_label  = "Copy KREA Preset"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        txt = (
+                "[Geometry]\nVoxel Resolution = Low\nMesh Detail = Medium\n"
+                "Topology Smoothing = On\nDecimation = On\nAuto-Retopo = Off\n"
+                "[Textures]\nTexture Resolution = 1K\nMaterial Accuracy = Medium\n"
+                "Normal Map = Off\nAO = On\nRoughness = On\nMetallic = On\n"
+                "[Performance]\nVRAM Saver = On\nChunked Inference = On\n"
+                "CPU Assist = On\nLegacy CUDA Mode = On\n"
+            )
+        context.window_manager.clipboard = txt
+        print(f"[KREA] Preset copied to clipboard:\n{txt}")
+        self.report({'INFO'}, "KREA Low-VRAM preset copied to clipboard — paste into KREA Advanced Settings")
+        return {'FINISHED'}
+
+
 classes = (
     FO4_OT_ImageToMesh,
     FO4_OT_ApplyDisplacementMap,
@@ -3516,6 +4518,25 @@ classes = (
     FO4_OT_GeneratePointEImage,
     FO4_OT_MossyAnalyzeMesh,
     FO4_OT_MossyAnalyzeTextures,
+    FO4_OT_CopyCreatureTemplate,
+    FO4_OT_CopyCreaturePipeline,
+    FO4_OT_SavePyNIFCreaturePreset,
+    FO4_OT_CopyFullLODPipeline,
+    FO4_OT_GenerateLODs,
+    FO4_OT_SetupCollisionMesh,
+    FO4_OT_CopyPyNIFLODSettings,
+    FO4_OT_AddPhysicsBones,
+    FO4_OT_AddDismemberPartition,
+    FO4_OT_TransferArmorWeights,
+    FO4_OT_CopyPyNIFRiggedSettings,
+    FO4_OT_SavePyNIFRiggedPreset,
+    FO4_OT_CopyAIPrompt,
+    FO4_OT_CreateFO4MaterialNodes,
+    FO4_OT_GenerateBGSMFile,
+    FO4_OT_SaveBGSMTemplate,
+    FO4_OT_SavePyNIFPreset,
+    FO4_OT_CopyPyNIFSettings,
+    FO4_OT_CopyKreaPreset,
 )
 
 

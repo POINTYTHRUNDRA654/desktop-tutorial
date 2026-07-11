@@ -94,9 +94,6 @@ def _find_ckcmd() -> "str | None":
                 exe = os.path.join(ckcmd_path, _CKCMD_EXE)
                 if os.path.isfile(exe):
                     return exe
-            # Also check tool_installers configured path
-            from . import tool_installers
-            paths = tool_installers.auto_configure_preferences() or {}
     except Exception:
         pass
 
@@ -153,13 +150,13 @@ def _export_fbx_for_hkx(obj, filepath: str,
             path_mode='COPY',
             embed_textures=False,
         )
-
-        bpy.context.scene.frame_start = orig_start
-        bpy.context.scene.frame_end   = orig_end
         return True, f"FBX exported: {os.path.basename(filepath)}"
 
     except Exception as e:
         return False, f"FBX export failed: {e}"
+    finally:
+        bpy.context.scene.frame_start = orig_start
+        bpy.context.scene.frame_end   = orig_end
 
 
 def _run_ckcmd(ckcmd_exe: str, fbx_path: str, out_dir: str,
@@ -190,7 +187,7 @@ def _run_ckcmd(ckcmd_exe: str, fbx_path: str, out_dir: str,
             text=True,
             timeout=120,
         )
-        output = result.stdout + result.stderr
+        output = (result.stdout or "") + (result.stderr or "")
 
         # ck-cmd returns 0 on success; check for output .hkx file
         base = os.path.splitext(os.path.basename(fbx_path))[0]

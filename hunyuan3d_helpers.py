@@ -14,6 +14,7 @@ Installation:
 import bpy
 import importlib.util
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -54,6 +55,39 @@ def _mossy_provides_torch() -> bool:
     return False
 
 
+def _register_torch_dll_dirs() -> None:
+    """Register PyTorch DLL directories with Windows before any torch import.
+    Fixes WinError 126 for standalone installs like D:\\PyTorch.
+    """
+    import os
+    if os.name != "nt":
+        return
+    try:
+        import pathlib, string
+        drives = [f"{d}:\\" for d in string.ascii_uppercase
+                  if pathlib.Path(f"{d}:\\").exists()]
+        candidates = []
+        for drive in drives:
+            for sub in ("PyTorch", "pytorch", "blender_tools/PyTorch"):
+                p = pathlib.Path(drive) / sub
+                candidates += [p, p / "torch" / "lib"]
+        try:
+            import importlib.util as _ilu
+            spec = _ilu.find_spec("torch")
+            if spec and spec.origin:
+                candidates.insert(0, pathlib.Path(spec.origin).parent / "lib")
+        except Exception:
+            pass
+        for p in candidates:
+            try:
+                if p.is_dir():
+                    os.add_dll_directory(str(p))
+            except (OSError, AttributeError):
+                pass
+    except Exception:
+        pass
+
+
 def _torch_available() -> bool:
     """Return True if torch is available locally or via the Mossy bridge.
 
@@ -62,6 +96,7 @@ def _torch_available() -> bool:
     local install is needed).  Called at invocation time, never at import
     time, so it correctly reflects the runtime state.
     """
+    _register_torch_dll_dirs()
     if importlib.util.find_spec("torch") is not None:
         return True
     return _mossy_provides_torch()
@@ -151,12 +186,24 @@ def _build_hunyuan3d_candidates() -> list:
     return candidates
 
 
-def _is_valid_hunyuan_install(path: str) -> bool:
-    """Return True if *path* is a Hunyuan3D-2 directory with the hy3dgen package.
+def _detect_hunyuan_version(path: str) -> str:
+    """Return '2.1', '2.0', or '' for a Hunyuan3D install directory."""
+    p = Path(path)
+    ver_file = p / "VERSION"
+    if ver_file.exists():
+        try:
+            v = ver_file.read_text().strip()
+            if v.startswith("2.1"): return "2.1"
+            if v.startswith("2"):   return "2.0"
+        except Exception:
+            pass
+    if (p / "hy3dgen" / "shapegen").is_dir(): return "2.1"
+    if (p / "hy3dgen").is_dir():              return "2.0"
+    return ""
 
-    The hy3dgen/ sub-directory is the canonical marker for a complete clone of
-    Tencent-Hunyuan/Hunyuan3D-2.  The old infer.py no longer exists in the repo.
-    """
+
+def _is_valid_hunyuan_install(path: str) -> bool:
+    """Return True if *path* is a Hunyuan3D-2.x directory with the hy3dgen package."""
     return os.path.isdir(path) and os.path.isdir(os.path.join(path, "hy3dgen"))
 
 
@@ -198,12 +245,20 @@ def check_hunyuan3d_availability():
 
     candidates = _build_hunyuan3d_candidates()
 
-    # First pass: find a directory that actually contains the hy3dgen package
+    # First pass: prefer 2.1 over 2.0 when both are present
+    best_path = None
+    best_ver  = ""
     for path in candidates:
         if _is_valid_hunyuan_install(path):
-            result = True, f"Hunyuan3D-2 available at: {path}"
-            HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
-            return result
+            ver = _detect_hunyuan_version(path)
+            if best_path is None or ver > best_ver:
+                best_path, best_ver = path, ver
+
+    if best_path is not None:
+        label = f"Hunyuan3D-{best_ver}" if best_ver else "Hunyuan3D-2"
+        result = True, f"{label} available at: {best_path}"
+        HUNYUAN3D_AVAILABLE, HUNYUAN3D_ERROR = result
+        return result
 
     # Second pass: report any directory found but missing the hy3dgen package
     for path in candidates:
@@ -243,7 +298,6 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         return False, f"Hunyuan3D-2 not available: {message}"
 
     try:
-        import subprocess
         import glob as _glob
 
         # Locate the Hunyuan3D-2 installation directory
@@ -266,8 +320,24 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         # output_path) to avoid placing executable code in a world-writable
         # location.
         out_file = os.path.join(output_path, "output.glb")
+        _hf_cache = r"D:\.cache\huggingface\hub"
+        _ipv4_patch = (
+            "import socket as _sock_mod\n"
+            "_AF_INET = _sock_mod.AF_INET\n"          # capture as int before any loop reuses names
+            "_orig_gai = _sock_mod.getaddrinfo\n"
+            "def _gai4(host, port, family=0, type=0, proto=0, flags=0):\n"
+            "    r = _orig_gai(host, port, family, type, proto, flags)\n"
+            "    v4 = [x for x in r if x[0] == _AF_INET]\n"
+            "    return v4 if v4 else r\n"
+            "_sock_mod.getaddrinfo = _gai4\n"
+        )
         _script = (
             "import sys, os\n"
+            f"os.environ['HUGGINGFACE_HUB_CACHE'] = {repr(_hf_cache)}\n"
+            f"os.environ['HF_HOME'] = {repr(os.path.dirname(_hf_cache))}\n"
+            f"os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'\n"
+            f"os.environ['HF_HUB_OFFLINE'] = '1'\n"   # use cache only — never ping HF to verify
+            + _ipv4_patch +
             f"sys.path.insert(0, {repr(hunyuan_path)})\n"
             "from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline\n"
             f"prompt = {repr(prompt)}\n"
@@ -275,6 +345,14 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
             "pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(\n"
             "    'tencent/Hunyuan3D-2')\n"
             "mesh = pipeline(prompt=prompt)[0]\n"
+            "try:\n"
+            "    _raw_fc = len(mesh.faces)\n"
+            "    _target_fc = int(os.environ.get('HY3D_TARGET_POLYS', '30000'))\n"
+            "    if _raw_fc > _target_fc:\n"
+            "        mesh = mesh.simplify_quadric_decimation(face_count=_target_fc)\n"
+            "        print(f'Decimated {_raw_fc:,} → {len(mesh.faces):,} faces')\n"
+            "except Exception as _simp_err:\n"
+            "    print(f'[WARNING] Simplification skipped ({_simp_err})')\n"
             "mesh.export(out_file)\n"
             "print(f'Saved mesh to {out_file}')\n"
         )
@@ -287,18 +365,22 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
             _script_path = _f.name
 
         try:
-            result = subprocess.run(
-                [sys.executable, _script_path],
-                capture_output=True, text=True, timeout=600,
-            )
+            _rc, _out = _run_inference_subprocess(_script_path, "text inference")
         finally:
             try:
                 os.unlink(_script_path)
             except OSError:
                 pass
 
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
+        if _rc != 0:
+            print(f"[Hunyuan3D] Text inference failed (exit {_rc})")
+            _lines = _out.strip().splitlines() or ["unknown error"]
+            _err_kw = ("Error", "Exception", "Traceback", "FAILED", "fatal", "assert")
+            _err_line = next(
+                (l for l in reversed(_lines) if any(kw in l for kw in _err_kw)),
+                _lines[-1],
+            )
+            return False, f"Hunyuan3D-2 inference failed: {_err_line} (see System Console for full log)"
 
         # Find the generated mesh (OBJ / GLB preferred)
         for ext in ("*.glb", "*.obj", "*.ply"):
@@ -314,12 +396,12 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         return False, f"Inference finished but no mesh file found in {output_path}"
 
     except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
+        return False, "Hunyuan3D-2 inference timed out (1 hour). Check System Console for last progress line."
     except Exception as e:
         return False, f"Error generating mesh from text: {str(e)}"
 
 
-def generate_mesh_from_image(image_path, output_path=None, resolution=256):
+def generate_mesh_from_image(image_path, output_path=None, resolution=256, target_polys=30000):
     """
     Generate a full 3D mesh from a 2D image using Hunyuan3D-2 AI model.
     This is different from height map conversion - it creates a complete 3D object.
@@ -344,7 +426,6 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         return False, f"Image file not found: {image_path}"
 
     try:
-        import subprocess
         import glob as _glob
 
         hunyuan_path = next(
@@ -365,25 +446,123 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         # output_path) to avoid placing executable code in a world-writable
         # location.
         out_file = os.path.join(output_path, "output.glb")
+        import pathlib as _pl
+        _addon_lib = str(_pl.Path(__file__).parent / "lib")
+        _dll_fix = (
+            # Only add DLL directories from CUDA-capable torch installs.
+            # D:\PyTorch and similar CPU-only installs have torch_cpu.dll but no
+            # torch_cuda*.dll — loading their DLLs first breaks the real CUDA torch.
+            "if __import__('os').name == 'nt':\n"
+            "    import pathlib as _p, string, sys as _sys\n"
+            "    # Prefer active Python's own torch lib first\n"
+            "    for _sp in _sys.path:\n"
+            "        _lib = _p.Path(_sp) / 'torch' / 'lib'\n"
+            "        if _lib.is_dir() and list(_lib.glob('torch_cuda*.dll')):\n"
+            "            try: __import__('os').add_dll_directory(str(_lib))\n"
+            "            except Exception: pass\n"
+            "            break\n"
+            "    # Fallback drive scan — skip CPU-only installs (no torch_cuda*.dll)\n"
+            "    for _d in [f'{c}:\\\\' for c in string.ascii_uppercase"
+            " if _p.Path(f'{c}:\\\\').exists()]:\n"
+            "        for _s in ('PyTorch','pytorch'):\n"
+            "            _lib = _p.Path(_d) / _s / 'torch' / 'lib'\n"
+            "            if _lib.is_dir() and list(_lib.glob('torch_cuda*.dll')):\n"
+            "                try: __import__('os').add_dll_directory(str(_lib))\n"
+            "                except Exception: pass\n"
+        )
+        # Point HF hub cache at D:\.cache so texgen finds what shapegen already downloaded
+        _hf_cache = r"D:\.cache\huggingface\hub"
+        # IPv4 patch: Windows resolves HuggingFace to an IPv6 CloudFront address whose
+        # TLS handshake fails.  Prefer IPv4 by filtering getaddrinfo results.
+        _ipv4_patch = (
+            "import socket as _sock_mod\n"
+            "_AF_INET = _sock_mod.AF_INET\n"          # capture as int before any loop reuses names
+            "_orig_gai = _sock_mod.getaddrinfo\n"
+            "def _gai4(host, port, family=0, type=0, proto=0, flags=0):\n"
+            "    r = _orig_gai(host, port, family, type, proto, flags)\n"
+            "    v4 = [x for x in r if x[0] == _AF_INET]\n"
+            "    return v4 if v4 else r\n"
+            "_sock_mod.getaddrinfo = _gai4\n"
+        )
         _script = (
             "import sys, os\n"
+            # Consistent HF cache across both pipelines
+            f"os.environ['HUGGINGFACE_HUB_CACHE'] = {repr(_hf_cache)}\n"
+            f"os.environ['HF_HOME'] = {repr(os.path.dirname(_hf_cache))}\n"
+            f"os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'\n"
+            f"os.environ['HF_HUB_OFFLINE'] = '1'\n"   # use cache only — never ping HF to verify
+            f"os.environ['HY3D_TARGET_POLYS'] = '{int(target_polys)}'\n"
+            + _ipv4_patch +
             f"sys.path.insert(0, {repr(hunyuan_path)})\n"
+            f"sys.path.insert(0, {repr(_addon_lib)})\n"
+            + _dll_fix +
             "from PIL import Image\n"
             "from hy3dgen.rembg import BackgroundRemover\n"
             "from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline\n"
-            "from hy3dgen.texgen import Hunyuan3DPaintPipeline\n"
             f"image_path = {repr(image_path)}\n"
             f"out_file = {repr(out_file)}\n"
             "image = Image.open(image_path).convert('RGBA')\n"
-            "if image.mode == 'RGB':\n"
+            "if image.mode != 'RGBA':\n"
             "    rembg = BackgroundRemover()\n"
             "    image = rembg(image)\n"
+            "print('Loading shape pipeline...')\n"
             "pipeline_shape = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(\n"
             "    'tencent/Hunyuan3D-2')\n"
-            "pipeline_tex = Hunyuan3DPaintPipeline.from_pretrained(\n"
-            "    'tencent/Hunyuan3D-2')\n"
+            "print('Generating shape...')\n"
             "mesh = pipeline_shape(image=image)[0]\n"
-            "mesh = pipeline_tex(mesh, image=image)\n"
+            # Simplify before texture so texgen works on a manageable mesh and
+            # the exported GLB is already within FO4's 65,535-triangle limit.
+            "print('Simplifying mesh for FO4...')\n"
+            "try:\n"
+            "    _raw_fc = len(mesh.faces)\n"
+            "    _target_fc = int(os.environ.get('HY3D_TARGET_POLYS', '30000'))\n"
+            "    if _raw_fc > _target_fc:\n"
+            "        mesh = mesh.simplify_quadric_decimation(face_count=_target_fc)\n"
+            "        print(f'Decimated {_raw_fc:,} → {len(mesh.faces):,} faces')\n"
+            "    else:\n"
+            "        print(f'Mesh at {_raw_fc:,} faces — under target, no simplification needed')\n"
+            "except Exception as _simp_err:\n"
+            "    print(f'[WARNING] Simplification skipped ({_simp_err}) — mesh may be too dense for FO4')\n"
+            # Texture (Hunyuan3D-Paint) pipeline. Failures are non-fatal but are
+            # now reported loudly with a TEXGEN: prefix so the reason a mesh came
+            # out untextured is visible in the System Console instead of silent.
+            "def _load_paint():\n"
+            "    from hy3dgen.texgen import Hunyuan3DPaintPipeline\n"
+            "    try:\n"
+            "        return Hunyuan3DPaintPipeline.from_pretrained('tencent/Hunyuan3D-2')\n"
+            "    except Exception as _e_off:\n"
+            # First run: paint weights may not be in the offline cache yet. Retry
+            # online once so they download instead of silently skipping texture.
+            "        print(f'TEXGEN: offline load failed ({_e_off}); retrying online to fetch paint weights...')\n"
+            "        import os as _os2\n"
+            "        _os2.environ['HF_HUB_OFFLINE'] = '0'\n"
+            "        return Hunyuan3DPaintPipeline.from_pretrained('tencent/Hunyuan3D-2')\n"
+            "try:\n"
+            "    print('TEXGEN: loading texture (paint) pipeline...')\n"
+            "    pipeline_tex = _load_paint()\n"
+            "    print('TEXGEN: baking texture from reference image...')\n"
+            "    mesh = pipeline_tex(mesh, image=image)\n"
+            "    print('TEXGEN: texture baked successfully')\n"
+            # Save the baked diffuse next to the GLB so the Blender side always has
+            # a real file on disk to wire into the material (the GLB also embeds it).
+            "    try:\n"
+            "        _vis = getattr(mesh, 'visual', None)\n"
+            "        _mat = getattr(_vis, 'material', None)\n"
+            "        _tex_img = None\n"
+            "        if _mat is not None:\n"
+            "            _tex_img = getattr(_mat, 'baseColorTexture', None) or getattr(_mat, 'image', None)\n"
+            "        if _tex_img is None:\n"
+            "            _tex_img = getattr(_vis, 'image', None)\n"
+            "        if _tex_img is not None:\n"
+            "            _dpath = out_file.rsplit('.', 1)[0] + '_texgen_d.png'\n"
+            "            _tex_img.save(_dpath)\n"
+            "            print(f'TEXGEN: saved baked diffuse -> {_dpath}')\n"
+            "        else:\n"
+            "            print('TEXGEN: baked texture is embedded in the GLB (no standalone image object)')\n"
+            "    except Exception as _sv_err:\n"
+            "        print(f'TEXGEN: could not save sidecar diffuse ({_sv_err})')\n"
+            "except Exception as _tex_err:\n"
+            "    print(f'TEXGEN: texture pipeline unavailable ({_tex_err}) - exporting shape only')\n"
             "mesh.export(out_file)\n"
             "print(f'Saved mesh to {out_file}')\n"
         )
@@ -396,18 +575,22 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
             _script_path = _f.name
 
         try:
-            result = subprocess.run(
-                [sys.executable, _script_path],
-                capture_output=True, text=True, timeout=600,
-            )
+            _rc, _out = _run_inference_subprocess(_script_path, "image inference")
         finally:
             try:
                 os.unlink(_script_path)
             except OSError:
                 pass
 
-        if result.returncode != 0:
-            return False, f"Hunyuan3D-2 inference failed:\n{result.stderr}"
+        if _rc != 0:
+            print(f"[Hunyuan3D] Image inference failed (exit {_rc})")
+            _lines = _out.strip().splitlines() or ["unknown error"]
+            _err_kw = ("Error", "Exception", "Traceback", "FAILED", "fatal", "assert")
+            _err_line = next(
+                (l for l in reversed(_lines) if any(kw in l for kw in _err_kw)),
+                _lines[-1],
+            )
+            return False, f"Hunyuan3D-2 inference failed: {_err_line} (see System Console for full log)"
 
         for ext in ("*.glb", "*.obj", "*.ply"):
             matches = _glob.glob(os.path.join(output_path, ext))
@@ -422,9 +605,127 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256):
         return False, f"Inference finished but no mesh file found in {output_path}"
 
     except subprocess.TimeoutExpired:
-        return False, "Hunyuan3D-2 inference timed out (10 min). The model may be downloading weights on first run."
+        return False, "Hunyuan3D-2 inference timed out (1 hour). Check System Console for last progress line."
     except Exception as e:
         return False, f"Error generating mesh from image: {str(e)}"
+
+
+def _ensure_textures_on_disk(obj, mesh_path):
+    """Make sure a generated mesh's baked texture exists as a real .dds/.png file
+    and is wired into the object's material so the FO4 NIF exporter (which reads
+    the Principled Base Color image) writes it into BSShaderTextureSet slot 0.
+
+    Handles two sources of texture:
+      * a sidecar '<mesh>_texgen_d.png' saved by the texture pipeline, and
+      * an image embedded in the imported GLB material (packed, in-memory).
+
+    A 'textures/' folder is created next to the mesh with '<name>_d.dds' (via the
+    project's DDS encoder when available, otherwise a .png fallback).  Never raises
+    — texturing is advisory and must not break import.
+
+    Returns (bool applied, str message).
+    """
+    try:
+        import glob as _glob
+        import shutil as _shutil
+
+        if obj is None or getattr(obj, "type", None) != 'MESH':
+            return False, "no mesh object"
+
+        mesh_dir = os.path.dirname(mesh_path)
+        stem = obj.name.replace(" ", "_")[:63] or "FO4_Asset"
+        tex_dir = os.path.join(mesh_dir, "textures")
+
+        # 1. Find a source image: sidecar diffuse first, else a packed material image.
+        src_png = None
+        sidecars = _glob.glob(os.path.join(mesh_dir, "*_texgen_d.png"))
+        if sidecars:
+            src_png = sidecars[0]
+
+        bl_image = None
+        if obj.data.materials:
+            for mat in obj.data.materials:
+                if not mat or not mat.use_nodes:
+                    continue
+                for node in mat.node_tree.nodes:
+                    if node.type == 'TEX_IMAGE' and node.image is not None:
+                        bl_image = node.image
+                        break
+                if bl_image:
+                    break
+
+        if src_png is None and bl_image is not None:
+            # Unpack the GLB-embedded image to disk so the exporter has a file path.
+            os.makedirs(tex_dir, exist_ok=True)
+            src_png = os.path.join(tex_dir, f"{stem}_d.png")
+            try:
+                bl_image.filepath_raw = src_png
+                bl_image.file_format = 'PNG'
+                bl_image.save()
+            except Exception:
+                # Fall back to save_render on a copy of the pixels
+                bl_image.save_render(src_png)
+
+        if src_png is None:
+            return False, "no baked texture found (mesh is untextured)"
+
+        # 2. Encode a FO4-ready DDS next to the mesh (BC-compressed when possible).
+        os.makedirs(tex_dir, exist_ok=True)
+        dds_path = os.path.join(tex_dir, f"{stem}_d.dds")
+        encoded = False
+        try:
+            from . import fo4_texture_generator as _ftg
+            _enc = getattr(_ftg, "encode_dds", None) or getattr(_ftg, "png_to_dds", None)
+            if callable(_enc):
+                _enc(src_png, dds_path, "BC7_UNORM")
+                encoded = os.path.exists(dds_path)
+        except Exception as _enc_err:
+            print(f"[Hunyuan3D] TEXGEN: DDS encode via project tool failed ({_enc_err})")
+        if not encoded:
+            try:
+                from PIL import Image as _PIm
+                _PIm.open(src_png).convert("RGB").save(
+                    dds_path, dds_compression="dxt1"
+                )
+                encoded = os.path.exists(dds_path)
+            except Exception:
+                # Last resort: ship the PNG so nothing is lost.
+                dds_path = os.path.join(tex_dir, f"{stem}_d.png")
+                if os.path.abspath(src_png) != os.path.abspath(dds_path):
+                    _shutil.copyfile(src_png, dds_path)
+
+        # 3. Wire the image into the object's material Base Color so export sees it.
+        try:
+            img = bpy.data.images.load(src_png, check_existing=True)
+            if not obj.data.materials:
+                mat = bpy.data.materials.new(stem + "_mat")
+                mat.use_nodes = True
+                obj.data.materials.append(mat)
+            mat = obj.data.materials[0]
+            mat.use_nodes = True
+            nt = mat.node_tree
+            bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if bsdf is None:
+                bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
+            tex_node = next(
+                (n for n in nt.nodes
+                 if n.type == 'TEX_IMAGE' and n.label == 'FO4_Diffuse'),
+                None,
+            )
+            if tex_node is None:
+                tex_node = nt.nodes.new('ShaderNodeTexImage')
+                tex_node.label = 'FO4_Diffuse'
+            tex_node.image = img
+            nt.links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+        except Exception as _wire_err:
+            print(f"[Hunyuan3D] TEXGEN: material wire-up skipped ({_wire_err})")
+
+        # 4. Record the FO4-relative diffuse path for the exporter / user.
+        obj["fo4_diffuse"] = os.path.join("textures", os.path.basename(dds_path))
+        return True, f"diffuse -> {os.path.basename(dds_path)}"
+
+    except Exception as exc:
+        return False, f"texture setup skipped: {exc}"
 
 
 def import_mesh_file(filepath, mesh_name="AI_Generated_Mesh"):
@@ -460,10 +761,24 @@ def import_mesh_file(filepath, mesh_name="AI_Generated_Mesh"):
         obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None
         if obj:
             obj.name = mesh_name
+            # Wire any baked/embedded texture onto disk + into the material so the
+            # NIF export carries a diffuse automatically.  Advisory: never fatal.
+            try:
+                _tex_ok, _tex_msg = _ensure_textures_on_disk(obj, filepath)
+                print(f"[Hunyuan3D] TEXGEN: {_tex_msg}")
+            except Exception as _te:
+                print(f"[Hunyuan3D] TEXGEN: texture hook error ({_te})")
+            # Snapshot the raw generated mesh so the evolution monitor can learn
+            # from whatever you change afterward (poly cuts, downscale, cleanup).
+            try:
+                from . import fo4_mesh_evolution as _evo
+                _evo.tag_baseline(obj, source_image=filepath)
+            except Exception as _be:
+                print(f"[Hunyuan3D] evolution baseline skipped ({_be})")
             return True, obj
         else:
             return False, "Import succeeded but no object was created"
-            
+
     except Exception as e:
         return False, f"Error importing mesh: {str(e)}"
 
@@ -547,9 +862,40 @@ def clear_availability_cache():
 
 
 
-# ---------------------------------------------------------------------------
-# FO4 post-processing integration
-# ---------------------------------------------------------------------------
+def _run_inference_subprocess(script_path: str, label: str, timeout: int = 3600) -> tuple:
+    """Run a Python inference script as a subprocess, streaming output to System Console.
+
+    Returns (returncode, combined_output_str).
+    Times out after *timeout* seconds (default 1 hour — first run downloads weights).
+    Output is printed line-by-line as it arrives so progress is visible immediately.
+    """
+    import time as _time
+    proc = subprocess.Popen(
+        [sys.executable, script_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    lines = []
+    deadline = _time.monotonic() + timeout
+    print(f"[Hunyuan3D] {label} — streaming output (timeout {timeout//60} min):")
+    try:
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            lines.append(line)
+            print(f"[Hunyuan3D] {line}")
+            if _time.monotonic() > deadline:
+                proc.kill()
+                proc.wait()
+                raise subprocess.TimeoutExpired(script_path, timeout)
+    except subprocess.TimeoutExpired:
+        raise
+    except Exception:
+        pass
+    proc.wait()
+    return proc.returncode, "\n".join(lines)
+
 
 def _fo4_post_process(obj, target_polys: int = 10000, name: str = "") -> tuple:
     """Apply full FO4 post-processing to a generated mesh.

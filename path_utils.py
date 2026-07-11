@@ -93,13 +93,16 @@ def candidate_paths(*rel_paths: str) -> list[str]:
         # Drive-relative
         for drive in drives:
             _add(os.path.join(drive, rel))
+            _add(os.path.join(drive, "blender_tools", rel))   # addon auto-installer default
             _add(os.path.join(drive, "Projects", rel))
             if username:
                 _add(os.path.join(drive, "Users", username, rel))
                 _add(os.path.join(drive, "Users", username, "Projects", rel))
+                _add(os.path.join(drive, "Users", username, "blender_tools", rel))
 
-        # Bundled inside the addon
+        # Bundled inside the addon (and its tools/ subfolder)
         _add(os.path.join(addon_dir, rel))
+        _add(os.path.join(addon_dir, "tools", rel))
 
     return results
 

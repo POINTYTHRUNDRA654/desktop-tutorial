@@ -116,6 +116,11 @@ class TRIExportHelpers:
             return False, "No morph shape keys found (only Basis key present)"
 
         n_verts = len(obj.data.vertices)
+        if n_verts > 65535:
+            return False, (
+                f"Mesh has {n_verts:,} vertices — FO4 .tri format uses uint16 indices "
+                "(max 65,535). Decimate or split the mesh before exporting."
+            )
 
         # ── Build triangulated face list ───────────────────────────────────────
         depsgraph = bpy.context.evaluated_depsgraph_get()

@@ -29,6 +29,24 @@ def _safe_import(name):
 fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
+automation_system     = _safe_import("automation_system")
+
+# Cache for macro list — avoids a disk read on every panel redraw
+import time as _time
+_macros_cache: list = []
+_macros_cache_time: float = 0.0
+_MACROS_CACHE_TTL: float = 5.0  # seconds
+
+
+def _get_macros_cached():
+    global _macros_cache, _macros_cache_time
+    if automation_system and (_time.time() - _macros_cache_time) >= _MACROS_CACHE_TTL:
+        try:
+            _macros_cache = automation_system.AutomationSystem.get_all_macros()
+        except Exception:
+            _macros_cache = []
+        _macros_cache_time = _time.time()
+    return _macros_cache
 
 
 class FO4_PT_VegetationPanel(_FO4SubPanel):
@@ -118,21 +136,43 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         # Wind animation
         box = layout.box()
         box.label(text="Wind Animation", icon='FORCE_WIND')
-        row = box.row()
-        row.enabled = bool(obj and obj.type == 'MESH')
-        row.operator("fo4.generate_wind_weights", text="Generate Wind Weights", icon='WPAINT_HLT')
-        row2 = box.row()
-        row2.enabled = bool(obj and obj.type == 'MESH')
-        row2.operator("fo4.apply_wind_animation", text="Apply Wind Animation", icon='ANIM')
-        row3 = box.row()
-        row3.enabled = bool([o for o in context.selected_objects if o.type == 'MESH'])
-        row3.operator("fo4.batch_apply_wind_animation", text="Batch: Wind (Selected)", icon='PARTICLES')
+        has_veg = bool(obj and obj.type == 'MESH')
+        has_sel = bool([o for o in context.selected_objects if o.type == 'MESH'])
+        # Primary: Smart auto-detect (correct path for vegetation)
+        smart_row = box.row()
+        smart_row.enabled = has_veg
+        smart_row.scale_y = 1.2
+        smart_row.operator("fo4.smart_wind_setup", text="Smart Wind Setup (Auto)", icon='FORCE_WIND')
+        # Manual fine-grained controls
+        col = box.column(align=True)
+        col.enabled = has_veg
+        r1 = col.row(align=True)
+        r1.operator("fo4.vegetation_wind_setup", text="Vegetation Wind (Vertex Groups)", icon='PARTICLES')
+        r1.operator("fo4.generate_wind_weights", text="", icon='WPAINT_HLT')
+        r2 = col.row()
+        r2.enabled = has_sel
+        r2.operator("fo4.batch_apply_wind_animation", text="Batch: Wind Anim (Selected)", icon='ANIM')
+
+        # Leaf card setup (one-click for AI-generated foliage)
+        box = layout.box()
+        box.label(text="Leaf Cards (Alpha Cutout Layer)", icon='OUTLINER_OB_SURFACE')
+        has_mesh = bool(obj and obj.type == 'MESH')
+        lc_row = box.row()
+        lc_row.enabled = has_mesh
+        lc_row.scale_y = 1.3
+        lc_row.operator("fo4.setup_leaf_card",
+                        text="Set Up as Leaf Card", icon='MATERIAL')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Decimate + alpha-clip material + wind weights", icon='INFO')
+        sub.label(text="Use for: leaves, small foliage, vine leaves", icon='INFO')
+        sub.label(text="3D stems/roots/trunks → use normal export path", icon='INFO')
 
         # Material setup
         box = layout.box()
-        box.label(text="Vegetation Material", icon='MATERIAL')
+        box.label(text="Vegetation Material (Manual)", icon='MATERIAL')
         row = box.row()
-        row.enabled = bool(obj and obj.type == 'MESH')
+        row.enabled = has_mesh
         row.operator("fo4.setup_vegetation_material",
                      text="Setup Vegetation Material", icon='NODE_MATERIAL')
         sub = box.column(align=True)
@@ -344,10 +384,9 @@ class FO4_PT_AutomationMacrosPanel(_FO4SubPanel):
         layout = self.layout
         scene = context.scene
 
-        try:
-            from . import automation_system as _automation_system
-        except Exception:
-            _automation_system = None
+        if not hasattr(scene, 'fo4_is_recording'):
+            layout.label(text="Loading automation system...", icon='TIME')
+            return
 
         # Recording controls
         box = layout.box()
@@ -355,8 +394,8 @@ class FO4_PT_AutomationMacrosPanel(_FO4SubPanel):
 
         if scene.fo4_is_recording:
             box.label(text="● RECORDING", icon='RADIOBUT_ON')
-            if _automation_system:
-                action_count = len(_automation_system.AutomationSystem.recorded_actions)
+            if automation_system:
+                action_count = len(automation_system.AutomationSystem.recorded_actions)
                 box.label(text=f"Actions recorded: {action_count}")
             box.operator("fo4.stop_recording", text="Stop Recording", icon='CANCEL')
         else:
@@ -365,7 +404,7 @@ class FO4_PT_AutomationMacrosPanel(_FO4SubPanel):
 
         # Save macro
         if not scene.fo4_is_recording:
-            if _automation_system and _automation_system.AutomationSystem.recorded_actions:
+            if automation_system and automation_system.AutomationSystem.recorded_actions:
                 save_box = layout.box()
                 save_box.label(text="Save Recorded Macro", icon='FILE_NEW')
                 save_box.operator("fo4.save_macro", text="Save as Macro", icon='FILE_TICK')
@@ -376,7 +415,7 @@ class FO4_PT_AutomationMacrosPanel(_FO4SubPanel):
         template_box.operator("fo4.execute_workflow_template", text="Execute Template", icon='PLAY')
 
         # Saved macros
-        macros = _automation_system.AutomationSystem.get_all_macros() if _automation_system else []
+        macros = _get_macros_cached()
 
         if macros:
             macro_box = layout.box()
@@ -412,6 +451,10 @@ class FO4_PT_PostProcessingPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+
+        if not hasattr(scene, 'fo4_pp_preset'):
+            layout.label(text="Loading post-processing...", icon='TIME')
+            return
 
         # ── Setup & Presets ──────────────────────────────────────────────────
         setup_box = layout.box()
@@ -684,7 +727,8 @@ class FO4_PT_SceneDiagnosticsPanel(_FO4SubPanel):
         # ── Export report ────────────────────────────────────────────────────
         exp_box = layout.box()
         exp_box.label(text="Export Report", icon='FILE_TEXT')
-        exp_box.prop(scene, "fo4_diag_report_path", text="")
+        if hasattr(scene, "fo4_diag_report_path"):
+            exp_box.prop(scene, "fo4_diag_report_path", text="")
         exp_box.operator("fo4.export_diagnostics_report",
                          text="Save Diagnostics Report", icon='EXPORT')
 
@@ -899,19 +943,6 @@ class FO4_PT_ModPackagingPanel(_FO4SubPanel):
         hint = fo4e_col.column(align=True)
         hint.scale_y = 0.72
         hint.label(text="  Edit .esp/.esm, clean masters, ESL-flag plugins · Nexus 2737")
-
-        tools_box.separator(factor=0.3)
-
-        # CAO
-        cao_col = tools_box.column(align=True)
-        cao_col.operator(
-            "fo4.open_cathedral_assets_optimizer",
-            text="Cathedral Assets Optimizer  (textures/meshes)",
-            icon='URL',
-        )
-        hint2 = cao_col.column(align=True)
-        hint2.scale_y = 0.72
-        hint2.label(text="  Compress DDS textures to BC7/BC1, fix mesh headers · SSE Nexus 23316")
 
         tools_box.separator(factor=0.3)
 

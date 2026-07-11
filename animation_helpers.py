@@ -8,6 +8,16 @@ from mathutils import Vector
 # preview handler stored at module scope
 _wind_preview_handler = None
 
+# On addon reload the previous module's handler closure may still be registered.
+# Remove any stale handlers we tagged with _mossy_wind_preview before resetting.
+try:
+    _stale = [h for h in bpy.app.handlers.frame_change_post
+              if getattr(h, '_mossy_wind_preview', False)]
+    for _h in _stale:
+        bpy.app.handlers.frame_change_post.remove(_h)
+except Exception:
+    pass
+
 
 # ---------------------------------------------------------------------------
 # Blender Action API compatibility shim
@@ -151,6 +161,8 @@ class AnimationHelpers:
         # Create armature
         bpy.ops.object.armature_add(location=(0, 0, 0))
         armature_obj = bpy.context.active_object
+        if armature_obj is None:
+            raise RuntimeError("armature_add() did not produce an active object — check context mode")
         armature_obj.name = "FO4_Armature"
         armature = armature_obj.data
         armature.name = "FO4_Armature"
@@ -512,7 +524,10 @@ class AnimationHelpers:
                 w = (val - minv) / diff
                 if invert:
                     w = 1.0 - w
-                vg.add([i], w, 'REPLACE')
+                # Floor at 0.001: pure 0.0 weight is treated as "unweighted"
+                # by PyNifly's exporter and causes a hard error.  0.001 is
+                # imperceptibly small and won't cause visible root-sway.
+                vg.add([i], max(0.001, w), 'REPLACE')
 
         return True, f"Wind weights ('{group_name}') generated"
 
@@ -614,17 +629,57 @@ class AnimationHelpers:
         # versions: flat action.fcurves (< 4.4) or the layered-strip fcurves
         # (≥ 4.4 / 5.0) where action.fcurves no longer exists.
         fcurves = _get_action_fcurves(action)
-        fcurve = fcurves.new(data_path=data_path, index=idx)
-        fcurve.keyframe_points.add(count=2)
-        fcurve.keyframe_points[0].co = (0.0, 0.0)
-        fcurve.keyframe_points[1].co = (period, 0.0)
-        for kp in fcurve.keyframe_points:
-            kp.interpolation = 'LINEAR'
-        modf = fcurve.modifiers.new(type='NOISE')
-        modf.strength = amplitude
-        modf.scale = period
-        modf.phase = 0.0
-        modf.depth = 0
+
+        # PyNifly _parse_transform_curves requires all three euler axes to exist
+        # (eu[0/1/2]).  It also requires BEZIER keyframes with non-degenerate
+        # handles: LINEAR → NotImplementedError; flat BEZIER with auto-handles
+        # → ZeroDivisionError in _key_blender_to_nif when handle.x == co.x.
+        #
+        # Primary axis: sine-wave keyframes (no NOISE modifier — PyNifly reads
+        # raw keyframe data and ignores fcurve modifiers entirely).
+        # Filler axes: flat BEZIER with explicit FREE handles that are offset
+        # from the keyframe X so _key_blender_to_nif never divides by zero.
+        for axis_idx in range(3):
+            fc = fcurves.new(data_path=data_path, index=axis_idx)
+            if axis_idx == idx:
+                # Sine-wave: 5 points per 60-frame cycle (0, +A, 0, -A, 0)
+                n_cyc = max(1, round(period / 60))
+                cyc_len = period / n_cyc
+                kf_data = []
+                for c in range(n_cyc):
+                    base = c * cyc_len
+                    kf_data += [(base, 0.0), (base + cyc_len / 4, amplitude),
+                                (base + cyc_len / 2, 0.0),
+                                (base + 3 * cyc_len / 4, -amplitude)]
+                kf_data.append((period, 0.0))
+
+                fc.keyframe_points.add(count=len(kf_data))
+                for i, (t, v) in enumerate(kf_data):
+                    kp = fc.keyframe_points[i]
+                    kp.co = (t, v)
+                    kp.interpolation = 'BEZIER'
+                fc.update()
+                # VECTOR handles on end keyframes: Blender computes them toward
+                # the neighbour so handle.x ≠ co.x → no ZeroDivisionError.
+                fc.keyframe_points[0].handle_left_type   = 'VECTOR'
+                fc.keyframe_points[-1].handle_right_type = 'VECTOR'
+                fc.update()
+                fcurve = fc
+            else:
+                # Filler axes: BEZIER with FREE handles explicitly offset so
+                # handle.x ≠ co.x on both keyframes.
+                fc.keyframe_points.add(count=2)
+                kp0, kp1 = fc.keyframe_points[0], fc.keyframe_points[1]
+                kp0.co = (0.0, 0.0)
+                kp1.co = (period, 0.0)
+                kp0.interpolation = kp1.interpolation = 'BEZIER'
+                third = period / 3
+                kp0.handle_left_type  = kp0.handle_right_type = 'FREE'
+                kp0.handle_left   = (-third, 0.0)
+                kp0.handle_right  = ( third, 0.0)
+                kp1.handle_left_type  = kp1.handle_right_type = 'FREE'
+                kp1.handle_left   = (period - third, 0.0)
+                kp1.handle_right  = (period + third, 0.0)
         scene = bpy.context.scene
         scene.frame_start = 0
         scene.frame_end = int(period)
@@ -652,6 +707,7 @@ class AnimationHelpers:
                     bone = obj.pose.bones['Wind']
                     idx = {'X':0,'Y':1,'Z':2}.get(axis.upper(),0)
                     bone.rotation_euler[idx] += speed
+        _handler._mossy_wind_preview = True
         bpy.app.handlers.frame_change_post.append(_handler)
         _wind_preview_handler = _handler
         return True, "Wind preview started"
@@ -811,6 +867,14 @@ class AnimationHelpers:
         if removed:
             return True, f"Emittance pulse removed from '{mat.name}'"
         return False, f"No GlowPulse action found for '{mat.name}'"
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass
 
 
 def _fo4_post_process(obj, target_polys: int = 1000):

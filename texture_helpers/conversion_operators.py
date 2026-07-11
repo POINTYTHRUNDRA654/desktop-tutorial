@@ -23,6 +23,11 @@ nvtt_helpers = _safe_import("nvtt_helpers")
 notification_system = _safe_import("notification_system")
 
 
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if notification_system:
+        notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
 class FO4_OT_ConvertTextureToDDS(Operator):
     """Convert a texture to DDS format using NVIDIA Texture Tools"""
     bl_idname = "fo4.convert_texture_to_dds"
@@ -77,6 +82,9 @@ class FO4_OT_ConvertTextureToDDS(Operator):
     )
 
     def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
         if not self.filepath:
             self.report({'ERROR'}, "No texture file selected")
             return {'CANCELLED'}
@@ -92,12 +100,12 @@ class FO4_OT_ConvertTextureToDDS(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Texture converted to DDS successfully", 'INFO'
             )
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -131,6 +139,9 @@ class FO4_OT_ConvertObjectTexturesToDDS(Operator):
     )
 
     def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj:
             self.report({'ERROR'}, "No object selected")
@@ -148,7 +159,7 @@ class FO4_OT_ConvertObjectTexturesToDDS(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
 
             print("\n" + "="*70)
             print("TEXTURE CONVERSION RESULTS")
@@ -160,7 +171,7 @@ class FO4_OT_ConvertObjectTexturesToDDS(Operator):
             print("="*70 + "\n")
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -176,10 +187,13 @@ class FO4_OT_TestDDSConverters(Operator):
     bl_label = "Self-Test DDS Converters"
 
     def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
         tool, tool_path, msg = nvtt_helpers.NVTTHelpers._find_converter("auto")
         if not tool:
             self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            _notify(msg, 'ERROR')
             return {'CANCELLED'}
 
         import tempfile
@@ -225,11 +239,11 @@ class FO4_OT_TestDDSConverters(Operator):
                 size_kb = os.path.getsize(dst) / 1024
                 detail = f"DDS wrote {size_kb:.1f} KB via {tool_path}"
                 self.report({'INFO'}, detail)
-                notification_system.FO4_NotificationSystem.notify(detail, 'INFO')
+                _notify(detail, 'INFO')
                 return {'FINISHED'}
 
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
 
@@ -239,6 +253,9 @@ class FO4_OT_CheckNVTTInstallation(Operator):
     bl_label = "Check NVTT Installation"
 
     def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
         success, message = nvtt_helpers.NVTTHelpers.check_nvtt_installation()
         tex_success, tex_message = nvtt_helpers.NVTTHelpers.check_texconv_installation()
 

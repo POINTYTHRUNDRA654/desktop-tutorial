@@ -1,0 +1,36 @@
+{
+  "game": "Fallout4",
+  "export_format": "NIF",
+  "version": "20.2.0.7",
+  "user_version": 12,
+  "user_version_2": 83,
+  "geometry": {
+    "triangulate": true,
+    "apply_modifiers": true,
+    "remove_doubles": true,
+    "recalculate_normals": true,
+    "auto_smooth_angle": 30,
+    "enable_tangents": true
+  },
+  "materials": {
+    "material_type": "BGSM",
+    "embed_material_path": false,
+    "use_external_bgsm": true,
+    "texture_format": "DDS",
+    "basecolor": "",
+    "normal": "",
+    "roughness": "",
+    "metallic": "",
+    "ao": ""
+  },
+  "collision": {
+    "type": "bhkConvexShape",
+    "mass": 1,
+    "motion_system": "MO_SYS_KEYFRAMED",
+    "enable_havok": true
+  },
+  "nodes": {
+    "root": "BSFadeNode",
+    "enable_skinning": false
+  }
+}

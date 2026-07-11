@@ -1,0 +1,283 @@
+{
+  "label": "FO4 Creature Creation Reference \u2014 All Creature Types",
+  "creature_templates": {
+    "deathclaw_quadruped": {
+      "label": "Deathclaw-Style (Large Quadruped Monster)",
+      "skeleton": "Data\\Meshes\\Actors\\Deathclaw\\CharacterAssets\\Skeleton.nif",
+      "behavior": "Deathclaw_Behavior.hkx",
+      "animations": [
+        "Idle",
+        "WalkForward",
+        "RunForward",
+        "AttackLeft",
+        "AttackRight",
+        "AttackPower",
+        "Roar",
+        "HitFront",
+        "HitBack",
+        "Death"
+      ],
+      "best_for": [
+        "Dragons",
+        "Demons",
+        "Mutant beasts",
+        "Large monsters",
+        "Alien predators"
+      ]
+    },
+    "dog_mammal": {
+      "label": "Mutant Animal (Quadruped Mammal)",
+      "skeleton": [
+        "Dog\\Skeleton.nif",
+        "Radstag\\Skeleton.nif",
+        "Brahmin\\Skeleton.nif"
+      ],
+      "behavior": [
+        "Dog_Behavior.hkx",
+        "Radstag_Behavior.hkx"
+      ],
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "AttackBite",
+        "AttackKick",
+        "Hit",
+        "Death"
+      ],
+      "best_for": [
+        "Wolves",
+        "Bears",
+        "Mutant dogs",
+        "Mutant deer",
+        "Mammal-like creatures"
+      ]
+    },
+    "robot": {
+      "label": "Robot Creature (Biped or Quadruped)",
+      "skeleton": [
+        "Protectron\\Skeleton.nif",
+        "Assaultron\\Skeleton.nif",
+        "SentryBot\\Skeleton.nif"
+      ],
+      "behavior": [
+        "Protectron_Behavior.hkx",
+        "Assaultron_Behavior.hkx"
+      ],
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "AttackLaser",
+        "AttackPunch",
+        "Shutdown",
+        "Death"
+      ],
+      "best_for": [
+        "Mechs",
+        "Androids",
+        "Combat robots",
+        "Sci-fi creatures"
+      ]
+    },
+    "alien_humanoid": {
+      "label": "Alien / Humanoid Monster",
+      "skeleton": [
+        "FeralGhoul\\Skeleton.nif",
+        "Human\\Skeleton.nif",
+        "SuperMutant\\Skeleton.nif"
+      ],
+      "behavior": [
+        "Ghoul_Behavior.hkx",
+        "Human_Behavior.hkx"
+      ],
+      "animations": [
+        "Idle",
+        "Walk",
+        "Run",
+        "AttackClaw",
+        "AttackPunch",
+        "Roar",
+        "Hit",
+        "Death"
+      ],
+      "best_for": [
+        "Aliens",
+        "Humanoid mutants",
+        "Zombies",
+        "Intelligent monsters"
+      ]
+    },
+    "insect_flying": {
+      "label": "Insect Creature (Flying or Crawling)",
+      "skeleton": [
+        "Radroach\\Skeleton.nif",
+        "Bloatfly\\Skeleton.nif",
+        "Stingwing\\Skeleton.nif"
+      ],
+      "behavior": [
+        "Bloatfly_Behavior.hkx",
+        "Stingwing_Behavior.hkx"
+      ],
+      "animations": [
+        "Idle",
+        "Hover",
+        "FlyForward",
+        "AttackSting",
+        "AttackSpit",
+        "Hit",
+        "Death"
+      ],
+      "best_for": [
+        "Giant insects",
+        "Flying monsters",
+        "Mutated bugs"
+      ]
+    },
+    "aquatic_crawler": {
+      "label": "Aquatic / Crawler",
+      "skeleton": [
+        "Mirelurk\\Skeleton.nif",
+        "MirelurkKing\\Skeleton.nif"
+      ],
+      "behavior": [
+        "Mirelurk_Behavior.hkx"
+      ],
+      "animations": [
+        "Idle",
+        "Crawl",
+        "AttackClaw",
+        "AttackGrab",
+        "Hit",
+        "Death"
+      ],
+      "best_for": [
+        "Crabs",
+        "Sea monsters",
+        "Crawling mutants"
+      ]
+    }
+  },
+  "animation_names": {
+    "movement": [
+      "Idle.hkx",
+      "WalkForward.hkx",
+      "RunForward.hkx",
+      "TurnLeft.hkx",
+      "TurnRight.hkx",
+      "Hover.hkx",
+      "FlyForward.hkx",
+      "CrawlForward.hkx"
+    ],
+    "attacks": [
+      "AttackLeft.hkx",
+      "AttackRight.hkx",
+      "AttackPower.hkx",
+      "AttackSpecial.hkx",
+      "AttackBite.hkx",
+      "AttackClaw.hkx",
+      "AttackPunch.hkx",
+      "AttackKick.hkx",
+      "AttackSting.hkx",
+      "AttackSpit.hkx",
+      "AttackLaser.hkx"
+    ],
+    "hit": [
+      "HitFront.hkx",
+      "HitBack.hkx",
+      "HitLeft.hkx",
+      "HitRight.hkx"
+    ],
+    "death": [
+      "Death.hkx"
+    ],
+    "special": [
+      "Roar.hkx",
+      "Taunt.hkx",
+      "Sleep.hkx",
+      "Wake.hkx",
+      "Shutdown.hkx"
+    ]
+  },
+  "behavior_graph": {
+    "states": [
+      "Idle",
+      "Walk",
+      "Run",
+      "Turn",
+      "AttackLeft",
+      "AttackRight",
+      "AttackPower",
+      "AttackSpecial",
+      "HitFront",
+      "HitBack",
+      "Death",
+      "Special"
+    ],
+    "transitions": [
+      "Idle\u2192Walk",
+      "Walk\u2192Run",
+      "Run\u2192Attack",
+      "Attack\u2192Idle",
+      "Hit\u2192Idle",
+      "Death\u2192End"
+    ],
+    "events": [
+      "FootLeft",
+      "FootRight",
+      "AttackStart",
+      "AttackImpact",
+      "RoarStart",
+      "HitStart",
+      "DeathStart"
+    ]
+  },
+  "sound_descriptors": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Attack",
+    "Roar",
+    "Hit",
+    "Death"
+  ],
+  "fx_nodes": [
+    "FXBlood",
+    "FXDust",
+    "FXImpact",
+    "FXRoar",
+    "FXStepLeft",
+    "FXStepRight",
+    "FXSting",
+    "FXSpit",
+    "FXLaser"
+  ],
+  "ai": {
+    "packages": [
+      "Wander",
+      "Patrol",
+      "Guard",
+      "Ambush",
+      "Attack",
+      "Flee"
+    ],
+    "aggression": [
+      "Unaggressive",
+      "Aggressive",
+      "Very Aggressive",
+      "Frenzied"
+    ],
+    "confidence": [
+      "Cowardly",
+      "Cautious",
+      "Average",
+      "Brave",
+      "Foolhardy"
+    ],
+    "assistance": [
+      "Helps Nobody",
+      "Helps Allies",
+      "Helps Friends and Allies"
+    ]
+  }
+}

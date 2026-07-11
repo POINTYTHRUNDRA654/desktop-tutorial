@@ -59,7 +59,7 @@ _LOD_RATIOS = {
     "LOD0": 1.00,
     "LOD1": 0.30,
     "LOD2": 0.12,
-    "LOD3": 0.04,
+    "LOD3": 0.08,
 }
 
 # FO4 recommended max triangles per LOD level
@@ -67,7 +67,7 @@ _LOD_MAX_TRIS = {
     "LOD0": 65535,
     "LOD1": 8000,
     "LOD2": 3000,
-    "LOD3": 500,
+    "LOD3": 1000,
 }
 
 
@@ -93,11 +93,31 @@ def generate_lod_mesh(source_obj, ratio: float, lod_name: str) -> "tuple[object,
     new_mesh.name = lod_name
     bpy.context.collection.objects.link(new_obj)
 
+    # Explicitly carry material slots from source (handles both DATA- and
+    # OBJECT-linked slots; ensures PyNifly-imported textures travel with the LOD)
+    new_obj.data.materials.clear()
+    for slot in source_obj.material_slots:
+        new_obj.data.materials.append(slot.material)
+
+    # Strip shape keys before decimating — Blender refuses to apply any
+    # modifier to a mesh that has shape keys (RuntimeError).  LOD copies never
+    # need shape keys (they are distance-based mesh replacements, not morphs).
+    bpy.context.view_layer.objects.active = new_obj
+    new_obj.select_set(True)
+    if new_obj.data.shape_keys:
+        try:
+            bpy.ops.object.shape_key_remove(all=True)
+        except Exception:
+            pass
+
     # Apply decimate modifier
     mod = new_obj.modifiers.new("FO4_LOD_Decimate", 'DECIMATE')
     mod.decimate_type = 'COLLAPSE'
     mod.ratio = max(0.001, min(1.0, ratio))
-    mod.use_collapse_triangulate = True
+    # use_collapse_triangulate=True forces triangulation before edge collapse,
+    # which destroys quad flow on organic/plant meshes — leave it False.
+    mod.use_collapse_triangulate = False
+    mod.use_symmetry = False
 
     # Apply modifier
     bpy.context.view_layer.objects.active = new_obj
@@ -274,7 +294,7 @@ class FO4_OT_GenerateLODs(Operator):
     )
     generate_lod1: BoolProperty(name="LOD1 (30%)", default=True)
     generate_lod2: BoolProperty(name="LOD2 (12%)", default=True)
-    generate_lod3: BoolProperty(name="LOD3 (4%)",  default=True)
+    generate_lod3: BoolProperty(name="LOD3 (8%)",  default=True)
     export_nifs: BoolProperty(
         name="Export NIFs",
         description="Export each LOD as a separate NIF to mod folder",
@@ -282,7 +302,7 @@ class FO4_OT_GenerateLODs(Operator):
     )
     lod1_ratio: FloatProperty(name="LOD1 Ratio", default=0.30, min=0.05, max=0.95)
     lod2_ratio: FloatProperty(name="LOD2 Ratio", default=0.12, min=0.01, max=0.50)
-    lod3_ratio: FloatProperty(name="LOD3 Ratio", default=0.04, min=0.005, max=0.20)
+    lod3_ratio: FloatProperty(name="LOD3 Ratio", default=0.08, min=0.005, max=0.20)
     collision_from_lod3: BoolProperty(
         name="Auto-Collision from LOD3",
         description=(
@@ -335,7 +355,7 @@ class FO4_OT_GenerateLODs(Operator):
             if n_tris > 0:
                 self.lod1_ratio = min(0.30, _LOD_MAX_TRIS["LOD1"] / n_tris)
                 self.lod2_ratio = min(0.12, _LOD_MAX_TRIS["LOD2"] / n_tris)
-                self.lod3_ratio = min(0.04, _LOD_MAX_TRIS["LOD3"] / n_tris)
+                self.lod3_ratio = min(0.08, _LOD_MAX_TRIS["LOD3"] / n_tris)
 
             # Auto-disable collision only for ground-cover types (GRASS, MUSHROOM).
             # Trees and large custom vegetation (VEGETATION/FLORA) still need a
@@ -584,32 +604,33 @@ class FO4_OT_GenerateLODs(Operator):
                     self.report({'WARNING'}, f"Collision from LOD3 failed: {e}")
             else:
                 self.report({'WARNING'},
-                    "LOD3 not generated — enable 'LOD3 (4%)' to use it as collision source.")
+                    "LOD3 not generated — enable 'LOD3 (8%)' to use it as collision source.")
 
         # ── Texture / material info ───────────────────────────────────────────
-        # Report which textures will travel into the exported LOD NIFs.
-        # The material slots are copied from the source by obj.copy(), so
-        # PyNifly / the native writer will pick them up automatically.
-        if obj.material_slots:
-            mat = obj.material_slots[0].material
+        # Report which textures are confirmed on the LOD objects.
+        # generate_lod_mesh() explicitly copies material slots from the source,
+        # so PyNifly will see the same textures on each LOD as on the original.
+        for lod_obj in lod_objects:
+            mat = (lod_obj.material_slots[0].material
+                   if lod_obj.material_slots else None)
             if mat and mat.use_nodes:
                 tex_nodes = [
                     n for n in mat.node_tree.nodes
                     if n.type == 'TEX_IMAGE' and n.image
                 ]
                 if tex_nodes:
-                    tex_names = ", ".join(
-                        n.image.name for n in tex_nodes[:4]
-                    )
+                    tex_names = ", ".join(n.image.name for n in tex_nodes[:3])
                     steps.append(
-                        f"Textures from '{mat.name}': {tex_names}"
-                        + (" (+ more)" if len(tex_nodes) > 4 else "")
+                        f"{lod_obj.name}: {len(tex_nodes)} texture(s) — {tex_names}"
+                        + (" …" if len(tex_nodes) > 3 else "")
                     )
                 else:
                     steps.append(
-                        f"Material '{mat.name}' has no image texture nodes — "
-                        "LOD NIFs will export without embedded textures."
+                        f"{lod_obj.name}: no image texture nodes on '{mat.name}' — "
+                        "assign textures before export"
                     )
+            elif mat:
+                steps.append(f"{lod_obj.name}: material '{mat.name}' has no nodes — assign textures")
 
         # ── Export NIFs ───────────────────────────────────────────────────────
         # Skinned meshes are excluded: the Decimate modifier strips the skin

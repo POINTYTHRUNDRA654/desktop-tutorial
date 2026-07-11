@@ -84,13 +84,14 @@ _WIND_GROUP_NAMES        = frozenset({"Wind", "wind", "WIND",
                                       "WindStiff", "windstiff"})
 
 # Custom-property keys written by the analyzer
-_PROP_NEEDS_LOD       = "fo4_needs_lod"
-_PROP_NEEDS_COLLISION = "fo4_needs_collision"
-_PROP_NEEDS_ANIM      = "fo4_needs_animation"
-_PROP_NEEDS_MATERIAL  = "fo4_needs_material"
-_PROP_ASSET_CLASS     = "fo4_asset_class"
-_PROP_TRI_COUNT       = "fo4_tri_count"
-_PROP_PROCESSED       = "fo4_pipeline_processed"
+_PROP_NEEDS_LOD        = "fo4_needs_lod"
+_PROP_NEEDS_COLLISION  = "fo4_needs_collision"
+_PROP_NEEDS_ANIM       = "fo4_needs_animation"
+_PROP_NEEDS_MATERIAL   = "fo4_needs_material"
+_PROP_NEEDS_OCCLUSION  = "fo4_needs_occlusion"
+_PROP_ASSET_CLASS      = "fo4_asset_class"
+_PROP_TRI_COUNT        = "fo4_tri_count"
+_PROP_PROCESSED        = "fo4_pipeline_processed"
 
 
 # ---------------------------------------------------------------------------
@@ -140,10 +141,22 @@ def _has_wind_weights(obj) -> bool:
     return any(vg.name in _WIND_GROUP_NAMES for vg in obj.vertex_groups)
 
 
+def _has_occlusion(obj, scene_objects) -> bool:
+    """Return True if an OCL_ occlusion mesh already exists for this object."""
+    base = obj.name.upper().replace("_LOD0", "").replace("_MESH", "")
+    for o in scene_objects:
+        if o.type != "MESH" or not o.name.upper().startswith("OCL_"):
+            continue
+        ocl_target = o.name.upper().replace("OCL_", "").replace("_0", "").rstrip("0123456789_")
+        if base.startswith(ocl_target) or ocl_target.startswith(base[:8]):
+            return True
+    return False
+
+
 def _is_lod_object(obj) -> bool:
     name = obj.name.upper()
     return any(s in name for s in ("_LOD1", "_LOD2", "_LOD3", "_LOD4",
-                                    "UCX_", "COLLISION_"))
+                                    "UCX_", "COLLISION_", "OCL_"))
 
 
 def classify_asset(obj, scene_objects=None) -> Dict:
@@ -246,6 +259,16 @@ def classify_asset(obj, scene_objects=None) -> Dict:
         needs_animation = "rig"
         reasons.append("Mesh is classified as skinned but has no armature")
 
+    # ── Occlusion mesh needs ────────────────────────────────────────────────
+    already_has_ocl = _has_occlusion(obj, scene_objects)
+    if (asset_class in ("STATIC", "ARCHITECTURE")
+            and tri_count >= _LOD_REQUIRED_THRESHOLD
+            and not already_has_ocl):
+        needs_occlusion = True
+        reasons.append(f"Occlusion mesh recommended ({tri_count:,} tris)")
+    else:
+        needs_occlusion = False
+
     # ── Material needs ──────────────────────────────────────────────────────
     has_diffuse = False
     if obj.active_material and obj.active_material.use_nodes:
@@ -263,9 +286,11 @@ def classify_asset(obj, scene_objects=None) -> Dict:
         "needs_lod":        needs_lod,
         "needs_collision":  needs_collision,
         "needs_animation":  needs_animation,
+        "needs_occlusion":  needs_occlusion,
         "needs_material":   needs_material,
         "has_lod":          already_has_lod,
         "has_collision":    already_has_coll,
+        "has_occlusion":    already_has_ocl,
         "reasons":          reasons,
     }
 
@@ -288,12 +313,13 @@ def analyze_scene(collection=None) -> Dict[str, Dict]:
         analysis = classify_asset(obj, scene_objects)
         results[obj.name] = analysis
         # Write summary to custom properties so other operators can read
-        obj[_PROP_ASSET_CLASS]     = analysis["asset_class"]
-        obj[_PROP_NEEDS_LOD]       = analysis["needs_lod"]
-        obj[_PROP_NEEDS_COLLISION] = analysis["needs_collision"]
-        obj[_PROP_NEEDS_ANIM]      = analysis["needs_animation"] or ""
-        obj[_PROP_NEEDS_MATERIAL]  = analysis["needs_material"]
-        obj[_PROP_TRI_COUNT]       = analysis["tri_count"]
+        obj[_PROP_ASSET_CLASS]      = analysis["asset_class"]
+        obj[_PROP_NEEDS_LOD]        = analysis["needs_lod"]
+        obj[_PROP_NEEDS_COLLISION]  = analysis["needs_collision"]
+        obj[_PROP_NEEDS_ANIM]       = analysis["needs_animation"] or ""
+        obj[_PROP_NEEDS_OCCLUSION]  = analysis["needs_occlusion"]
+        obj[_PROP_NEEDS_MATERIAL]   = analysis["needs_material"]
+        obj[_PROP_TRI_COUNT]        = analysis["tri_count"]
 
     return results
 
@@ -325,13 +351,111 @@ def _run_wind(obj, context) -> Tuple[bool, str]:
         return False, f"Wind weights failed for '{obj.name}': {exc}"
 
 
+def _run_occlusion(obj, context) -> Tuple[bool, str]:
+    """Generate an OCL_ occlusion mesh from the lowest available LOD.
+
+    Takes the lowest-resolution LOD (LOD3 → LOD2 → LOD1 → source), builds a
+    convex hull in Blender-space, then decimates to ≤ 64 faces so the CK can
+    use it for visibility/portal culling without a performance cost.
+    The result is named OCL_{obj.name}, tagged with fo4_occlusion_mesh=True,
+    and parented to obj.
+    """
+    try:
+        import bmesh as _bm
+
+        scene_objects = list(context.scene.objects)
+
+        if _has_occlusion(obj, scene_objects):
+            return True, f"'{obj.name}' already has an occlusion mesh — skipping"
+
+        # Find lowest available LOD as hull source
+        source = obj
+        base_upper = obj.name.upper()
+        for suffix in ("_LOD3", "_LOD2", "_LOD1"):
+            for o in scene_objects:
+                if o.type != "MESH":
+                    continue
+                oname = o.name.upper()
+                if suffix not in oname:
+                    continue
+                candidate_base = oname.replace(suffix, "")
+                if candidate_base == base_upper or base_upper == candidate_base:
+                    source = o
+                    break
+            if source is not obj:
+                break
+
+        # Build convex hull in world space then convert to obj's local space
+        bm = _bm.new()
+        bm.from_mesh(source.data)
+        bm.transform(source.matrix_world)          # → world space
+
+        result = _bm.ops.convex_hull(bm, input=bm.verts, use_existing_faces=True)
+        hull_face_set = frozenset(
+            e for e in result.get("geom", []) if isinstance(e, _bm.types.BMFace)
+        )
+        non_hull = [f for f in bm.faces if f not in hull_face_set]
+        if non_hull:
+            _bm.ops.delete(bm, geom=non_hull, context="FACES")
+        _bm.ops.dissolve_degenerate(bm, dist=0.0001, edges=list(bm.edges))
+        bm.transform(obj.matrix_world.inverted())  # → obj local space
+        bm.normal_update()
+
+        ocl_mesh = bpy.data.meshes.new(f"OCL_{obj.name}")
+        bm.to_mesh(ocl_mesh)
+        bm.free()
+
+        ocl_obj = bpy.data.objects.new(f"OCL_{obj.name}", ocl_mesh)
+        context.scene.collection.objects.link(ocl_obj)
+
+        # Decimate to ≤ 64 faces — convex hulls of simple assets are usually
+        # already under this, but large architecture meshes can be much higher.
+        face_count = len(ocl_mesh.polygons)
+        if face_count > 64:
+            dec = ocl_obj.modifiers.new("OCL_Decimate", "DECIMATE")
+            dec.ratio = max(0.02, min(1.0, 64.0 / face_count))
+            context.view_layer.objects.active = ocl_obj
+            bpy.ops.object.modifier_apply(modifier="OCL_Decimate")
+
+        # Tag and parent — child's verts are already in obj-local space, so
+        # matrix_parent_inverse stays as identity (no hidden offset).
+        ocl_obj["fo4_occlusion_mesh"] = True
+        ocl_obj.parent = obj
+        ocl_obj.matrix_parent_inverse.identity()
+
+        return True, f"Occlusion mesh 'OCL_{obj.name}' created from '{source.name}'"
+    except Exception as exc:
+        return False, f"Occlusion generation failed for '{obj.name}': {exc}"
+
+
 def _run_armor_setup(obj, context) -> Tuple[bool, str]:
-    """Run Auto-Setup Armor for skinned meshes."""
+    """Run Auto-Setup Armor for skinned meshes.
+
+    Rigging/binding always runs.  If PyNifly is not installed the rigging still
+    completes (Blender-side weights are correct), but a warning is appended
+    because the NIF export step will fail without PyNifly — skinned FO4 NIFs
+    require BSSubIndexTriShape which the native writer does not support.
+    """
+    pynifly_ok = True
+    pynifly_warn = ""
+    try:
+        from . import export_helpers as _eh
+        pynifly_ok, pynifly_msg = _eh.ExportHelpers.pynifly_exporter_available()
+        if not pynifly_ok:
+            pynifly_warn = (
+                f" — WARNING: PyNifly failed to load ({pynifly_msg}). "
+                "Skinned/armor NIF export requires PyNifly (BSSubIndexTriShape). "
+                "Try restarting Blender; if the problem persists use "
+                "FO4 Tools panel → Reinstall PyNifly."
+            )
+    except Exception:
+        pass
+
     try:
         context.view_layer.objects.active = obj
         obj.select_set(True)
         bpy.ops.fo4.auto_setup_armor("EXEC_DEFAULT")
-        return True, f"Armor/skinned setup done for '{obj.name}'"
+        return True, f"Armor/skinned setup done for '{obj.name}'" + pynifly_warn
     except Exception as exc:
         return False, f"Armor setup failed for '{obj.name}': {exc}"
 
@@ -342,6 +466,9 @@ def auto_process_object(obj, analysis: Dict, context) -> List[Tuple[bool, str]]:
 
     if analysis.get("needs_lod"):
         steps.append(_run_lod(obj, context))
+
+    if analysis.get("needs_occlusion"):
+        steps.append(_run_occlusion(obj, context))
 
     anim_need = analysis.get("needs_animation")
     if anim_need == "wind":

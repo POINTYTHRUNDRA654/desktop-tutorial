@@ -39,13 +39,18 @@ Every visible mesh needs exactly one per shape. Key fields set by Blender export
 - `Alpha Threshold`: set to 128 for alpha-clip vegetation.
 
 ### BSShaderTextureSet
-Six texture slots (0-indexed):
-- Slot 0: Diffuse (`_d.dds`)
-- Slot 1: Normal + Gloss (`_n.dds`)
-- Slot 2: (unused in FO4)
-- Slot 3: Greyscale/Emittance (`_g.dds`)
-- Slot 4: (unused)
-- Slot 5: Specular (`_s.dds`)
+
+Nine texture slots (0-indexed):
+
+- Slot 0: Diffuse (`_d.dds`) — albedo / color
+- Slot 1: Normal map (`_n.dds`) — tangent-space normals, specular packed in alpha
+- Slot 2: Smooth Spec / Env mask (`_s.dds`) — specular / environment reflection mask
+- Slot 3: Greyscale / Palette (`_g.dds`) — emittance, glow mask, or palette key
+- Slot 4: Glow / Emissive — emissive mask (optional; often same `_g.dds`)
+- Slot 5: Inner Layer Diffuse — used for multi-layer / layered materials
+- Slot 6: Wrinkle detail map
+- Slot 7: Displacement / Height map
+- Slot 8: (variant smooth spec; unused in most vanilla meshes)
 
 All texture paths must be relative to the `Data/` folder and use backslash
 separators: `textures\actors\character\basemale\basemalebody_d.dds`.

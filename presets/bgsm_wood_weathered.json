@@ -1,0 +1,12 @@
+{
+  "material_type": "BGSM",
+  "label": "Wood (Weathered FO4 Style)",
+  "diffuse": "",
+  "normal": "",
+  "smoothness": 0.05,
+  "specular": 0.1,
+  "roughness": 0.9,
+  "metallic": 0.0,
+  "enable_environment_mapping": false,
+  "enable_glow": false
+}

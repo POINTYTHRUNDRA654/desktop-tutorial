@@ -1,0 +1,174 @@
+FO4 Creature Rigging + Animation Pipeline
+==========================================
+
+STEP 1 — Get FO4 creature skeleton
+  File → Import → NIF (Fallout 4)
+  Import skeleton: ON | Import skin weights: ON
+  Examples: Deathclaw, Radroach, Feral Ghoul, Super Mutant, Mirelurk, Brahmin
+  Result: Armature + vanilla creature mesh with vertex groups
+
+STEP 2 — Import your custom creature mesh
+  File → Import → OBJ / FBX / GLB
+  Position to match vanilla creature pose
+  Ctrl+A → Apply All Transforms
+
+STEP 3 — Bind to FO4 skeleton
+  Select creature mesh → Add Modifier → Armature
+  Object: the creature armature (e.g. DeathclawArmature)
+
+STEP 4 — Transfer weights from vanilla creature
+  Select your mesh → Shift-select vanilla mesh (active = yours)
+  Weights → Transfer Weights
+    Source: Selected Mesh (vanilla)   Destination: Active Mesh (yours)
+    Mapping: Nearest Face Interpolated   Vertex Groups: All
+  Then: Weights → Clean (0.001)   Weights → Limit Total (4)
+
+STEP 5 — Dismember partitions (if gore required)
+  Vertex Groups → Add SBP_32 → Assign all vertices
+  pyNIF converts to BSDismemberSkinInstance
+
+STEP 6 — Export rigged creature NIF (pyNIF)
+  Game: Fallout 4 | Version: 20.2.0.7 | User Version: 12 | User Version 2: 83
+  Root: BSFadeNode | Enable Skinning: True | Enable Tangents: True | Enable Havok: True
+  Skeleton: Export Armature=True, Preserve Bone Names=True, Preserve Hierarchy=True
+  Geometry: Triangulate, Apply Modifiers, Remove Doubles, Recalculate Normals, Auto Smooth 30°
+  Skinning: Export Skin Weights=True, BSDismemberSkinInstance=True
+  Materials: BGSM, Use External BGSM, DDS BC7
+  Collision: None (deforms with skeleton)
+
+ANIMATION PIPELINE
+==================
+
+STEP A — Animate in Blender
+  Use the same imported creature armature
+  Create separate Actions: Idle, Walk, Run, Attack, Roar
+  Animate bones only — no mesh transforms
+
+STEP B — Export each Action as FBX
+  File → Export → FBX
+  Only armature + mesh | Bake Animation: ON | Apply Transforms: ON
+  One FBX per action
+
+STEP C — Convert FBX → HKX
+  Tools: hkxcmd / Havok Content Tools
+  Import FBX → map skeleton (bone names must match FO4 creature skeleton)
+  Export as HKX (32-bit, Havok format compatible with FO4)
+  Output: Creature_Idle.hkx, Creature_Walk.hkx, Creature_Run.hkx, etc.
+
+STEP D — Place HKX files
+  Data\Meshes\Actors\YourCreature\Animations\Creature_Idle.hkx
+  Data\Meshes\Actors\YourCreature\Animations\Creature_Walk.hkx
+
+STEP E — Behavior graph
+  Clone a vanilla creature behavior .hkx graph
+  Replace animation clips with your HKX files
+  Point to your creature NIF
+  Tools: hkxcmd, Havok Behavior Editor, FO4 behavior editing guides
+
+STEP F — Creation Kit
+  Actor → New → assign NIF + behavior graph + animation set → Place + test
+
+RECOMMENDED FIRST PATH
+======================
+1. Rig custom creature to vanilla FO4 skeleton
+2. Export rigged NIF with pyNIF
+3. Reuse vanilla animations on your custom creature (works immediately)
+4. Then: custom animations → FBX → HKX → behavior graph editing
+
+
+HKX Conversion Detail
+=====================
+Tools: Havok Content Tools (older) / hkxcmd / FO4 Animation Kit (community)
+Format: HKX 32-bit, Havok 2010-2014 compatible (FO4 uses older Havok version)
+Bone names must exactly match vanilla FO4 creature skeleton
+
+hkxcmd example:
+  hkxcmd convert -v WINDESKTOP_51 Creature_Idle.fbx Creature_Idle.hkx
+
+Behavior Graph (Advanced)
+=========================
+1. Copy vanilla creature behavior graph (.hkx)
+2. Replace animation clips with your HKX files
+3. Point graph to your creature NIF
+4. Save as new behavior file
+Tools: Havok Behavior Editor, hkxcmd behavior tools
+
+Creature animations live at:
+  Data\Meshes\Actors\YourCreature\Animations\Creature_Idle.hkx
+  Data\Meshes\Actors\YourCreature\Animations\Creature_Walk.hkx
+
+Recommended Path (Least Risk)
+==============================
+1. Rig creature → export NIF → test with VANILLA animations first
+2. Animate in Blender → export FBX per action
+3. FBX → HKX via hkxcmd
+4. Replace clips in vanilla behavior graph
+5. Test in-game
+
+
+BEHAVIOR GRAPH
+==============
+Location: Data\Meshes\Actors\<Creature>\Behaviors\YourCreature_Behavior.hkx
+Easiest: Clone vanilla creature behavior graph (e.g. Deathclaw_Behavior.hkx)
+Rename to YourCreature_Behavior.hkx
+
+Animation clip nodes to replace in Havok Behavior Editor:
+  Idle, Walk, Run, AttackLeft, AttackRight, AttackPower
+  HitFront, HitBack, Death
+
+FO4 Animation Naming Conventions (must match exactly):
+  Movement:   Idle.hkx  WalkForward.hkx  RunForward.hkx  TurnLeft.hkx  TurnRight.hkx
+  Attacks:    AttackLeft.hkx  AttackRight.hkx  AttackPower.hkx  AttackSpecial.hkx
+  Hit:        HitFront.hkx  HitBack.hkx  HitLeft.hkx  HitRight.hkx
+  Death:      Death.hkx
+  Special:    Roar.hkx  Taunt.hkx  Sleep.hkx  Wake.hkx
+
+SOUND + FX INTEGRATION
+=======================
+CK: Audio → Sound Descriptor → New
+  Assign: Idle / Attack / Footsteps / Roar / Death sounds
+
+Havok Behavior Editor — add Event Tracks to animations:
+  FootLeft  FootRight  AttackStart  AttackImpact  RoarStart
+
+NIF FX nodes (auto-triggered by CK):
+  FXBlood  FXDust  FXImpact
+
+AI PACKAGES
+===========
+CK: AI Package → New
+Types: Wander / Patrol / Guard / Ambush / Follow / Attack / Flee
+Conditions: player near → attack | health <20% → flee | idle → wander
+Assign to Actor form → AI Packages tab
+
+RACE + STATS + ATTACKS
+=======================
+CK: Race → New
+  Set: movement speed, attack reach, body part data, blood type, footstep set, voice type
+
+CK: Actor → New
+  Assign: NIF + Race + AI Packages + behavior graph + animations
+  Stats: Health / Damage / Resistances / Perception / Aggression
+
+CK: Attack Data → New
+  Define: attack type / damage / reach / animation event / impact data
+
+COMPLETE 17-STEP PIPELINE
+==========================
+ 1. Model creature
+ 2. Rig to FO4 skeleton (fo4_creature_rigging.py)
+ 3. Transfer weights (Transfer FO4 Weights operator)
+ 4. Export rigged NIF (pyNIF — Skinning=ON, BSDismember=ON)
+ 5. Animate in Blender (separate Actions per clip)
+ 6. Export FBX per action (Bake Anim=ON)
+ 7. Convert FBX → HKX (hkxcmd / Havok Content Tools, 32-bit)
+ 8. Clone vanilla behavior graph
+ 9. Replace animation clips with your HKX files
+10. Add sound events in Havok Behavior Editor
+11. Add FX nodes in NIF (FXBlood / FXDust / FXImpact)
+12. CK: Create Race
+13. CK: Create Actor
+14. CK: Add AI Packages
+15. CK: Add Attack Data
+16. Place in world
+17. Test in-game

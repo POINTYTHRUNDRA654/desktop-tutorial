@@ -5,6 +5,8 @@ Scans for third-party Blender add-ons that are useful for FO4 modding and
 reports their install/enabled status so the UI can show relevant action buttons.
 """
 
+import time
+
 # ── Known add-ons catalogue ───────────────────────────────────────────────────
 # Each entry describes an add-on that has FO4 modding use-cases.
 # Fields:
@@ -14,6 +16,10 @@ reports their install/enabled status so the UI can show relevant action buttons.
 #   fo4_use_cases – how it helps with FO4 work
 #   builtin       – True if shipped with every Blender build
 #   download_url  – direct download / release page URL ('' if builtin)
+
+_scan_cache: list | None = None
+_scan_cache_time: float = 0.0
+_CACHE_TTL: float = 5.0  # seconds — auto-expire so the panel stays fresh
 
 _KNOWN_ADDONS = [
     {
@@ -95,13 +101,25 @@ class AddonIntegrationSystem:
     """Detects which known third-party add-ons are installed / enabled in Blender."""
 
     @staticmethod
+    def invalidate_cache() -> None:
+        """Force the next scan_for_known_addons() call to re-query Blender."""
+        global _scan_cache
+        _scan_cache = None
+
+    @staticmethod
     def scan_for_known_addons():
         """Return a list of dicts describing each known add-on and its status.
 
         Each dict has the keys:
             addon_id, name, description, fo4_use_cases,
             builtin, download_url, is_enabled, is_installed
+
+        Results are cached for _CACHE_TTL seconds to avoid calling
+        addon_utils.modules() (a full disk walk) on every UI redraw.
         """
+        global _scan_cache, _scan_cache_time
+        if _scan_cache is not None and (time.time() - _scan_cache_time) < _CACHE_TTL:
+            return _scan_cache
         results = []
         for entry in _KNOWN_ADDONS:
             addon_id = entry["addon_id"]
@@ -111,6 +129,8 @@ class AddonIntegrationSystem:
                 "is_enabled":   is_enabled,
                 "is_installed": is_installed,
             })
+        _scan_cache = results
+        _scan_cache_time = time.time()
         return results
 
     @staticmethod

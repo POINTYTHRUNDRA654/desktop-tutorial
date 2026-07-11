@@ -72,11 +72,17 @@ class AutomationSystem:
     
     @staticmethod
     def get_macros_path():
-        """Get path to macros directory"""
+        """Return path to macros directory (no filesystem side effects)."""
         config_path = bpy.utils.user_resource('CONFIG')
-        macros_path = os.path.join(config_path, 'fo4_macros')
-        os.makedirs(macros_path, exist_ok=True)
-        return macros_path
+        return os.path.join(config_path, 'fo4_macros')
+
+    @staticmethod
+    def _ensure_macros_path(macros_path):
+        """Create the macros directory if needed. Called only on write paths."""
+        try:
+            os.makedirs(macros_path, exist_ok=True)
+        except Exception:
+            pass
     
     @staticmethod
     def get_macro_index_path():
@@ -121,12 +127,15 @@ class AutomationSystem:
             return False, "No actions recorded"
         
         macros_path = AutomationSystem.get_macros_path()
-        
+        AutomationSystem._ensure_macros_path(macros_path)
+
         # Create safe filename
         safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_name = safe_name.replace(' ', '_')
+        if not safe_name:
+            safe_name = "unnamed_macro"
         macro_file = os.path.join(macros_path, f"{safe_name}.json")
-        
+
         # Prepare macro data
         macro_data = {
             'name': name,
@@ -194,7 +203,7 @@ class AutomationSystem:
     def save_macro_index(index_data):
         """Save macro index"""
         index_path = AutomationSystem.get_macro_index_path()
-        
+        AutomationSystem._ensure_macros_path(os.path.dirname(index_path))
         try:
             with open(index_path, 'w') as f:
                 json.dump(index_data, f, indent=2)

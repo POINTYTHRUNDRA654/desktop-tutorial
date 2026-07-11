@@ -1,0 +1,46 @@
+{
+  "label": "pyNIF Export \u2014 LOD + Collision (Fallout 4 Static/WorldSpace)",
+  "game": "Fallout4",
+  "version": "20.2.0.7",
+  "user_version": 12,
+  "user_version_2": 83,
+  "geometry": {
+    "triangulate": true,
+    "apply_modifiers": true,
+    "remove_doubles": true,
+    "recalculate_normals": true,
+    "auto_smooth_angle": 30
+  },
+  "materials": {
+    "material_type": "BGSM",
+    "use_external_bgsm": true,
+    "note": "Do not rename/remove material slots \u2014 BGSM references stay intact"
+  },
+  "collision_static": {
+    "type": "bhkConvexShape",
+    "source_mesh": "Mesh_Collision",
+    "motion_system": "MO_SYS_STATIC",
+    "mass": 0,
+    "renders": false
+  },
+  "collision_dynamic": {
+    "type": "bhkRigidBody",
+    "source_mesh": "Mesh_Collision",
+    "motion_system": "MO_SYS_DYNAMIC",
+    "mass": "5-20",
+    "renders": false
+  },
+  "lod_decimation": {
+    "LOD0": 1.0,
+    "LOD1": 0.6,
+    "LOD2": 0.3,
+    "LOD3_collision": 0.1
+  },
+  "workflow": [
+    "Duplicate mesh 3x \u2192 Mesh_LOD0, Mesh_LOD1, Mesh_LOD2, Mesh_LOD3",
+    "Add Decimate modifier: LOD1=0.6, LOD2=0.3, LOD3=0.1 \u2192 Apply",
+    "Rename LOD3 to Mesh_Collision, remove its materials",
+    "In pyNIF: mark Mesh_Collision as collision-only (no render)",
+    "Export \u2192 NIF with collision shape attached"
+  ]
+}

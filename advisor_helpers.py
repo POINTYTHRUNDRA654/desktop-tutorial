@@ -5,12 +5,41 @@ The assistant stays rules-first and offline by default. LLM calls are opt-in via
 
 import bpy
 import json
+import os
 import urllib.request
 import urllib.error
 import contextlib
 from mathutils import Matrix
 
-from . import mesh_helpers, texture_helpers, preferences, export_helpers, notification_system, knowledge_helpers
+try:
+    from . import mesh_helpers
+except Exception:
+    mesh_helpers = None
+try:
+    from . import texture_helpers
+except Exception:
+    texture_helpers = None
+try:
+    from . import preferences
+except Exception:
+    preferences = None
+try:
+    from . import export_helpers
+except Exception:
+    export_helpers = None
+try:
+    from . import notification_system
+except Exception:
+    notification_system = None
+try:
+    from . import knowledge_helpers
+except Exception:
+    knowledge_helpers = None
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if notification_system:
+        notification_system.FO4_NotificationSystem.notify(msg, level)
 
 
 class AdvisorHelpers:
@@ -44,7 +73,10 @@ class AdvisorHelpers:
                 AdvisorHelpers._analyze_armature(obj, report)
 
         # Export readiness quick check (uses existing helpers)
-        export_ok, export_issues = export_helpers.ExportHelpers.validate_before_export(selected[0]) if selected else (True, [])
+        if export_helpers and selected:
+            export_ok, export_issues = export_helpers.ExportHelpers.validate_before_export(selected[0])
+        else:
+            export_ok, export_issues = True, []
         if not export_ok and export_issues:
             for issue in export_issues:
                 report["issues"].append(f"Export validation: {issue}")
@@ -313,9 +345,19 @@ class AdvisorHelpers:
                     _th.TextureHelpers.setup_fo4_material(obj)
                     fixed += 1
                 else:
-                    # Material exists but may be missing specific texture nodes
                     mat   = obj.data.materials[0]
                     nodes = mat.node_tree.nodes
+                    # Check for PyNifly import format: Image Texture → BSDF Base Color.
+                    # These materials are valid for export even without named "Diffuse" nodes.
+                    has_pynifly_diffuse = any(
+                        n.type == 'BSDF_PRINCIPLED'
+                        and n.inputs.get('Base Color')
+                        and n.inputs['Base Color'].links
+                        and n.inputs['Base Color'].links[0].from_node.type == 'TEX_IMAGE'
+                        for n in nodes
+                    )
+                    if has_pynifly_diffuse:
+                        continue  # textures already connected — don't replace the material
                     missing = [n for n in ("Diffuse", "Normal", "Specular")
                                if not nodes.get(n)]
                     if missing:
@@ -351,6 +393,8 @@ class AdvisorHelpers:
                 return False, str(e)
 
         if action == 'VALIDATE_EXPORT':
+            if not export_helpers:
+                return False, "export_helpers module not available"
             success, issues = export_helpers.ExportHelpers.validate_before_export(objs[0])
             if success:
                 return True, "Validation passed"
@@ -390,9 +434,9 @@ class AdvisorHelpers:
             AdvisorHelpers._last_signature = sig
             if report.get("issues"):
                 msg = f"Advisor: {len(report['issues'])} issues detected."
-                notification_system.FO4_NotificationSystem.notify(msg, 'WARNING')
+                _notify(msg, 'WARNING')
             else:
-                notification_system.FO4_NotificationSystem.notify("Advisor: no issues detected.", 'INFO')
+                _notify("Advisor: no issues detected.", 'INFO')
 
         return interval
 
@@ -400,13 +444,19 @@ class AdvisorHelpers:
     def start_auto_monitor():
         if AdvisorHelpers._timer_registered:
             return
+        if bpy.app.timers.is_registered(AdvisorHelpers.auto_monitor_tick):
+            return
         bpy.app.timers.register(AdvisorHelpers.auto_monitor_tick, persistent=True)
         AdvisorHelpers._timer_registered = True
 
     @staticmethod
     def stop_auto_monitor():
-        # Timers self-remove when returning None; mark as not registered
         AdvisorHelpers._timer_registered = False
+        if bpy.app.timers.is_registered(AdvisorHelpers.auto_monitor_tick):
+            try:
+                bpy.app.timers.unregister(AdvisorHelpers.auto_monitor_tick)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # UV + Texture Analysis  (used by FO4_OT_AskMossyForUVAdvice)
@@ -429,7 +479,6 @@ class AdvisorHelpers:
         issues      : list[str]  – actionable problems found
         suggestions : list[str]  – how to fix them
         """
-        import os
         result = {
             "object_name": obj.name if obj else "unknown",
             "mesh_stats": {},
@@ -469,7 +518,7 @@ class AdvisorHelpers:
         }
         if not uv_layers:
             result["issues"].append(
-                "No UV map found. Niftools requires UV coordinates on every exported mesh."
+                "No UV map found. PyNifly requires UV coordinates on every exported mesh."
             )
             result["suggestions"].append(
                 "Click 'Setup UV + Texture' to auto-unwrap and bind a texture in one step."
@@ -504,7 +553,7 @@ class AdvisorHelpers:
         if not mat.use_nodes:
             result["issues"].append(
                 f"Material '{mat.name}' does not use nodes. "
-                "Niftools requires a node-based material for texture export."
+                "PyNifly requires a node-based material for texture export."
             )
             result["suggestions"].append(
                 "Click 'Setup FO4 Materials' to rebuild the material node tree."

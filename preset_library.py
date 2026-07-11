@@ -143,7 +143,9 @@ class PresetLibrary:
         # Create filename from preset name
         safe_name = "".join(c for c in preset_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
         safe_name = safe_name.replace(' ', '_')
-        
+        if not safe_name:
+            safe_name = "unnamed_preset"
+
         # Determine category folder
         category_folders = {
             'MESH': 'meshes',
@@ -255,10 +257,13 @@ class PresetLibrary:
         results = []
         
         for preset in presets:
-            if (query in preset['name'].lower() or
-                query in preset['description'].lower() or
-                query in preset['tags'].lower()):
-                results.append(preset)
+            try:
+                if (query in preset.get('name', '').lower() or
+                    query in preset.get('description', '').lower() or
+                    query in preset.get('tags', '').lower()):
+                    results.append(preset)
+            except Exception:
+                pass
         
         return results
     

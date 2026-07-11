@@ -1865,6 +1865,54 @@ def install_triposr() -> tuple[bool, str]:
     _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
     return True, f"TripoSR installed at {dest}.{_torch_install_note()}"
 
+def install_triposr_light() -> tuple[bool, str]:
+    """Clone triposr_light (Dragoy) from GitHub and install pip deps including PyTorch.
+
+    triposr_light is a lightweight variant of TripoSR with lower VRAM requirements
+    (~2 GB), CPU-viable inference, and INT8 quantization support.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, message)`` on success, ``(False, reason)`` otherwise.
+    """
+    dest = _ensure_tools_dir("triposr_light")
+
+    mossy_result = _try_mossy_install(
+        package="triposr_light",
+        github_url="https://github.com/Dragoy/triposr_light.git",
+        display_name="TripoSR Light",
+    )
+    if mossy_result is not None:
+        return mossy_result
+
+    print("[TripoSR Light] Mossy offline/failed — attempting direct GitHub install")
+    ok, msg = _clone_or_download_repo(
+        repo="Dragoy/triposr_light",
+        dest=dest,
+        branch="main",
+        display_name="TripoSR Light",
+    )
+    if not ok:
+        return False, msg
+
+    # Install PyTorch if missing, then repo requirements
+    import importlib.util
+    if importlib.util.find_spec("torch") is None:
+        print("[TripoSR Light] PyTorch not found — installing torch + torchvision …")
+        _pip_install(["torch", "torchvision"])
+
+    req_file = dest / "requirements.txt"
+    if req_file.exists():
+        _pip_install_requirements(req_file)
+    else:
+        _pip_install(["trimesh", "einops", "omegaconf", "huggingface_hub"])
+
+    note = _torch_install_note()
+    suffix = f"  {note}" if note else ""
+    return True, f"TripoSR Light installed at {dest}.{suffix}"
+
+
 def install_hunyuan3d() -> tuple[bool, str]:
     """Clone Hunyuan3D-2 (Tencent) from GitHub and install pip deps.
 
@@ -1896,8 +1944,11 @@ def install_hunyuan3d() -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    _pip_install(["einops", "omegaconf", "huggingface_hub"])
+    _pip_install(["einops", "omegaconf", "huggingface_hub",
+                  "Pillow", "rembg", "trimesh", "scipy",
+                  "imageio", "imageio-ffmpeg"])
     return True, f"Hunyuan3D-2 installed at {dest}.{_torch_install_note()}"
+
 
 
 def install_hymotion() -> tuple[bool, str]:

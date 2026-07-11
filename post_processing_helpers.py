@@ -42,6 +42,42 @@ import bpy
 import json
 import os
 
+
+# ---------------------------------------------------------------------------
+# Compositor node compatibility helpers (Blender 3.x → 4.x → 5.x)
+# ---------------------------------------------------------------------------
+# CompositorNodeMixRGB was deprecated in 3.4 and may be removed in 5.x.
+# CompositorNodeMix uses different socket indices when data_type='RGBA'.
+# Legacy:  inputs['Fac'], inputs[1]=A, inputs[2]=B, outputs['Image']
+# New:     inputs[0]=Factor, inputs[6]=A, inputs[7]=B, outputs[2]=Color
+
+def _new_mix_rgb(nodes, name, blend_type='MIX'):
+    """Create a colour-mix compositor node compatible with Blender 3.x–5.x."""
+    try:
+        n = nodes.new('CompositorNodeMixRGB')
+    except Exception:
+        n = nodes.new('CompositorNodeMix')
+        n.data_type = 'RGBA'
+    n.name = name
+    n.blend_type = blend_type
+    return n
+
+def _mix_fac(node):
+    """Return the factor input socket of a MixRGB / Mix node."""
+    inp = node.inputs.get('Fac')
+    return inp if inp is not None else node.inputs[0]
+
+def _mix_in(node, slot):
+    """Return image input socket for slot 1 or 2 (1-based)."""
+    if 'Fac' in node.inputs:          # legacy CompositorNodeMixRGB
+        return node.inputs[slot]
+    return node.inputs[4 + slot + 1]  # CompositorNodeMix RGBA: 1→6, 2→7
+
+def _mix_out(node):
+    """Return the colour output socket of a MixRGB / Mix node."""
+    out = node.outputs.get('Image')
+    return out if out is not None else node.outputs[2]
+
 # ---------------------------------------------------------------------------
 # FO4 ImageSpace preset definitions
 # ---------------------------------------------------------------------------
@@ -366,7 +402,8 @@ class PostProcessingHelpers:
             # ── Glare (bloom / lens flare) ──────────────────────────────────
             glare = nodes.new('CompositorNodeGlare')
             glare.name = _TAG_GLARE
-            glare.glare_type = 'BLOOM'
+            # 'BLOOM' was removed in Blender 4.0; FOG_GLOW is the closest equivalent
+            glare.glare_type = 'FOG_GLOW' if bpy.app.version >= (4, 0, 0) else 'BLOOM'
             glare.quality = 'MEDIUM'
             glare.threshold = preset["bloom_threshold"]
             # 'mix' on the Glare node ranges -1 (input only) to 1 (glare only).
@@ -394,21 +431,19 @@ class PostProcessingHelpers:
             links.new(huesat.outputs['Image'], bc.inputs['Image'])
 
             # ── Colour tint (Alpha-Over mix with flat colour) ────────────────
-            # We use a Mix (RGB) node in 'MIX' mode blended by tint_strength.
-            tint_node = nodes.new('CompositorNodeMixRGB')
-            tint_node.name = _TAG_TINT_MIX
-            tint_node.blend_type = 'MIX'
-            tint_node.use_alpha = False
-            tint_node.inputs['Fac'].default_value = preset["tint_strength"]
-            tint_node.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)  # will be wired
-            tint_node.inputs[2].default_value = (
+            tint_node = _new_mix_rgb(nodes, _TAG_TINT_MIX, 'MIX')
+            if hasattr(tint_node, 'use_alpha'):
+                tint_node.use_alpha = False
+            _mix_fac(tint_node).default_value = preset["tint_strength"]
+            _mix_in(tint_node, 1).default_value = (1.0, 1.0, 1.0, 1.0)
+            _mix_in(tint_node, 2).default_value = (
                 preset["tint_r"],
                 preset["tint_g"],
                 preset["tint_b"],
                 1.0,
             )
             tint_node.location = (200, 300)
-            links.new(bc.outputs['Image'], tint_node.inputs[1])
+            links.new(bc.outputs['Image'], _mix_in(tint_node, 1))
 
             # ── Vignette (darken screen edges) ───────────────────────────────
             # Use an Ellipse Mask to create a radial gradient, then multiply.
@@ -434,22 +469,16 @@ class PostProcessingHelpers:
             links.new(blur_ell.outputs['Image'], invert.inputs['Color'])
 
             # Make it black-based: darken only
-            vignette_mult = nodes.new('CompositorNodeMixRGB')
-            vignette_mult.name = "FO4_PP_VigMix"
-            vignette_mult.blend_type = 'MULTIPLY'
-            vignette_mult.use_alpha = False
-            vignette_mult.inputs['Fac'].default_value = preset["vignette"]
+            vignette_mult = _new_mix_rgb(nodes, "FO4_PP_VigMix", 'MULTIPLY')
+            if hasattr(vignette_mult, 'use_alpha'):
+                vignette_mult.use_alpha = False
+            _mix_fac(vignette_mult).default_value = preset["vignette"]
             vignette_mult.location = (450, 300)
-            links.new(tint_node.outputs['Image'], vignette_mult.inputs[1])
-            # Build an almost-white colour from the inverted mask to darken edges
-            # We can't directly wire greyscale mask to colour input on Multiply
-            # so we convert via a SetAlpha + AlphaOver hack instead.  A simpler
-            # approach: use a second MixRGB (MULTIPLY) where input2 = mask.
-            # Blender will auto-expand greyscale → RGBA.
-            links.new(invert.outputs['Color'], vignette_mult.inputs[2])
+            links.new(_mix_out(tint_node), _mix_in(vignette_mult, 1))
+            links.new(invert.outputs['Color'], _mix_in(vignette_mult, 2))
 
             # ── Depth-of-Field (optional) ────────────────────────────────────
-            last_image_socket = vignette_mult.outputs['Image']
+            last_image_socket = _mix_out(vignette_mult)
             if preset["dof_enabled"]:
                 defocus = nodes.new('CompositorNodeDefocus')
                 defocus.name = _TAG_DEFOCUS
@@ -466,7 +495,8 @@ class PostProcessingHelpers:
             composite.location = (900, 300)
             links.new(last_image_socket, composite.inputs['Image'])
 
-            return True, f"FO4 post-processing compositor set up with preset '{PRESETS[preset_id]['label']}'"
+            preset_label = PRESETS.get(preset_id, {}).get('label', preset_id)
+            return True, f"FO4 post-processing compositor set up with preset '{preset_label}'"
 
         except Exception as exc:
             return False, f"Failed to set up compositor: {exc}"
@@ -521,8 +551,8 @@ class PostProcessingHelpers:
         # Tint mix
         tint = nodes.get(_TAG_TINT_MIX)
         if tint:
-            tint.inputs['Fac'].default_value = preset["tint_strength"]
-            tint.inputs[2].default_value = (
+            _mix_fac(tint).default_value = preset["tint_strength"]
+            _mix_in(tint, 2).default_value = (
                 preset["tint_r"],
                 preset["tint_g"],
                 preset["tint_b"],
@@ -532,14 +562,15 @@ class PostProcessingHelpers:
         # Vignette
         vig = nodes.get("FO4_PP_VigMix")
         if vig:
-            vig.inputs['Fac'].default_value = preset["vignette"]
+            _mix_fac(vig).default_value = preset["vignette"]
 
         # Defocus
         defocus = nodes.get(_TAG_DEFOCUS)
         if defocus:
             defocus.f_stop = preset["dof_fstop"]
 
-        return True, f"Applied preset '{PRESETS[preset_id]['label']}'"
+        preset_label = PRESETS.get(preset_id, {}).get('label', preset_id)
+        return True, f"Applied preset '{preset_label}'"
 
     @staticmethod
     def export_imagespace_data(scene, filepath: str) -> tuple[bool, str]:
@@ -619,11 +650,12 @@ class PostProcessingHelpers:
                     **data,
                 },
                 "preset_name":     data.get("preset_name", "CUSTOM"),
-                "addon_version":   "2.1.6",
+                "addon_version":   ".".join(str(v) for v in bpy.app.version),
             }
 
-            os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
-            with open(filepath, "w", encoding="utf-8") as fh:
+            abs_path = os.path.abspath(filepath)
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+            with open(abs_path, "w", encoding="utf-8") as fh:
                 json.dump(export_data, fh, indent=2)
 
             return True, f"ImageSpace data exported: {filepath}"
@@ -665,8 +697,8 @@ class PostProcessingHelpers:
 
         tint = nodes.get(_TAG_TINT_MIX)
         if tint:
-            tint.inputs['Fac'].default_value = prop("fo4_pp_tint_strength", 0.0)
-            tint.inputs[2].default_value = (
+            _mix_fac(tint).default_value = prop("fo4_pp_tint_strength", 0.0)
+            _mix_in(tint, 2).default_value = (
                 prop("fo4_pp_tint_r", 1.0),
                 prop("fo4_pp_tint_g", 1.0),
                 prop("fo4_pp_tint_b", 1.0),
@@ -675,7 +707,7 @@ class PostProcessingHelpers:
 
         vig = nodes.get("FO4_PP_VigMix")
         if vig:
-            vig.inputs['Fac'].default_value = prop("fo4_pp_vignette", 0.25)
+            _mix_fac(vig).default_value = prop("fo4_pp_vignette", 0.25)
 
         defocus = nodes.get(_TAG_DEFOCUS)
         if defocus:
@@ -861,6 +893,7 @@ def register():
         name="Cinematic Bars",
         description="Letterbox black-bar height 0 = none, 0.1 = subtle (CK: CinematicBars)",
         default=0.0, min=0.0, max=0.5, step=1, precision=2,
+        update=_update_compositor,
     )
 
     # ── Depth of Field ───────────────────────────────────────────────────────

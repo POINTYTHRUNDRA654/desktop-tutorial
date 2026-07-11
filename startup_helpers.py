@@ -364,7 +364,8 @@ def deferred_startup():
         _MOSSY_PACKAGES = {
             "scipy":   "scipy",    # large numerical library
             "trimesh": "trimesh",  # mesh analysis, pulls many deps
-            "igl":     "libigl",   # RigNet — requires C++ compilation
+            # libigl omitted: optional RigNet enhancement, install only on demand
+            # via the Auto-Weight Paint button or Install libigl operator.
         }
         missing = [pip for mod, pip in _MOSSY_PACKAGES.items()
                    if _ilu2.find_spec(mod) is None]

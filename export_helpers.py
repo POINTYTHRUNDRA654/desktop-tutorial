@@ -8,6 +8,10 @@ import json
 import sys
 import traceback
 
+# FO4 game units per metre (Havok scale).  Must match operators._FO4_UNIT_SCALE_INV.
+_FO4_UNIT_SCALE_INV = 69.99125
+
+
 class ExportHelpers:
     """Helper functions for exporting to Fallout 4"""
 
@@ -18,6 +22,16 @@ class ExportHelpers:
         'WindWeight', 'windweight', 'WINDWEIGHT',
         'WindStiff', 'windstiff',
     })
+
+    # FO4 LOD vertex groups — used by the renderer to select faces per LOD
+    # distance level.  No armature is needed; blocking export on these is wrong.
+    _LOD_GROUP_NAMES = frozenset({
+        'LOD0', 'LOD1', 'LOD2', 'LOD3', 'LOD4',
+        'lod0', 'lod1', 'lod2', 'lod3', 'lod4',
+    })
+
+    # All vertex group names that are valid without an armature
+    _ARMATURE_FREE_GROUP_NAMES = _WIND_GROUP_NAMES | _LOD_GROUP_NAMES
 
     @staticmethod
     def _is_vegetation_object(obj):
@@ -102,49 +116,57 @@ class ExportHelpers:
 
     @staticmethod
     def validate_before_export(obj):
-        """Validate object before export"""
+        """Validate object before export.
+
+        Returns (success, blocking_issues).  Texture warnings are printed to
+        the console but never block the export — a mesh can be exported without
+        textures and textured in the CK or Outfit Studio afterwards.
+        """
         from . import mesh_helpers, texture_helpers, notification_system
-        
-        issues = []
-        
+
+        blocking = []   # hard errors — stop the export
+        warnings = []   # soft issues — logged but export continues
+
         if obj.type == 'MESH':
             is_collision = ExportHelpers._is_collision_mesh(obj)
 
-            # Validate mesh geometry; collision/occlusion meshes are exempt from
-            # the UV-map and non-manifold requirements because they are invisible.
+            # Geometry validation — non-manifold edges, missing UVs, and
+            # poly-count violations are hard blockers for all visible meshes.
             success, mesh_issues = mesh_helpers.MeshHelpers.validate_mesh(
                 obj, is_collision=is_collision
             )
             if not success:
-                issues.extend(mesh_issues)
-            
-            # Texture validation is only meaningful for visible (non-collision)
-            # meshes.  Collision and occlusion meshes are invisible in-game and
-            # intentionally have no texture setup.
-            if not is_collision and obj.data.materials:
-                success, texture_issues = texture_helpers.TextureHelpers.validate_textures(obj)
-                if not success:
-                    issues.extend(texture_issues)
+                blocking.extend(mesh_issues)
 
-            # Check bone weight limit (FO4 supports max 4 influences per vertex)
+            # Texture validation is advisory only — missing or unloaded textures
+            # warn the user but must not prevent geometry from being exported.
+            # Collision and occlusion meshes are intentionally untextured.
+            if not is_collision and any(s.material for s in obj.material_slots):
+                tex_ok, texture_issues = texture_helpers.TextureHelpers.validate_textures(obj)
+                if not tex_ok:
+                    warnings.extend(texture_issues)
+
+            # Bone weight limit (FO4 supports max 4 influences per vertex) — hard block.
             if obj.vertex_groups and obj.parent and obj.parent.type == 'ARMATURE':
                 for v in obj.data.vertices:
                     influences = [g for g in v.groups if g.weight > 0.001]
                     if len(influences) > 4:
-                        issues.append(
+                        blocking.append(
                             f"Vertex {v.index} has {len(influences)} bone influences "
                             "(max 4 for FO4). Run 'Enforce Bone Limit' before export."
                         )
-                        break  # one warning is enough
+                        break
 
         elif obj.type == 'ARMATURE':
-            # Validate armature
             from . import animation_helpers
             success, anim_issues = animation_helpers.AnimationHelpers.validate_animation(obj)
             if not success:
-                issues.extend(anim_issues)
-        
-        return len(issues) == 0, issues
+                blocking.extend(anim_issues)
+
+        if warnings:
+            print(f"[FO4 Export] Texture warnings (export will proceed): {'; '.join(warnings)}")
+
+        return len(blocking) == 0, blocking
 
     @staticmethod
     def nif_exporter_available():
@@ -326,24 +348,38 @@ class ExportHelpers:
     def _build_pynifly_export_kwargs(filepath):
         """Assemble kwargs for PyNifly (by BadDog) for Fallout 4 NIF export.
 
-        Verified against PyNifly V25.14 (latest as of 2026-04-10):
+        Bundled version: PyNifly V27.0.0 (io_scene_nifly_V27.0.0.zip).
+        Installed automatically from bundled/ on first addon load (BadDog's permission).
+
+        V27.0.0 ExportSettings defaults and our overrides:
           - ``target_game = "FO4"``       → Fallout 4 BSTriShape/BSSubIndexTriShape format
+                                            (V27 operator property; ExportSettings uses "game")
           - ``export_modifiers = True``   → apply modifiers before export
+                                            (V27 defaults False — critical override)
           - ``export_colors = True``      → write vertex colours (LOD & alpha blending in CK)
-          - ``blender_xf = False``        → use NIF-native coordinates (correct for FO4)
+                                            (V27 defaults True — explicit for safety)
+          - ``blender_xf = False``        → NIF-native coordinates, no 90° rotation
+                                            (V27 defaults False — explicit for safety)
           - ``rename_bones = True``       → convert Blender .L/.R names back to NIF names
+                                            (V27 defaults True — explicit for safety)
           - ``export_animations = False`` → skip animation data for static/LOD props
-                                            (V25.14 defaults to True; wrong for static meshes)
+                                            (V27 defaults True — critical override)
           - ``write_bodytri = False``     → no BODYTRI extra data for non-character meshes
-                                            (V25.14 defaults to True; wrong for static meshes)
+                                            (V27 defaults True — critical override)
+          - ``export_pose = False``       → export at rest/bind pose, not current pose
+                                            (V27 default False — explicit to block intuit_defaults)
 
-        NOTE: ``export_collision`` does NOT exist in PyNifly V25.14.  Collision
-        is exported automatically when UCX_-named objects with a PASSIVE rigid body
-        are included in the selection passed to the operator.  Our caller handles
-        this by adding the UCX_ child to the selection before invoking.
+        V27 properties left at their defaults (correct for FO4):
+          - ``rotate_bones_pretty = False``    → don't reorient bones cosmetically
+          - ``rename_bones_niftools = False``  → use BadDog naming, not NifTools
+          - ``preserve_hierarchy = False``     → flat BSSubIndexTriShape style
 
-        We introspect the operator's RNA properties at runtime so the code
-        remains resilient to API differences across PyNifly releases.
+        NOTE: ``export_collision`` does not exist in PyNifly V27.  Collision is
+        exported automatically when UCX_-named objects with a PASSIVE rigid body
+        are present in the selection.  The caller adds UCX_ children before invoking.
+
+        Runtime RNA introspection (get_rna_type().properties) keeps this code
+        resilient to property additions/renames in future PyNifly releases.
 
         Credit: PyNifly by BadDog (BadDogSkyrim) - https://github.com/BadDogSkyrim/PyNifly
         """
@@ -355,67 +391,76 @@ class ExportHelpers:
             prop_keys = props.keys()
 
             # ── Selection-only export ─────────────────────────────────────────
-            # use_selection restricts the export to the currently-selected
-            # objects.  The caller deselects everything then selects only the
-            # target mesh (+ its collision child) before invoking the operator,
-            # so this kwarg is critical to avoid exporting the entire scene.
+            # use_selection restricts export to the currently-selected objects.
+            # The caller deselects everything then selects only the target mesh
+            # (+ its UCX_ collision child) before invoking, so this is critical.
             if "use_selection" in prop_keys:
                 kwargs["use_selection"] = True
 
             # ── Target game ──────────────────────────────────────────────────
-            # "target_game" is the V25.14 name; older builds used "game".
+            # V27 operator uses "target_game"; ExportSettings class uses "game".
             # "FO4" selects Fallout 4 BSTriShape / BSSubIndexTriShape format.
+            # Always pass a game value — if _safe_enum returns None the property
+            # exists but FO4 wasn't found in its enum; fall through and try raw
+            # string assignment so PyNifly still gets "FO4" rather than
+            # defaulting silently to Skyrim/SSE.
             for game_key in ("target_game", "game"):
                 if game_key in prop_keys:
                     game_val = ExportHelpers._safe_enum(
                         props, game_key, "FO4",
                         fallbacks=["FALLOUT4", "Fallout4", "FALLOUT_4"],
                     )
-                    if game_val:
-                        kwargs[game_key] = game_val
+                    kwargs[game_key] = game_val if game_val else "FO4"
                     break
 
             # ── Apply modifiers ───────────────────────────────────────────────
-            # "export_modifiers" is the V25.14 name; older builds used "apply_modifiers".
+            # V27 defaults to False — must override to True so decimation,
+            # triangulate, and other pre-export modifiers are baked in.
             for mod_key in ("export_modifiers", "apply_modifiers"):
                 if mod_key in prop_keys:
                     kwargs[mod_key] = True
                     break
 
             # ── Vertex colours ────────────────────────────────────────────────
-            # export_colors is True by default in V25.14 but be explicit so CK
-            # gets the vertex-colour data it needs for LOD and alpha blending.
+            # V27 defaults True; explicit so CK gets vertex colour for LOD and
+            # alpha blending.
             if "export_colors" in prop_keys:
                 kwargs["export_colors"] = True
 
             # ── Coordinate system ─────────────────────────────────────────────
-            # blender_xf applies a 90° rotation + scale when True.  For FO4 we
-            # leave it False (NIF-native coordinates) - matching vanilla files.
+            # blender_xf=False: export raw Blender coordinates as-is to the NIF.
+            # FO4 NIFs are imported by PyNifly at 1:1 scale (no transform applied),
+            # so no inverse transform is needed on export either.
             if "blender_xf" in prop_keys:
                 kwargs["blender_xf"] = False
 
             # ── Bone naming ───────────────────────────────────────────────────
-            # rename_bones converts Blender .L/.R names back to NIF convention.
-            # Must match the setting used during import.
+            # rename_bones converts Blender .L/.R suffixes back to NIF L/R
+            # prefix convention.  Must match the setting used on import.
             if "rename_bones" in prop_keys:
                 kwargs["rename_bones"] = True
 
             # ── Animations ───────────────────────────────────────────────────
-            # V25.14 defaults export_animations to True, which is wrong for
-            # static props and LOD meshes.  Explicitly disable it so we do not
-            # embed empty animation data in the NIF.
+            # V27 defaults True — override to False so no empty animation data
+            # is embedded in static prop / LOD NIFs.
             if "export_animations" in prop_keys:
                 kwargs["export_animations"] = False
 
             # ── BODYTRI extra data ────────────────────────────────────────────
-            # V25.14 defaults write_bodytri to True, which is only correct for
-            # character/body meshes that have BodySlide morphs.  Disable for all
-            # static prop / LOD exports so no stray BODYTRI node is written.
+            # V27 defaults True — override to False for static prop / LOD
+            # exports.  Only character meshes with BodySlide morphs need it.
             if "write_bodytri" in prop_keys:
                 kwargs["write_bodytri"] = False
 
-            # ── Scale (legacy property, dropped in later builds) ──────────────
-            # Set only if the property still exists for backwards compatibility.
+            # ── Pose position ─────────────────────────────────────────────────
+            # New in V27.  False = export at bind/rest pose (correct for FO4
+            # armor and clothing — the CK binds at rest).  Explicitly set to
+            # block V27's intuit_defaults logic from overriding this on armature
+            # exports.
+            if "export_pose" in prop_keys:
+                kwargs["export_pose"] = False
+
+            # ── Scale (legacy property, dropped in V27) ───────────────────────
             for scale_key in ("scale_factor", "scale_correction"):
                 if scale_key in prop_keys:
                     kwargs[scale_key] = 1.0
@@ -595,6 +640,9 @@ class ExportHelpers:
         that case so the user can clean up the mesh.
         """
 
+        if not filepath or not str(filepath).strip():
+            return False, "Export filepath is empty — choose a destination file first"
+
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
         # ...existing code...
@@ -604,18 +652,18 @@ class ExportHelpers:
             return False, "Collision meshes are not intended for export; select the source mesh instead"
         # ...existing code...
 
-        # Reject meshes with orphaned weights — but allow vegetation wind groups.
-        # Vegetation uses Wind/WindWeight vertex groups for procedural in-engine
-        # wind without any armature; blocking those would always fail foliage export.
+        # Reject meshes with orphaned skin weights that would corrupt the export,
+        # but allow FO4-native non-armature vertex groups:
+        #   - Wind/WindWeight/WindStiff  — procedural vegetation wind (no armature needed)
+        #   - LOD0/LOD1/LOD2/LOD3/LOD4  — renderer LOD face culling (no armature needed)
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
-            if not ExportHelpers._is_vegetation_object(obj):
-                non_wind = [vg.name for vg in obj.vertex_groups
-                            if vg.name not in ExportHelpers._WIND_GROUP_NAMES]
-                if non_wind:
-                    return False, (
-                        f"Mesh has vertex group(s) {non_wind[:3]} but no armature "
-                        "– remove weights or parent to an armature before exporting"
-                    )
+            unknown = [vg.name for vg in obj.vertex_groups
+                       if vg.name not in ExportHelpers._ARMATURE_FREE_GROUP_NAMES]
+            if unknown:
+                return False, (
+                    f"Mesh has vertex group(s) {unknown[:3]} but no armature "
+                    "– remove weights or parent to an armature before exporting"
+                )
 
         exporter, nif_available, nif_message = ExportHelpers.get_nif_exporter_info()
         from . import mesh_helpers as _mh
@@ -623,7 +671,45 @@ class ExportHelpers:
         # Try native NIF export first when available
         if nif_available:
             added_mods = []
+            restore_scale_objs = []  # (obj, orig_scale) pairs — restored in finally
+
             try:
+                # ── FO4 unit scale round-trip ──────────────────────────────────
+                # Objects imported via our "Import Asset" button are stored at
+                # Blender-metre scale (÷70) and tagged with fo4_unit_scale=69.99125.
+                # Before exporting we multiply back to FO4 game units (×70), apply
+                # the scale so PyNifly sees correct geometry, then restore in finally.
+                #
+                # The UCX_ collision child is scaled AFTER the main mesh so that
+                # the parent's 70× contribution is neutralised first — both objects
+                # end up at independent 500-unit world positions as PyNifly requires.
+                fo4_scale = obj.get("fo4_unit_scale", None)
+                if fo4_scale:
+                    # Collect: main mesh first, then any collision child that also
+                    # carries fo4_unit_scale (created by our LOD generator from LOD3).
+                    _scale_targets = [obj]
+                    _coll_early = ExportHelpers._find_collision_mesh(obj)
+                    if _coll_early and _coll_early.get("fo4_unit_scale"):
+                        _scale_targets.append(_coll_early)
+
+                    for o in _scale_targets:
+                        orig_scale = tuple(o.scale)
+                        o.scale = (
+                            orig_scale[0] * fo4_scale,
+                            orig_scale[1] * fo4_scale,
+                            orig_scale[2] * fo4_scale,
+                        )
+                        bpy.context.view_layer.objects.active = o
+                        bpy.ops.object.select_all(action='DESELECT')
+                        o.select_set(True)
+                        try:
+                            bpy.ops.object.transform_apply(
+                                location=False, rotation=False, scale=True
+                            )
+                            restore_scale_objs.append((o, orig_scale))
+                        except Exception:
+                            o.scale = (1.0, 1.0, 1.0)  # reset if apply failed
+
                 # Auto-prepare FIRST (applies transforms, creates UV map, triangulates).
                 # Validation runs afterwards so it sees the corrected state and does not
                 # block on issues that the prep step has already resolved.
@@ -685,73 +771,33 @@ class ExportHelpers:
                         print(f"[DesktopTutorialClient] Failed to send mesh export event: {e}")
                     return True, f"Exported NIF via {exporter_label}: {filepath}{note}"
 
-                # If operator returns without FINISHED, fall back to FBX
-                fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
+                # Operator returned without FINISHED — treat as failure
+                return False, f"NIF export did not complete (result={result}). Check the Blender console for details."
             except Exception as e:
-                # Print full traceback to the Blender console so the user can
-                # see the root cause when they open the system console.
-                print(
-                    f"[FO4 Add-on] NIF export error for '{obj.name}':",
-                    file=sys.stderr,
-                )
+                print(f"[FO4 Add-on] NIF export error for '{obj.name}':", file=sys.stderr)
                 traceback.print_exc(file=sys.stderr)
-                fallback_msg = f"NIF export failed ({e}); falling back to FBX."
+                return False, f"NIF export failed: {e}"
             finally:
-                # Always remove the temporary triangulate modifier so the
-                # user's mesh is not permanently altered.
                 for mod_name in added_mods:
                     mod = obj.modifiers.get(mod_name)
                     if mod:
                         obj.modifiers.remove(mod)
+                # Restore objects to Blender-metre scale after export.
+                inv = 1.0 / _FO4_UNIT_SCALE_INV if restore_scale_objs else None
+                for o, orig_scale in restore_scale_objs:
+                    restore_s = orig_scale[0] * inv
+                    o.scale = (restore_s, restore_s, restore_s)
+                    bpy.context.view_layer.objects.active = o
+                    bpy.ops.object.select_all(action='DESELECT')
+                    o.select_set(True)
+                    try:
+                        bpy.ops.object.transform_apply(
+                            location=False, rotation=False, scale=True
+                        )
+                    except Exception:
+                        pass
         else:
-            # NIF exporter not available – validate before FBX fallback
-            success, issues = ExportHelpers.validate_before_export(obj)
-            if not success:
-                return False, f"Validation failed: {', '.join(issues)}"
-            fallback_msg = f"{nif_message}; exporting FBX for external conversion."
-
-        # Export to FBX as a compatibility fallback
-        try:
-            base_path = os.path.splitext(filepath)[0]
-            fbx_path = base_path + '.fbx'
-
-            bpy.ops.object.select_all(action='DESELECT')
-            obj.select_set(True)
-            bpy.context.view_layer.objects.active = obj
-
-            # Include the UCX_ collision mesh in the FBX.  This is critical:
-            # FO4 NIF-conversion tools (CK, Cathedral Assets Optimizer, etc.)
-            # pair a UCX_{name} object with its visual mesh by name to generate
-            # bhkConvexVerticesShape collision in the NIF.  Without it the
-            # exported NIF has no collision at all.
-            ctype_for_fbx = getattr(obj, 'fo4_collision_type', 'DEFAULT')
-            if ctype_for_fbx not in ('NONE', 'GRASS', 'MUSHROOM'):
-                coll_fb = ExportHelpers._find_collision_mesh(obj)
-                if coll_fb:
-                    coll_fb.select_set(True)
-
-            bpy.ops.export_scene.fbx(
-                filepath=fbx_path,
-                use_selection=True,
-                apply_scale_options='FBX_SCALE_ALL',
-                mesh_smooth_type='FACE',
-                use_mesh_modifiers=True,
-            )
-
-            ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
-            sound = obj.get("fo4_collision_sound")
-            weight = obj.get("fo4_collision_weight")
-            extras = []
-            if ctype:
-                extras.append(f"type={ctype}")
-            if sound:
-                extras.append(f"sound={sound}")
-            if weight:
-                extras.append(f"weight={weight}")
-            note = " (" + ", ".join(extras) + ")" if extras else ""
-            return True, f"{fallback_msg} Exported FBX: {fbx_path}{note}"
-        except Exception as e:
-            return False, f"Export failed: {str(e)}"
+            return False, f"PyNifly not found. {nif_message} — install PyNifly to export NIF files."
     
     @staticmethod
     def _has_armature(obj):
@@ -837,10 +883,40 @@ class ExportHelpers:
         # Track temporary modifiers added during preparation so we can remove
         # them when we're done, regardless of whether export succeeds or fails.
         added_mods_per_obj = {}
+        restore_scale_objs = []  # (obj, orig_scale) pairs — restored in finally
         try:
             bpy.ops.object.select_all(action='DESELECT')
 
             for obj in meshes:
+                # ── FO4 unit scale round-trip ─────────────────────────────────
+                # Objects imported via our tools are stored at Blender-metre scale
+                # (÷70) and tagged with fo4_unit_scale=69.99125.  Multiply back to
+                # FO4 game units (×70) before exporting so PyNifly sees the correct
+                # geometry, then restore in the finally block.
+                fo4_scale = obj.get("fo4_unit_scale", None)
+                if fo4_scale:
+                    _scale_targets = [obj]
+                    _coll_early = ExportHelpers._find_collision_mesh(obj)
+                    if _coll_early and _coll_early.get("fo4_unit_scale"):
+                        _scale_targets.append(_coll_early)
+                    for o in _scale_targets:
+                        orig_scale = tuple(o.scale)
+                        o.scale = (
+                            orig_scale[0] * fo4_scale,
+                            orig_scale[1] * fo4_scale,
+                            orig_scale[2] * fo4_scale,
+                        )
+                        bpy.context.view_layer.objects.active = o
+                        bpy.ops.object.select_all(action='DESELECT')
+                        o.select_set(True)
+                        try:
+                            bpy.ops.object.transform_apply(
+                                location=False, rotation=False, scale=True
+                            )
+                            restore_scale_objs.append((o, orig_scale))
+                        except Exception:
+                            o.scale = (1.0, 1.0, 1.0)
+
                 # Prepare each mesh (apply transforms, UV, triangulate).
                 added_mods = ExportHelpers._prepare_mesh_for_nif(obj)
                 added_mods_per_obj[obj.name] = added_mods
@@ -911,6 +987,21 @@ class ExportHelpers:
                         mod = obj.modifiers.get(mod_name)
                         if mod:
                             obj.modifiers.remove(mod)
+            # Restore objects to Blender-metre scale after export.
+            if restore_scale_objs:
+                inv = 1.0 / _FO4_UNIT_SCALE_INV
+                for o, orig_scale in restore_scale_objs:
+                    restore_s = orig_scale[0] * inv
+                    o.scale = (restore_s, restore_s, restore_s)
+                    bpy.context.view_layer.objects.active = o
+                    bpy.ops.object.select_all(action='DESELECT')
+                    o.select_set(True)
+                    try:
+                        bpy.ops.object.transform_apply(
+                            location=False, rotation=False, scale=True
+                        )
+                    except Exception:
+                        pass
 
     @staticmethod
     def export_complete_mod(scene, output_dir):
@@ -1031,6 +1122,14 @@ def _delegate_to_mossy(operator_id: str, params: dict = None) -> tuple:
         return result
     except Exception as exc:
         return False, f"Mossy delegation error: {exc}"
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass
 
 
 def _safe_subprocess(cmd: list, timeout: int = 120, cwd: str = None) -> tuple:

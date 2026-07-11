@@ -51,11 +51,6 @@ from ..navmesh_helpers import NavmeshHelpers
 # ── Shape-key → .tri morph export ─────────────────────────────────────────────
 from ..tri_export_helpers import TRIExportHelpers
 
-# ── Native NIF writer (no PyNifly required) ────────────────────────────────────
-try:
-    from ..native_nif_writer import write_nif, export_nif_for_object  # type: ignore[attr-defined]
-except ImportError:
-    pass  # numpy unavailable outside Blender/CI
 
 # ── Papyrus script generation ──────────────────────────────────────────────────
 try:
@@ -91,9 +86,10 @@ FO4_NIF_VERSION          = (20, 2, 0, 7)   # NIF file version bytes
 FO4_NIF_USER_VER         = 12      # User Version for FO4
 FO4_NIF_BS_VER           = 130     # BSVersion for FO4
 
-# Correct CK/game coordinate scale (1 Blender unit = 1 game unit = ~2.85 cm)
-FO4_UNITS_PER_FOOT       = 19.685  # game units per foot
-FO4_UNITS_PER_METER      = 64.0    # approximate game units per metre
+# FO4 coordinate scale: 1 Blender unit = 1 NIF/game unit = ~1.43 cm
+# (70 game units per metre; 1 foot = 21.333 units)
+FO4_UNITS_PER_FOOT       = 21.333  # game units per foot  (70 × 0.3048)
+FO4_UNITS_PER_METER      = 70.0    # game units per metre (authoritative Bethesda scale)
 
 # FO4 mesh type → BSShaderType flag mapping
 FO4_SHADER_TYPES = {

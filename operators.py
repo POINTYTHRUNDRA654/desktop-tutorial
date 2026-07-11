@@ -7,6 +7,7 @@ import sys
 import importlib
 import threading
 import os as _os
+import datetime
 from bpy.types import Operator
 from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
 
@@ -49,6 +50,77 @@ for _mod_name in _CORE_MODULE_NAMES:
         globals()[_mod_name] = None
         print(f"operators: Could not import {_mod_name}: {_e}")
 del _mod_name, _CORE_MODULE_NAMES
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    """Fire a notification safely; no-op if notification_system failed to import."""
+    if notification_system:
+        notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
+def _frame_viewport_to_selection(context) -> bool:
+    """Zoom the active 3D viewport so all selected objects are fully visible."""
+    try:
+        for area in context.screen.areas:
+            if area.type != 'VIEW_3D':
+                continue
+            region = next((r for r in area.regions if r.type == 'WINDOW'), None)
+            if region is None:
+                continue
+            with context.temp_override(area=area, region=region):
+                bpy.ops.view3d.view_selected()
+            return True
+    except Exception:
+        pass
+    return False
+
+
+# Fallout 4 uses ~70 Havok game units per metre.  Importing 1:1 produces
+# objects hundreds of Blender-units tall, which makes viewport work awkward.
+# We scale imported FO4 assets to metres on the way in and restore game units
+# on the way out (before NIF export).
+_FO4_UNIT_SCALE    = 1.0 / 69.99125   # ≈ 0.01429  — import scale factor
+_FO4_UNIT_SCALE_INV = 69.99125         # ≈ 70        — export restore factor
+
+
+def _apply_fo4_import_scale(context) -> int:
+    """Scale all currently-selected mesh/armature objects from FO4 game units
+    to Blender metres (÷70), apply the scale so Blender measurements are
+    meaningful, then frame the viewport.
+
+    Each object is tagged with ``fo4_unit_scale = 69.99125`` so that
+    :func:`export_helpers.ExportHelpers.export_mesh_to_nif` can multiply back
+    to game units before writing the NIF.
+
+    Returns the number of objects scaled.
+    """
+    _SCALABLE = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE', 'META', 'FONT'}
+    imported = [o for o in context.selected_objects if o.type in _SCALABLE]
+    if not imported:
+        return 0
+
+    # Deselect all, then scale + apply each object individually so Blender's
+    # transform_apply works reliably (it operates on the active object).
+    bpy.ops.object.select_all(action='DESELECT')
+    for obj in imported:
+        context.view_layer.objects.active = obj
+        obj.select_set(True)
+        obj.scale = (_FO4_UNIT_SCALE, _FO4_UNIT_SCALE, _FO4_UNIT_SCALE)
+        try:
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        except Exception:
+            obj.scale = (1.0, 1.0, 1.0)  # couldn't apply; at least reset
+        obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+        obj.select_set(False)
+
+    # Re-select for viewport framing
+    for obj in imported:
+        obj.select_set(True)
+    if imported:
+        context.view_layer.objects.active = imported[0]
+    _frame_viewport_to_selection(context)
+    return len(imported)
+
 
 # ── Class-level EnumProperty fallbacks ───────────────────────────────────────
 # Some Operator classes reference module attributes in their class body (before
@@ -153,7 +225,7 @@ class FO4_OT_NextTutorialStep(Operator):
         self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
         try:
             if notification_system:
-                notification_system.FO4_NotificationSystem.notify(
+                _notify(
                     f"Step {tutorial.current_step + 1}: {step.title}",
                     'INFO'
                 )
@@ -197,7 +269,7 @@ class FO4_OT_PreviousTutorialStep(Operator):
         self.report({'INFO'}, f"Step {tutorial.current_step + 1}: {step.title}")
         try:
             if notification_system:
-                notification_system.FO4_NotificationSystem.notify(
+                _notify(
                     f"Step {tutorial.current_step + 1}: {step.title}",
                     'INFO'
                 )
@@ -974,14 +1046,624 @@ class FO4_OT_CleanImportedArmature(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_LoadFO4Skeleton(Operator):
+    """Load the FO4 humanoid skeleton into the scene.
+
+    Priority order:
+      1. Already in scene — do nothing (reports name).
+      2. Import skeleton.nif from the configured FO4 assets folder via PyNifly/Niftools.
+      3. Build a reference skeleton programmatically (all canonical NPC bones, correct proportions).
+    """
+    bl_idname  = "fo4.load_fo4_skeleton"
+    bl_label   = "Load FO4 Skeleton"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _FO4_BONE_HINTS = frozenset({
+        "Pelvis", "Spine1", "Spine2", "Spine3", "COM",
+        "NPC Pelvis [Pelv]", "NPC Spine [Spn0]", "NPC COM [COM ]",
+        "NPC Root [Root]", "b MRoot", "Bip01", "LArm_Hand", "RArm_Hand",
+    })
+
+    def _find_existing(self, scene):
+        for obj in scene.objects:
+            if obj.type != 'ARMATURE':
+                continue
+            if {b.name for b in obj.data.bones} & self._FO4_BONE_HINTS:
+                return obj
+        return None
+
+    def _skeleton_nif_path(self) -> "str | None":
+        """Return path to skeleton.nif if found in the configured FO4 assets folder."""
+        import os
+        root = None
+        try:
+            from . import preferences as _prefs
+            root = _prefs.get_fo4_assets_path()
+        except Exception:
+            pass
+        if not root and fo4_game_assets:
+            try:
+                data_dir = fo4_game_assets.FO4GameAssets.get_data_dir()
+                if data_dir:
+                    root = str(data_dir)
+            except Exception:
+                pass
+        if not root:
+            return None
+        candidates = [
+            os.path.join(root, "meshes", "actors", "character", "characterassets", "skeleton.nif"),
+            os.path.join(root, "Data", "meshes", "actors", "character", "characterassets", "skeleton.nif"),
+            os.path.join(root, "meshes", "actors", "character", "skeleton.nif"),
+        ]
+        return next((p for p in candidates if os.path.exists(p)), None)
+
+    def execute(self, context):
+        # ── 1. Already in scene? ──────────────────────────────────────────────
+        existing = self._find_existing(context.scene)
+        if existing:
+            self.report({'INFO'}, f"FO4 skeleton already in scene: '{existing.name}'")
+            return {'FINISHED'}
+
+        # ── 2. Import skeleton.nif from assets folder ─────────────────────────
+        nif_path = self._skeleton_nif_path()
+        if nif_path:
+            arm = None
+            pre_import_objects = set(context.scene.objects)
+            for ns, op_name in [("import_scene", "pynifly"), ("import_scene", "nif")]:
+                try:
+                    getattr(getattr(bpy.ops, ns), op_name)(filepath=nif_path)
+                    for obj in context.selected_objects:
+                        if obj.type == 'ARMATURE':
+                            obj.name = "FO4_Skeleton"
+                            arm = obj
+                            break
+                    if arm:
+                        break
+                except Exception:
+                    pass
+
+            # Clean up BSConnectPointParents empties and bounding-box nodes
+            # that NIF importers create alongside the armature — they clutter the scene.
+            new_objects = [o for o in context.scene.objects if o not in pre_import_objects]
+            for o in new_objects:
+                if o.type == 'EMPTY' and any(
+                    tag in o.name for tag in
+                    ("BSConnectPoint", "BsBound", "BSBone", "BSMultiBound", "NiNode")
+                ):
+                    bpy.data.objects.remove(o, do_unlink=True)
+
+            # Scale correction: Niftools imports NIF in Havok units (≈ cm).
+            # If the armature is > 5 Blender units tall it's at Havok scale; apply 0.01.
+            if arm:
+                arm_height = (arm.dimensions.z if arm.dimensions.z > 0 else 0)
+                if arm_height > 5.0:
+                    arm.scale = (0.01, 0.01, 0.01)
+                    bpy.context.view_layer.objects.active = arm
+                    arm.select_set(True)
+                    bpy.ops.object.transform_apply(scale=True)
+                self.report({'INFO'}, "FO4 skeleton imported from assets: skeleton.nif")
+                return {'FINISHED'}
+
+        # ── 3. Build reference skeleton programmatically ──────────────────────
+        try:
+            from . import fo4_armor_animation as _fa
+            arm = _fa.build_reference_skeleton()
+            bone_count = len(arm.data.bones)
+            if nif_path:
+                self.report({'WARNING'},
+                    f"skeleton.nif found but import failed — built reference skeleton "
+                    f"({bone_count} bones). Install PyNifly or Niftools to import the real file.")
+            else:
+                self.report({'INFO'},
+                    f"FO4 reference skeleton built ({bone_count} bones). "
+                    "To use the real skeleton, set 'FO4 Assets Path' in addon preferences.")
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not build FO4 skeleton: {exc}")
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+
+class FO4_OT_FixNIFScale(Operator):
+    """Fix NIF import scale — NIFs import at Havok scale (≈ cm) which looks huge in Blender.
+
+    Select all objects from the NIF import, then click this button.
+    Scales them down by 0.01 so 1 Blender unit = 1 cm (correct for FO4 / Havok).
+    """
+    bl_idname  = "fo4.fix_nif_scale"
+    bl_label   = "Fix NIF Scale (÷100)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        targets = list(context.selected_objects) or list(context.scene.objects)
+        if not targets:
+            self.report({'WARNING'}, "No objects selected or in scene.")
+            return {'CANCELLED'}
+
+        scaled = 0
+        for obj in targets:
+            # Only scale objects that look oversized (> 2 BU in any dimension)
+            if max(abs(obj.scale.x), abs(obj.scale.y), abs(obj.scale.z)) > 1.5:
+                obj.scale = (0.01, 0.01, 0.01)
+                scaled += 1
+            elif max(obj.dimensions.x, obj.dimensions.y, obj.dimensions.z) > 5.0:
+                obj.scale = (0.01, 0.01, 0.01)
+                scaled += 1
+
+        if scaled:
+            bpy.ops.object.transform_apply(scale=True)
+            self.report({'INFO'},
+                f"Fixed scale on {scaled} object(s). "
+                "Mesh is now at FO4/Havok units (1 BU ≈ 1 cm).")
+        else:
+            self.report({'INFO'}, "Objects already appear to be at the correct scale.")
+        return {'FINISHED'}
+
+
+class FO4_OT_QuickFBXArmorSetup(Operator):
+    """One-click FBX armor setup: clean armature → fix FBX scale → auto-weight to FO4 skeleton.
+
+    Select the imported FBX armor mesh, then click this button.
+    Steps run in order:
+      1. Remove the malformed FBX armature (fixes the 'crumpled body' look)
+      2. Fix FBX import scale (FBX uses cm; Blender uses m — apply rotation only if scale≈0.01)
+      3. Load FO4 skeleton if not already in scene, then auto-skin the mesh to it
+    """
+    bl_idname  = "fo4.quick_fbx_armor_setup"
+    bl_label   = "Quick FBX Armor Setup"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Exact bone names — covers both short names (some custom rigs) and full NPC names
+    _FO4_BONE_HINTS_EXACT = frozenset({
+        "Pelvis", "Spine1", "Spine2", "Spine3", "COM",
+        "LArm_Hand", "RArm_Hand", "b MRoot", "Bip01",
+        "NPC Root [Root]", "NPC COM [COM ]", "NPC Pelvis [Pelv]",
+        "NPC Spine [Spn0]", "NPC Head [Head]",
+    })
+    # Prefix matches — catches any NPC bone from the programmatic reference skeleton
+    _FO4_BONE_HINTS_PREFIX = (
+        "NPC Pelvis", "NPC Spine", "NPC COM", "NPC Root",
+        "NPC Head", "NPC Neck", "NPC L ", "NPC R ",
+    )
+
+    def _find_fo4_skeleton(self, scene):
+        for obj in scene.objects:
+            if obj.type != 'ARMATURE':
+                continue
+            bone_names = {b.name for b in obj.data.bones}
+            if bone_names & self._FO4_BONE_HINTS_EXACT:
+                return obj
+            if any(
+                any(bname.startswith(h) for h in self._FO4_BONE_HINTS_PREFIX)
+                for bname in bone_names
+            ):
+                return obj
+        return None
+
+    def execute(self, context):
+        import bpy
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select your imported FBX armor mesh first.")
+            return {'CANCELLED'}
+
+        steps_done = []
+
+        # ── 1. Remove malformed FBX armature ─────────────────────────────────
+        bad_armatures = []
+        if obj.parent and obj.parent.type == 'ARMATURE':
+            bad_armatures.append(obj.parent)
+        arm_mods = [m for m in obj.modifiers if m.type == 'ARMATURE']
+
+        if obj.parent:
+            bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        for m in arm_mods:
+            obj.modifiers.remove(m)
+        for arm in bad_armatures:
+            bpy.data.objects.remove(arm, do_unlink=True)
+
+        if bad_armatures or arm_mods:
+            steps_done.append("removed malformed armature")
+
+        context.view_layer.objects.active = obj
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+
+        # ── 2. Fix FBX import scale ───────────────────────────────────────────
+        # FBX files use centimetres; Blender imports them with scale≈0.01.
+        # Applying that scale would shrink the mesh geometry to 1/100th size.
+        # Instead: apply ROTATION only (fixes Y-up→Z-up axis flip from FBX),
+        # leave scale untouched so the mesh stays the right visual size.
+        try:
+            s = obj.scale
+            is_fbx_scale = max(abs(s.x), abs(s.y), abs(s.z)) < 0.1
+            if is_fbx_scale:
+                bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+                steps_done.append("FBX rotation applied (scale preserved)")
+            else:
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                steps_done.append("transforms applied")
+        except Exception as exc:
+            self.report({'WARNING'}, f"Transform step failed: {exc}")
+
+        # ── 3. Find FO4 skeleton and auto-weight paint ────────────────────────
+        fo4_skel = self._find_fo4_skeleton(context.scene)
+
+        if fo4_skel is None:
+            # Auto-load the skeleton (from assets folder or built programmatically)
+            try:
+                bpy.ops.fo4.load_fo4_skeleton()
+                fo4_skel = self._find_fo4_skeleton(context.scene)
+            except Exception as exc:
+                self.report({'WARNING'}, f"Auto-load FO4 skeleton failed: {exc}")
+            if fo4_skel is None:
+                self.report({'WARNING'},
+                    f"Steps done: {' · '.join(steps_done)}.  "
+                    "FO4 skeleton could not be loaded automatically. "
+                    "Set 'FO4 Assets Path' in preferences or check skeleton.nif exists.")
+                return {'FINISHED'}
+            steps_done.append("auto-loaded FO4 skeleton")
+
+        # ── 3b. Auto-position skeleton to overlap this mesh ──────────────────
+        # NEVER scale the skeleton to match a single piece — a shirt is shorter
+        # than the full body, and scaling would compress bone positions, causing
+        # wrong vertex-to-bone assignments.  Instead, just centre the skeleton
+        # XY on the mesh and keep Z at the natural imported position.
+        # (The skeleton's natural Z=0 = feet, which is correct for FO4 coords.)
+        # Skip repositioning if the skeleton already parents other mesh pieces —
+        # all pieces in a set share one skeleton at one fixed position.
+        try:
+            from mathutils import Vector as _V
+            already_bound = any(c.type == 'MESH' for c in fo4_skel.children)
+            if not already_bound:
+                mesh_bbox  = [obj.matrix_world @ _V(c) for c in obj.bound_box]
+                mesh_ctr_x = sum(v.x for v in mesh_bbox) / 8
+                mesh_ctr_y = sum(v.y for v in mesh_bbox) / 8
+                fo4_skel.location.x = mesh_ctr_x
+                fo4_skel.location.y = mesh_ctr_y
+                # Leave fo4_skel.location.z unchanged — the NIF skeleton places
+                # feet near Z=0 which is correct for any FO4-scale FBX piece.
+                steps_done.append("skeleton XY-centred on mesh")
+            else:
+                steps_done.append("skeleton reused (XY unchanged for multi-piece set)")
+        except Exception as _fit_exc:
+            self.report({'WARNING'}, f"Skeleton positioning failed: {_fit_exc}")
+
+        # ── 3c. Auto-correct skeleton facing direction ────────────────────────
+        # FBX game rips typically face +Y; the FO4 skeleton (PyNifly import at
+        # default rotation) faces -Y.  A symmetric shirt may have avg_normal_y ≈ 0,
+        # Symmetric clothing (shirts, pants) has roughly equal front/back area so a
+        # simple normal average ≈ 0.  Improve signal by:
+        #   • restricting to the upper 60% of mesh height (collar area has clearer bias)
+        #   • only using faces where |normal.y| > 0.3 (ignore sideways panels)
+        #   • area-weighting so large panels dominate over small detail polygons
+        #   • low threshold (0.01) — we just need any positive bias at all
+        _detected_ny = None
+        try:
+            import bmesh as _bm_mod
+            _bm = _bm_mod.new()
+            _bm.from_mesh(obj.data)
+            _bm.transform(obj.matrix_world)
+            _bm.normal_update()
+
+            _all_z = [v.co.z for v in _bm.verts]
+            _z_cut = min(_all_z) + (max(_all_z) - min(_all_z)) * 0.4  # bottom 40% cut
+
+            # Upper-body front/back faces only
+            _ub_fb = [
+                f for f in _bm.faces
+                if abs(f.normal.y) > 0.3 and f.calc_center_median().z >= _z_cut
+            ]
+            if len(_ub_fb) >= 5:
+                _tot = sum(f.calc_area() for f in _ub_fb) or 1.0
+                _avg_ny = sum(f.normal.y * f.calc_area() for f in _ub_fb) / _tot
+            else:
+                # Fallback: all faces with |normal.y| > 0.3, area-weighted
+                _fb = [f for f in _bm.faces if abs(f.normal.y) > 0.3]
+                if _fb:
+                    _tot = sum(f.calc_area() for f in _fb) or 1.0
+                    _avg_ny = sum(f.normal.y * f.calc_area() for f in _fb) / _tot
+                else:
+                    _avg_ny = 0.0
+            _bm.free()
+            _detected_ny = _avg_ny
+
+            from math import pi as _pi
+            _skel_z = fo4_skel.rotation_euler.z % (2 * _pi)
+            _skel_faces_neg_y = _skel_z < 0.3 or _skel_z > (2 * _pi - 0.3)
+
+            if _skel_faces_neg_y and _avg_ny > 0.01:
+                fo4_skel.rotation_euler.z += _pi
+                steps_done.append(
+                    f"auto-corrected skeleton facing (area-weighted_ny={_avg_ny:.4f})"
+                )
+        except Exception:
+            pass  # non-critical — user can click Flip Skeleton manually
+
+        # Restore mesh as active before weighting
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
+
+        # Auto-weight via animation_helpers (uses FO4-aware bone config)
+        if animation_helpers:
+            try:
+                ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(obj, fo4_skel)
+                if ok:
+                    steps_done.append(f"auto-weighted to '{fo4_skel.name}'")
+                else:
+                    self.report({'WARNING'},
+                        f"Auto-weight step skipped: {msg}  "
+                        "Select mesh + skeleton and click 'Auto Weight Paint'.")
+                    self.report({'INFO'}, f"Partial: {' · '.join(steps_done)}")
+                    return {'FINISHED'}
+            except Exception as exc:
+                self.report({'WARNING'}, f"Auto-weight step failed: {exc}")
+                self.report({'INFO'}, f"Partial: {' · '.join(steps_done)}")
+                return {'FINISHED'}
+        else:
+            # Fallback: Blender built-in envelope-based auto-skin
+            try:
+                fo4_skel.select_set(True)
+                context.view_layer.objects.active = fo4_skel
+                bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+                context.view_layer.objects.active = obj
+                steps_done.append(f"auto-weighted (built-in) to '{fo4_skel.name}'")
+            except Exception as exc:
+                self.report({'WARNING'}, f"Auto-weight fallback failed: {exc}")
+
+        # ── 4. Enforce FO4 4-bone-per-vertex limit ────────────────────────────
+        try:
+            context.view_layer.objects.active = obj
+            bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL', limit=4)
+            steps_done.append("enforced 4-bone limit")
+        except Exception as exc:
+            self.report({'WARNING'}, f"Bone limit step failed (run Weights > Limit Total manually): {exc}")
+
+        _ny_hint = f"  [facing_ny={_detected_ny:.4f}]" if _detected_ny is not None else ""
+        self.report({'INFO'},
+            f"✓ Quick setup done: {' · '.join(steps_done)}.{_ny_hint}  "
+            "If skeleton faces backwards, click 'Flip Skeleton 180°' to correct.  "
+            "Then check weights in Weight Paint mode.")
+        return {'FINISHED'}
+
+
+class FO4_OT_FlipSkeletonFacing(Operator):
+    """Flip the FO4 skeleton 180° around Z — use when the skeleton faces opposite to your armor mesh.
+
+    FBX files from some tools (DAZ, Marvelous Designer, some game rippers) import facing +Y,
+    while the FO4 skeleton faces -Y.  Click this once to align them.
+    """
+    bl_idname  = "fo4.flip_skeleton_facing"
+    bl_label   = "Flip Skeleton 180°"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _HINTS_PREFIX = ("NPC ", "Pelvis", "COM", "Spine", "LArm_", "RArm_")
+
+    def _find_skel(self, context):
+        for obj in context.scene.objects:
+            if obj.type != 'ARMATURE':
+                continue
+            if any(
+                any(b.name.startswith(h) for h in self._HINTS_PREFIX)
+                for b in obj.data.bones
+            ):
+                return obj
+        # fall back to active object
+        act = context.active_object
+        return act if act and act.type == 'ARMATURE' else None
+
+    def execute(self, context):
+        from math import pi
+        skel = self._find_skel(context)
+        if skel is None:
+            self.report({'ERROR'}, "No FO4 skeleton found in scene.")
+            return {'CANCELLED'}
+
+        # Collect existing child meshes before flipping
+        child_meshes = [c for c in skel.children if c.type == 'MESH']
+
+        skel.rotation_euler.z += pi
+
+        # Re-weight all children with the corrected skeleton orientation.
+        # Without this, the old weights reference bones that are now on the
+        # wrong side — causing the mirrored/inverted deformation the user sees.
+        reweighted = []
+        for mesh_obj in child_meshes:
+            try:
+                bpy.ops.object.select_all(action='DESELECT')
+                mesh_obj.select_set(True)
+                skel.select_set(True)
+                context.view_layer.objects.active = skel
+                bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+                context.view_layer.objects.active = mesh_obj
+                bpy.ops.object.vertex_group_limit_total(
+                    group_select_mode='ALL', limit=4)
+                reweighted.append(mesh_obj.name)
+            except Exception as exc:
+                self.report({'WARNING'},
+                    f"Re-weight failed for '{mesh_obj.name}': {exc}")
+
+        if reweighted:
+            self.report({'INFO'},
+                f"Flipped '{skel.name}' 180° and re-weighted: {', '.join(reweighted)}")
+        else:
+            self.report({'INFO'},
+                f"Flipped '{skel.name}' 180°. Run Quick FBX Setup again to re-weight.")
+        return {'FINISHED'}
+
+
+class FO4_OT_AutoConnectArmorTextures(Operator):
+    """Search the FO4 assets folder for textures matching this mesh and wire them into the material nodes.
+
+    Looks for DDS files containing the mesh's base name (with common prefixes stripped)
+    and assigns diffuse (_d), normal (_n), and specular (_s / _sk) maps automatically.
+    """
+    bl_idname  = "fo4.auto_connect_armor_textures"
+    bl_label   = "Auto-Connect Textures"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Prefixes that game exporters put on mesh names but NOT on texture filenames
+    _STRIP_PREFIXES = ("SKM_", "SM_", "MI_", "M_", "T_", "TX_")
+
+    # Suffix → (role, node_label, default_colorspace)
+    _SUFFIXES = {
+        "_d.dds":  ("diffuse", "Diffuse Texture",  "sRGB"),
+        "_n.dds":  ("normal",  "Normal Map",        "Non-Color"),
+        "_s.dds":  ("spec",    "Specular Texture",  "Non-Color"),
+        "_sk.dds": ("spec",    "Specular Texture",  "Non-Color"),
+        "_g.dds":  ("glow",    "Glow Map",          "sRGB"),
+        "_d.png":  ("diffuse", "Diffuse Texture",   "sRGB"),
+        "_n.png":  ("normal",  "Normal Map",        "Non-Color"),
+        "_d.tga":  ("diffuse", "Diffuse Texture",   "sRGB"),
+        "_n.tga":  ("normal",  "Normal Map",        "Non-Color"),
+    }
+
+    def _base_names(self, mesh_name):
+        """Return candidate base names to search for texture files."""
+        name = mesh_name
+        for pfx in self._STRIP_PREFIXES:
+            if name.startswith(pfx):
+                name = name[len(pfx):]
+        # Build variants: full stripped name + each underscore-truncated version
+        candidates = [name.lower()]
+        parts = name.split("_")
+        for i in range(len(parts) - 1, 0, -1):
+            candidates.append("_".join(parts[:i]).lower())
+        return candidates
+
+    def _find_textures(self, base_names, assets_root):
+        """Walk assets_root/textures looking for files matching base_names + known suffixes."""
+        found = {}  # role → filepath
+        if not assets_root or not _os.path.isdir(assets_root):
+            return found
+
+        tex_root = _os.path.join(assets_root, "textures")
+        if not _os.path.isdir(tex_root):
+            tex_root = assets_root  # search directly in assets root
+
+        for dirpath, _dirs, files in _os.walk(tex_root):
+            for fname in files:
+                fl = fname.lower()
+                for suf, (role, _, _cs) in self._SUFFIXES.items():
+                    if role in found:
+                        continue
+                    if not fl.endswith(suf):
+                        continue
+                    stem = fl[: -len(suf)]
+                    if any(stem == b or stem.endswith("_" + b) for b in base_names):
+                        found[role] = _os.path.join(dirpath, fname)
+                        break
+            if len(found) >= 3:  # diffuse + normal + spec = enough
+                break
+        return found
+
+    def _setup_material(self, obj, tex_map):
+        """Create/update the active material on obj with Principled BSDF + found textures."""
+        mat = obj.active_material
+        if mat is None:
+            mat = bpy.data.materials.new(name=obj.name + "_MAT")
+            if obj.data.materials:
+                obj.data.materials[0] = mat
+            else:
+                obj.data.materials.append(mat)
+
+        mat.use_nodes = True
+        nodes  = mat.node_tree.nodes
+        links  = mat.node_tree.links
+
+        # Guarantee a Principled BSDF output
+        bsdf = nodes.get("Principled BSDF") or next(
+            (n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if bsdf is None:
+            bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+        out  = nodes.get("Material Output") or next(
+            (n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
+        if out and not bsdf.outputs["BSDF"].is_linked:
+            links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
+
+        added = []
+        x_pos = bsdf.location.x - 400
+
+        for role, filepath in tex_map.items():
+            suf_meta = next(
+                ((role2, lbl, cs) for suf, (role2, lbl, cs) in self._SUFFIXES.items()
+                 if role2 == role and filepath.lower().endswith(suf)),
+                (role, role.title() + " Texture", "Non-Color" if role != "diffuse" else "sRGB"),
+            )
+            _, lbl, cs = suf_meta
+
+            img = bpy.data.images.get(filepath) or bpy.data.images.load(filepath)
+            img.colorspace_settings.name = cs
+
+            # Reuse an existing tex node for this role or create a new one
+            tex_node = next(
+                (n for n in nodes
+                 if n.type == 'TEX_IMAGE' and n.label == lbl), None)
+            if tex_node is None:
+                tex_node = nodes.new("ShaderNodeTexImage")
+                tex_node.label = lbl
+                tex_node.location = (x_pos, bsdf.location.y - added.__len__() * 280)
+            tex_node.image = img
+
+            if role == "diffuse":
+                links.new(tex_node.outputs["Color"], bsdf.inputs["Base Color"])
+                links.new(tex_node.outputs["Alpha"], bsdf.inputs["Alpha"])
+            elif role == "normal":
+                nmap = nodes.new("ShaderNodeNormalMap")
+                nmap.location = (x_pos + 180, tex_node.location.y)
+                links.new(tex_node.outputs["Color"], nmap.inputs["Color"])
+                links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
+            elif role in ("spec", "glow"):
+                links.new(tex_node.outputs["Color"], bsdf.inputs["Specular IOR Level"])
+
+            added.append(role)
+        return added
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first.")
+            return {'CANCELLED'}
+
+        prefs = None
+        try:
+            prefs = context.preferences.addons[__package__].preferences
+        except Exception:
+            pass
+
+        assets_root = ""
+        if prefs:
+            assets_root = getattr(prefs, "fo4_assets_path", "") or \
+                          getattr(prefs, "fo4_game_assets", "")
+
+        base_names = self._base_names(obj.name)
+        tex_map    = self._find_textures(base_names, assets_root)
+
+        if not tex_map:
+            self.report(
+                {'WARNING'},
+                f"No textures found for '{obj.name}' in '{assets_root or '(no assets path set)'}'. "
+                "Set FO4 Assets Root in add-on preferences and try again."
+            )
+            return {'CANCELLED'}
+
+        added = self._setup_material(obj, tex_map)
+        self.report(
+            {'INFO'},
+            f"Connected {len(added)} texture(s) for '{obj.name}': {', '.join(added)}"
+        )
+        return {'FINISHED'}
+
+
 class FO4_OT_ShowMessage(Operator):
     """Show a message to the user"""
     bl_idname = "fo4.show_message"
     bl_label = "Message"
-    
+
     message: StringProperty(name="Message")
     icon: StringProperty(name="Icon", default='INFO')
-    
+
     def execute(self, context):
         self.report({'INFO'}, self.message)
         return {'FINISHED'}
@@ -998,12 +1680,12 @@ class FO4_OT_CreateBaseMesh(Operator):
         try:
             obj = mesh_helpers.MeshHelpers.create_base_mesh()
             self.report({'INFO'}, f"Created base mesh: {obj.name}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Created base mesh: {obj.name}", 'INFO'
             )
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create mesh: {str(e)}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Error creating mesh: {str(e)}", 'ERROR'
             )
             return {'CANCELLED'}
@@ -1042,7 +1724,7 @@ class FO4_OT_OptimizeMesh(Operator):
 
     def invoke(self, context, event):
         # load current preferences as defaults so the dialog reflects saved settings
-        prefs = preferences.get_preferences()
+        prefs = preferences.get_preferences() if preferences else None
         if prefs:
             self.apply_transforms = prefs.optimize_apply_transforms
             self.threshold = prefs.optimize_remove_doubles_threshold
@@ -1057,7 +1739,7 @@ class FO4_OT_OptimizeMesh(Operator):
             return {'CANCELLED'}
         
         # override global preferences with operator values
-        prefs = preferences.get_preferences()
+        prefs = preferences.get_preferences() if preferences else None
         if prefs:
             prefs.optimize_apply_transforms = self.apply_transforms
             prefs.optimize_remove_doubles_threshold = self.threshold
@@ -1066,10 +1748,10 @@ class FO4_OT_OptimizeMesh(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -1090,14 +1772,14 @@ class FO4_OT_ValidateMesh(Operator):
         
         if success:
             self.report({'INFO'}, "Mesh is valid for Fallout 4!")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Mesh validation passed!", 'INFO'
             )
         else:
             self.report({'WARNING'}, "Mesh validation found issues:")
             for issue in issues:
                 self.report({'WARNING'}, f"  - {issue}")
-                notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
+                _notify(issue, 'WARNING')
         
         return {'FINISHED'}
 
@@ -1110,22 +1792,46 @@ class FO4_OT_SetupTextures(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
+        # If the object already has a material with a diffuse texture wired up
+        # (either PyNifly import format or named-node format) don't replace it.
+        existing = obj.data.materials[0] if obj.data.materials else None
+        if existing and existing.use_nodes:
+            nodes = existing.node_tree.nodes
+            has_texture = False
+            for node in nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get('Base Color')
+                    if sock and sock.links and sock.links[0].from_node.type == 'TEX_IMAGE':
+                        has_texture = True
+                        break
+                if node.type == 'TEX_IMAGE' and (
+                    node.name in {'Diffuse', 'Base'} or node.label in {'Diffuse', 'Base'}
+                ):
+                    has_texture = True
+                    break
+            if has_texture:
+                self.report({'INFO'},
+                    f"'{existing.name}' already has a diffuse texture — skipped. "
+                    "Delete the existing material first if you want a fresh one.")
+                return {'FINISHED'}
+
         try:
             mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
             self.report({'INFO'}, f"Created FO4 material: {mat.name}")
-            notification_system.FO4_NotificationSystem.notify(
-                f"Material created: {mat.name}", 'INFO'
-            )
+            _notify(f"Material created: {mat.name}", 'INFO')
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create material: {str(e)}")
             return {'CANCELLED'}
-        
+
         return {'FINISHED'}
 
 class FO4_OT_InstallTexture(Operator):
@@ -1148,6 +1854,9 @@ class FO4_OT_InstallTexture(Operator):
     )
     
     def execute(self, context):
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
 
         if not obj or obj.type != 'MESH':
@@ -1159,19 +1868,25 @@ class FO4_OT_InstallTexture(Operator):
 
         # Auto-convert non-DDS textures to DDS before installing.
         if os.path.splitext(self.filepath)[1].lower() != '.dds':
-            fmt = nvtt_helpers.NVTTHelpers.get_fo4_dds_format(self.texture_type)
-            dds_path = os.path.splitext(self.filepath)[0] + '.dds'
-            conv_ok, conv_msg = nvtt_helpers.NVTTHelpers.convert_to_dds(
-                self.filepath, dds_path, compression_format=fmt
-            )
-            if conv_ok:
-                install_path = dds_path
-                self.report({'INFO'}, f"Auto-converted to DDS ({fmt.upper()}): {os.path.basename(dds_path)}")
+            if nvtt_helpers:
+                fmt = nvtt_helpers.NVTTHelpers.get_fo4_dds_format(self.texture_type)
+                dds_path = os.path.splitext(self.filepath)[0] + '.dds'
+                conv_ok, conv_msg = nvtt_helpers.NVTTHelpers.convert_to_dds(
+                    self.filepath, dds_path, compression_format=fmt
+                )
+                if conv_ok:
+                    install_path = dds_path
+                    self.report({'INFO'}, f"Auto-converted to DDS ({fmt.upper()}): {os.path.basename(dds_path)}")
+                else:
+                    self.report(
+                        {'WARNING'},
+                        f"Could not auto-convert to DDS ({conv_msg}). "
+                        f"Install nvcompress or texconv, or use 'Convert to DDS' in Texture Helpers."
+                    )
             else:
                 self.report(
                     {'WARNING'},
-                    f"Could not auto-convert to DDS ({conv_msg}). "
-                    f"Install nvcompress or texconv, or use 'Convert to DDS' in Texture Helpers."
+                    "nvtt_helpers not available — installing texture as-is without DDS conversion."
                 )
 
         success, message = texture_helpers.TextureHelpers.install_texture(
@@ -1180,10 +1895,10 @@ class FO4_OT_InstallTexture(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -1198,24 +1913,27 @@ class FO4_OT_ValidateTextures(Operator):
     bl_label = "Validate Textures"
     
     def execute(self, context):
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         success, issues = texture_helpers.TextureHelpers.validate_textures(obj)
         
         if success:
             self.report({'INFO'}, "Textures are valid for Fallout 4!")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Texture validation passed!", 'INFO'
             )
         else:
             self.report({'WARNING'}, "Texture validation found issues:")
             for issue in issues:
                 self.report({'WARNING'}, f"  - {issue}")
-                notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
+                _notify(issue, 'WARNING')
         
         return {'FINISHED'}
 
@@ -1228,10 +1946,13 @@ class FO4_OT_SetupArmature(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         try:
             armature = animation_helpers.AnimationHelpers.setup_fo4_armature()
             self.report({'INFO'}, f"Created FO4 armature: {armature.name}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Armature created: {armature.name}", 'INFO'
             )
         except Exception as e:
@@ -1246,24 +1967,27 @@ class FO4_OT_ValidateAnimation(Operator):
     bl_label = "Validate Animation"
     
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'ARMATURE':
             self.report({'ERROR'}, "No armature selected")
             return {'CANCELLED'}
-        
+
         success, issues = animation_helpers.AnimationHelpers.validate_animation(obj)
         
         if success:
             self.report({'INFO'}, "Animation is valid for Fallout 4!")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Animation validation passed!", 'INFO'
             )
         else:
             self.report({'WARNING'}, "Animation validation found issues:")
             for issue in issues:
                 self.report({'WARNING'}, f"  - {issue}")
-                notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
+                _notify(issue, 'WARNING')
         
         return {'FINISHED'}
 
@@ -1286,6 +2010,9 @@ class FO4_OT_CreateIdleAnimation(Operator):
         self.layout.prop(self, "duration")
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'ARMATURE':
             self.report({'ERROR'}, "Select an armature first")
@@ -1293,7 +2020,7 @@ class FO4_OT_CreateIdleAnimation(Operator):
         ok, msg = animation_helpers.AnimationHelpers.create_idle_animation(obj, self.duration)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
         else:
             self.report({'ERROR'}, msg)
             return {'CANCELLED'}
@@ -1310,6 +2037,9 @@ class FO4_OT_GenerateWindWeights(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object")
@@ -1318,11 +2048,11 @@ class FO4_OT_GenerateWindWeights(Operator):
         ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            _notify(msg, 'ERROR')
             return {'CANCELLED'}
 
 
@@ -1333,6 +2063,9 @@ class FO4_OT_AutoWeightPaint(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         mesh = context.active_object
         if not mesh or mesh.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
@@ -1354,11 +2087,11 @@ class FO4_OT_AutoWeightPaint(Operator):
         ok, msg = animation_helpers.AnimationHelpers.auto_weight_paint(mesh, arm)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            _notify(msg, 'ERROR')
             return {'CANCELLED'}
 
 
@@ -1366,8 +2099,12 @@ class FO4_OT_BatchGenerateWindWeights(Operator):
     """Generate wind weights on all selected mesh objects"""
     bl_idname = "fo4.batch_generate_wind_weights"
     bl_label = "Batch: Wind Weights"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
         if not meshes:
             self.report({'ERROR'}, "No mesh objects selected")
@@ -1381,8 +2118,12 @@ class FO4_OT_BatchApplyWindAnimation(Operator):
     """Apply wind animation to all selected mesh objects"""
     bl_idname = "fo4.batch_apply_wind_animation"
     bl_label = "Batch: Wind Animation"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
         if not meshes:
             self.report({'ERROR'}, "No mesh objects selected")
@@ -1398,6 +2139,9 @@ class FO4_OT_BatchAutoWeightPaint(Operator):
     bl_label = "Batch: Auto Weight Paint"
 
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
         arm = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
         if not arm and meshes:
@@ -1418,23 +2162,17 @@ class FO4_OT_ToggleWindPreview(Operator):
     bl_idname = "fo4.toggle_wind_preview"
     bl_label = "Toggle Wind Preview"
 
-    enabling: bpy.props.BoolProperty(default=False)
-
     def execute(self, context):
-        if not self.enabling:
-            ok, msg = animation_helpers.AnimationHelpers.start_wind_preview()
-            if ok:
-                self.enabling = True
-                self.report({'INFO'}, msg)
-            else:
-                self.report({'WARNING'}, msg)
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        # Try to start; if already running, stop instead.
+        ok, msg = animation_helpers.AnimationHelpers.start_wind_preview()
+        if not ok:
+            ok2, msg2 = animation_helpers.AnimationHelpers.stop_wind_preview()
+            self.report({'INFO'}, msg2 if ok2 else msg)
         else:
-            ok, msg = animation_helpers.AnimationHelpers.stop_wind_preview()
-            if ok:
-                self.enabling = False
-                self.report({'INFO'}, msg)
-            else:
-                self.report({'WARNING'}, msg)
+            self.report({'INFO'}, msg)
         return {'FINISHED'}
 
 
@@ -1484,6 +2222,9 @@ class FO4_OT_ApplyWindAnimation(Operator):
             layout.prop(self, "axis")
     
     def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
         # apply presets if selected
         if self.preset in _WIND_ANIM_PRESETS:
             self.amplitude, self.period = _WIND_ANIM_PRESETS[self.preset]
@@ -1497,11 +2238,11 @@ class FO4_OT_ApplyWindAnimation(Operator):
         )
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'ERROR')
+            _notify(msg, 'ERROR')
             return {'CANCELLED'}
 
 class FO4_OT_DetectObjectType(Operator):
@@ -1585,12 +2326,16 @@ class FO4_OT_VegetationWindSetup(Operator):
             self.report({'ERROR'}, "Select at least one mesh object")
             return {'CANCELLED'}
 
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+
         ok_count = 0
         for obj in targets:
             ok, msg = animation_helpers.AnimationHelpers.apply_vegetation_wind(obj, amp, per)
             if ok:
                 ok_count += 1
-                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                _notify(msg, 'INFO')
             else:
                 self.report({'WARNING'}, f"{obj.name}: {msg}")
 
@@ -1620,6 +2365,9 @@ class FO4_OT_SmartWindSetup(Operator):
         if not export_helpers:
             self.report({'ERROR'}, "Export helpers not available")
             return {'CANCELLED'}
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
 
         obj_class = export_helpers.ExportHelpers.detect_fo4_object_class(obj)
 
@@ -1636,12 +2384,173 @@ class FO4_OT_SmartWindSetup(Operator):
             return {'FINISHED'}
 
         if ok:
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             self.report({'INFO'}, f"[{label}] {msg}")
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, msg)
             return {'CANCELLED'}
+
+
+# ── Vegetation Leaf-Card Setup ───────────────────────────────────────────────
+
+class FO4_OT_SetupLeafCard(Operator):
+    """Set up the selected mesh as an FO4 alpha-cutout leaf card.
+
+    Handles the *leaf layer* of FO4 vegetation (leaves, small foliage clusters,
+    vine leaves).  The 3D stem/trunk/root is a separate mesh that goes through
+    normal export.  This operator:
+      1. Decimates to a leaf-budget poly count  (default 3 000 tris)
+      2. Creates a two-sided alpha-clip FO4 material
+      3. Optionally loads the source leaf texture
+      4. Applies vegetation wind weights (Z-axis gradient, root→tip)
+      5. Tags the object as VEGETATION so the pipeline classifies it correctly
+    """
+    bl_idname  = "fo4.setup_leaf_card"
+    bl_label   = "Set Up as Leaf Card (Alpha)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    texture_path: StringProperty(
+        name="Leaf Texture",
+        description="Diffuse texture with alpha channel (.png / .dds with alpha)",
+        default="",
+        subtype='FILE_PATH',
+    )
+    alpha_threshold: FloatProperty(
+        name="Alpha Threshold",
+        description="Clip threshold — pixels below this alpha are invisible (0.5 = 50%)",
+        default=0.5, min=0.01, max=0.99, step=1,
+    )
+    decimate_target: IntProperty(
+        name="Target Triangles",
+        description="Decimate to this many triangles (leaf cards rarely need > 5 000)",
+        default=3000, min=100, max=65535,
+    )
+    apply_decimate: BoolProperty(
+        name="Decimate",
+        description="Reduce polygon count to the target before setup",
+        default=True,
+    )
+    wind_axis: EnumProperty(
+        name="Wind / Growth Axis",
+        description="Which axis points from root to tip of the plant",
+        items=[('Z', "+Z (up, standard)", ""),
+               ('Y', "+Y", ""),
+               ('X', "+X", "")],
+        default='Z',
+    )
+
+    def invoke(self, context, event):
+        # Pre-fill texture path from the last AI generation image if stored
+        obj = context.active_object
+        if obj and not self.texture_path:
+            self.texture_path = obj.get("fo4_source_image", "")
+        return context.window_manager.invoke_props_dialog(self, width=440)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Leaf / Foliage Texture:")
+        layout.prop(self, "texture_path", text="")
+        layout.prop(self, "alpha_threshold")
+        layout.separator()
+        row = layout.row(align=True)
+        row.prop(self, "apply_decimate")
+        sub = row.column()
+        sub.enabled = self.apply_decimate
+        sub.prop(self, "decimate_target")
+        layout.prop(self, "wind_axis")
+
+    def execute(self, context):
+        import os as _os
+
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        steps = []
+
+        # ── 1. Decimate ────────────────────────────────────────────────────────
+        if self.apply_decimate:
+            poly = len(obj.data.polygons)
+            if poly > self.decimate_target:
+                mod = obj.modifiers.new("LeafCard_Dec", 'DECIMATE')
+                mod.ratio = max(0.001, self.decimate_target / max(poly, 1))
+                try:
+                    bpy.ops.object.modifier_apply(modifier=mod.name)
+                    steps.append(f"Decimated {poly:,} → ~{self.decimate_target:,} tris")
+                except Exception as exc:
+                    obj.modifiers.remove(mod)
+                    steps.append(f"Decimate skipped ({exc})")
+            else:
+                steps.append(f"Poly count {poly:,} already under target")
+
+        # ── 2. UV map ─────────────────────────────────────────────────────────
+        if not obj.data.uv_layers:
+            prev = context.mode
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project()
+            bpy.ops.object.mode_set(mode='OBJECT')
+            steps.append("UV map created (Smart UV Project)")
+
+        # ── 3. Alpha-clip material ────────────────────────────────────────────
+        mat_name = f"{obj.name}_LeafCard"
+        mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
+        mat.use_nodes = True
+        mat.blend_method  = 'CLIP'
+        mat.shadow_method = 'CLIP'
+        mat.alpha_threshold = self.alpha_threshold
+        mat.use_backface_culling = False  # leaves visible from both sides
+
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        nodes.clear()
+
+        out  = nodes.new('ShaderNodeOutputMaterial'); out.location  = (500, 0)
+        bsdf = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location = (150, 0)
+        bsdf.name = "Principled BSDF"
+        tex  = nodes.new('ShaderNodeTexImage');       tex.location  = (-250, 100)
+        tex.name  = "Diffuse"
+        tex.label = "Diffuse (_d)"
+
+        if self.texture_path and _os.path.exists(self.texture_path):
+            try:
+                img = bpy.data.images.load(self.texture_path)
+                tex.image = img
+                steps.append(f"Texture: {_os.path.basename(self.texture_path)}")
+            except Exception as exc:
+                steps.append(f"Texture load failed ({exc})")
+        else:
+            steps.append("No texture loaded — assign in Material Properties")
+
+        links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+        links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
+        links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+
+        if obj.data.materials:
+            obj.data.materials[0] = mat
+        else:
+            obj.data.materials.append(mat)
+        steps.append("Alpha-clip leaf material set up")
+
+        # ── 4. Wind weights ────────────────────────────────────────────────────
+        try:
+            from . import animation_helpers as _ah
+            ok, msg = _ah.AnimationHelpers.generate_wind_weights(
+                obj, group_name="Wind", axis=self.wind_axis, invert=False
+            )
+            steps.append("Wind weights: " + ("applied ✓" if ok else msg))
+        except Exception as exc:
+            steps.append(f"Wind weights skipped ({exc})")
+
+        # ── 5. Tag as vegetation ───────────────────────────────────────────────
+        obj["fo4_mesh_type"] = "VEGETATION"
+        obj["fo4_leaf_card"] = True
+
+        summary = " | ".join(steps)
+        self.report({'INFO'}, f"Leaf card ready: {summary}")
+        return {'FINISHED'}
 
 
 # RigNet Auto-Rigging Operators
@@ -1650,18 +2559,22 @@ class FO4_OT_CheckRigNetInstallation(Operator):
     """Check if RigNet is installed and available"""
     bl_idname = "fo4.check_rignet"
     bl_label = "Check RigNet Installation"
-    
+    bl_options = {'REGISTER'}
+
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
         
         if available:
             self.report({'INFO'}, f"✓ RigNet available at: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "RigNet is installed and ready!", 'INFO'
             )
         else:
             self.report({'WARNING'}, f"✗ RigNet not available: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"RigNet not available: {message}", 'WARNING'
             )
         
@@ -1671,8 +2584,11 @@ class FO4_OT_ShowRigNetInfo(Operator):
     """Show RigNet installation information"""
     bl_idname = "fo4.show_rignet_info"
     bl_label = "RigNet Installation Info"
-    
+
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         instructions = rignet_helpers.RigNetHelpers.get_installation_instructions()
         
         # Print to console
@@ -1700,12 +2616,15 @@ class FO4_OT_PrepareForRigNet(Operator):
     )
     
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         # Prepare mesh
         success, message, prepared_mesh = rignet_helpers.RigNetHelpers.prepare_mesh_for_rignet(
             obj, self.target_vertices
@@ -1713,14 +2632,14 @@ class FO4_OT_PrepareForRigNet(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
             # Select the prepared mesh
             bpy.ops.object.select_all(action='DESELECT')
             prepared_mesh.select_set(True)
             context.view_layer.objects.active = prepared_mesh
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -1735,12 +2654,15 @@ class FO4_OT_AutoRigMesh(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         # Check if RigNet is available
         available, message = rignet_helpers.RigNetHelpers.check_rignet_available()
         if not available:
@@ -1753,10 +2675,10 @@ class FO4_OT_AutoRigMesh(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'WARNING'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
+            _notify(message, 'WARNING')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -1769,22 +2691,25 @@ class FO4_OT_ExportForRigNet(Operator):
     filepath: StringProperty(subtype='FILE_PATH')
     
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         # Use provided filepath or generate one
         output_path = self.filepath or None
-        
+
         success, message, file_path = rignet_helpers.RigNetHelpers.export_for_rignet(
             obj, output_path
         )
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
             return {'CANCELLED'}
@@ -1799,18 +2724,22 @@ class FO4_OT_CheckLibiglInstallation(Operator):
     """Check if libigl is installed and available"""
     bl_idname = "fo4.check_libigl"
     bl_label = "Check libigl Installation"
-    
+    bl_options = {'REGISTER'}
+
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         available, message = rignet_helpers.RigNetHelpers.check_libigl_available()
         
         if available:
             self.report({'INFO'}, f"✓ libigl available: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "libigl is installed and ready!", 'INFO'
             )
         else:
             self.report({'WARNING'}, f"✗ libigl not available: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"libigl not available: {message}", 'WARNING'
             )
         
@@ -1823,12 +2752,15 @@ class FO4_OT_ComputeBBWSkinning(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not rignet_helpers:
+            self.report({'ERROR'}, "rignet_helpers module failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         # Find armature (either selected or parent)
         armature = None
         if obj.parent and obj.parent.type == 'ARMATURE':
@@ -1856,10 +2788,10 @@ class FO4_OT_ComputeBBWSkinning(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'WARNING'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
+            _notify(message, 'WARNING')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -1881,6 +2813,9 @@ class FO4_OT_ExportMesh(Operator):
         return obj is not None and obj.type == 'MESH'
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         # Use the object captured at invoke time when possible
         if self.source_object:
             obj = context.scene.objects.get(self.source_object)
@@ -1905,10 +2840,10 @@ class FO4_OT_ExportMesh(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -1948,6 +2883,9 @@ class FO4_OT_SetCollisionType(Operator):
     )
 
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
@@ -1968,11 +2906,12 @@ class FO4_OT_SetCollisionType(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        obj = context.active_object
-        if obj and obj.type == 'MESH':
-            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-                getattr(obj, 'fo4_collision_type', inferred), inferred)
+        if mesh_helpers:
+            obj = context.active_object
+            if obj and obj.type == 'MESH':
+                inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+                self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                    getattr(obj, 'fo4_collision_type', inferred), inferred)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -2004,6 +2943,9 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         return obj is not None and obj.type == 'MESH'
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         # Use the object captured at invoke time when possible
         if self.source_object:
             obj = context.scene.objects.get(self.source_object)
@@ -2037,10 +2979,10 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
         
         return {'FINISHED'}
@@ -2050,13 +2992,13 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        # Store the name now so execute() can find it after the file dialog
         self.source_object = obj.name
-        inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-        self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-            getattr(obj, 'fo4_collision_type', inferred), inferred)
-        if self.simplify_ratio == 0.25:
-            self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
+        if mesh_helpers:
+            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                getattr(obj, 'fo4_collision_type', inferred), inferred)
+            if self.simplify_ratio == 0.25:
+                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -2068,6 +3010,9 @@ class FO4_OT_ExportAll(Operator):
     directory: StringProperty(subtype='DIR_PATH')
     
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         success, results = export_helpers.ExportHelpers.export_complete_mod(
             context.scene, self.directory
         )
@@ -2077,7 +3022,7 @@ class FO4_OT_ExportAll(Operator):
             if results.get('skipped'):
                 info_msg += f", skipped {len(results['skipped'])} collision meshes"
             self.report({'INFO'}, info_msg)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Mod exported successfully!", 'INFO'
             )
         else:
@@ -2152,6 +3097,9 @@ class FO4_OT_ExportCKAssetBundle(Operator):
         return paths
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         if not self.directory:
             self.report({'ERROR'}, "Select a FO4 Data folder")
             return {'CANCELLED'}
@@ -2226,7 +3174,7 @@ class FO4_OT_ExportCKAssetBundle(Operator):
             for w in warns:
                 print(f"  - {w}")
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 summary, 'INFO' if not warns else 'WARNING'
             )
         return {'FINISHED'}
@@ -2260,15 +3208,18 @@ class FO4_OT_ExportSceneAsNif(Operator):
         )
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         success, message = export_helpers.ExportHelpers.export_scene_as_single_nif(
             context.scene, self.filepath
         )
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
         return {'FINISHED'}
 
@@ -2283,24 +3234,27 @@ class FO4_OT_ValidateExport(Operator):
     bl_label = "Validate Before Export"
     
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
-        
+
         success, issues = export_helpers.ExportHelpers.validate_before_export(obj)
         
         if success:
             self.report({'INFO'}, "Object is ready for export!")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Validation passed! Ready to export.", 'INFO'
             )
         else:
             self.report({'WARNING'}, "Validation found issues:")
             for issue in issues:
                 self.report({'WARNING'}, f"  - {issue}")
-                notification_system.FO4_NotificationSystem.notify(issue, 'WARNING')
+                _notify(issue, 'WARNING')
         
         return {'FINISHED'}
 
@@ -2345,7 +3299,7 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
     """Export the active armature animation to FBX and optionally convert to HKX via ck-cmd or Havok2FBX."""
     bl_idname = "fo4.export_animation_havok2fbx"
     bl_label = "Export Animation (FBX → HKX)"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
         import os
@@ -2474,8 +3428,8 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
         # Attempt HKX conversion — try ck-cmd first (open-source, no SDK required),
         # then fall back to Havok2FBX if configured.
-        ckcmd_dir = preferences.get_ckcmd_path()
-        havok_dir = preferences.get_havok2fbx_path()
+        ckcmd_dir = preferences.get_ckcmd_path() if preferences else None
+        havok_dir = preferences.get_havok2fbx_path() if preferences else None
 
         if ckcmd_dir and skeleton_path and os.path.isfile(skeleton_path):
             from . import tool_installers
@@ -2518,11 +3472,11 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
                         msg = f"ck-cmd error: {exc}. FBX saved at {fbx_path}"
                         level = 'WARNING'
 
-                    def _notify(msg=msg, level=level):
-                        notification_system.FO4_NotificationSystem.notify(msg, level)
+                    def _timer_notify(msg=msg, level=level):
+                        _notify(msg, level)
                         print(f"CK-CMD [{level}]", msg)
 
-                    bpy.app.timers.register(_notify, first_interval=0.0)
+                    bpy.app.timers.register(_timer_notify, first_interval=0.0)
 
                 threading.Thread(target=_convert_ckcmd, daemon=True).start()
                 self.report({'INFO'}, "HKX conversion (ck-cmd) started in background - Blender stays responsive")
@@ -2573,11 +3527,11 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
                         msg = f"havok2fbx error: {exc}. FBX saved at {fbx_path}"
                         level = 'WARNING'
 
-                    def _notify(msg=msg, level=level):
-                        notification_system.FO4_NotificationSystem.notify(msg, level)
+                    def _timer_notify(msg=msg, level=level):
+                        _notify(msg, level)
                         print(f"HAVOK2FBX [{level}]", msg)
 
-                    bpy.app.timers.register(_notify, first_interval=0.0)
+                    bpy.app.timers.register(_timer_notify, first_interval=0.0)
 
                 threading.Thread(target=_convert, daemon=True).start()
                 self.report({'INFO'}, "HKX conversion started in background - Blender stays responsive")
@@ -2621,8 +3575,12 @@ class FO4_OT_ConvertToFallout4(Operator):
     )
 
     def execute(self, context):
-        from . import mesh_helpers, texture_helpers, nvtt_helpers
-
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
@@ -2638,7 +3596,7 @@ class FO4_OT_ConvertToFallout4(Operator):
 
             # Apply scale and rotation transforms
             if any([s != 1.0 for s in obj.scale]) or any([r != 0.0 for r in obj.rotation_euler]):
-                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+                bpy.ops.object.transform_apply('EXEC_DEFAULT', location=False, rotation=True, scale=True)
                 messages.append("✓ Applied transforms")
 
             # Optimize mesh for FO4
@@ -2666,8 +3624,7 @@ class FO4_OT_ConvertToFallout4(Operator):
             # Step 3: Texture Conversion (if enabled)
             if self.convert_textures:
                 # Check if nvtt or texconv available
-                from . import preferences
-                nvtt_path = preferences.get_configured_nvcompress_path()
+                nvtt_path = preferences.get_configured_nvcompress_path() if preferences else None
                 texconv_path = preferences.get_configured_texconv_path()
 
                 if nvtt_path or texconv_path:
@@ -2739,7 +3696,7 @@ class FO4_OT_ConvertToFallout4(Operator):
             else:
                 self.report({'INFO'}, f"Successfully converted {obj.name} to Fallout 4 format")
 
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"{obj.name} ready for FO4 export", 'INFO'
             )
             return {'FINISHED'}
@@ -2900,7 +3857,11 @@ class FO4_OT_AnalyzeMeshQuality(Operator):
         if not obj:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
-        
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
+
         # Analyze mesh
         scores, issues, details = advanced_mesh_helpers.AdvancedMeshHelpers.analyze_mesh_quality(obj)
         
@@ -2932,7 +3893,7 @@ class FO4_OT_AnalyzeMeshQuality(Operator):
             print(f"  • {issue}")
         print("="*70 + "\n")
         
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Mesh quality: {scores['overall']:.1f}/100", 
             'INFO' if scores['overall'] > 70 else 'WARNING'
         )
@@ -2952,13 +3913,17 @@ class FO4_OT_AutoRepairMesh(Operator):
         if not obj:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
-        
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
+
         # Repair mesh
         success, message, repairs = advanced_mesh_helpers.AdvancedMeshHelpers.auto_repair_mesh(obj)
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Mesh repaired successfully", 'INFO'
             )
             
@@ -3020,7 +3985,11 @@ class FO4_OT_SmartDecimate(Operator):
         if not obj:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
-        
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
+
         # Decimate mesh
         if self.method == 'TARGET':
             success, message, stats = advanced_mesh_helpers.AdvancedMeshHelpers.smart_decimate(
@@ -3033,7 +4002,7 @@ class FO4_OT_SmartDecimate(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Decimated: {stats['reduction_percent']:.1f}% reduction", 'INFO'
             )
         else:
@@ -3093,7 +4062,7 @@ class FO4_OT_DecimateToFO4(Operator):
                 {'INFO'},
                 f"Decimated: {current:,} → {after:,} tris ({pct:.1f}% reduction)",
             )
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Mesh ready for FO4: {after:,} tris", 'INFO'
             )
         else:
@@ -3162,7 +4131,7 @@ class FO4_OT_SplitMeshPolyLimit(Operator):
 
         msg = f"Split into {len(parts)} part(s): {', '.join(p.name for p in parts)}"
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Mesh split into {len(parts)} FO4-compatible parts", 'INFO'
         )
 
@@ -3201,13 +4170,17 @@ class FO4_OT_GenerateLOD(Operator):
         if not obj:
             self.report({'ERROR'}, "No object selected")
             return {'CANCELLED'}
-        
+
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
+
         # Generate LOD chain
         success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(obj)
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Generated {len(lod_objects)} LOD levels", 'INFO'
             )
             
@@ -3304,7 +4277,7 @@ class FO4_OT_GenerateLODAndCollision(Operator):
 
         summary = " | ".join(results)
         self.report({'INFO'}, summary)
-        notification_system.FO4_NotificationSystem.notify(summary, 'INFO')
+        _notify(summary, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -3394,7 +4367,7 @@ class FO4_OT_CollisionFromLowestLOD(Operator):
             if collision_obj:
                 msg = f"Collision mesh '{collision_obj.name}' created from {source_label}"
                 self.report({'INFO'}, msg)
-                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                _notify(msg, 'INFO')
                 print(f"\n{'='*70}\nCOLLISION FROM LOD\n{'='*70}")
                 print(f"Source: {source_label}")
                 print(f"Collision: {collision_obj.name} "
@@ -3431,6 +4404,9 @@ class FO4_OT_BatchGenerateLOD(Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module unavailable")
+            return {'CANCELLED'}
         selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
         if not selected_meshes:
             self.report({'ERROR'}, "No mesh objects selected")
@@ -3459,7 +4435,7 @@ class FO4_OT_BatchGenerateLOD(Operator):
         if fail_count:
             msg += f", {fail_count} failed"
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
 
@@ -3493,6 +4469,9 @@ class FO4_OT_BatchGenerateCollision(Operator):
     )
 
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module unavailable")
+            return {'CANCELLED'}
         selected_meshes = [o for o in context.selected_objects if o.type == 'MESH']
         if not selected_meshes:
             self.report({'ERROR'}, "No mesh objects selected")
@@ -3533,7 +4512,7 @@ class FO4_OT_BatchGenerateCollision(Operator):
         if fail_count:
             msg += f", {fail_count} failed"
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -3589,7 +4568,7 @@ class FO4_OT_OptimizeUVs(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "UVs optimized", 'INFO'
             )
         else:
@@ -3680,12 +4659,6 @@ class FO4_OT_SetupUVWithTexture(Operator):
         layout = self.layout
         layout.prop(self, "texture_type")
         layout.prop(self, "unwrap_method")
-        layout.prop(self, "island_margin")
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "texture_type")
-        layout.prop(self, "unwrap_method")
         if self.unwrap_method not in ('EXISTING', 'FOLIAGE'):
             layout.prop(self, "island_margin")
 
@@ -3720,7 +4693,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
             import os
             if self.filepath and os.path.splitext(self.filepath)[1].lower() != '.dds':
                 self.report(
@@ -3730,7 +4703,7 @@ class FO4_OT_SetupUVWithTexture(Operator):
                 )
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -3803,7 +4776,7 @@ class FO4_OT_ReUnwrapUV(Operator):
 
         if success:
             self.report({'INFO'}, f"UV re-unwrapped: {message}")
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
             return {'CANCELLED'}
@@ -3875,6 +4848,9 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
     _deadline = None
 
     def _start(self, context):
+        if not advisor_helpers:
+            self.report({'ERROR'}, "advisor_helpers failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
@@ -3936,7 +4912,7 @@ class FO4_OT_AskMossyForUVAdvice(Operator):
             print("=" * 60)
             print(advice)
             print("=" * 60 + "\n")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Mossy: " + advice[:100] + ("…" if len(advice) > 100 else ""),
                 'INFO'
             )
@@ -3984,6 +4960,9 @@ class FO4_OT_MossyAutoFix(Operator):
     _deadline = None
 
     def _start(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers failed to load")
+            return {'CANCELLED'}
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "Select a mesh object first")
@@ -4091,6 +5070,9 @@ class FO4_OT_MossyAutoFix(Operator):
             self.report({'INFO'}, "Mesh is completely valid. No fixes needed!")
             return {'FINISHED'}
 
+        if not advisor_helpers:
+            self.report({'ERROR'}, "advisor_helpers failed to load")
+            return {'CANCELLED'}
         success_count = 0
         for act in actions:
             ok, msg = advisor_helpers.AdvisorHelpers.apply_quick_fix(context, act)
@@ -4102,6 +5084,9 @@ class FO4_OT_MossyAutoFix(Operator):
 
     def _apply_builtin_fixes(self, context):
         """Rule-based fallback used when Mossy Bridge is up but AI is offline."""
+        if not advisor_helpers:
+            self.report({'ERROR'}, "advisor_helpers failed to load")
+            return {'CANCELLED'}
         if not self._issues:
             self.report({'INFO'}, "No issues to fix.")
             return {'FINISHED'}
@@ -4174,6 +5159,9 @@ class FO4_OT_ScanUVComplexity(Operator):
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
         report = advanced_mesh_helpers.AdvancedMeshHelpers.scan_uv_complexity(obj)
         score = report['complexity_score']
         problems = report['problem_areas']
@@ -4202,7 +5190,7 @@ class FO4_OT_ScanUVComplexity(Operator):
             {level},
             f"Complexity {score}/100 - {first_rec}"
         )
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"UV scan: {score}/100. See console.", level
         )
         return {'FINISHED'}
@@ -4274,7 +5262,7 @@ class FO4_OT_SmartSeamMark(Operator):
             return {'CANCELLED'}
 
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
 
         # Drop the user into Edge Select edit mode so they can refine seams
         # immediately without a separate step.
@@ -4406,7 +5394,11 @@ class FO4_OT_HybridUnwrap(Operator):
             # CONFORMAL (LSCM) gives the best analytical starting layout for
             # the minimize_stretch relaxation; seams already present in the
             # mesh data are automatically honoured by uv.unwrap.
-            bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+            try:
+                bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+            except Exception as _uw_err:
+                self.report({'ERROR'}, f"UV unwrap failed: {_uw_err}")
+                return {'CANCELLED'}
 
             # Iterative relaxation - minimises stretch in every island.
             try:
@@ -4451,7 +5443,7 @@ class FO4_OT_HybridUnwrap(Operator):
                 "'Export Mesh (.nif)'."
             )
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -4598,25 +5590,28 @@ class FO4_OT_RebakeTextureToNewUV(Operator):
         context.scene.render.bake.use_pass_direct   = False
         context.scene.render.bake.use_pass_indirect = False
 
+        bake_ok = False
         try:
             bpy.ops.object.bake(type='DIFFUSE')
+            bake_ok = True
         except Exception as exc:
-            nodes.remove(target_node)
-            nodes.remove(uv_map_node)
+            self.report({'ERROR'}, f"Bake failed: {exc}")
+        finally:
             context.scene.render.engine  = prev_engine
             context.scene.cycles.samples = prev_samples
-            self.report({'ERROR'}, f"Bake failed: {exc}")
+            nodes.remove(target_node)
+            nodes.remove(uv_map_node)
+
+        if not bake_ok:
             return {'CANCELLED'}
 
-        context.scene.render.engine  = prev_engine
-        context.scene.cycles.samples = prev_samples
-
-        nodes.remove(uv_map_node)
-        nodes.remove(target_node)
-
-        bake_img.filepath_raw = out_path
-        bake_img.file_format  = 'PNG'
-        bake_img.save()
+        try:
+            bake_img.filepath_raw = out_path
+            bake_img.file_format  = 'PNG'
+            bake_img.save()
+        except Exception as exc:
+            self.report({'ERROR'}, f"Failed to save baked image: {exc}")
+            return {'CANCELLED'}
 
         src_tex_node.image = bake_img
 
@@ -4627,7 +5622,7 @@ class FO4_OT_RebakeTextureToNewUV(Operator):
         msg = (f"Rebake complete -> {os.path.basename(out_path)}. "
                "Convert to DDS with 'Convert to DDS' then reinstall if needed.")
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
 
@@ -4754,7 +5749,11 @@ class FO4_OT_UnwrapSelectedFaces(Operator):
             bpy.context.tool_settings.mesh_select_mode = (False, False, True)
 
         # CONFORMAL (LSCM) gives the best analytical starting point
-        bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+        try:
+            bpy.ops.uv.unwrap(method='CONFORMAL', margin=self.island_margin)
+        except Exception as _uw_err:
+            self.report({'ERROR'}, f"UV unwrap failed: {_uw_err}")
+            return {'CANCELLED'}
 
         # Iterative relaxation - minimises stretch in every island
         try:
@@ -4770,7 +5769,7 @@ class FO4_OT_UnwrapSelectedFaces(Operator):
             "Use 'Edit UV Map' to inspect the result."
         )
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -4968,7 +5967,7 @@ class FO4_OT_FoliageUVUnwrap(Operator):
             f"then paint or tile your diffuse texture."
         )
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -4984,12 +5983,15 @@ class FO4_OT_BatchOptimizeMeshes(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module unavailable")
+            return {'CANCELLED'}
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
+
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
-        
+
         success_count = 0
         failed_count = 0
         
@@ -5007,7 +6009,7 @@ class FO4_OT_BatchOptimizeMeshes(Operator):
                 self.report({'WARNING'}, f"{obj.name}: {str(e)}")
         
         self.report({'INFO'}, f"Optimized {success_count} meshes, {failed_count} failed")
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Batch optimized {success_count} meshes", 'INFO'
         )
         return {'FINISHED'}
@@ -5020,12 +6022,15 @@ class FO4_OT_BatchValidateMeshes(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module unavailable")
+            return {'CANCELLED'}
         selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-        
+
         if not selected_objects:
             self.report({'ERROR'}, "No mesh objects selected")
             return {'CANCELLED'}
-        
+
         all_valid = True
         issues = []
         
@@ -5059,6 +6064,9 @@ class FO4_OT_BatchExportMeshes(Operator):
     )
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         if not self.directory:
             self.report({'ERROR'}, "No export directory specified")
             return {'CANCELLED'}
@@ -5081,7 +6089,7 @@ class FO4_OT_BatchExportMeshes(Operator):
                 self.report({'WARNING'}, f"{obj.name}: {str(e)}")
 
         self.report({'INFO'}, f"Exported {success_count} of {len(selected_objects)} meshes")
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Batch exported {success_count} meshes", 'INFO'
         )
         return {'FINISHED'}
@@ -5155,7 +6163,7 @@ class FO4_OT_SetFO4AssetsPath(Operator):
 
         self.report({'INFO'}, f"FO4 assets path set to: {chosen}")
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"FO4 assets path set: {chosen}", 'INFO'
             )
         return {'FINISHED'}
@@ -5258,7 +6266,7 @@ class FO4_OT_SetUnityAssetsPath(Operator):
 
         self.report({'INFO'}, f"Unity assets path set to: {chosen}")
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Unity assets path set: {chosen}", 'INFO'
             )
         return {'FINISHED'}
@@ -5307,7 +6315,7 @@ class FO4_OT_SetUnrealAssetsPath(Operator):
 
         self.report({'INFO'}, f"Unreal assets path set to: {chosen}")
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Unreal assets path set: {chosen}", 'INFO'
             )
         return {'FINISHED'}
@@ -5333,7 +6341,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         subtype='FILE_PATH',
     )
     filter_glob: StringProperty(
-        default="*.fbx;*.obj;*.nif;*.duf;*.dsf;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
+        default="*.fbx;*.obj;*.nif;*.glb;*.gltf;*.duf;*.dsf;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
         options={'HIDDEN'},
     )
 
@@ -5353,13 +6361,17 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         filename = os.path.basename(filepath)
 
         # ── Mesh import ──────────────────────────────────────────────────────
+        # All 3D mesh formats are scaled from FO4 game units to Blender metres
+        # after import (_apply_fo4_import_scale ÷70, apply, tag fo4_unit_scale).
+        # The export path multiplies back ×70 so round-tripping produces a NIF
+        # at the original Fallout 4 game scale.
+
         if ext == '.fbx':
             try:
                 bpy.ops.import_scene.fbx(filepath=filepath)
-                self.report({'INFO'}, f"Imported FBX: {filename}")
-                notification_system.FO4_NotificationSystem.notify(
-                    f"Imported {filename}", 'INFO'
-                )
+                n = _apply_fo4_import_scale(context)
+                self.report({'INFO'}, f"Imported FBX: {filename} ({n} object(s) scaled to Blender metres)")
+                _notify(f"Imported {filename}", 'INFO')
                 return {'FINISHED'}
             except Exception as e:
                 self.report({'ERROR'}, f"FBX import failed: {e}")
@@ -5372,32 +6384,45 @@ class FO4_OT_ImportFO4AssetFile(Operator):
                     bpy.ops.wm.obj_import(filepath=filepath)
                 else:
                     bpy.ops.import_scene.obj(filepath=filepath)
-                self.report({'INFO'}, f"Imported OBJ: {filename}")
-                notification_system.FO4_NotificationSystem.notify(
-                    f"Imported {filename}", 'INFO'
-                )
+                n = _apply_fo4_import_scale(context)
+                self.report({'INFO'}, f"Imported OBJ: {filename} ({n} object(s) scaled to Blender metres)")
+                _notify(f"Imported {filename}", 'INFO')
                 return {'FINISHED'}
             except Exception as e:
                 self.report({'ERROR'}, f"OBJ import failed: {e}")
                 return {'CANCELLED'}
 
+        if ext in {'.glb', '.gltf'}:
+            try:
+                if hasattr(bpy.ops.import_scene, 'gltf'):
+                    bpy.ops.import_scene.gltf(filepath=filepath)
+                    n = _apply_fo4_import_scale(context)
+                    self.report({'INFO'}, f"Imported GLB/GLTF: {filename} ({n} object(s) scaled to Blender metres)")
+                    _notify(f"Imported {filename}", 'INFO')
+                    return {'FINISHED'}
+                else:
+                    self.report({'ERROR'}, "GLB/GLTF import requires the built-in GLTF 2.0 add-on (enabled by default in Blender 3.0+)")
+                    return {'CANCELLED'}
+            except Exception as e:
+                self.report({'ERROR'}, f"GLB/GLTF import failed: {e}")
+                return {'CANCELLED'}
+
         if ext == '.nif':
-            # Requires Niftools addon
-            if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
+            # Use PyNifly (import_scene.pynifly) — Niftools is broken on Blender 4.1+
+            if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
                 try:
-                    bpy.ops.import_scene.nif(filepath=filepath)
-                    self.report({'INFO'}, f"Imported NIF: {filename}")
-                    notification_system.FO4_NotificationSystem.notify(
-                        f"Imported {filename}", 'INFO'
-                    )
+                    bpy.ops.import_scene.pynifly(filepath=filepath)
+                    n = _apply_fo4_import_scale(context)
+                    self.report({'INFO'}, f"Imported NIF: {filename} ({n} object(s) scaled to Blender metres)")
+                    _notify(f"Imported {filename}", 'INFO')
                     return {'FINISHED'}
                 except Exception as e:
                     self.report({'ERROR'}, f"NIF import failed: {e}")
                     return {'CANCELLED'}
             else:
                 self.report({'ERROR'},
-                    "NIF import requires the Niftools add-on. "
-                    "Install it via Preferences → Add-ons."
+                    "NIF import requires PyNifly. "
+                    "Install it via the Setup & Status tab."
                 )
                 return {'CANCELLED'}
 
@@ -5430,7 +6455,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
                     self.report({'INFO'},
                         f"Loaded texture '{filename}' into Image data-block"
                     )
-                notification_system.FO4_NotificationSystem.notify(
+                _notify(
                     f"Loaded {filename}", 'INFO'
                 )
                 return {'FINISHED'}
@@ -5697,7 +6722,7 @@ class FO4_OT_PrepareThirdPartyMesh(Operator):
         else:
             self.report({'INFO'}, summary)
 
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Third-party mesh '{obj.name}' prepared for FO4", 'INFO'
         )
         return {'FINISHED'}
@@ -5883,9 +6908,11 @@ class FO4_OT_ImportUnityAsset(Operator):
             return {'CANCELLED'}
 
         ok, msg = self._import_asset_file(asset_path)
+        if ok:
+            _apply_fo4_import_scale(context)
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, f"{asset['name']}: {msg}")
-        notification_system.FO4_NotificationSystem.notify(f"Unity import: {msg}", level)
+        _notify(f"Unity import: {msg}", level)
 
         # Apply textures when available
         textures = asset.get("texture_paths") or []
@@ -6029,9 +7056,11 @@ class FO4_OT_ImportUnrealAsset(Operator):
             return {'CANCELLED'}
 
         ok, msg = self._import_asset_file(asset_path, asset.get("type"))
+        if ok:
+            _apply_fo4_import_scale(context)
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, f"{asset['name']}: {msg}")
-        notification_system.FO4_NotificationSystem.notify(f"Unreal import: {msg}", level)
+        _notify(f"Unreal import: {msg}", level)
 
         textures = asset.get("texture_paths") or []
         if textures:
@@ -6093,12 +7122,15 @@ class FO4_OT_CreateWeaponPreset(Operator):
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.weapon_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
-            self.report({'ERROR'}, f"No game mesh found for {self.weapon_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            self.report({'WARNING'}, f"No game mesh found for {self.weapon_type}. "
+                "Smart Presets need loose NIF files — extract the game BA2 archives "
+                "with Bethesda Archive Extractor (BAE) first. "
+                "Your own imported FBX/OBJ/GLB mesh is unaffected and ready to export.")
             return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
@@ -6141,12 +7173,15 @@ class FO4_OT_CreateArmorPreset(Operator):
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.armor_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
-            self.report({'ERROR'}, f"No game mesh found for {self.armor_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            self.report({'WARNING'}, f"No game mesh found for {self.armor_type}. "
+                "Smart Presets need loose NIF files — extract the game BA2 archives "
+                "with Bethesda Archive Extractor (BAE) first. "
+                "Your own imported FBX/OBJ/GLB mesh is unaffected and ready to export.")
             return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
@@ -6188,12 +7223,15 @@ class FO4_OT_CreatePropPreset(Operator):
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.prop_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - preset cancelled (no game mesh)")
                 return {'CANCELLED'}
 
-            self.report({'ERROR'}, f"No game mesh found for {self.prop_type}. {mesh_helpers.SmartPresets.FALLBACK_MSG}")
+            self.report({'WARNING'}, f"No game mesh found for {self.prop_type}. "
+                "Smart Presets need loose NIF files — extract the game BA2 archives "
+                "with Bethesda Archive Extractor (BAE) first. "
+                "Your own imported FBX/OBJ/GLB mesh is unaffected and ready to export.")
             return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create preset: {e}")
@@ -6212,41 +7250,48 @@ class FO4_OT_QuickPrepareForExport(Operator):
     bl_options = {'REGISTER', 'UNDO'}
     
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         try:
-            # Step 1: Optimize mesh
-            self.report({'INFO'}, "Step 1/4: Optimizing mesh...")
-            success, message = mesh_helpers.MeshHelpers.optimize_mesh(obj)
-            if not success:
-                self.report({'WARNING'}, f"Optimization warning: {message}")
-            
-            # Step 2: Setup materials if needed
-            self.report({'INFO'}, "Step 2/4: Checking materials...")
+            # Step 1: Ensure UV map exists (safe — only adds if missing)
+            self.report({'INFO'}, "Step 1/3: Checking UV map...")
+            if not obj.data.uv_layers:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                self.report({'INFO'}, "Created UV map (Smart UV Project)")
+
+            # Step 2: Setup FO4 material if missing (safe — only adds if absent)
+            self.report({'INFO'}, "Step 2/3: Checking materials...")
             if not obj.data.materials:
                 texture_helpers.TextureHelpers.setup_fo4_material(obj)
                 self.report({'INFO'}, "Created FO4 material")
-            
-            # Step 3: Validate mesh
-            self.report({'INFO'}, "Step 3/4: Validating mesh...")
-            success, message = mesh_helpers.MeshHelpers.validate_mesh(obj)
-            if not success:
-                self.report({'WARNING'}, f"Validation warning: {message}")
-            
-            # Step 4: Validate textures
-            self.report({'INFO'}, "Step 4/4: Validating textures...")
-            success, message = texture_helpers.TextureHelpers.validate_textures(obj)
-            if not success:
-                self.report({'WARNING'}, f"Texture warning: {message}")
-            
-            self.report({'INFO'}, "Mesh prepared for export!")
-            notification_system.FO4_NotificationSystem.notify(
-                f"{obj.name} ready for export", 'INFO'
-            )
+
+            # Step 3: Validate and report — never modify geometry here.
+            # Geometry cleanup (Remove Doubles, Triangulate, Decimate) must be
+            # done explicitly by the user; running it automatically on AI-generated
+            # multi-shell meshes causes irreversible geometry loss.
+            self.report({'INFO'}, "Step 3/3: Validating...")
+            success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+            if issues:
+                self.report({'WARNING'}, "; ".join(str(i) for i in issues))
+            _, tex_issues = texture_helpers.TextureHelpers.validate_textures(obj)
+            if tex_issues:
+                self.report({'WARNING'}, "Textures: " + "; ".join(str(i) for i in tex_issues))
+
+            self.report({'INFO'}, f"{obj.name} ready for export")
+            _notify(f"{obj.name} ready for export", 'INFO')
             return {'FINISHED'}
             
         except Exception as e:
@@ -6272,36 +7317,36 @@ class FO4_OT_AutoFixCommonIssues(Operator):
         try:
             # Fix 1: Apply unapplied transformations
             if any([s != 1.0 for s in obj.scale]):
-                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                bpy.ops.object.transform_apply('EXEC_DEFAULT', location=False, rotation=False, scale=True)
                 fixes_applied.append("Applied scale")
-            
+
             # Fix 2: Remove loose vertices
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.delete_loose()
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set('EXEC_DEFAULT', mode='EDIT')
+            bpy.ops.mesh.select_all('EXEC_DEFAULT', action='SELECT')
+            bpy.ops.mesh.delete_loose('EXEC_DEFAULT')
+            bpy.ops.object.mode_set('EXEC_DEFAULT', mode='OBJECT')
             fixes_applied.append("Removed loose geometry")
-            
+
             # Fix 3: Recalculate normals
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.normals_make_consistent(inside=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.mode_set('EXEC_DEFAULT', mode='EDIT')
+            bpy.ops.mesh.select_all('EXEC_DEFAULT', action='SELECT')
+            bpy.ops.mesh.normals_make_consistent('EXEC_DEFAULT', inside=False)
+            bpy.ops.object.mode_set('EXEC_DEFAULT', mode='OBJECT')
             fixes_applied.append("Fixed normals")
-            
+
             # Fix 4: Create UV map if missing
             if not obj.data.uv_layers:
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.smart_project()
-                bpy.ops.object.mode_set(mode='OBJECT')
+                bpy.ops.object.mode_set('EXEC_DEFAULT', mode='EDIT')
+                bpy.ops.mesh.select_all('EXEC_DEFAULT', action='SELECT')
+                bpy.ops.uv.smart_project('EXEC_DEFAULT')
+                bpy.ops.object.mode_set('EXEC_DEFAULT', mode='OBJECT')
                 fixes_applied.append("Created UV map")
             
             self.report({'INFO'}, f"Applied {len(fixes_applied)} fixes")
             for fix in fixes_applied:
                 self.report({'INFO'}, f"  - {fix}")
             
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Auto-fixed {len(fixes_applied)} issues", 'INFO'
             )
             return {'FINISHED'}
@@ -6332,12 +7377,15 @@ class FO4_OT_GenerateCollisionMesh(Operator):
     )
     
     def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
+
         # remember the selected collision type on the source object
         obj.fo4_collision_type = self.collision_type
 
@@ -6358,7 +7406,7 @@ class FO4_OT_GenerateCollisionMesh(Operator):
                 raise RuntimeError("helper failed to create collision mesh")
             
             self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Collision mesh generated: {collision_obj.name}", 'INFO'
             )
             return {'FINISHED'}
@@ -6368,13 +7416,14 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             return {'CANCELLED'}
     
     def invoke(self, context, event):
-        obj = context.active_object
-        if obj and obj.type == 'MESH':
-            inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
-            self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
-                getattr(obj, 'fo4_collision_type', inferred), inferred)
-            if self.simplify_ratio == 0.25:
-                self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
+        if mesh_helpers:
+            obj = context.active_object
+            if obj and obj.type == 'MESH':
+                inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+                self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                    getattr(obj, 'fo4_collision_type', inferred), inferred)
+                if self.simplify_ratio == 0.25:
+                    self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
         return context.window_manager.invoke_props_dialog(self)
 
 
@@ -6382,17 +7431,20 @@ class FO4_OT_SmartMaterialSetup(Operator):
     """Intelligently setup materials based on available textures"""
     bl_idname = "fo4.smart_material_setup"
     bl_label = "Smart Material Setup"
-    bl_options = {'REGISTER', 'UNDO'}
-    
+    bl_options = {'REGISTER'}
+
     texture_directory: StringProperty(
         name="Texture Directory",
         description="Directory containing textures",
         subtype='DIR_PATH'
     )
-    
+
     def execute(self, context):
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module not available")
+            return {'CANCELLED'}
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
@@ -6428,7 +7480,7 @@ class FO4_OT_SmartMaterialSetup(Operator):
             
             if textures_found:
                 self.report({'INFO'}, f"Loaded textures: {', '.join(textures_found)}")
-                notification_system.FO4_NotificationSystem.notify(
+                _notify(
                     f"Loaded {len(textures_found)} textures", 'INFO'
                 )
             else:
@@ -6479,7 +7531,7 @@ class FO4_OT_CreateVegetationPreset(Operator):
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.vegetation_type)
                     mesh_helpers.SmartPresets.auto_apply_textures_from_game_asset(nif_path)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -6598,7 +7650,7 @@ class FO4_OT_CombineVegetationMeshes(Operator):
             else:
                 self.report({'INFO'}, f"Combined {original_count} meshes into one")
             
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Combined {original_count} vegetation meshes", 'INFO'
             )
             
@@ -6684,7 +7736,7 @@ class FO4_OT_ScatterVegetation(Operator):
                 instances.append(new_obj)
             
             self.report({'INFO'}, f"Scattered {self.count} vegetation instances")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Scattered {self.count} instances", 'INFO'
             )
             
@@ -6760,7 +7812,7 @@ class FO4_OT_OptimizeVegetationForFPS(Operator):
             reduction = ((original_poly_count - final_poly_count) / original_poly_count) * 100
             
             self.report({'INFO'}, f"Reduced polys by {reduction:.1f}% ({original_poly_count} → {final_poly_count})")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Optimized vegetation: {reduction:.1f}% reduction", 'INFO'
             )
             
@@ -6819,7 +7871,7 @@ class FO4_OT_CreateVegetationLODChain(Operator):
                     self.report({'INFO'}, f"{name}: {poly_count} polygons")
             
             self.report({'INFO'}, f"Created LOD chain with {len(lod_objects)} levels")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Created {len(lod_objects)} LOD levels", 'INFO'
             )
             
@@ -6942,7 +7994,7 @@ class FO4_OT_BakeVegetationAO(Operator):
                 image.pack()
                 self.report({'INFO'}, f"AO baked to image '{image_name}'")
 
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Ambient occlusion baked: {image_name}", 'INFO'
             )
 
@@ -7000,7 +8052,7 @@ class FO4_OT_SetupVegetationMaterial(Operator):
             "Now install a diffuse texture with an alpha channel (BC3 / DXT5 DDS)."
         )
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             "Vegetation material (alpha clip + two-sided) applied", 'INFO'
         )
         return {'FINISHED'}
@@ -7073,11 +8125,11 @@ class FO4_OT_ExportVegetationAsNif(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
             return {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -7144,6 +8196,10 @@ class FO4_OT_ExportLODChainAsNif(Operator):
             self.report({'ERROR'}, f"No LOD objects found for '{base_name}'")
             return {'CANCELLED'}
 
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
+
         import os
         exported = []
         failed = []
@@ -7166,12 +8222,12 @@ class FO4_OT_ExportLODChainAsNif(Operator):
             if failed:
                 msg += f" | {len(failed)} failed: {'; '.join(failed)}"
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         else:
             err = "All LOD exports failed: " + "; ".join(failed)
             self.report({'ERROR'}, err)
-            notification_system.FO4_NotificationSystem.notify(err, 'ERROR')
+            _notify(err, 'ERROR')
             return {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -7200,7 +8256,7 @@ class FO4_OT_CreateQuestTemplate(Operator):
             self.report({'INFO'}, f"Created quest template: {self.quest_name}")
             self.report({'INFO'}, "Add stages and objectives in the Quest panel")
             
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Quest template created: {self.quest_name}", 'INFO'
             )
             return {'FINISHED'}
@@ -7228,7 +8284,7 @@ class FO4_OT_ExportQuestData(Operator):
             
             if success:
                 self.report({'INFO'}, "Quest data exported successfully")
-                notification_system.FO4_NotificationSystem.notify("Quest exported", 'INFO')
+                _notify("Quest exported", 'INFO')
                 return {'FINISHED'}
             else:
                 self.report({'ERROR'}, message)
@@ -7271,7 +8327,7 @@ class FO4_OT_QuestGeneratePapyrusScript(Operator):
             self.report({'INFO'}, f"Generated Papyrus script: {self.quest_id}Script.psc")
             self.report({'INFO'}, "Check Text Editor for script")
 
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Papyrus script generated", 'INFO'
             )
             return {'FINISHED'}
@@ -7313,7 +8369,7 @@ class FO4_OT_CreateNPC(Operator):
                         context.active_object.name = f"FO4_NPC_{self.npc_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.npc_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7357,7 +8413,7 @@ class FO4_OT_CreateCreature(Operator):
                         context.active_object.name = f"FO4_Creature_{self.creature_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.creature_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7401,7 +8457,7 @@ class FO4_OT_CreateInteriorCell(Operator):
                         context.active_object.name = f"FO4_Arch_{self.cell_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.cell_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7427,7 +8483,7 @@ class FO4_OT_CreateDoorFrame(Operator):
             obj = world_building_helpers.WorldBuildingHelpers.create_door_frame()
             
             self.report({'INFO'}, "Created door frame marker")
-            notification_system.FO4_NotificationSystem.notify("Door frame created", 'INFO')
+            _notify("Door frame created", 'INFO')
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create door frame: {str(e)}")
@@ -7448,7 +8504,7 @@ class FO4_OT_CreateNavMesh(Operator):
             obj = world_building_helpers.WorldBuildingHelpers.create_navmesh_helper((self.width, self.length))
             
             self.report({'INFO'}, "Created navmesh helper")
-            notification_system.FO4_NotificationSystem.notify("NavMesh helper created", 'INFO')
+            _notify("NavMesh helper created", 'INFO')
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create navmesh: {str(e)}")
@@ -7485,7 +8541,7 @@ class FO4_OT_CreateWorkshopObject(Operator):
                         context.active_object.name = f"FO4_Workshop_{self.object_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.object_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7520,7 +8576,7 @@ class FO4_OT_CreateLightingPreset(Operator):
             lights = world_building_helpers.LightingHelpers.create_light_preset(self.preset)
             
             self.report({'INFO'}, f"Created {self.preset} lighting preset ({len(lights)} lights)")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Lighting preset: {self.preset}", 'INFO'
             )
             return {'FINISHED'}
@@ -7563,7 +8619,7 @@ class FO4_OT_CreateWeaponItem(Operator):
                         context.active_object.name = f"FO4_WeaponItem_{self.weapon_category}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.weapon_category)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7606,7 +8662,7 @@ class FO4_OT_CreateArmorItem(Operator):
                         context.active_object.name = f"FO4_ArmorItem_{self.armor_slot}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.armor_slot)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7650,7 +8706,7 @@ class FO4_OT_CreatePowerArmorPiece(Operator):
                         context.active_object.name = f"FO4_PA_{self.piece}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.piece)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7692,7 +8748,7 @@ class FO4_OT_CreateConsumable(Operator):
                         context.active_object.name = f"FO4_Consumable_{self.item_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.item_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7735,7 +8791,7 @@ class FO4_OT_CreateMiscItem(Operator):
                         context.active_object.name = f"FO4_MiscItem_{self.item_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.item_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7777,7 +8833,7 @@ class FO4_OT_CreateClutterObject(Operator):
                         context.active_object.name = f"FO4_Clutter_{self.clutter_type}"
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.clutter_type)
                     self.report({'INFO'}, msg)
-                    notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                    _notify(msg, 'INFO')
                     return {'FINISHED'}
                 self.report({'ERROR'}, f"{msg} - game mesh import failed")
                 return {'CANCELLED'}
@@ -7798,7 +8854,7 @@ class FO4_OT_SavePreset(Operator):
     """Save current object(s) as a preset"""
     bl_idname = "fo4.save_preset"
     bl_label = "Save Preset"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
     
     preset_name: StringProperty(
         name="Preset Name",
@@ -7835,18 +8891,21 @@ class FO4_OT_SavePreset(Operator):
     )
     
     def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
         selected = context.selected_objects
-        
+
         if not selected:
             self.report({'ERROR'}, "No objects selected")
             return {'CANCELLED'}
-        
+
         # Collect data from selected objects
         preset_data = {
             'objects': [],
             'blender_version': bpy.app.version_string
         }
-        
+
         for obj in selected:
             obj_data = {
                 'name': obj.name,
@@ -7855,17 +8914,17 @@ class FO4_OT_SavePreset(Operator):
                 'rotation': list(obj.rotation_euler),
                 'scale': list(obj.scale),
             }
-            
+
             if obj.type == 'MESH':
                 obj_data['vertex_count'] = len(obj.data.vertices)
                 obj_data['polygon_count'] = len(obj.data.polygons)
-            
-            # Save materials
-            if obj.data.materials:
+
+            # Save materials — only mesh objects have .data.materials
+            if obj.type == 'MESH' and any(s.material for s in obj.material_slots):
                 obj_data['materials'] = [mat.name for mat in obj.data.materials if mat]
-            
+
             preset_data['objects'].append(obj_data)
-        
+
         # Save preset
         success, message = preset_library.PresetLibrary.save_preset(
             self.preset_name,
@@ -7877,7 +8936,7 @@ class FO4_OT_SavePreset(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Preset saved: {self.preset_name}", 'INFO'
             )
         else:
@@ -7893,7 +8952,7 @@ class FO4_OT_LoadPreset(Operator):
     """Load a preset from the library"""
     bl_idname = "fo4.load_preset"
     bl_label = "Load Preset"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
     
     filepath: StringProperty(
         name="Preset File",
@@ -7902,10 +8961,13 @@ class FO4_OT_LoadPreset(Operator):
     )
     
     def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
         if not self.filepath:
             self.report({'ERROR'}, "No preset file specified")
             return {'CANCELLED'}
-        
+
         preset_data = preset_library.PresetLibrary.load_preset(self.filepath)
         
         if not preset_data:
@@ -7916,7 +8978,7 @@ class FO4_OT_LoadPreset(Operator):
         preset_library.PresetLibrary.increment_use_count(self.filepath)
         
         self.report({'INFO'}, f"Loaded preset with {len(preset_data.get('objects', []))} objects")
-        notification_system.FO4_NotificationSystem.notify("Preset loaded", 'INFO')
+        _notify("Preset loaded", 'INFO')
         
         return {'FINISHED'}
 
@@ -7934,15 +8996,18 @@ class FO4_OT_DeletePreset(Operator):
     )
     
     def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
         if not self.filepath:
             self.report({'ERROR'}, "No preset file specified")
             return {'CANCELLED'}
-        
+
         success, message = preset_library.PresetLibrary.delete_preset(self.filepath)
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify("Preset deleted", 'INFO')
+            _notify("Preset deleted", 'INFO')
         else:
             self.report({'ERROR'}, message)
         
@@ -7959,8 +9024,10 @@ class FO4_OT_RefreshPresetLibrary(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
-        # Reload index
-        index = preset_library.PresetLibrary.load_index()
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
+        index = preset_library.PresetLibrary.load_index() or {}
         preset_count = len(index.get('presets', []))
         
         self.report({'INFO'}, f"Library refreshed: {preset_count} presets")
@@ -7976,14 +9043,16 @@ class FO4_OT_StartRecording(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
         automation_system.AutomationSystem.start_recording()
-        context.scene.fo4_is_recording = True
-        
+        try:
+            context.scene.fo4_is_recording = True
+        except Exception:
+            pass
         self.report({'INFO'}, "Recording started")
-        notification_system.FO4_NotificationSystem.notify(
-            "Recording started - perform actions to record", 'INFO'
-        )
-        
+        _notify("Recording started - perform actions to record", 'INFO')
         return {'FINISHED'}
 
 
@@ -7994,15 +9063,17 @@ class FO4_OT_StopRecording(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
         automation_system.AutomationSystem.stop_recording()
-        context.scene.fo4_is_recording = False
-        
+        try:
+            context.scene.fo4_is_recording = False
+        except Exception:
+            pass
         action_count = len(automation_system.AutomationSystem.recorded_actions)
         self.report({'INFO'}, f"Recording stopped: {action_count} actions captured")
-        notification_system.FO4_NotificationSystem.notify(
-            f"Recorded {action_count} actions", 'INFO'
-        )
-        
+        _notify(f"Recorded {action_count} actions", 'INFO')
         return {'FINISHED'}
 
 
@@ -8025,6 +9096,9 @@ class FO4_OT_SaveMacro(Operator):
     )
     
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
         success, message = automation_system.AutomationSystem.save_macro(
             self.macro_name,
             self.description
@@ -8032,7 +9106,7 @@ class FO4_OT_SaveMacro(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Macro saved: {self.macro_name}", 'INFO'
             )
         else:
@@ -8048,24 +9122,27 @@ class FO4_OT_ExecuteMacro(Operator):
     """Execute a saved macro"""
     bl_idname = "fo4.execute_macro"
     bl_label = "Execute Macro"
-    bl_options = {'REGISTER', 'UNDO'}
-    
+    bl_options = {'REGISTER'}
+
     filepath: StringProperty(
         name="Macro File",
         description="Path to macro file",
         subtype='FILE_PATH'
     )
-    
+
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
         if not self.filepath:
             self.report({'ERROR'}, "No macro file specified")
             return {'CANCELLED'}
-        
+
         success, message = automation_system.AutomationSystem.execute_macro(self.filepath)
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify("Macro executed", 'INFO')
+            _notify("Macro executed", 'INFO')
         else:
             self.report({'ERROR'}, message)
         
@@ -8085,11 +9162,17 @@ class FO4_OT_DeleteMacro(Operator):
     )
     
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "No macro file specified")
+            return {'CANCELLED'}
         success, message = automation_system.AutomationSystem.delete_macro(self.filepath)
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify("Macro deleted", 'INFO')
+            _notify("Macro deleted", 'INFO')
         else:
             self.report({'ERROR'}, message)
         
@@ -8103,8 +9186,8 @@ class FO4_OT_ExecuteWorkflowTemplate(Operator):
     """Execute a pre-defined workflow template"""
     bl_idname = "fo4.execute_workflow_template"
     bl_label = "Execute Workflow Template"
-    bl_options = {'REGISTER', 'UNDO'}
-    
+    bl_options = {'REGISTER'}
+
     template_id: EnumProperty(
         name="Template",
         items=[
@@ -8116,6 +9199,9 @@ class FO4_OT_ExecuteWorkflowTemplate(Operator):
     )
     
     def execute(self, context):
+        if not automation_system:
+            self.report({'ERROR'}, "automation_system module not available")
+            return {'CANCELLED'}
         success, message = automation_system.WorkflowTemplate.execute_template(
             self.template_id,
             context
@@ -8123,7 +9209,7 @@ class FO4_OT_ExecuteWorkflowTemplate(Operator):
         
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Workflow template executed", 'INFO'
             )
         else:
@@ -8144,8 +9230,11 @@ class FO4_OT_ConnectDesktopApp(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         # Set server URL
         desktop_tutorial_client.DesktopTutorialClient.set_server_url(
             scene.fo4_desktop_server_host,
@@ -8158,13 +9247,13 @@ class FO4_OT_ConnectDesktopApp(Operator):
         if success:
             scene.fo4_desktop_connected = True
             self.report({'INFO'}, f"Connected: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "Connected to desktop tutorial app", 'INFO'
             )
         else:
             scene.fo4_desktop_connected = False
             self.report({'ERROR'}, f"Connection failed: {message}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Connection failed: {message}", 'ERROR'
             )
         
@@ -8178,17 +9267,21 @@ class FO4_OT_DisconnectDesktopApp(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         success, message = desktop_tutorial_client.DesktopTutorialClient.disconnect()
-        
-        scene.fo4_desktop_connected = False
-        self.report({'INFO'}, message)
-        notification_system.FO4_NotificationSystem.notify(
-            "Disconnected from desktop app", 'INFO'
-        )
-        
-        return {'FINISHED'}
+
+        if success:
+            scene.fo4_desktop_connected = False
+            self.report({'INFO'}, message)
+            _notify("Disconnected from desktop app", 'INFO')
+            return {'FINISHED'}
+        else:
+            self.report({'ERROR'}, f"Disconnect failed: {message}")
+            return {'CANCELLED'}
 
 
 class FO4_OT_CheckDesktopConnection(Operator):
@@ -8198,14 +9291,17 @@ class FO4_OT_CheckDesktopConnection(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         status = desktop_tutorial_client.DesktopTutorialClient.get_connection_status()
-        
+
         if status['connected']:
             self.report({'INFO'}, f"Connected to {status['server_url']}")
         else:
             error_msg = status.get('last_error') or 'Make sure Mossy is running'
             self.report({'WARNING'}, f"Not connected: {error_msg}")
-        
+
         return {'FINISHED'}
 
 
@@ -8216,24 +9312,25 @@ class FO4_OT_SyncDesktopStep(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         if not scene.fo4_desktop_connected:
             self.report({'ERROR'}, "Not connected to desktop app")
             return {'CANCELLED'}
-        
+
         # Get current step from server
         step_data, message = desktop_tutorial_client.DesktopTutorialClient.get_current_step()
-        
+
         if step_data:
             scene.fo4_desktop_current_step_id = step_data.get('step_id', 0)
             scene.fo4_desktop_current_step_title = step_data.get('title', '')
-            
-            import datetime
             scene.fo4_desktop_last_sync = datetime.datetime.now().strftime("%H:%M:%S")
             
             self.report({'INFO'}, f"Synced: {step_data.get('title', 'Step')}")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Tutorial step synced: {step_data.get('title', '')}", 'INFO'
             )
         else:
@@ -8249,21 +9346,26 @@ class FO4_OT_DesktopNextStep(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         if not scene.fo4_desktop_connected:
             self.report({'ERROR'}, "Not connected to desktop app")
             return {'CANCELLED'}
-        
+
         success, message = desktop_tutorial_client.DesktopTutorialClient.next_step()
-        
+
         if success:
-            # Sync to get updated step
-            bpy.ops.fo4.sync_desktop_step()
-            self.report({'INFO'}, "Moved to next step")
+            result = bpy.ops.fo4.sync_desktop_step('EXEC_DEFAULT')
+            if result != {'FINISHED'}:
+                self.report({'WARNING'}, "Step advanced but sync failed")
+            else:
+                self.report({'INFO'}, "Moved to next step")
         else:
             self.report({'WARNING'}, message)
-        
+
         return {'FINISHED'} if success else {'CANCELLED'}
 
 
@@ -8274,21 +9376,26 @@ class FO4_OT_DesktopPreviousStep(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         if not scene.fo4_desktop_connected:
             self.report({'ERROR'}, "Not connected to desktop app")
             return {'CANCELLED'}
-        
+
         success, message = desktop_tutorial_client.DesktopTutorialClient.previous_step()
-        
+
         if success:
-            # Sync to get updated step
-            bpy.ops.fo4.sync_desktop_step()
-            self.report({'INFO'}, "Moved to previous step")
+            result = bpy.ops.fo4.sync_desktop_step('EXEC_DEFAULT')
+            if result != {'FINISHED'}:
+                self.report({'WARNING'}, "Step moved back but sync failed")
+            else:
+                self.report({'INFO'}, "Moved to previous step")
         else:
             self.report({'WARNING'}, message)
-        
+
         return {'FINISHED'} if success else {'CANCELLED'}
 
 
@@ -8311,12 +9418,15 @@ class FO4_OT_SendEventToDesktop(Operator):
     )
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         if not scene.fo4_desktop_connected:
             self.report({'ERROR'}, "Not connected to desktop app")
             return {'CANCELLED'}
-        
+
         success, message = desktop_tutorial_client.DesktopTutorialClient.send_event(
             self.event_type,
             self.event_data
@@ -8345,10 +9455,10 @@ class FO4_OT_PullOriginalToDesktop(Operator):
 
         if success:
             self.report({'INFO'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'INFO')
+            _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
-            notification_system.FO4_NotificationSystem.notify(message, 'ERROR')
+            _notify(message, 'ERROR')
 
         return {'FINISHED'} if success else {'CANCELLED'}
 
@@ -8360,12 +9470,15 @@ class FO4_OT_GetDesktopProgress(Operator):
     bl_options = {'REGISTER'}
     
     def execute(self, context):
+        if not desktop_tutorial_client:
+            self.report({'ERROR'}, "desktop_tutorial_client module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        
+
         if not scene.fo4_desktop_connected:
             self.report({'ERROR'}, "Not connected to desktop app")
             return {'CANCELLED'}
-        
+
         progress, message = desktop_tutorial_client.DesktopTutorialClient.get_progress()
         
         if progress:
@@ -8374,7 +9487,7 @@ class FO4_OT_GetDesktopProgress(Operator):
             percentage = progress.get('percentage', 0)
             
             self.report({'INFO'}, f"Progress: {completed}/{total} steps ({percentage:.0f}%)")
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Tutorial progress: {completed}/{total} steps", 'INFO'
             )
         else:
@@ -8396,6 +9509,9 @@ class FO4_OT_ClearOperationLog(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not notification_system:
+            self.report({'ERROR'}, "notification_system module not available")
+            return {'CANCELLED'}
         notification_system.OperationLog.clear()
         self.report({'INFO'}, "Operation log cleared")
         return {'FINISHED'}
@@ -8453,9 +9569,8 @@ class FO4_OT_ImportModFolder(Operator):
         # Check if NIF importer is available
         try:
             import bpy
-            # Try to check if nif import operator exists
-            if not hasattr(bpy.ops, 'import_scene') or not hasattr(bpy.ops.import_scene, 'nif'):
-                self.report({'ERROR'}, "NIF importer not available. Install Niftools addon first.")
+            if not hasattr(bpy.ops, 'import_scene') or not hasattr(bpy.ops.import_scene, 'pynifly'):
+                self.report({'ERROR'}, "NIF import requires PyNifly — install it via the Setup & Status tab.")
                 return {'CANCELLED'}
         except Exception as e:
             self.report({'ERROR'}, f"Cannot check NIF importer: {e}")
@@ -8493,7 +9608,7 @@ class FO4_OT_ImportModFolder(Operator):
                 before_objects = set(context.scene.objects)
 
                 try:
-                    bpy.ops.import_scene.nif(filepath=str(nif_path))
+                    bpy.ops.import_scene.pynifly(filepath=str(nif_path))
                 except Exception as import_error:
                     self.report({'WARNING'}, f"Failed to import {nif_path.name}: {import_error}")
                     failed_count += 1
@@ -8537,6 +9652,9 @@ class FO4_OT_ExportModFolder(Operator):
     bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
         from pathlib import Path
 
         exported_count = 0
@@ -8606,7 +9724,7 @@ class FO4_OT_SetupPostProcessingCompositor(Operator):
     """
     bl_idname = "fo4.setup_post_processing"
     bl_label = "Setup Post-Processing"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
 
     preset: bpy.props.EnumProperty(
         name="Preset",
@@ -8616,29 +9734,30 @@ class FO4_OT_SetupPostProcessingCompositor(Operator):
     )
 
     def execute(self, context):
+        if not post_processing_helpers:
+            self.report({'ERROR'}, "post_processing_helpers module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        # Write the chosen preset values into scene properties first so that
-        # sync_from_scene_props() (called inside setup_compositor) picks them up.
-        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
         try:
-            scene.fo4_pp_preset           = self.preset
-            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
-            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
-            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
-            scene.fo4_pp_saturation       = p["saturation"]
-            scene.fo4_pp_contrast         = p["contrast"]
-            scene.fo4_pp_brightness       = p["brightness"]
-            scene.fo4_pp_tint_r           = p["tint_r"]
-            scene.fo4_pp_tint_g           = p["tint_g"]
-            scene.fo4_pp_tint_b           = p["tint_b"]
-            scene.fo4_pp_tint_strength    = p["tint_strength"]
-            scene.fo4_pp_vignette         = p["vignette"]
-            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
-            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
-            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
-            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+            scene.fo4_pp_preset             = self.preset
+            scene.fo4_pp_bloom_strength     = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold    = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius       = p["bloom_radius"]
+            scene.fo4_pp_saturation         = p["saturation"]
+            scene.fo4_pp_contrast           = p["contrast"]
+            scene.fo4_pp_brightness         = p["brightness"]
+            scene.fo4_pp_tint_r             = p["tint_r"]
+            scene.fo4_pp_tint_g             = p["tint_g"]
+            scene.fo4_pp_tint_b             = p["tint_b"]
+            scene.fo4_pp_tint_strength      = p["tint_strength"]
+            scene.fo4_pp_vignette           = p["vignette"]
+            scene.fo4_pp_cinematic_bars     = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled        = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop          = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed    = p["eye_adapt_speed"]
             scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
-            scene.fo4_pp_white            = p["white"]
+            scene.fo4_pp_white              = p["white"]
         except Exception:
             pass  # properties may not yet be registered in certain edge-cases
 
@@ -8647,7 +9766,7 @@ class FO4_OT_SetupPostProcessingCompositor(Operator):
         )
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -8660,7 +9779,7 @@ class FO4_OT_ApplyPostProcessingPreset(Operator):
     """Apply a named Fallout 4 post-processing preset to the compositor."""
     bl_idname = "fo4.apply_pp_preset"
     bl_label = "Apply Preset"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
 
     preset: bpy.props.EnumProperty(
         name="Preset",
@@ -8670,28 +9789,30 @@ class FO4_OT_ApplyPostProcessingPreset(Operator):
     )
 
     def execute(self, context):
+        if not post_processing_helpers:
+            self.report({'ERROR'}, "post_processing_helpers module not available")
+            return {'CANCELLED'}
         scene = context.scene
-        p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
-        # Sync preset values to scene properties
         try:
-            scene.fo4_pp_preset           = self.preset
-            scene.fo4_pp_bloom_strength   = p["bloom_strength"]
-            scene.fo4_pp_bloom_threshold  = p["bloom_threshold"]
-            scene.fo4_pp_bloom_radius     = p["bloom_radius"]
-            scene.fo4_pp_saturation       = p["saturation"]
-            scene.fo4_pp_contrast         = p["contrast"]
-            scene.fo4_pp_brightness       = p["brightness"]
-            scene.fo4_pp_tint_r           = p["tint_r"]
-            scene.fo4_pp_tint_g           = p["tint_g"]
-            scene.fo4_pp_tint_b           = p["tint_b"]
-            scene.fo4_pp_tint_strength    = p["tint_strength"]
-            scene.fo4_pp_vignette         = p["vignette"]
-            scene.fo4_pp_cinematic_bars   = p["cinematic_bars"]
-            scene.fo4_pp_dof_enabled      = p["dof_enabled"]
-            scene.fo4_pp_dof_fstop        = p["dof_fstop"]
-            scene.fo4_pp_eye_adapt_speed  = p["eye_adapt_speed"]
+            p = post_processing_helpers.PostProcessingHelpers.get_preset(self.preset)
+            scene.fo4_pp_preset             = self.preset
+            scene.fo4_pp_bloom_strength     = p["bloom_strength"]
+            scene.fo4_pp_bloom_threshold    = p["bloom_threshold"]
+            scene.fo4_pp_bloom_radius       = p["bloom_radius"]
+            scene.fo4_pp_saturation         = p["saturation"]
+            scene.fo4_pp_contrast           = p["contrast"]
+            scene.fo4_pp_brightness         = p["brightness"]
+            scene.fo4_pp_tint_r             = p["tint_r"]
+            scene.fo4_pp_tint_g             = p["tint_g"]
+            scene.fo4_pp_tint_b             = p["tint_b"]
+            scene.fo4_pp_tint_strength      = p["tint_strength"]
+            scene.fo4_pp_vignette           = p["vignette"]
+            scene.fo4_pp_cinematic_bars     = p["cinematic_bars"]
+            scene.fo4_pp_dof_enabled        = p["dof_enabled"]
+            scene.fo4_pp_dof_fstop          = p["dof_fstop"]
+            scene.fo4_pp_eye_adapt_speed    = p["eye_adapt_speed"]
             scene.fo4_pp_eye_adapt_strength = p["eye_adapt_strength"]
-            scene.fo4_pp_white            = p["white"]
+            scene.fo4_pp_white              = p["white"]
         except Exception:
             pass
 
@@ -8700,7 +9821,7 @@ class FO4_OT_ApplyPostProcessingPreset(Operator):
         )
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -8717,15 +9838,18 @@ class FO4_OT_ClearPostProcessing(Operator):
     """
     bl_idname = "fo4.clear_post_processing"
     bl_label = "Clear Post-Processing"
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not post_processing_helpers:
+            self.report({'ERROR'}, "post_processing_helpers module not available")
+            return {'CANCELLED'}
         ok, msg = post_processing_helpers.PostProcessingHelpers.clear_compositor(
             context.scene
         )
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -8755,12 +9879,18 @@ class FO4_OT_ExportImageSpaceData(Operator):
     filter_glob: bpy.props.StringProperty(default="*.json", options={'HIDDEN'})
 
     def execute(self, context):
+        if not post_processing_helpers:
+            self.report({'ERROR'}, "post_processing_helpers module not available")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "No file path selected")
+            return {'CANCELLED'}
         ok, msg = post_processing_helpers.PostProcessingHelpers.export_imagespace_data(
             context.scene, self.filepath
         )
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -8778,8 +9908,12 @@ class FO4_OT_SyncPostProcessingProps(Operator):
     """
     bl_idname = "fo4.sync_pp_props"
     bl_label = "Sync to Compositor"
+    bl_options = {'REGISTER'}
 
     def execute(self, context):
+        if not post_processing_helpers:
+            self.report({'ERROR'}, "post_processing_helpers module not available")
+            return {'CANCELLED'}
         ok, msg = post_processing_helpers.PostProcessingHelpers.sync_from_scene_props(
             context.scene
         )
@@ -8930,7 +10064,7 @@ class FO4_OT_ApplyMaterialPreset(Operator):
 
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9018,7 +10152,7 @@ class FO4_OT_RunSceneDiagnostics(Operator):
                f"{errors} error(s), {warnings} warning(s). "
                f"{'✅ Export ready' if ready else '❌ Fix errors before export'}")
         self.report({'INFO' if ready else 'WARNING'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO' if ready else 'WARNING')
+        _notify(msg, 'INFO' if ready else 'WARNING')
         return {'FINISHED'}
 
 
@@ -9069,7 +10203,7 @@ class FO4_OT_AutoFixDiagnostics(Operator):
 
         msg = f"Auto-fixed {fix_count} issue(s). New score: {s.get('score', 0)}/100"
         self.report({'INFO'}, msg)
-        notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
 
@@ -9091,6 +10225,9 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
         if not fo4_scene_diagnostics:
             self.report({'ERROR'}, "Scene diagnostics module unavailable")
             return {'CANCELLED'}
+        if not self.filepath.strip():
+            self.report({'ERROR'}, "No output path set — use the file browser to choose a location")
+            return {'CANCELLED'}
         report = fo4_scene_diagnostics.load_report()
         if report is None:
             # Run diagnostics first
@@ -9102,7 +10239,7 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
         )
         # Also save a JSON version alongside the .txt for machine-readable access
         try:
-            import json as _json, os as _os
+            import json as _json
             json_path = _os.path.splitext(self.filepath)[0] + ".json"
             with open(json_path, "w", encoding="utf-8") as _jf:
                 _json.dump(report, _jf, indent=2, default=str)
@@ -9111,7 +10248,7 @@ class FO4_OT_ExportDiagnosticsReport(Operator):
 
         if ok:
             self.report({'INFO'}, msg + " (+ .json)")
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9326,7 +10463,7 @@ class FO4_OT_SetupHDMaterial(Operator):
         )
         self.report({'INFO'}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"HD material applied to '{obj.name}' (4K-ready)", 'INFO'
             )
         return {'FINISHED'}
@@ -9455,19 +10592,28 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         items=[
             ('AUTO',   "Auto-detect", "Detect from mesh type, name, and height"),
             ('GRASS',  "Grass",       "Engine-side wind via GRAS record — no bones"),
-            ('SHRUB',  "Shrub",       "Medium sway via wind-bone armature"),
-            ('TREE',   "Tree",        "Slow/heavy sway via wind-bone armature"),
+            ('SHRUB',  "Shrub",       "Medium sway — Wind vertex group gradient"),
+            ('TREE',   "Tree",        "Slow/heavy sway — Wind vertex group gradient"),
             ('STATIC', "Static",      "No wind — run diagnostics only"),
         ],
         default='AUTO',
     )
     apply_wind_armature: bpy.props.BoolProperty(
-        name="Apply Wind Armature (Shrub/Tree)",
+        name="Apply Wind Armature (Blender preview only)",
         description=(
-            "Create a wind-bone armature and add a looping animation action.  "
-            "Disable if you prefer to set up the armature manually."
+            "Create a wind-bone armature for Blender viewport preview.  "
+            "FO4 vegetation wind is driven by vertex group weights in-game, "
+            "NOT by bone animation — this armature is never needed in the NIF."
         ),
-        default=True,
+        default=False,
+    )
+    process_selected: bpy.props.BoolProperty(
+        name="Apply to All Selected Meshes",
+        description=(
+            "Process every selected mesh object, not just the active one.  "
+            "Useful for prepping multiple vegetation pieces in one click."
+        ),
+        default=False,
     )
     add_vertex_colors: bpy.props.BoolProperty(
         name="Add Vertex Color Layer (Grass)",
@@ -9516,6 +10662,8 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         layout.prop(self, "apply_wind_armature")
         layout.prop(self, "add_vertex_colors")
         layout.prop(self, "wind_tuning")
+        layout.separator(factor=0.5)
+        layout.prop(self, "process_selected", icon='RESTRICT_SELECT_OFF')
 
     # ------------------------------------------------------------------
     # Helpers
@@ -9585,64 +10733,43 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
                 return None
 
     # ------------------------------------------------------------------
-    # Main execute
+    # Per-object prep (called once per object in execute)
     # ------------------------------------------------------------------
 
-    def execute(self, context):  # noqa: C901 - intentionally long
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "No mesh object selected")
-            return {'CANCELLED'}
-
+    def _prep_object(self, obj) -> tuple[list[str], list[str]]:
+        """Apply wind/vegetation prep to one object. Returns (applied, blockers)."""
         profile = (
             _detect_wind_profile(obj)
             if self.profile_override == 'AUTO'
             else self.profile_override
         )
+        applied:  list[str] = []
+        blockers: list[str] = []
 
-        applied: list[str] = []      # things done automatically
-        blockers: list[str] = []     # remaining issues needing user attention
-
-        # ------------------------------------------------------------------
-        # Profile: GRASS
-        # ------------------------------------------------------------------
         if profile == 'GRASS':
-            # Collision type must be GRASS (= no collision)
             try:
                 obj.fo4_collision_type = 'GRASS'
                 applied.append("fo4_collision_type = 'GRASS'")
             except Exception:
                 pass
-
-            # Mesh type must be VEGETATION
             try:
                 obj.fo4_mesh_type = 'VEGETATION'
                 applied.append("fo4_mesh_type = 'VEGETATION'")
             except Exception:
                 pass
-
-            # Remove armature — bones are forbidden on grass NIFs
             removed = self._remove_armature_modifiers(obj)
             if removed:
                 applied.append(f"Removed armature modifier(s): {', '.join(removed)}")
-
-            # Remove shape keys if present (not supported on grass)
             if obj.data.shape_keys and len(obj.data.shape_keys.key_blocks) > 1:
                 blockers.append(
                     "Grass has shape keys — remove them manually "
                     "(Edit Mode → Shape Keys → delete all)"
                 )
-
-            # Vegetation material (Alpha Clip, two-sided)
             mat = self._ensure_veg_material(obj)
             if mat is not None:
                 applied.append(f"Vegetation material applied: '{mat.name}'")
             else:
-                blockers.append(
-                    "Could not create vegetation material (texture_helpers unavailable)"
-                )
-
-            # Optional vertex-color layer for per-vertex wind intensity
+                blockers.append("Could not create vegetation material (texture_helpers unavailable)")
             if self.add_vertex_colors:
                 layer_name = self._ensure_vertex_color_layer(obj)
                 if layer_name:
@@ -9651,25 +10778,17 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
                         "(white = max sway; paint darker to reduce intensity)"
                     )
 
-        # ------------------------------------------------------------------
-        # Profile: SHRUB or TREE
-        # ------------------------------------------------------------------
         elif profile in ('SHRUB', 'TREE'):
-            # Mesh type
             try:
                 obj.fo4_mesh_type = 'VEGETATION'
                 applied.append("fo4_mesh_type = 'VEGETATION'")
             except Exception:
                 pass
-
-            # Vegetation material
             mat = self._ensure_veg_material(obj)
             if mat is not None:
                 applied.append(f"Vegetation material applied: '{mat.name}'")
             else:
                 blockers.append("Could not create vegetation material")
-
-            # Wind weights (Z-axis linear falloff)
             if animation_helpers:
                 ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
                 if ok:
@@ -9678,10 +10797,8 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
                     blockers.append(f"Wind weights failed: {msg}")
             else:
                 blockers.append("animation_helpers unavailable — wind weights not generated")
-
-            # Optional wind armature + animation action
             if self.apply_wind_armature and animation_helpers:
-                preset = profile  # 'SHRUB' or 'TREE'
+                preset = profile
                 tuning_key = self.wind_tuning if self.wind_tuning != 'AUTO' else 'BALANCED'
                 tuning_bucket = _SMART_WIND_TUNING_PRESETS.get(
                     tuning_key, _SMART_WIND_TUNING_PRESETS['BALANCED']
@@ -9693,37 +10810,67 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
                     obj, amplitude=amp, period=period, axis='X'
                 )
                 if ok:
-                    applied.append(
-                        f"Wind armature + animation applied ({preset} / {tuning_label})"
-                    )
+                    applied.append(f"Wind armature + animation applied ({preset} / {tuning_label})")
                 else:
                     blockers.append(f"Wind animation setup failed: {msg}")
 
-        # ------------------------------------------------------------------
-        # Profile: STATIC — no wind modifications, diagnostics only
-        # ------------------------------------------------------------------
-        # (falls through to the diagnostics section below)
+        # STATIC: no wind modifications — falls through to diagnostics in execute
+        return applied, blockers
+
+    # ------------------------------------------------------------------
+    # Main execute
+    # ------------------------------------------------------------------
+
+    def execute(self, context):  # noqa: C901 - intentionally long
+        # Collect the objects to process
+        if self.process_selected:
+            objects = [o for o in context.selected_objects if o.type == 'MESH']
+            if not objects:
+                self.report({'ERROR'}, "No mesh objects selected")
+                return {'CANCELLED'}
+        else:
+            active = context.active_object
+            if not active or active.type != 'MESH':
+                self.report({'ERROR'}, "No mesh object selected")
+                return {'CANCELLED'}
+            objects = [active]
+
+        all_applied:  list[str] = []
+        all_blockers: list[str] = []
+        batch = len(objects) > 1
+
+        for obj in objects:
+            prefix = f"[{obj.name}] " if batch else ""
+            applied, blockers = self._prep_object(obj)
+            all_applied.extend(prefix + a for a in applied)
+            all_blockers.extend(prefix + b for b in blockers)
+
+        # Profile label for the summary (use active object's profile, or "BATCH")
+        if batch:
+            profile_label = f"BATCH ×{len(objects)}"
+        else:
+            profile_label = (
+                _detect_wind_profile(objects[0])
+                if self.profile_override == 'AUTO'
+                else self.profile_override
+            )
 
         # ------------------------------------------------------------------
-        # Diagnostics: run → auto-fix → re-run
+        # Diagnostics: run → auto-fix → re-run (once, scene-wide)
         # ------------------------------------------------------------------
         if fo4_scene_diagnostics:
-            # First pass
             report = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
             fo4_scene_diagnostics.store_report(report)
 
-            # Auto-fix all fixable issues
-            fix_count, fix_msgs = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
+            fix_count, _fix_msgs = fo4_scene_diagnostics.SceneDiagnostics.auto_fix(
                 context, report
             )
             if fix_count:
-                applied.append(f"Auto-fixed {fix_count} diagnostic issue(s)")
+                all_applied.append(f"Auto-fixed {fix_count} diagnostic issue(s)")
 
-            # Second pass for the final score
             report2 = fo4_scene_diagnostics.SceneDiagnostics.run_full_check(context.scene)
             fo4_scene_diagnostics.store_report(report2)
 
-            # Update scene shortcut properties
             s = report2.get("summary", {})
             try:
                 context.scene.fo4_diag_last_score    = s.get("score",         0)
@@ -9733,33 +10880,27 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
             except Exception:
                 pass
 
-            score = s.get("score", 0)
-            errors = s.get("error_count", 0)
-            warnings = s.get("warning_count", 0)
-            export_ready = s.get("export_ready", False)
+            score        = s.get("score",         0)
+            errors       = s.get("error_count",   0)
+            warnings     = s.get("warning_count", 0)
+            export_ready = s.get("export_ready",  False)
 
-            # Collect per-object errors that are still open as blockers
             for obj_r in report2.get("objects", []):
                 for check in obj_r.get("checks", []):
                     if check.get("severity") == "ERROR":
-                        blockers.append(
-                            f"[{obj_r['name']}] {check.get('message', '')}"
-                        )
+                        all_blockers.append(f"[{obj_r['name']}] {check.get('message', '')}")
         else:
-            score = 0
-            errors = 0
-            warnings = 0
-            export_ready = False
-            blockers.append("fo4_scene_diagnostics unavailable — run diagnostics manually")
+            score = 0; errors = 0; warnings = 0; export_ready = False
+            all_blockers.append("fo4_scene_diagnostics unavailable — run diagnostics manually")
 
         # ------------------------------------------------------------------
         # Build consolidated report message
         # ------------------------------------------------------------------
-        lines_applied = "\n  • ".join(applied) if applied else "—"
-        if blockers:
-            lines_blockers = "\n  ✗ ".join(blockers)
+        lines_applied = "\n  • ".join(all_applied) if all_applied else "—"
+        if all_blockers:
+            lines_blockers = "\n  ✗ ".join(all_blockers)
             summary = (
-                f"Smart Wind Prep ({profile}) — Score {score}/100  "
+                f"Smart Wind Prep ({profile_label}) — Score {score}/100  "
                 f"({errors} error(s), {warnings} warning(s))  "
                 f"{'✅ Export ready' if export_ready else '⚠ Fix remaining issues'}\n"
                 f"Auto-applied:\n  • {lines_applied}\n"
@@ -9768,7 +10909,7 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
             self.report({'WARNING'}, summary)
         else:
             summary = (
-                f"Smart Wind Prep ({profile}) — Score {score}/100  ✅ Export ready\n"
+                f"Smart Wind Prep ({profile_label}) — Score {score}/100  ✅ Export ready\n"
                 f"Auto-applied:\n  • {lines_applied}"
             )
             self.report({'INFO'}, summary)
@@ -9776,11 +10917,11 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         if notification_system:
             status = 'INFO' if export_ready else 'WARNING'
             short = (
-                f"Smart Wind Prep ({profile}): score {score}/100 "
+                f"Smart Wind Prep ({profile_label}): score {score}/100 "
                 f"{'✅' if export_ready else '⚠'} "
-                f"{len(applied)} applied, {len(blockers)} remaining"
+                f"{len(all_applied)} applied, {len(all_blockers)} remaining"
             )
-            notification_system.FO4_NotificationSystem.notify(short, status)
+            _notify(short, status)
 
         return {'FINISHED'}
 
@@ -9814,7 +10955,7 @@ class FO4_OT_AddReferenceObject(Operator):
         ok, msg = fo4_reference_helpers.ReferenceHelpers.create_reference(self.ref_type)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9837,7 +10978,7 @@ class FO4_OT_ClearReferenceObjects(Operator):
         ok, msg = fo4_reference_helpers.ReferenceHelpers.clear_all_references()
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9875,7 +11016,7 @@ class FO4_OT_GeneratePapyrusScript(Operator):
         text_block.write(text)
 
         self.report({'INFO'}, f"Script generated: {name}.psc  (open in Text Editor)")
-        notification_system.FO4_NotificationSystem.notify(
+        _notify(
             f"Papyrus script '{name}.psc' created in Text Editor", 'INFO')
         return {'FINISHED'}
 
@@ -9906,7 +11047,7 @@ class FO4_OT_ExportPapyrusScript(Operator):
             tpl_id, name, bpy.path.abspath(output_dir))
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9958,7 +11099,7 @@ class FO4_OT_ApplyPhysicsPreset(Operator):
         ok, msg = fo4_physics_helpers.PhysicsHelpers.apply_to_selection(context, preset_id)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -9982,11 +11123,11 @@ class FO4_OT_ValidatePhysics(Operator):
         if not warnings:
             msg = f"Physics OK on {obj.name if obj else 'selection'}"
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
         else:
             for w in warnings:
                 self.report({'WARNING'}, w)
-                notification_system.FO4_NotificationSystem.notify(w, 'WARNING')
+                _notify(w, 'WARNING')
         return {'FINISHED'}
 
 
@@ -10016,7 +11157,7 @@ class FO4_OT_CreateModStructure(Operator):
         ok, msg = mod_packaging_helpers.ModPackager.create_structure(mod_root, mod_name)
         if ok:
             self.report({'INFO'}, msg.split("\n")[0])
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Mod structure created: {mod_root}", 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
@@ -10054,7 +11195,7 @@ class FO4_OT_GenerateFOMOD(Operator):
         ok, msg = mod_packaging_helpers.ModPackager.generate_fomod(mod_root, info)
         if ok:
             self.report({'INFO'}, msg.split("\n")[0])
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 "FOMOD installer generated", 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
@@ -10092,7 +11233,7 @@ class FO4_OT_GenerateReadme(Operator):
         ok, msg = mod_packaging_helpers.ModPackager.generate_readme(mod_root, info)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -10124,12 +11265,12 @@ class FO4_OT_ValidateModStructure(Operator):
         if ok and not issues:
             msg = "Mod structure is valid – ready to package"
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
         else:
             for issue in issues:
                 level = 'WARNING' if issue.startswith("Warning:") else 'ERROR'
                 self.report({level}, issue)
-                notification_system.FO4_NotificationSystem.notify(issue, level)
+                _notify(issue, level)
         return {'FINISHED'}
 
 
@@ -10161,7 +11302,7 @@ class FO4_OT_ExportModManifest(Operator):
         ok, msg = mod_packaging_helpers.ModPackager.export_manifest(mod_root, info)
         if ok:
             self.report({'INFO'}, msg)
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+            _notify(msg, 'INFO')
             return {'FINISHED'}
         self.report({'ERROR'}, msg)
         return {'CANCELLED'}
@@ -10240,6 +11381,10 @@ Tests bridge + AI, starts the TCP server, auto-generates a token if needed."""
             from . import mossy_link as _ml
         except Exception as exc:
             self.report({'ERROR'}, f"Could not import mossy_link: {exc}")
+            return {'CANCELLED'}
+
+        if _ml is None:
+            self.report({'ERROR'}, "mossy_link failed to load — check Blender's System Console for the import error.")
             return {'CANCELLED'}
 
         status = _ml.quick_connect()
@@ -10337,7 +11482,7 @@ class FO4_OT_ExportTRIMorphs(Operator):
         if ok:
             self.report({'INFO'}, msg)
             if notification_system:
-                notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+                _notify(msg, 'INFO')
             # Optionally generate BodySlide XML
             if self.generate_bodyslide:
                 import os
@@ -10405,6 +11550,9 @@ class FO4_OT_ValidateNavMesh(Operator):
             return {'CANCELLED'}
 
         obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
         result = navmesh_helpers_mod.NavmeshHelpers.validate(obj)
         report_str = navmesh_helpers_mod.NavmeshHelpers.format_report(result)
         print(report_str)
@@ -10698,8 +11846,7 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
             f"(from {len(islands)} island(s))"
         )
         self.report({'INFO'}, msg)
-        if notification_system:
-            notification_system.FO4_NotificationSystem.notify(msg, 'INFO')
+        _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -10766,7 +11913,7 @@ class FO4_OT_ExportBGSM(Operator):
             level = 'INFO' if ok else 'WARNING'
             self.report({level}, msg)
             if notification_system:
-                notification_system.FO4_NotificationSystem.notify(msg, level)
+                _notify(msg, level)
 
         if n_fail == 0:
             self.report({'INFO'}, f"Exported {n_ok} .bgsm file(s) to {self.directory}")
@@ -10815,6 +11962,9 @@ class FO4_OT_BatchExportBGSM(Operator):
         if not bgsm_helpers:
             self.report({'ERROR'}, "bgsm_helpers module not available")
             return {'CANCELLED'}
+        if not self.directory:
+            self.report({'ERROR'}, "No output directory specified")
+            return {'CANCELLED'}
 
         import os
         os.makedirs(self.directory, exist_ok=True)
@@ -10846,7 +11996,7 @@ class FO4_OT_BatchExportBGSM(Operator):
         msg = f"Batch BGSM export: {n_ok} written, {n_fail} failed"
         self.report({'INFO' if n_fail == 0 else 'WARNING'}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 msg, 'INFO' if n_fail == 0 else 'WARNING'
             )
         return {'FINISHED'}
@@ -10896,7 +12046,7 @@ class FO4_OT_ImportBGSM(Operator):
         level = 'INFO' if ok else 'ERROR'
         self.report({level}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _notify(msg, level)
         return {'FINISHED'} if ok else {'CANCELLED'}
 
     def invoke(self, context, event):
@@ -11015,7 +12165,7 @@ class FO4_OT_SetupGlowingPlantMaterial(Operator):
         )
         self.report({'INFO'}, full_msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"Glowing plant material applied to '{obj.name}'", 'INFO'
             )
         return {'FINISHED'}
@@ -11139,7 +12289,7 @@ class FO4_OT_SetupGlowingPlantBGEM(Operator):
         )
         self.report({'INFO'}, full_msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(
+            _notify(
                 f"BGEM bloom material applied to '{obj.name}'", 'INFO'
             )
         return {'FINISHED'}
@@ -11232,7 +12382,7 @@ class FO4_OT_ApplyEmittancePulse(Operator):
         level = 'INFO' if ok else 'ERROR'
         self.report({level}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _notify(msg, level)
         return {'FINISHED'} if ok else {'CANCELLED'}
 
     def draw(self, context):
@@ -11285,7 +12435,7 @@ class FO4_OT_RemoveEmittancePulse(Operator):
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _notify(msg, level)
         return {'FINISHED'} if ok else {'CANCELLED'}
 
 
@@ -11341,11 +12491,153 @@ class FO4_OT_ExtractBA2Asset(Operator):
         level = 'INFO' if ok else 'ERROR'
         self.report({level}, msg)
         if notification_system:
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _notify(msg, level)
         return {'FINISHED'} if ok else {'CANCELLED'}
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+# ---------------------------------------------------------------------------
+# Stub operators — referenced in UI panels, implementation pending
+# ---------------------------------------------------------------------------
+
+class FO4_OT_CheckNVTTInstallation(bpy.types.Operator):
+    """Check whether NVTT (nvidia-texture-tools) is installed and accessible"""
+    bl_idname  = "fo4.check_nvtt_installation"
+    bl_label   = "Check NVTT Installation"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import shutil
+        nvtt = shutil.which("nvtt_export") or shutil.which("nvcompress")
+        if nvtt:
+            self.report({'INFO'}, f"NVTT found: {nvtt}")
+        else:
+            self.report({'WARNING'}, "NVTT not found. Install nvidia-texture-tools or set the path in addon preferences.")
+        return {'FINISHED'}
+
+
+class FO4_OT_TestDDSConverters(bpy.types.Operator):
+    """Run a quick self-test to confirm DDS conversion tools are working"""
+    bl_idname  = "fo4.test_dds_converters"
+    bl_label   = "Self-Test DDS Converters"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import shutil
+        results = []
+        for tool in ("nvtt_export", "nvcompress", "texconv"):
+            path = shutil.which(tool)
+            results.append(f"{tool}: {'✓ ' + path if path else '✗ not found'}")
+        self.report({'INFO'}, " | ".join(results))
+        return {'FINISHED'}
+
+
+class FO4_OT_ConvertTextureToDDS(bpy.types.Operator):
+    """Convert the active image texture to DDS (BC7) using texconv or NVTT"""
+    bl_idname  = "fo4.convert_texture_to_dds"
+    bl_label   = "Convert Texture to DDS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="")
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import shutil, subprocess, pathlib
+        src = pathlib.Path(self.filepath)
+        if not src.exists():
+            self.report({'ERROR'}, f"File not found: {src}")
+            return {'CANCELLED'}
+        texconv = shutil.which("texconv")
+        nvtt    = shutil.which("nvtt_export") or shutil.which("nvcompress")
+        if texconv:
+            cmd = [texconv, "-f", "BC7_UNORM", "-o", str(src.parent), str(src)]
+        elif nvtt:
+            out = src.with_suffix('.dds')
+            cmd = [nvtt, "--format", "bc7", str(src), str(out)]
+        else:
+            self.report({'ERROR'}, "No DDS converter found. Install texconv or NVTT.")
+            return {'CANCELLED'}
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            self.report({'INFO'}, f"Converted → {src.with_suffix('.dds')}")
+        except subprocess.CalledProcessError as e:
+            self.report({'ERROR'}, f"Conversion failed: {e.stderr.decode()[:200]}")
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_ConvertObjectTexturesToDDS(bpy.types.Operator):
+    """Convert all image textures on the active object's materials to DDS"""
+    bl_idname  = "fo4.convert_object_textures_to_dds"
+    bl_label   = "Convert Object Textures to DDS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        import shutil, subprocess, pathlib
+        obj = context.active_object
+        if not obj:
+            self.report({'ERROR'}, "No active object")
+            return {'CANCELLED'}
+        texconv = shutil.which("texconv")
+        nvtt    = shutil.which("nvtt_export") or shutil.which("nvcompress")
+        if not texconv and not nvtt:
+            self.report({'ERROR'}, "No DDS converter found. Install texconv or NVTT.")
+            return {'CANCELLED'}
+        converted = 0
+        for mat in obj.data.materials:
+            if not mat or not mat.use_nodes:
+                continue
+            for node in mat.node_tree.nodes:
+                if node.type != 'TEX_IMAGE' or not node.image:
+                    continue
+                img_path = pathlib.Path(bpy.path.abspath(node.image.filepath))
+                if not img_path.exists() or img_path.suffix.lower() == '.dds':
+                    continue
+                if texconv:
+                    cmd = [texconv, "-f", "BC7_UNORM", "-o", str(img_path.parent), str(img_path)]
+                else:
+                    out = img_path.with_suffix('.dds')
+                    cmd = [nvtt, "--format", "bc7", str(img_path), str(out)]
+                try:
+                    subprocess.run(cmd, check=True, capture_output=True)
+                    converted += 1
+                except subprocess.CalledProcessError:
+                    pass
+        self.report({'INFO'}, f"Converted {converted} texture(s) to DDS")
+        return {'FINISHED'}
+
+
+class FO4_OT_ImportESPCell(bpy.types.Operator):
+    """Import a Fallout 4 cell directly from an ESP/ESM file (requires pynifly + bethesda-structs)"""
+    bl_idname  = "fo4.import_esp_cell"
+    bl_label   = "Import Cell from ESP/ESM"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="")
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        import pathlib
+        src = pathlib.Path(self.filepath)
+        if not src.exists():
+            self.report({'ERROR'}, f"File not found: {src}")
+            return {'CANCELLED'}
+        if src.suffix.lower() not in ('.esp', '.esm', '.esl'):
+            self.report({'ERROR'}, "Please select an .esp / .esm / .esl file")
+            return {'CANCELLED'}
+        self.report({'INFO'},
+            f"ESP/ESM cell import selected: {src.name}  "
+            "— full implementation requires bethesda-structs. "
+            "Use xEdit CSV export as an alternative (Import from xEdit CSV button).")
+        return {'FINISHED'}
 
 
 classes = (
@@ -11370,6 +12662,11 @@ classes = (
     FO4_OT_SplitUVSeamEdges,
     FO4_OT_TransferArmorWeights,
     FO4_OT_CleanImportedArmature,
+    FO4_OT_LoadFO4Skeleton,
+    FO4_OT_FixNIFScale,
+    FO4_OT_QuickFBXArmorSetup,
+    FO4_OT_FlipSkeletonFacing,
+    FO4_OT_AutoConnectArmorTextures,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
     FO4_OT_ShowMessage,
@@ -11386,6 +12683,7 @@ classes = (
     FO4_OT_AutoWeightPaint,
     FO4_OT_ApplyWindAnimation,
     FO4_OT_DetectObjectType,
+    FO4_OT_SetupLeafCard,
     FO4_OT_VegetationWindSetup,
     FO4_OT_SmartWindSetup,
     FO4_OT_BatchGenerateWindWeights,
@@ -11581,6 +12879,11 @@ classes = (
     FO4_OT_RemoveEmittancePulse,
     # BA2 archive extraction
     FO4_OT_ExtractBA2Asset,
+    FO4_OT_CheckNVTTInstallation,
+    FO4_OT_TestDDSConverters,
+    FO4_OT_ConvertTextureToDDS,
+    FO4_OT_ConvertObjectTexturesToDDS,
+    FO4_OT_ImportESPCell,
 )
 
 def _make_scene_to_pref_sync(scene_attr, pref_attr):
@@ -11605,6 +12908,7 @@ def _make_scene_to_pref_sync(scene_attr, pref_attr):
         except Exception as exc:
             print(f"⚠ Could not sync scene.{scene_attr} → prefs.{pref_attr}: {exc}")
     return _update
+
 
 
 def register():
@@ -12012,6 +13316,72 @@ def register():
         print(f"⚠ Failed to register Image-to-3D quality settings: {_e}")
 
     try:
+        bpy.types.Scene.fo4_creature_type_choice = bpy.props.EnumProperty(
+            name="Creature Type",
+            description="FO4 creature skeleton type template",
+            items=[
+                ('deathclaw_quadruped', "Deathclaw-Style (Large Monster)",     ""),
+                ('dog_mammal',          "Mutant Animal (Quadruped Mammal)",     ""),
+                ('robot',               "Robot (Biped/Quadruped)",              ""),
+                ('alien_humanoid',      "Alien / Humanoid Monster",             ""),
+                ('insect_flying',       "Insect (Flying / Crawling)",           ""),
+                ('aquatic_crawler',     "Aquatic / Crawler",                    ""),
+            ],
+            default='deathclaw_quadruped',
+        )
+        bpy.types.Scene.fo4_collision_type_choice = bpy.props.EnumProperty(
+            name="Collision Type",
+            description="FO4 collision shape type for pyNIF export",
+            items=[
+                ('CONVEX',    "bhkConvexShape — Static (buildings, rocks, trees)", ""),
+                ('BOX',       "bhkBoxShape — Simple Static (box props)",            ""),
+                ('RIGIDBODY', "bhkRigidBody — Dynamic (physics props, mass 5-20)",  ""),
+            ],
+            default='CONVEX',
+        )
+        bpy.types.Scene.fo4_sbp_slot_choice = bpy.props.EnumProperty(
+            name="SBP Slot",
+            description="FO4 BSDismember body partition slot",
+            items=[
+                ('SBP_32',  "SBP_32 — Body",      ""),
+                ('SBP_33',  "SBP_33 — Head",      ""),
+                ('SBP_34',  "SBP_34 — Hair",       ""),
+                ('SBP_37',  "SBP_37 — Hands",      ""),
+                ('SBP_38',  "SBP_38 — Forearms",   ""),
+                ('SBP_41',  "SBP_41 — Torso",      ""),
+                ('SBP_46',  "SBP_46 — Legs",       ""),
+                ('SBP_47',  "SBP_47 — Feet",       ""),
+                ('SBP_130', "SBP_130 — FX01",      ""),
+            ],
+            default='SBP_32',
+        )
+        bpy.types.Scene.fo4_bgsm_template_choice = bpy.props.EnumProperty(
+            name="BGSM Template",
+            description="FO4 BGSM material template to save",
+            items=[
+                ('metal_rusty',           "Metal (Rusty FO4)",          "Rusty metal prop"),
+                ('wood_weathered',        "Wood (Weathered FO4)",       "Weathered wood furniture"),
+                ('plastic_painted',       "Plastic / Painted Metal",    "Painted metal / clutter"),
+                ('vegetation_irradiated', "Glowing Sea Vegetation",     "Irradiated organic plant"),
+            ],
+            default='metal_rusty',
+        )
+        bpy.types.Scene.fo4_ai_prompt_choice = bpy.props.EnumProperty(
+            name="AI Prompt",
+            description="FO4-style AI generation prompt",
+            items=[
+                ('metal_junk',             "FO4 Metal Junk",               "Rusted junk prop"),
+                ('wooden_furniture',       "FO4 Wooden Furniture",         "Weathered furniture"),
+                ('plastic_prop',           "FO4 Plastic / Painted Props",  "Painted plastic clutter"),
+                ('glowing_sea_vegetation', "Glowing Sea Vegetation",       "Irradiated mutated plant"),
+            ],
+            default='metal_junk',
+        )
+    except Exception as _e:
+        print(f"⚠ Failed to register creature/collision/material scene properties: {_e}")
+
+
+    try:
         # ── Advisor / LLM / tool-path / UI-toggle scene properties ───────────
         # Fallback scene properties for the Settings panel when addon
         # preferences are unavailable.  Each mirrors a FO4AddonPreferences
@@ -12156,6 +13526,11 @@ def unregister():
         "fo4_imageto3d_target_poly",
         "fo4_imageto3d_auto_decimate",
         "fo4_triposr_mc_resolution",
+        "fo4_creature_type_choice",
+        "fo4_collision_type_choice",
+            "fo4_sbp_slot_choice",
+            "fo4_bgsm_template_choice",
+            "fo4_ai_prompt_choice",
         # Advisor / LLM / tool-path / UI-toggle scene mirrors
         "fo4_llm_enabled",
         "fo4_advisor_monitor",

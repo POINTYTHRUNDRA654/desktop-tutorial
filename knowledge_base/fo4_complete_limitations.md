@@ -5,6 +5,17 @@ A single reference for every hard limit, requirement, and restriction in Fallout
 
 ---
 
+## Coordinate Scale
+
+Fallout 4 uses **70 game units per metre** (1 game unit ≈ 1.43 cm).
+
+- `1 foot = 21.333 game units`
+- `1 metre = 70.0 game units`
+- In Blender: **1 Blender unit = 1 NIF unit** — do not rescale geometry on export (`scale_correction = 1.0`).
+- Blender's scene unit scale should be left at 1.0 (metric) to match CK display.
+
+---
+
 ## Hard Numeric Limits
 
 | Resource                    | Limit    | Consequence if exceeded            |

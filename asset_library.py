@@ -26,6 +26,16 @@ from bpy.props import (
 )
 from bpy.types import Operator, PropertyGroup, UIList
 
+try:
+    from . import notification_system as _notification_system
+except ImportError:
+    _notification_system = None
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if _notification_system:
+        _notification_system.FO4_NotificationSystem.notify(msg, level)
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -315,12 +325,15 @@ def auto_scan_for_scene(scene) -> None:
     """Auto-scan assets for *scene* when paths are configured but the list is empty.
 
     Called from the ``load_post`` handler so assets are immediately available
-    after Blender starts or a project is opened - without the user having to
+    after Blender starts or a project is opened — without the user having to
     click "Scan Asset Library" again.
 
     The scan is skipped when the list already contains items so that a scene
     whose asset list was saved inside the ``.blend`` file is never clobbered.
     """
+    # Guard: Scene properties are registered in Phase 2 — skip until then.
+    if not hasattr(scene, 'fo4_asset_lib_items'):
+        return
     try:
         if len(scene.fo4_asset_lib_items) > 0:
             return  # Already populated - nothing to do
@@ -551,8 +564,6 @@ class FO4_OT_ImportLibraryAsset(Operator):
     )
 
     def execute(self, context):
-        from . import notification_system
-
         scene = context.scene
         lib   = scene.fo4_asset_lib_items
         idx   = scene.fo4_asset_lib_active
@@ -589,14 +600,29 @@ class FO4_OT_ImportLibraryAsset(Operator):
                 self.report({'INFO'}, f"Imported OBJ: {name}")
 
             elif filetype == 'NIF':
-                if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'nif'):
-                    bpy.ops.import_scene.nif(filepath=filepath)
+                if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
+                    bpy.ops.import_scene.pynifly(filepath=filepath)
+                    # Scale imported objects from FO4 game units to Blender metres (÷70)
+                    # and tag each for the ×70 round-trip on export.
+                    _fo4_scale = 1.0 / 69.99125
+                    _scalable = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE'}
+                    _imported = [o for o in context.selected_objects if o.type in _scalable]
+                    bpy.ops.object.select_all(action='DESELECT')
+                    for _obj in _imported:
+                        context.view_layer.objects.active = _obj
+                        _obj.select_set(True)
+                        _obj.scale = (_fo4_scale, _fo4_scale, _fo4_scale)
+                        try:
+                            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                        except Exception:
+                            _obj.scale = (1.0, 1.0, 1.0)
+                        _obj["fo4_unit_scale"] = 69.99125
+                        _obj.select_set(False)
                     self.report({'INFO'}, f"Imported NIF: {name}")
                 else:
                     self.report(
                         {'ERROR'},
-                        "NIF import requires the Niftools add-on - install it via "
-                        "Preferences → Add-ons",
+                        "NIF import requires PyNifly — install it via the Setup & Status tab",
                     )
                     return {'CANCELLED'}
 
@@ -622,9 +648,7 @@ class FO4_OT_ImportLibraryAsset(Operator):
                 )
                 return {'CANCELLED'}
 
-            notification_system.FO4_NotificationSystem.notify(
-                f"Imported '{name}'", 'INFO'
-            )
+            _notify(f"Imported '{name}'", 'INFO')
             return {'FINISHED'}
 
         except (OSError, RuntimeError, TypeError, AttributeError) as exc:
@@ -701,6 +725,12 @@ def load_asset_paths(scene) -> None:
     project-specific path already saved inside a .blend file is never
     clobbered.
     """
+    # Scene properties are registered in Phase 2 (~3 s after startup).
+    # This handler can fire before that — skip silently; it will run again
+    # once the .blend is fully loaded with properties in place.
+    if not hasattr(scene, 'fo4_asset_lib_path'):
+        return
+
     cfg = _config_path()
     if not os.path.isfile(cfg):
         return
@@ -758,102 +788,6 @@ def _invalidate_game_asset_cache(self, context):  # noqa: ARG001
         pass
 
     # Persist the changed path so it survives scene switches and restarts.
-    save_asset_paths(self)
-
-
-_SCENE_PROPS: list[tuple[str, object]] = [
-    # ── Paths ────────────────────────────────────────────────────────────────
-    ("fo4_asset_lib_path", StringProperty(
-        name="All Assets Path",
-        description=(
-            "Folder or .blend file that contains all your assets. "
-            "Supports FBX, OBJ, NIF, glTF, DDS, PNG, TGA and .blend libraries"
-        ),
-        default="",
-        subtype='FILE_PATH',
-        update=_invalidate_game_asset_cache,
-    )),
-    ("fo4_asset_lib_mesh_path", StringProperty(
-        name="Meshes Path",
-        description="Dedicated folder for mesh files (FBX, OBJ, NIF, glTF …)",
-        default="",
-        subtype='DIR_PATH',
-        update=_invalidate_game_asset_cache,
-    )),
-    ("fo4_asset_lib_tex_path", StringProperty(
-        name="Textures Path",
-        description="Dedicated folder for texture files (DDS, PNG, TGA, EXR …)",
-        default="",
-        subtype='DIR_PATH',
-        update=_invalidate_game_asset_cache,
-    )),
-    ("fo4_asset_lib_mat_path", StringProperty(
-        name="Materials Path",
-        description=(
-            "Dedicated folder for material libraries (.blend files whose "
-            "objects will be listed for import)"
-        ),
-        default="",
-        subtype='DIR_PATH',
-        update=_invalidate_game_asset_cache,
-    )),
-    # ── List state ───────────────────────────────────────────────────────────
-    ("fo4_asset_lib_items", CollectionProperty(type=FO4_AssetLibraryItem)),
-    ("fo4_asset_lib_active", IntProperty(name="Active Asset", default=0, min=0)),
-    # ── Filters ──────────────────────────────────────────────────────────────
-    ("fo4_asset_lib_search", StringProperty(
-        name="Search",
-        description="Filter by name, category, or file type",
-        default="",
-    )),
-    ("fo4_asset_lib_category", EnumProperty(
-        name="Category",
-        items=_CATEGORY_ITEMS,
-        default='ALL',
-    )),
-]
-
-
-def register() -> None:
-    for cls in _CLASSES:
-        bpy.utils.register_class(cls)
-    for name, prop in _SCENE_PROPS:
-        setattr(bpy.types.Scene, name, prop)
-
-
-def unregister() -> None:
-    for name, _ in reversed(_SCENE_PROPS):
-        if hasattr(bpy.types.Scene, name):
-            try:
-                delattr(bpy.types.Scene, name)
-            except Exception:
-                pass
-    for cls in reversed(_CLASSES):
-        try:
-            bpy.utils.unregister_class(cls)
-        except Exception:
-            pass
-    try:
-        from . import fo4_game_assets
-        fo4_game_assets.FO4GameAssets.invalidate_cache()
-    except Exception:
-        pass
-
-    # Reverse-sync: mesh sub-path → Data root → fo4_assets_path
-    try:
-        from pathlib import Path as _P
-        mesh_path = getattr(self, 'fo4_asset_lib_mesh_path', '').strip()
-        if mesh_path:
-            p = _P(mesh_path)
-            if p.is_dir() and p.name.lower() == 'meshes':
-                parent = p.parent
-                if parent.is_dir():
-                    current = getattr(self, 'fo4_assets_path', '').strip()
-                    if not current:
-                        self.fo4_assets_path = str(parent)
-    except Exception:
-        pass
-
     save_asset_paths(self)
 
 

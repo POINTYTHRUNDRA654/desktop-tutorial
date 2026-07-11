@@ -1,0 +1,30 @@
+{
+  "pack": "FO4 Clutter Asset Generator Prompts",
+  "usage": "Use in KREA or HuggingFace TRELLIS/Hunyuan3D for FO4-style assets",
+  "prompts": [
+    {
+      "id": "metal_junk",
+      "label": "FO4 Metal Junk",
+      "asset_type": "small_prop",
+      "prompt": "rusted metal fallout 4 junk item, chipped paint, worn edges, scratches, retro-futuristic industrial design, muted green-yellow tint, medium poly silhouette, strong AO, believable Commonwealth clutter"
+    },
+    {
+      "id": "wooden_furniture",
+      "label": "FO4 Wooden Furniture",
+      "asset_type": "medium_object",
+      "prompt": "weathered fallout 4 wooden furniture, chipped varnish, faded paint, rough surface, muted colors, retro 1950s influence, medium poly, strong AO, fits Commonwealth interior style"
+    },
+    {
+      "id": "plastic_prop",
+      "label": "FO4 Plastic / Painted Props",
+      "asset_type": "small_prop",
+      "prompt": "fallout 4 plastic prop, retro-futuristic 1950s design, worn edges, dirt buildup, muted colors, slight green tint, medium poly, realistic FO4 clutter aesthetic"
+    },
+    {
+      "id": "glowing_sea_vegetation",
+      "label": "Glowing Sea Mutated Vegetation",
+      "asset_type": "medium_object",
+      "prompt": "irradiated mutated plant from fallout 4 glowing sea, glowing veins, rough bark, organic deformation, green-yellow tint, weathered texture, medium poly, strong AO, fits FO4 wasteland biome"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "label": "FO4 Physics & Rig Bones Reference",
+  "cloth_physics_bones": [
+    "NPC L Breast",
+    "NPC R Breast",
+    "NPC L Skirt",
+    "NPC R Skirt",
+    "NPC L Cloth",
+    "NPC R Cloth",
+    "NPC L Strap",
+    "NPC R Strap"
+  ],
+  "weapon_bones": [
+    "WeaponRoot",
+    "Weapon",
+    "Magazine",
+    "Slide",
+    "Bolt",
+    "Trigger",
+    "Grip",
+    "Scope"
+  ],
+  "notes": {
+    "cloth": "Weight cloth/strap geo to these bones. Add Havok XML in CK for physics.",
+    "weapon": "WeaponRoot is parent of all weapon bones. Animate Slide/Bolt/Trigger for reload.",
+    "creature": "Use creature-specific skeleton NIF. Convert animations to HKX via hkxcmd."
+  }
+}

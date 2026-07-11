@@ -187,13 +187,16 @@ post_processing_helpers = _try_import("post_processing_helpers")
 fo4_material_browser = _try_import("fo4_material_browser")
 fo4_scene_diagnostics = _try_import("fo4_scene_diagnostics")
 advanced_realism_helpers = _try_import("advanced_realism_helpers")
+meshlab_helpers = _try_import("meshlab_helpers")
 bgsm_helpers = _try_import("bgsm_helpers")
 fo4_reference_helpers = _try_import("fo4_reference_helpers")
 papyrus_helpers = _try_import("papyrus_helpers")
 fo4_physics_helpers = _try_import("animation_helper.havakphysics")
 mod_packaging_helpers = _try_import("mod_packaging_helpers")
 addon_updater = _try_import("addon_updater")
-native_nif_writer = _try_import("native_nif_writer")
+
+# Post-edit learning: watches what you change on a generated mesh and adapts
+fo4_mesh_evolution = _try_import("fo4_mesh_evolution")
 
 # Shape key → .tri morph export and navmesh validation
 tri_export_helpers = _try_import("tri_export_helpers")
@@ -254,10 +257,14 @@ setup_operators = _try_import("setup_operators")
 # Diagnostics module - adds Run Diagnostics / Auto-Fix buttons to the
 # Setup & Status panel.  Registered before operators so the buttons are
 # always available even if the large operators.py bundle fails to load.
-addon_diagnostics   = _try_import("addon_diagnostics")
-install_operators   = _try_import("install_operators")
-ai_gen_operators    = _try_import("ai_gen_operators")
-fo4_plane_thickener = _try_import("fo4_plane_thickener")
+addon_diagnostics        = _try_import("addon_diagnostics")
+install_operators        = _try_import("install_operators")
+ai_gen_operators         = _try_import("ai_gen_operators")
+fo4_plane_thickener      = _try_import("fo4_plane_thickener")
+fo4_batch_tools          = _try_import("fo4_batch_tools")
+fo4_compatibility_checker = _try_import("fo4_compatibility_checker")
+fo4_esp_generator        = _try_import("fo4_esp_generator")
+fo4_workshop_helper      = _try_import("fo4_workshop_helper")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -325,10 +332,12 @@ _PHASE2_MODULES = list(filter(_filter, [
     tool_installers,
     image_to_mesh_helpers,
     ai_gen_operators,
-    content_panels,
+    fo4_mesh_evolution,
     post_processing_helpers,
+    content_panels,
     fo4_scene_diagnostics,
     advanced_realism_helpers,
+    meshlab_helpers,
     fo4_reference_helpers,
     papyrus_helpers,
     fo4_physics_helpers,
@@ -341,7 +350,10 @@ _PHASE2_MODULES = list(filter(_filter, [
     fo4_creature_rig,
     fo4_animation_export,
     fo4_asset_pipeline,
-    fo4_plane_thickener,
+    fo4_batch_tools,
+    fo4_compatibility_checker,
+    fo4_esp_generator,
+    fo4_workshop_helper,
     # Animation sub-systems — operators registered in Phase 2 so startup
     # is not delayed; all UI panels that reference them check registration
     # status before drawing.
@@ -425,7 +437,7 @@ def register():
     # ── Step 1: register Phase 1 (core) modules immediately ──────────────────
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
-    print(f"Mossy Industries blender addon - Initializing for Blender {version_string}")
+    print(f"Mossy Industries blender addon v5.1.0 [build 2026-06-26] - Initializing for Blender {version_string}")
     print(f"  Phase 1: registering {len(_PHASE1_MODULES)} core modules...")
 
     for module in _PHASE1_MODULES:
@@ -500,16 +512,44 @@ def register():
                 _name = getattr(_mod, "__name__", str(_mod))
                 print(f"⚠ Phase 2 register {_name}: {_e}")
         print("  Phase 2 complete — all features available.")
+
+        # Auto-reimport AI helpers that returned None at startup.
+        # Those _try_import() calls run before Phase 1 adds the PyTorch custom
+        # path to sys.path, so any helper that needs torch fails silently then
+        # but succeeds now that sys.path is fully configured.
+        _AI_HELPER_NAMES = [
+            "hunyuan3d_helpers", "hymotion_helpers", "zoedepth_helpers",
+            "realesrgan_helpers", "rignet_helpers", "instantngp_helpers",
+            "imageto3d_helpers",
+        ]
+        _g = globals()
+        _reimported = 0
+        for _ai_name in _AI_HELPER_NAMES:
+            if _g.get(_ai_name) is None:
+                _ai_mod = _try_import(_ai_name)
+                if _ai_mod is not None:
+                    _g[_ai_name] = _ai_mod
+                    try:
+                        if hasattr(_ai_mod, "register"):
+                            _ai_mod.register()
+                        _reimported += 1
+                    except Exception:
+                        pass
+        if _reimported:
+            print(f"  [Phase 2] Auto-reimported {_reimported} AI helper module(s) after torch path ready")
+
         return None  # don't reschedule
 
     try:
-        bpy.app.timers.register(_register_phase2, first_interval=3.0)
+        if not bpy.app.timers.is_registered(_register_phase2):
+            bpy.app.timers.register(_register_phase2, first_interval=3.0)
     except Exception:
         _register_phase2()  # fallback: run immediately if timers unavailable
 
     # ── Steps 3-5: deferred startup tasks (tool discovery, downloads, etc.) ──────
     try:
-        bpy.app.timers.register(_deferred_startup, first_interval=5.0)
+        if not bpy.app.timers.is_registered(_deferred_startup):
+            bpy.app.timers.register(_deferred_startup, first_interval=5.0)
     except Exception as e:
         _deferred_startup()
         print(f"Timers unavailable, startup tasks ran synchronously: {e}")
@@ -576,27 +616,19 @@ def register():
     elif blender_version < (4, 1, 0):
         print(
             "  Note: Blender 4.0 detected.\n"
-            "  • NIF export: Niftools v0.1.1 targets Blender ≤3.6 – use the FBX "
-            "fallback and convert with Cathedral Assets Optimizer.\n"
-            "  • All other features (mesh, collision, textures, animation) work normally."
+            "  • NIF import/export: use PyNifly (File → Import/Export → NIF (PyNifly)).\n"
+            "  • All other features work normally."
         )
     elif blender_version < (5, 0, 0):
-        # 4.1–4.x: use_auto_smooth removed; handled automatically.
         print(
             f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
-            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
-            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
-            "  • Shade-smooth-by-angle replaces the old Auto Smooth checkbox "
-            "– the add-on handles this automatically.\n"
-            "  • All other features work normally.  Please report any issues."
+            "  • NIF import/export: use PyNifly (File → Import/Export → NIF (PyNifly)).\n"
+            "  • All other features work normally."
         )
     else:
-        # Blender 5.0+: vertex_colors removed (color_attributes used instead),
-        # use_auto_smooth long gone.  All mesh/texture/animation features work.
         print(
             f"  Note: Blender {blender_version[0]}.{blender_version[1]} detected.\n"
-            "  • NIF export: use the FBX fallback + Cathedral Assets Optimizer "
-            "(Niftools v0.1.1 requires Blender ≤3.6).\n"
+            "  • NIF import/export: PyNifly 27.0.0 fully supported — use it for everything.\n"
             "  • All other features work normally on Blender 5.x.\n"
             "  • Please report any issues at the GitHub repository."
         )
@@ -613,6 +645,35 @@ def register():
         pass
 
 
+
 def unregister():
     """Unregister all add-on classes and handlers"""
-    # Remove the load_post handler that restores scene propert
+    # Remove the load_post handler that restores scene properties from prefs
+    try:
+        if _on_load_post in bpy.app.handlers.load_post:
+            bpy.app.handlers.load_post.remove(_on_load_post)
+        if hasattr(bpy.app.handlers, 'load_factory_startup_post'):
+            if _on_load_post in bpy.app.handlers.load_factory_startup_post:
+                bpy.app.handlers.load_factory_startup_post.remove(_on_load_post)
+    except Exception:
+        pass
+    try:
+        if advisor_helpers:
+            advisor_helpers.stop_auto_monitor()
+    except Exception:
+        pass
+    for module in reversed(modules):
+        try:
+            module.unregister()
+        except Exception as e:  # pragma: no cover
+            name = getattr(module, "__name__", str(module))
+            print(f"⚠ Error unregistering module {name}: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    print("Mossy Industries blender addon unregistered")
+
+
+if __name__ == "__main__":
+    register()

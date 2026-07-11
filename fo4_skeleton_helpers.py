@@ -56,27 +56,33 @@ class SkeletonAlignmentWizard:
         if not os.path.exists(skeleton_nif_path):
             return False, f"Skeleton NIF not found: {skeleton_nif_path}", None
 
-        # Try PyNifly import
+        if not hasattr(bpy.ops.import_scene, 'pynifly'):
+            return False, "Skeleton import requires PyNifly — install it via the Setup & Status tab", None
         try:
             bpy.ops.import_scene.pynifly(filepath=skeleton_nif_path)
-            for obj in bpy.context.selected_objects:
+            # Scale from FO4 game units to Blender metres (÷70) and tag for export.
+            _fo4_scale = 1.0 / 69.99125
+            _scalable = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE'}
+            _imported = [o for o in bpy.context.selected_objects if o.type in _scalable]
+            bpy.ops.object.select_all(action='DESELECT')
+            for _obj in _imported:
+                bpy.context.view_layer.objects.active = _obj
+                _obj.select_set(True)
+                _obj.scale = (_fo4_scale, _fo4_scale, _fo4_scale)
+                try:
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                except Exception:
+                    _obj.scale = (1.0, 1.0, 1.0)
+                _obj["fo4_unit_scale"] = 69.99125
+                _obj.select_set(False)
+            for obj in _imported:
                 if obj.type == 'ARMATURE':
                     obj.name = "FO4_Skeleton"
                     return True, "Imported skeleton via PyNifly", obj
-        except Exception:
-            pass
+        except Exception as e:
+            return False, f"PyNifly skeleton import failed: {e}", None
 
-        # Try Niftools import
-        try:
-            bpy.ops.import_scene.nif(filepath=skeleton_nif_path)
-            for obj in bpy.context.selected_objects:
-                if obj.type == 'ARMATURE':
-                    obj.name = "FO4_Skeleton"
-                    return True, "Imported skeleton via Niftools", obj
-        except Exception:
-            pass
-
-        return False, "Could not import skeleton — PyNifly or Niftools required", None
+        return False, "Could not import skeleton — install PyNifly via the Setup & Status tab", None
 
     @staticmethod
     def align_mesh_to_skeleton(mesh_obj, armature_obj) -> str:

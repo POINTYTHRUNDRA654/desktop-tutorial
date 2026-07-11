@@ -541,14 +541,6 @@ def collect_diagnostics():
             # Mirror _kb_root() fallback: bundled knowledge_base/ folder
             _kb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base")
         if _kb_on:
-            if not os.path.isdir(_kb) and _kb_is_default:
-                # Auto-create the default bundled directory (mirrors _kb_root()).
-                # Fresh extension installs ship without the sub-directory; creating
-                # it here silences the recurring "path not found" false-positive.
-                try:
-                    os.makedirs(_kb, exist_ok=True)
-                except OSError:
-                    pass  # read-only install — handled below
             if os.path.isdir(_kb):
                 results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
             else:
@@ -1051,7 +1043,7 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                     # Attempt re-install via tool_installers
                     _ti = getattr(init, "tool_installers", None)
                     if _ti and hasattr(_ti, "install_rignet"):
-                                            print("[Auto-Fix] RigNet folder empty -- attempting re-clone via git...")
+                        print("[Auto-Fix] RigNet folder empty -- attempting re-clone via git...")
                     import subprocess as _sp, shutil as _sh
                     _rn_rignet_dir = None
                     try:
@@ -1063,9 +1055,8 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                     _rn_cloned = False
                     if _rn_rignet_dir and _sh.which("git"):
                         try:
-                            import shutil as _sh2, os as _os2
-                            if _os2.path.isdir(_rn_rignet_dir):
-                                _sh2.rmtree(_rn_rignet_dir, ignore_errors=True)
+                            if os.path.isdir(_rn_rignet_dir):
+                                _sh.rmtree(_rn_rignet_dir, ignore_errors=True)
                             _rn_res = _sp.run(
                                 ["git", "clone", "--depth=1",
                                  "https://github.com/govindjoshi12/rignet-gj.git",
@@ -1091,35 +1082,23 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         except Exception as exc:
             failed.append(f"RigNet repair: {exc}")
 
-        # ── Step 13: install libigl via Mossy if not found ────────────────────
-        # libigl requires Mossy (Blender's Python lacks C headers for source build).
-        # Only attempt if Mossy bridge is online.
+        # ── Step 13: libigl availability check (optional — NOT auto-installed) ───
+        # libigl builds from source and requires Python C headers that Blender's
+        # embedded Python does not ship.  Installing via pip always fails with a
+        # CMake error regardless of whether Mossy is online.
+        # Mark as optional warning only — the addon works fine without libigl;
+        # it is only used for advanced mesh deformation (RigNet features).
         try:
             _rn_helpers = getattr(init, "rignet_helpers", None) if init else None
             if _rn_helpers and hasattr(_rn_helpers, "check_libigl_available"):
                 _lg_ok, _lg_msg = _rn_helpers.check_libigl_available()
                 if not _lg_ok:
-                    # Check Mossy is online before attempting
-                    _ml = getattr(init, "mossy_link", None)
-                    _bridge_up = False
-                    if _ml and hasattr(_ml, "check_bridge"):
-                        try:
-                            _bridge_up, _ = _ml.check_bridge(timeout=1.5)
-                        except Exception:
-                            pass
-                    if _bridge_up:
-                        _ti = getattr(init, "tool_installers", None)
-                        if _ti and hasattr(_ti, "install_libigl"):
-                            print("[Auto-Fix] libigl not found — attempting Mossy install...")
-                            _lg_install_ok, _lg_install_msg = _ti.install_libigl()
-                            if _lg_install_ok:
-                                fixed.append(f"libigl installed: {_lg_install_msg}")
-                            else:
-                                failed.append(f"libigl install: {_lg_install_msg}")
-                    else:
-                        failed.append("libigl not installed — start Mossy and run Auto-Fix again")
-        except Exception as exc:
-            failed.append(f"libigl install: {exc}")
+                    print(
+                        "[Auto-Fix] libigl not installed (optional, RigNet only). "
+                        "Install it in Mossy's own Python environment if needed."
+                    )
+        except Exception:
+            pass  # libigl check is optional, never block auto-fix for this
 
         # ── Step 11: re-register preferences if get_preferences() returns None ─
         try:

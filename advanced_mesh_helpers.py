@@ -221,14 +221,26 @@ class AdvancedMeshHelpers:
         if target_poly_count:
             ratio = min(1.0, target_poly_count / original_poly_count)
         
+        # Shape keys block modifier_apply — remove them from the LOD copy.
+        # LOD meshes never need shape keys (they're distance replacements, not
+        # animated morphs), so this is safe.
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        if obj.data.shape_keys:
+            try:
+                bpy.ops.object.shape_key_remove(all=True)
+            except Exception:
+                pass
+
         # Add decimate modifier
         decimate_mod = obj.modifiers.new(name="Smart_Decimate", type='DECIMATE')
         decimate_mod.ratio = ratio
-        decimate_mod.use_collapse_triangulate = True
-        
+        decimate_mod.use_collapse_triangulate = False  # preserve quad flow; triangulate after
+        decimate_mod.use_symmetry = False
+
         if preserve_uvs:
             decimate_mod.delimit = {'UV'}
-        
+
         # Apply modifier
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.modifier_apply(modifier=decimate_mod.name)

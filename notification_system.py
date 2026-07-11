@@ -29,10 +29,9 @@ class OperationLog:
 
     @staticmethod
     def get_log_path():
-        """Return the absolute path to the JSON log file."""
+        """Return the absolute path to the JSON log file (no filesystem side effects)."""
         config_path = bpy.utils.user_resource('CONFIG')
         log_dir = os.path.join(config_path, 'fo4_addon')
-        os.makedirs(log_dir, exist_ok=True)
         return os.path.join(log_dir, 'operation_log.json')
 
     @staticmethod
@@ -55,6 +54,7 @@ class OperationLog:
         """Write list of entries to disk.  Silently ignores write errors."""
         path = OperationLog.get_log_path()
         try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w', encoding='utf-8') as fh:
                 json.dump(entries, fh, indent=2, ensure_ascii=False)
         except Exception:
@@ -152,9 +152,10 @@ class FO4_NotificationSystem:
                 
                 # Check for non-manifold geometry
                 if len(mesh.vertices) > 0:
-                    # Check for loose vertices
-                    if any(not v.select for v in mesh.vertices):
-                        warnings.append(f"Object '{obj.name}' may have issues")
+                    # Check for loose vertices (edges with no linked polygons)
+                    linked_verts = {vi for poly in mesh.polygons for vi in poly.vertices}
+                    if len(linked_verts) < len(mesh.vertices):
+                        warnings.append(f"Object '{obj.name}' may have loose vertices")
                 
                 # Check for materials
                 if len(obj.material_slots) == 0:

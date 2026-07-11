@@ -629,11 +629,6 @@ class FO4_OT_BatchEnhanceTextures(bpy.types.Operator):
 # Registration
 # ---------------------------------------------------------------------------
 
-
-# ---------------------------------------------------------------------------
-# Registration
-# ---------------------------------------------------------------------------
-
 _CLASSES = [
     FO4_OT_EnhanceTexture,
     FO4_OT_BatchEnhanceTextures,

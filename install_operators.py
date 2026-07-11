@@ -1119,7 +1119,11 @@ class FO4_OT_BuildInstantNGP(Operator):
             print(msg)
             print("=" * 60 + "\n")
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg[:200], level)
+            _m, _l = msg[:200], level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Building Instant-NGP in background — this can take 5-20 min. Check the console.")
@@ -1154,7 +1158,11 @@ class FO4_OT_InstallShapE(Operator):
                 except Exception:
                     pass
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing Shap-E in background - check console (Window > Toggle System Console)")
@@ -1185,7 +1193,11 @@ class FO4_OT_InstallPointE(Operator):
                 except Exception:
                     pass
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing Point-E in background - check console")
@@ -1210,7 +1222,11 @@ class FO4_OT_InstallDiffusers(Operator):
             print(msg)
             print("=" * 60 + "\n")
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing Diffusers in background - check console")
@@ -1241,7 +1257,11 @@ class FO4_OT_InstallLibigl(Operator):
                 _ui._invalidate_rignet_cache()
             except Exception:
                 pass
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing libigl in background - check console")
@@ -1273,7 +1293,11 @@ class FO4_OT_InstallZoeDepth(Operator):
                 except Exception:
                     pass
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing ZoeDepth in background - check console")
@@ -1312,6 +1336,40 @@ class FO4_OT_InstallTripoSR(Operator):
         return {'FINISHED'}
 
 
+
+class FO4_OT_InstallTripoSRLight(Operator):
+    """Install TripoSR Light (Dragoy) — 2x faster, 2GB VRAM, CPU-viable. Clones repo + installs torch + deps."""
+    bl_idname = "fo4.install_triposr_light"
+    bl_label  = "Auto-Install TripoSR Light"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        import threading
+        from . import tool_installers
+
+        def _run():
+            print("\n" + "=" * 60)
+            print("INSTALLING TRIPOSR LIGHT")
+            print("=" * 60)
+            ok, msg = tool_installers.install_triposr_light()
+            print(msg)
+            print("=" * 60 + "\n")
+            if ok:
+                try:
+                    from . import imageto3d_helpers
+                    imageto3d_helpers.ImageTo3DHelpers.clear_triposr_cache()
+                except Exception:
+                    pass
+            level = 'INFO' if ok else 'ERROR'
+            def _notify():
+                if notification_system:
+                    notification_system.FO4_NotificationSystem.notify(msg[:120], level)
+            bpy.app.timers.register(_notify, first_interval=0.1)
+
+        threading.Thread(target=_run, daemon=True).start()
+        self.report({'INFO'}, "Installing TripoSR Light in background — check console")
+        return {'FINISHED'}
+
 class FO4_OT_InstallHunyuan3D(Operator):
     """Install Hunyuan3D-2 (image → 3D). Clones repo + pip deps."""
     bl_idname = "fo4.install_hunyuan3d"
@@ -1342,6 +1400,7 @@ class FO4_OT_InstallHunyuan3D(Operator):
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing Hunyuan3D-2 in background - check console")
         return {'FINISHED'}
+
 
 
 class FO4_OT_InstallHyMotion(Operator):
@@ -1394,7 +1453,11 @@ class FO4_OT_InstallMotionGeneration(Operator):
             print(msg)
             print("=" * 60 + "\n")
             level = 'INFO' if ok else 'ERROR'
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing MotionDiffuse in background - check console")
@@ -1425,7 +1488,11 @@ class FO4_OT_InstallRigNet(Operator):
                 _ui._invalidate_rignet_cache()
             except Exception:
                 pass
-            notification_system.FO4_NotificationSystem.notify(msg, level)
+            _m, _l = msg, level
+            bpy.app.timers.register(
+                lambda _msg=_m, _lv=_l: notification_system.FO4_NotificationSystem.notify(_msg, _lv),
+                first_interval=0.0,
+            )
 
         threading.Thread(target=_run, daemon=True).start()
         self.report({'INFO'}, "Installing RigNet in background - check console")
@@ -1509,6 +1576,7 @@ classes = (
     FO4_OT_InstallLibigl,
     FO4_OT_InstallZoeDepth,
     FO4_OT_InstallTripoSR,
+    FO4_OT_InstallTripoSRLight,
     FO4_OT_InstallHunyuan3D,
     FO4_OT_InstallHyMotion,
     FO4_OT_InstallMotionGeneration,

@@ -95,7 +95,9 @@ def generate_navmesh_from_scene(source_objects: list,
     # Tag with a bright green material
     mat = bpy.data.materials.new("FO4_NavMesh_mat")
     mat.use_nodes = True
-    mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.0, 1.0, 0.3, 1.0)
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (0.0, 1.0, 0.3, 1.0)
     nav_obj.data.materials.append(mat)
 
     vcount = len(nav_mesh.vertices)
@@ -105,6 +107,8 @@ def generate_navmesh_from_scene(source_objects: list,
 
 def validate_navmesh(nav_obj) -> dict:
     """Validate a navmesh against FO4 limits and geometry rules."""
+    if nav_obj is None or nav_obj.type != 'MESH':
+        return {"valid": False, "issues": [{"severity": "ERROR", "message": "No mesh object provided"}]}
     issues = []
     me     = nav_obj.data
     vcount = len(me.vertices)

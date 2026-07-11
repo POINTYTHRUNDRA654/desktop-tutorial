@@ -6,6 +6,11 @@ Batch export, progress reporting, and preset save/load for the Mossy FO4 addon.
 import bpy, os, json, time
 from pathlib import Path
 
+try:
+    from . import export_helpers as _eh
+except ImportError:
+    _eh = None
+
 
 # ═══════════════════════════════════════════════════════
 # PROGRESS SYSTEM
@@ -91,6 +96,8 @@ def batch_export_objects(objects: list, output_dir: str,
     """Export each object as a separate NIF (or FBX fallback).
     Returns {success_count, fail_count, exported: [paths]}
     """
+    if not output_dir:
+        return {"success": 0, "fail": len(objects), "exported": []}
     os.makedirs(output_dir, exist_ok=True)
     results = {"success": 0, "fail": 0, "exported": []}
 
@@ -115,27 +122,19 @@ def batch_export_objects(objects: list, output_dir: str,
         bpy.context.view_layer.objects.active = obj
 
         exported = False
-        # Try PyNifly
-        try:
-            bpy.ops.export_scene.pynifly(filepath=nif_path)
-            exported = True
-        except Exception:
-            pass
-        # FBX fallback
-        if not exported:
-            fbx = nif_path.replace(".nif", ".fbx")
-            try:
-                bpy.ops.export_scene.fbx(filepath=fbx, use_selection=True,
-                                          add_leaf_bones=False)
-                nif_path = fbx
+        if _eh:
+            ok, msg = _eh.ExportHelpers.export_mesh_to_nif(obj, nif_path)
+            if ok:
                 exported = True
-            except Exception as exc:
-                print(f"[Batch] FAILED {obj.name}: {exc}")
+                print(f"[Batch] ✓ {os.path.basename(nif_path)}: {msg}")
+            else:
+                print(f"[Batch] FAILED {obj.name}: {msg}")
+        else:
+            print(f"[Batch] FAILED {obj.name}: export_helpers unavailable — install PyNifly")
 
         if exported:
             results["success"] += 1
             results["exported"].append(nif_path)
-            print(f"[Batch] ✓ {os.path.basename(nif_path)}")
         else:
             results["fail"] += 1
 
@@ -173,51 +172,6 @@ class FO4_OT_BatchExport(bpy.types.Operator):
         return {"FINISHED"}
 
 
-class FO4_OT_SavePreset(bpy.types.Operator):
-    """Save current addon settings as a named preset."""
-    bl_idname  = "fo4.save_preset"
-    bl_label   = "Save Settings Preset"
-    bl_options = {"REGISTER"}
-
-    preset_name: bpy.props.StringProperty(name="Preset Name", default="My Preset")
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
-
-    def execute(self, context):
-        ok, msg = save_preset(self.preset_name, context.scene)
-        self.report({"INFO"} if ok else {"ERROR"}, msg)
-        return {"FINISHED"}
-
-
-class FO4_OT_LoadPreset(bpy.types.Operator):
-    """Load a saved settings preset."""
-    bl_idname  = "fo4.load_preset"
-    bl_label   = "Load Settings Preset"
-    bl_options = {"REGISTER", "UNDO"}
-
-    preset_name: bpy.props.StringProperty(name="Preset Name", default="")
-
-    def invoke(self, context, event):
-        presets = list_presets()
-        if not presets:
-            self.report({"WARNING"}, "No presets saved yet")
-            return {"CANCELLED"}
-        return context.window_manager.invoke_props_dialog(self)
-
-    def draw(self, context):
-        self.layout.prop(self, "preset_name")
-        col = self.layout.column(align=True)
-        col.scale_y = 0.75
-        for p in list_presets():
-            col.label(text=f"  • {p}", icon="DOT")
-
-    def execute(self, context):
-        ok, msg = load_preset(self.preset_name, context.scene)
-        self.report({"INFO"} if ok else {"ERROR"}, msg)
-        return {"FINISHED"}
-
-
 class FO4_OT_GenerateTextureFromDesc(bpy.types.Operator):
     """Shortcut: generate texture and apply to active object material."""
     bl_idname  = "fo4.generate_and_apply_texture"
@@ -225,14 +179,16 @@ class FO4_OT_GenerateTextureFromDesc(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        bpy.ops.fo4.generate_texture()
+        try:
+            bpy.ops.fo4.generate_texture()
+        except AttributeError:
+            self.report({'ERROR'}, "fo4.generate_texture operator not available")
+            return {'CANCELLED'}
         return {"FINISHED"}
 
 
 _CLASSES = [
     FO4_OT_BatchExport,
-    FO4_OT_SavePreset,
-    FO4_OT_LoadPreset,
     FO4_OT_GenerateTextureFromDesc,
 ]
 

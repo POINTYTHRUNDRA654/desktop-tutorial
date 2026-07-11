@@ -263,22 +263,20 @@ class MeshHelpers:
         bm.edges.ensure_lookup_table()
         bm.faces.ensure_lookup_table()
 
-        # Loose vertices – not referenced by any edge; cause export corruption
+        # Loose vertices and non-manifold edges — PyNifly exports these without
+        # crashing, so they are warnings only (in-game may show minor visual
+        # artefacts but the NIF will load).  Print to console so the user knows.
         loose_verts = [v for v in bm.verts if not v.link_edges]
         if loose_verts:
-            issues.append(f"{len(loose_verts)} loose vertex/vertices found – delete them before export")
+            print(f"[FO4 Validate] Warning: {len(loose_verts)} loose vertex/vertices "
+                  f"(ignored by PyNifly but can cause UV seam artefacts)")
 
-        # Non-manifold edges – edges shared by ≠2 faces or boundary edges on a
-        # closed surface; the Niftools exporter can silently corrupt these.
-        # Collision/occlusion meshes may legitimately be open shells (convex
-        # hulls, simple boxes) so this check is skipped for them.
         if not is_collision:
             non_manifold = [e for e in bm.edges if not e.is_manifold]
             if non_manifold:
-                issues.append(
-                    f"{len(non_manifold)} non-manifold edge(s) detected – use Mesh > Clean Up > "
-                    "Fill Holes / Merge by Distance, or select Non-Manifold (Alt+Ctrl+Shift+M)"
-                )
+                print(f"[FO4 Validate] Warning: {len(non_manifold)} non-manifold edge(s) "
+                      f"– mesh may have minor in-game artefacts. "
+                      f"Fix with Mesh > Clean Up > Fill Holes if needed.")
 
         bm.free()
         
@@ -1043,13 +1041,25 @@ class MeshHelpers:
         # ------------------------------------------------------------------
         # 4. Ensure the object has a FO4-compatible material
         # ------------------------------------------------------------------
-        has_fo4_mat = (
-            obj.data.materials
-            and obj.data.materials[0] is not None
-            and obj.data.materials[0].use_nodes
-            and obj.data.materials[0].node_tree.nodes.get("Base")
-        )
-        if not has_fo4_mat:
+        def _has_fo4_compatible_material(o):
+            if not (o.data.materials and o.data.materials[0] is not None):
+                return False
+            m = o.data.materials[0]
+            if not m.use_nodes:
+                return False
+            nodes = m.node_tree.nodes
+            # Named-node format ("Diffuse" / "Base")
+            if nodes.get("Diffuse") or nodes.get("Base"):
+                return True
+            # PyNifly import format: Image Texture → Principled BSDF Base Color
+            for node in nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get('Base Color')
+                    if sock and sock.links and sock.links[0].from_node.type == 'TEX_IMAGE':
+                        return True
+            return False
+
+        if not _has_fo4_compatible_material(obj):
             texture_helpers.TextureHelpers.setup_fo4_material(obj)
 
         # ------------------------------------------------------------------
@@ -1512,11 +1522,11 @@ class SmartPresets:
 
     @staticmethod
     def import_game_nif(filepath: str):
-        """Import a NIF file using PyNifly or Niftools, whichever is available.
+        """Import a NIF file using PyNifly (import_scene.pynifly).
 
-        Tries PyNifly (import_scene.pynifly) first — it is bundled with this
-        add-on and supports FO4 correctly.  Falls back to legacy Niftools
-        (import_scene.nif) if PyNifly is somehow absent.
+        Uses default PyNifly settings (blender_xf=False) which is correct for FO4.
+        Geometry is stored at FO4 game units (1 unit ≈ 1.43 cm); callers that need
+        Blender-metre scale should apply the ÷70 normalisation themselves.
 
         Returns ``(success, message)``.  On success, the newly-imported objects
         are selected and the active object is set by Blender's import operator.
@@ -1525,7 +1535,6 @@ class SmartPresets:
         filename = _P(filepath).name
         import_scene = getattr(bpy.ops, 'import_scene', None)
 
-        # Prefer PyNifly (bundled, supports FO4 NIF 20.2.0.7 / BSver 130)
         if import_scene is not None and hasattr(import_scene, 'pynifly'):
             try:
                 bpy.ops.import_scene.pynifly(filepath=filepath)
@@ -1533,17 +1542,8 @@ class SmartPresets:
             except Exception as e:
                 return False, f"PyNifly NIF import error: {e}"
 
-        # Fallback: legacy Niftools add-on
-        if import_scene is not None and hasattr(import_scene, 'nif'):
-            try:
-                bpy.ops.import_scene.nif(filepath=filepath)
-                return True, f"Imported game mesh via Niftools: {filename}"
-            except Exception as e:
-                return False, f"Niftools NIF import error: {e}"
-
         return False, (
-            "No NIF importer found. PyNifly should be installed automatically "
-            "on Blender startup — restart Blender and try again."
+            "PyNifly not found — install it via the Setup & Status tab and restart Blender."
         )
 
     @staticmethod

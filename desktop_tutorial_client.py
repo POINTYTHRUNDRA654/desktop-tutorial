@@ -48,7 +48,7 @@ class DesktopTutorialClient:
                 try:
                     url = f"http://{host}:{port}{endpoint}"
                     req = request.Request(url, method='GET')
-                    with request.urlopen(req, timeout=3) as response:
+                    with request.urlopen(req, timeout=1) as response:
                         if response.status == 200:
                             data = json.loads(response.read().decode('utf-8'))
                             DesktopTutorialClient.server_url = f"http://{host}:{port}"
@@ -383,7 +383,7 @@ def register():
     bpy.types.Scene.fo4_desktop_server_port = IntProperty(
         name="Server Port",
         description="Port of desktop tutorial app",
-        default=8080,
+        default=21337,
         min=1024,
         max=65535
     )

@@ -15,3 +15,22 @@ Blender when the Mossy FO4 addon loads for the first time.  It is not modified i
 any way from the original release.
 
 See also: `CONTRIBUTORS.md` in the addon root for full attribution.
+
+---
+
+## PyMeshLab — on-demand install
+
+**Authors:** Alessandro Muntoni and the VCLab team at ISTI-CNR  
+**Repository:** https://github.com/cnr-isti-vclab/PyMeshLab  
+**License:** GPL-3.0  
+**PyPI:** https://pypi.org/project/pymeshlab/
+
+Built on MeshLab:
+> P. Cignoni, M. Callieri, M. Corsini, M. Dellepiane, F. Ganovelli, G. Ranzuglia  
+> "MeshLab: an Open-Source Mesh Processing Tool"  
+> Sixth Eurographics Italian Chapter Conference, pp. 129–136, 2008
+
+PyMeshLab is **not bundled** (compiled C-extension wheels are ~80 MB and
+platform-specific).  It is installed on demand via `pip` into
+`<addon>/lib/ml/` the first time the user clicks **Install PyMeshLab** in the
+FO4 Tools → Mesh Tools panel.  No modification is made to the PyMeshLab source.
