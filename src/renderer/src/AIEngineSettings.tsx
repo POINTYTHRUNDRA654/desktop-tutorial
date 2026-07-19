@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Radio, RefreshCw } from 'lucide-react';
+import { Save, Radio, RefreshCw, Key, Globe, Cpu } from 'lucide-react';
 
 type AIEngineSettingsProps = {
   embedded?: boolean;
@@ -21,12 +21,22 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Inkling (Thinking Machines) — used by Creative Director for all high-quality AI calls
+  const [inklingApiKey, setInklingApiKey] = useState('');
+  const [inklingBaseUrl, setInklingBaseUrl] = useState('https://api.tinker.thinkingmachines.ai/v1');
+  const [inklingModel, setInklingModel] = useState('thinkingmachines/Inkling');
+  const [inklingKeySet, setInklingKeySet] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       try {
         const s = await api?.getSettings?.();
         const raw = s?.localAiPreferredProvider as string;
         setProvider(raw === 'ollama' || raw === 'off' ? raw : 'auto');
+        // Inkling — key is stored encrypted, renderer gets empty string back; detect via companion flag
+        setInklingKeySet(Boolean(s?.inklingApiKeyEnc));
+        setInklingBaseUrl(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1');
+        setInklingModel(s?.inklingModel || 'thinkingmachines/Inkling');
         setLoaded(true);
       } catch {
         setLoaded(true);
@@ -42,18 +52,27 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
         toast.error('Settings API unavailable');
         return;
       }
-      await api.setSettings({
+      const payload: Record<string, string> = {
         localAiPreferredProvider: provider,
         aiProvider: provider === 'auto' ? 'auto' : provider,
         groqPrimaryModel: '',
-      });
+        inklingBaseUrl,
+        inklingModel,
+      };
+      // Only send the key if the user typed something new (empty = keep existing encrypted value)
+      if (inklingApiKey.trim()) payload.inklingApiKey = inklingApiKey.trim();
+      await api.setSettings(payload);
+      if (inklingApiKey.trim()) {
+        setInklingKeySet(true);
+        setInklingApiKey('');
+      }
       toast.success('AI Engine settings saved');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to save settings');
     } finally {
       setSaving(false);
     }
-  }, [api, provider]);
+  }, [api, provider, inklingApiKey, inklingBaseUrl, inklingModel]);
 
   if (!loaded) {
     return (
@@ -102,6 +121,59 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
                 </div>
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Inkling — Creative Director AI */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Cpu className="w-4 h-4 text-violet-400" />
+            <label className="text-sm font-bold text-slate-200">Inkling — Creative Director AI</label>
+            {inklingKeySet && (
+              <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-0.5">
+                KEY SET
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400">
+            Inkling (975B/41B-active MoE, Thinking Machines) powers the Creative Director's analyst, script writer,
+            record builder, and all specialist mod-building roles. Without a key, the team falls back to Groq → Ollama.
+            Get an API key at{' '}
+            <span className="text-violet-300 font-mono">tinker.thinkingmachines.ai</span>.
+          </p>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Key className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <label className="text-xs text-slate-400 w-24 flex-shrink-0">API Key</label>
+              <input
+                type="password"
+                value={inklingApiKey}
+                onChange={(e) => setInklingApiKey(e.target.value)}
+                placeholder={inklingKeySet ? '••••••••  (leave blank to keep existing)' : 'github_pat_... or sk-...'}
+                className="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Globe className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <label className="text-xs text-slate-400 w-24 flex-shrink-0">Base URL</label>
+              <input
+                type="text"
+                value={inklingBaseUrl}
+                onChange={(e) => setInklingBaseUrl(e.target.value)}
+                className="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Cpu className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <label className="text-xs text-slate-400 w-24 flex-shrink-0">Model</label>
+              <input
+                type="text"
+                value={inklingModel}
+                onChange={(e) => setInklingModel(e.target.value)}
+                className="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-violet-500"
+              />
+            </div>
           </div>
         </div>
 
