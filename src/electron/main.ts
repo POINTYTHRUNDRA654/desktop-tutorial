@@ -1395,7 +1395,7 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken';
+type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken' | 'inklingApiKey';
 const secretEncKey = (k: SecretField) => `${k}Enc` as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -1457,7 +1457,7 @@ const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: b
   const next = { ...settings };
   let migrated = false;
 
-  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken'];
+  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey'];
   for (const field of fields) {
     const encKey = secretEncKey(field);
     const plain = String(next?.[field] || '').trim();
@@ -1720,6 +1720,12 @@ const loadSettings = (): any => {
     groqApiKey: '',
     groqApiKeyEnc: '',
 
+    // Inkling (Thinking Machines) — OpenAI-compatible API
+    inklingApiKey: '',
+    inklingApiKeyEnc: '',
+    inklingBaseUrl: 'https://api.tinker.thinkingmachines.ai/v1',
+    inklingModel: 'thinkingmachines/Inkling',
+
     // Blender Link security token
     blenderLinkToken: crypto.randomBytes(16).toString('hex'),
 
@@ -1758,6 +1764,8 @@ const redactSettingsForRenderer = (settings: any): any => {
   if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
   if (clone.groqApiKey) clone.groqApiKey = '';
   if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
+  if (clone.inklingApiKey) clone.inklingApiKey = '';
+  if (clone.inklingApiKeyEnc) clone.inklingApiKeyEnc = '';
   if (clone.githubToken) clone.githubToken = '';
   if (clone.githubTokenEnc) clone.githubTokenEnc = '';
   return clone;
@@ -3264,7 +3272,7 @@ function setupIpcHandlers() {
     // be able to directly inject pre-computed encrypted values — all secret fields
     // must go through encryptSecretForStorage() in this process.
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken'];
+    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey'];
     for (const field of fields) {
       delete sanitizedInput[secretEncKey(field)];
     }
@@ -18332,12 +18340,47 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   }
 
   // High-quality agent call — skips local Ollama (small model) and routes directly
-  // to Groq cloud. Used by the three specialist building roles where output quality
-  // determines whether the files are usable. Falls back to Ollama/KoboldCpp if Groq unavailable.
+  // to Inkling (if configured) or Groq cloud. Used by all specialist build roles where
+  // output quality determines whether the files are usable.
   async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string): Promise<string> {
     const s = loadSettings();
 
-    // PRIMARY: Groq cloud — larger, more capable model for specialist build tasks
+    // PRIMARY: Inkling via Thinking Machines Tinker API (or any OpenAI-compatible endpoint)
+    // 975B/41B-active MoE multimodal model — highest quality available
+    try {
+      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+      const inklingBase = String(s?.inklingBaseUrl || '').trim();
+      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling').trim();
+      if (inklingKey && inklingBase) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120_000);
+        try {
+          const res = await fetch(`${inklingBase.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+            body: JSON.stringify({
+              model: inklingModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              max_tokens: 8192,
+              temperature: 0.7,
+            }),
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const json: any = await res.json().catch(() => ({}));
+            const text = json?.choices?.[0]?.message?.content;
+            if (text) return String(text);
+          }
+        } catch { /* fall through to Groq */ } finally { clearTimeout(timeout); }
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Inkling path failed, falling back to Groq:', err);
+    }
+
+    // SECONDARY: Groq cloud
     try {
       const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
       const backend = getBackendConfig();

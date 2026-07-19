@@ -13439,7 +13439,71 @@ FaceGen data controls how NPCs look in game. Two components: Geometry (mesh morp
 - Batch FaceGen export: CK → File → "Export All Faces" — re-exports FaceGeom for ALL NPCs in the active plugin. Slow but ensures nothing is missed before publishing.
 - NPC Appearance Manager (NAM): community tool for merging and distributing NPC visual overhauls without touching the base record. Not built into CK — a modder workflow tool.
 
+**═══════════════════════════════════════════════════════════**
+**INKLING — FRONTIER MULTIMODAL AI FOR FO4 MODDING WORKFLOWS**
+**═══════════════════════════════════════════════════════════**
+Inkling is a 975B-parameter (41B active) sparse Mixture-of-Experts multimodal model released by Thinking Machines Lab under the Apache 2.0 license.
+
+**Architecture:**
+- 66-layer decoder-only transformer with sparse MoE feed-forward backbone
+- Each token routed to 6 of 256 experts + 2 shared experts active on every token
+- Hybrid local/global attention layers
+- Natively multimodal: text, image (40-4096px), audio (16kHz WAV) → text output
+- All modalities share a single hidden space — the model reasons across them jointly
+
+**How to access Inkling:**
+- Tinker API (Thinking Machines): https://api.tinker.thinkingmachines.ai/v1 — uses standard OpenAI-compatible format
+  - Header: Authorization: Bearer <INKLING_API_KEY>
+  - Model ID: thinkingmachines/Inkling
+  - Drop-in replacement for OpenAI SDK — just change base_url and model
+- Local inference: not viable on typical consumer hardware (requires 280GB+ RAM at 1-bit quantization)
+- Third-party providers: Fireworks, Together AI, and similar hosts carry Inkling
+- Supported runtimes: vLLM, SGLang, Unsloth GGUF (for GGUF quantized variants)
+- In Mossy: configure API key + base URL in Settings — Creative Director high-quality calls route to Inkling first
+
+**Why use Inkling for FO4 modding?**
+Inkling's frontier-tier reasoning makes it ideal for tasks that require cross-referencing multiple systems simultaneously:
+- Writing complex Papyrus quest scripts with correct stage/alias logic
+- Analyzing crash logs or xEdit conflict reports (text or screenshot)
+- Generating synthetic FO4 training data for Gemma fine-tune (knowledge distillation)
+- Drafting DIAL/INFO dialogue with correct lore-voice matching
+- Reading terminal/note screenshots and transcribing content into mod records
+- Reviewing mod descriptions for Nexus compliance and completeness
+
+**Inkling for FO4 fine-tune data generation (with Gemma target):**
+Use Inkling via API to generate high-quality FO4 Q&A pairs in Gemma chat format:
+  python scripts/generate_fo4_with_inkling.py --output "H:\\Mossy Memory\\finetune\\mossy_fo4_train.jsonl"
+The script sends modding topics to Inkling, formats responses as conversations, and appends them to the Gemma fine-tune dataset. Run followed by train_mossy_fo4.py --model 4b for the full pipeline.
+
+**OpenAI SDK usage (Python):**
+  from openai import OpenAI
+  client = OpenAI(api_key="YOUR_INKLING_KEY", base_url="https://api.tinker.thinkingmachines.ai/v1")
+  resp = client.chat.completions.create(
+      model="thinkingmachines/Inkling",
+      messages=[{"role":"user","content":"Write a Papyrus quest script for MI_FieldStationIncident"}],
+      max_tokens=8192
+  )
+
+**Benchmarks (vs frontier models, effort=0.99, July 2026):**
+- HLE text-only: 29.7% (Claude Fable 5: 53.3%, GPT 5.6 Sol: 47.2%)
+- AIME 2026: 97.1% (GPT 5.6 Sol: 99.9%)
+- SWEBench Verified: 77.6% (Claude Fable 5: 95.0%)
+- IFBench (instruction-following): 79.8% — outperforms Kimi K2.6, GLM 5.2, Gemini 3.1
+Instruction-following score makes it strong for structured Papyrus/xEdit output generation.
+
+**Hardware requirements for LOCAL inference (not fine-tuning):**
+- 1-bit GGUF (UD-IQ1_S): 280-295 GB RAM — feasible on dual Epyc or 4x M3 Ultra
+- 2-bit GGUF (UD-Q2_K_XL): 325 GB RAM
+- 4-bit GGUF: 600 GB RAM
+- BF16 full: 1,900 GB RAM
+Your 2x RTX 2070 (16GB VRAM) cannot run Inkling locally — use the Tinker API or a third-party host.
+For local FO4 AI work, continue using Gemma 4B/12B via Ollama; use Inkling API for high-quality tasks.
+
+**Fine-tuning Inkling (not recommended for this hardware):**
+Fine-tuning requires ALL 975B parameters in memory (you cannot LoRA-train only the active experts without access to the full router). Even at 4-bit, this requires 600+ GB. Not feasible on any consumer setup. Use Gemma fine-tune for local customization; use Inkling via API as a data-generation teacher.
+
 `;
+
 
 
 
