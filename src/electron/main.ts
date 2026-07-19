@@ -18247,7 +18247,41 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   async function cdCallAgent(systemPrompt: string, userPrompt: string): Promise<string> {
     const s = loadSettings();
 
-    // PRIMARY: Local Ollama (Gemma 4) — on-device, no cloud needed.
+    // PRIMARY: Inkling (when configured) — routes all CD roles through the 975B model
+    try {
+      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+      const inklingBase = String(s?.inklingBaseUrl || '').trim();
+      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling').trim();
+      if (inklingKey && inklingBase) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 120_000);
+        try {
+          const res = await fetch(`${inklingBase.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+            body: JSON.stringify({
+              model: inklingModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              max_tokens: 8192,
+              temperature: 0.7,
+            }),
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const json: any = await res.json().catch(() => ({}));
+            const text = json?.choices?.[0]?.message?.content;
+            if (text) return String(text);
+          }
+        } catch { /* fall through to Ollama */ } finally { clearTimeout(timeout); }
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Inkling path failed, falling back to Ollama:', err);
+    }
+
+    // SECONDARY: Local Ollama (Gemma 4) — on-device, no cloud needed.
     // Falls through to Groq only if Ollama is offline or returns nothing.
     try {
       const ollamaBase = String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
