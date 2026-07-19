@@ -3962,37 +3962,60 @@ function setupIpcHandlers() {
    */
   registerHandler('blender-query-ai', async (_event, params: { query: string; context?: string; model?: string; temperature?: number }) => {
     try {
-      const { query, context, model, temperature } = params;
+      const { query, context, temperature } = params;
       if (!query || typeof query !== 'string') {
         return { success: false, error: 'Query must be a non-empty string' };
       }
 
       const s = loadSettings();
-      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-
-      if (!openaiKey) {
-        return { success: false, error: 'OpenAI API key not configured. Please configure in Mossy settings.' };
-      }
-
-      const client = new OpenAI({ apiKey: openaiKey });
-
-      const systemPrompt = `You are Mossy, an expert Fallout 4 modding assistant integrated with Blender. 
+      const systemPrompt = `You are Mossy, an expert Fallout 4 modding assistant integrated with Blender.
 You help with 3D modeling, texturing, rigging, and asset optimization for Fallout 4 modding.
 ${context ? `Additional context: ${context}` : ''}
 Always provide practical, actionable advice focused on Fallout 4 compatibility and performance.`;
+      const messages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: query },
+      ];
 
+      // PRIMARY: Inkling
+      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
+      if (inklingKey && inklingBase) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 60_000);
+          try {
+            const res = await fetch(`${inklingBase}/chat/completions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+              body: JSON.stringify({ model: inklingModel, messages, max_tokens: 1000, temperature: temperature ?? 0.7 }),
+              signal: controller.signal,
+            });
+            if (res.ok) {
+              const json: any = await res.json().catch(() => ({}));
+              const answer = json?.choices?.[0]?.message?.content;
+              if (answer) return { success: true, query, response: String(answer), model: inklingModel };
+            }
+          } finally { clearTimeout(timeout); }
+        } catch (e: any) {
+          console.warn('[Blender AI Query] Inkling failed, falling back to OpenAI:', e?.message);
+        }
+      }
+
+      // FALLBACK: OpenAI
+      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
+      if (!openaiKey) {
+        return { success: false, error: 'No AI key configured. Add an Inkling or OpenAI API key in Settings → AI Engine.' };
+      }
+      const client = new OpenAI({ apiKey: openaiKey });
       const response = await client.chat.completions.create({
-        model: model || 'gpt-4-turbo',
+        model: 'gpt-4-turbo',
         temperature: temperature ?? 0.7,
         max_tokens: 1000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: query }
-        ]
+        messages,
       });
-
       const answer = response.choices[0]?.message?.content || '';
-
       return {
         success: true,
         query,
@@ -4001,15 +4024,12 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         usage: {
           promptTokens: response.usage?.prompt_tokens,
           completionTokens: response.usage?.completion_tokens,
-          totalTokens: response.usage?.total_tokens
-        }
+          totalTokens: response.usage?.total_tokens,
+        },
       };
     } catch (e: any) {
       console.error('[Blender AI Query] Error:', e);
-      return {
-        success: false,
-        error: e?.message || String(e)
-      };
+      return { success: false, error: e?.message || String(e) };
     }
   });
 
@@ -9901,46 +9921,70 @@ ${style === 'commented' ? 'Include clear, concise comments explaining the code.'
 
 Respond ONLY with the code block, wrapped in triple backticks with the language name, followed by a brief explanation if requested.`;
 
-      // Try Groq first (faster), fall back to OpenAI
       const s = loadSettings();
       let content = '';
-      
-      // Try Groq
-      const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      if (groqKey) {
+      const scriptMessages = [
+        { role: 'system' as const, content: systemPrompt },
+        { role: 'user' as const, content: String(req.description || '') },
+      ];
+
+      // PRIMARY: Inkling
+      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+      const inklingMdl = String(s?.inklingModel || 'thinkingmachines/Inkling');
+      if (inklingKey && inklingBase) {
         try {
-          const { default: Groq } = await import('groq-sdk');
-          const client = new Groq({ apiKey: groqKey });
-          const messages = [
-            { role: 'system' as const, content: systemPrompt },
-            { role: 'user' as const, content: String(req.description || '') },
-          ];
-          const response = await client.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
-            messages,
-            temperature: 0.3,
-            max_tokens: 2048,
-          });
-          content = response.choices[0]?.message?.content || '';
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 60_000);
+          try {
+            const res = await fetch(`${inklingBase}/chat/completions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+              body: JSON.stringify({ model: inklingMdl, messages: scriptMessages, max_tokens: 2048, temperature: 0.3 }),
+              signal: controller.signal,
+            });
+            if (res.ok) {
+              const json: any = await res.json().catch(() => ({}));
+              const text = json?.choices?.[0]?.message?.content;
+              if (text) content = String(text);
+            }
+          } finally { clearTimeout(timeout); }
         } catch (e: any) {
-          console.warn('[AI Script Gen] Groq failed, trying OpenAI:', e?.message);
+          console.warn('[AI Script Gen] Inkling failed, trying Groq:', e?.message);
         }
       }
 
-      // Fall back to OpenAI
+      // FALLBACK: Groq
+      if (!content) {
+        const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+        if (groqKey) {
+          try {
+            const { default: Groq } = await import('groq-sdk');
+            const client = new Groq({ apiKey: groqKey });
+            const response = await client.chat.completions.create({
+              model: 'llama-3.3-70b-versatile',
+              messages: scriptMessages,
+              temperature: 0.3,
+              max_tokens: 2048,
+            });
+            content = response.choices[0]?.message?.content || '';
+          } catch (e: any) {
+            console.warn('[AI Script Gen] Groq failed, trying OpenAI:', e?.message);
+          }
+        }
+      }
+
+      // FALLBACK: OpenAI
       if (!content) {
         const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
         if (!openaiKey) {
-          return { success: false, error: 'No API key configured. Add OpenAI or Groq key in Desktop Settings.' };
+          return { success: false, error: 'No AI key configured. Add an Inkling, Groq, or OpenAI key in Settings → AI Engine.' };
         }
         const { default: OpenAI } = await import('openai');
         const client = new OpenAI({ apiKey: openaiKey });
         const response = await client.chat.completions.create({
           model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: String(req.description || '') },
-          ],
+          messages: scriptMessages,
           temperature: 0.3,
           max_tokens: 2048,
         });
@@ -10435,8 +10479,44 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       } catch { /* non-blocking */ }
       const messages = voiceMessages;
 
-      const backend = getBackendConfig();
+      // PRIMARY: Inkling (when key is configured)
       let content = '';
+      {
+        const s = loadSettings();
+        const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+        const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+        const inklingMdl = String(s?.inklingModel || 'thinkingmachines/Inkling');
+        if (inklingKey && inklingBase) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30_000);
+            try {
+              const res = await fetch(`${inklingBase}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+                body: JSON.stringify({ model: inklingMdl, messages, max_tokens: 512, temperature: 0.7 }),
+                signal: controller.signal,
+              });
+              if (res.ok) {
+                const json: any = await res.json().catch(() => ({}));
+                const text = json?.choices?.[0]?.message?.content;
+                if (text) content = String(text);
+              }
+            } finally { clearTimeout(timeout); }
+          } catch (e: any) {
+            console.warn('[sendMessage] Inkling failed, falling back to backend/Groq:', e?.message);
+          }
+        }
+      }
+
+      if (content) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('message', { role: 'assistant', content, correlationId });
+        }
+        return content;
+      }
+
+      const backend = getBackendConfig();
       if (backend) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 4000); // Fast fail so direct Groq path is used sooner
@@ -19390,30 +19470,53 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
         { role: 'user', content: `Here is the existing guide to enhance:\n\n${existingGuide.slice(0, 6000)}` }
       ];
 
-      const backend = getBackendConfig();
       let enhanced = '';
-      if (backend) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
-        try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 2500 }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          const json: any = await res.json().catch(() => ({}));
-          if (res.ok && json?.ok) enhanced = String(json?.text || '');
-        } catch (fetchErr) {
-          clearTimeout(timeout);
-          console.warn('[enhance-guide] backend fetch failed:', fetchErr);
+      // PRIMARY: Inkling
+      {
+        const _s = loadSettings();
+        const _ik = getSecretValue(_s, 'inklingApiKey', 'INKLING_API_KEY');
+        const _ib = String(_s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+        const _im = String(_s?.inklingModel || 'thinkingmachines/Inkling');
+        if (_ik && _ib) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 60_000);
+            try {
+              const res = await fetch(`${_ib}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
+                body: JSON.stringify({ model: _im, messages, max_tokens: 2500, temperature: 0.7 }),
+                signal: controller.signal,
+              });
+              if (res.ok) {
+                const json: any = await res.json().catch(() => ({}));
+                const text = json?.choices?.[0]?.message?.content;
+                if (text) enhanced = String(text);
+              }
+            } finally { clearTimeout(timeout); }
+          } catch (e: any) { console.warn('[enhance-guide] Inkling failed:', e?.message); }
         }
       }
-      if (!enhanced) return { success: false, error: 'AI unavailable — check Render backend connection' };
+      // FALLBACK: backend proxy
+      if (!enhanced) {
+        const backend = getBackendConfig();
+        if (backend) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+          try {
+            const res = await fetch(backendJoin(backend, '/v1/chat'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
+              body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 2500 }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const json: any = await res.json().catch(() => ({}));
+            if (res.ok && json?.ok) enhanced = String(json?.text || '');
+          } catch (fetchErr) { clearTimeout(timeout); console.warn('[enhance-guide] backend fetch failed:', fetchErr); }
+        }
+      }
+      if (!enhanced) return { success: false, error: 'AI unavailable — configure an Inkling key in Settings → AI Engine or check backend connection' };
 
       const header = `<!-- Enhanced by Mossy Asset Picker — ${new Date().toISOString()} -->\n\n`;
       fs.writeFileSync(guidePath, header + enhanced, 'utf-8');
@@ -19710,31 +19813,54 @@ Keep scripts focused and real — no placeholder comments like TODO.`;
         { role: 'user', content: `Parse this BUILD_GUIDE.md and return the JSON scaffold:\n\n${guideContent.slice(0, 8000)}` },
       ];
 
-      const backend = getBackendConfig();
       let scaffoldJson = '';
-      if (backend) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 45000);
-        try {
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 4000 }),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          const json: any = await res.json().catch(() => ({}));
-          if (res.ok && json?.ok) scaffoldJson = String(json?.text || '');
-        } catch (fetchErr) {
-          clearTimeout(timeout);
-          console.warn('[scaffold-mod] backend fetch failed:', fetchErr);
+      // PRIMARY: Inkling
+      {
+        const _s = loadSettings();
+        const _ik = getSecretValue(_s, 'inklingApiKey', 'INKLING_API_KEY');
+        const _ib = String(_s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+        const _im = String(_s?.inklingModel || 'thinkingmachines/Inkling');
+        if (_ik && _ib) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 90_000);
+            try {
+              const res = await fetch(`${_ib}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
+                body: JSON.stringify({ model: _im, messages, max_tokens: 4000, temperature: 0.3 }),
+                signal: controller.signal,
+              });
+              if (res.ok) {
+                const json: any = await res.json().catch(() => ({}));
+                const text = json?.choices?.[0]?.message?.content;
+                if (text) scaffoldJson = String(text);
+              }
+            } finally { clearTimeout(timeout); }
+          } catch (e: any) { console.warn('[scaffold-mod] Inkling failed:', e?.message); }
+        }
+      }
+      // FALLBACK: backend proxy
+      if (!scaffoldJson) {
+        const backend = getBackendConfig();
+        if (backend) {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 45000);
+          try {
+            const res = await fetch(backendJoin(backend, '/v1/chat'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
+              body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 4000 }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const json: any = await res.json().catch(() => ({}));
+            if (res.ok && json?.ok) scaffoldJson = String(json?.text || '');
+          } catch (fetchErr) { clearTimeout(timeout); console.warn('[scaffold-mod] backend fetch failed:', fetchErr); }
         }
       }
 
-      if (!scaffoldJson) return { success: false, error: 'AI unavailable — check Render backend connection' };
+      if (!scaffoldJson) return { success: false, error: 'AI unavailable — configure an Inkling key in Settings → AI Engine or check backend connection' };
 
       // Parse the JSON response (strip any accidental markdown fences)
       let scaffold: any;
@@ -40286,21 +40412,50 @@ app.whenReady().then(() => {
             'For cell roundtrips, reference the CK_CELL_TO_BLENDER_WORKFLOW guide.';
 
           const s = loadSettings();
-          const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-          if (!apiKey) {
-            respond(res, 503, { success: false, message: 'Mossy AI not configured — set Groq API key in Mossy settings' });
-            return;
+          const blenderMessages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: query + contextStr },
+          ];
+          let aiText = '';
+
+          // PRIMARY: Inkling
+          const _ik = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+          const _ib = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+          const _im = String(s?.inklingModel || 'thinkingmachines/Inkling');
+          if (_ik && _ib) {
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 60_000);
+              try {
+                const inkRes = await fetch(`${_ib}/chat/completions`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
+                  body: JSON.stringify({ model: _im, messages: blenderMessages, max_tokens: 1500, temperature: 0.7 }),
+                  signal: controller.signal,
+                });
+                if (inkRes.ok) {
+                  const json: any = await inkRes.json().catch(() => ({}));
+                  const text = json?.choices?.[0]?.message?.content;
+                  if (text) aiText = String(text);
+                }
+              } finally { clearTimeout(timeout); }
+            } catch (e: any) { console.warn('[BlenderBridge] Inkling failed, falling back to Groq:', e?.message); }
           }
 
-          const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
-          const groqClient = new Groq({ apiKey });
-          const aiText = await groqClient.chat.completions.create({
-            model: GROQ_PRIMARY_MODEL,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: query + contextStr },
-            ],
-          }).then(r => r.choices[0]?.message?.content ?? 'No response');
+          // FALLBACK: Groq
+          if (!aiText) {
+            const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
+            if (!apiKey) {
+              respond(res, 503, { success: false, message: 'Mossy AI not configured — add an Inkling or Groq API key in Settings → AI Engine' });
+              return;
+            }
+            const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
+            const groqClient = new Groq({ apiKey });
+            aiText = await groqClient.chat.completions.create({
+              model: GROQ_PRIMARY_MODEL,
+              messages: blenderMessages,
+            }).then(r => r.choices[0]?.message?.content ?? 'No response');
+          }
 
           respond(res, 200, { success: true, response: aiText });
         } catch (e: any) {
