@@ -9725,11 +9725,37 @@ end.
         }
       } catch { /* neurons not yet ready — non-blocking */ }
 
-      // Try backend proxy first (Render or self-hosted).
-      // Use a 15-second timeout to allow cold-start Render instances to wake up.
-      // The backend at https://mossy.onrender.com has a valid Groq key configured,
-      // so we prioritize backend success over fast fallback to the (potentially invalid) local key.
+      // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
       let content = '';
+      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
+      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+      const inklingChatModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
+      if (inklingKey && inklingBase) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120_000);
+          try {
+            const res = await fetch(`${inklingBase}/chat/completions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
+              body: JSON.stringify({ model: inklingChatModel, messages, max_tokens: maxTokens, temperature: 0.7 }),
+              signal: controller.signal,
+            });
+            if (res.ok) {
+              const json: any = await res.json().catch(() => ({}));
+              const text = json?.choices?.[0]?.message?.content;
+              if (text) content = String(text);
+            }
+          } finally { clearTimeout(timeout); }
+        } catch (err) {
+          console.warn('[AI Chat] Inkling failed, falling back to backend/Groq:', err);
+        }
+      }
+
+      if (content) return { success: true, content };
+
+      // FALLBACK: backend proxy (Render or self-hosted).
+      // Use a 15-second timeout to allow cold-start Render instances to wake up.
       let backendAttempted = false;
       let backendError = '';
       const backend = getBackendConfig();
