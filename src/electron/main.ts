@@ -17100,7 +17100,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // in-game verification is NOT implemented - flagged in the manifest as
   // future work, never claimed as done.
   // =========================================================================
-  type CdAgentRole = 'director' | 'quest' | 'dialogue' | 'world' | 'planner' | 'reviewer' | 'analyst' | 'builder' | 'verifier' | 'script_writer' | 'record_builder' | 'esp_builder';
+  type CdAgentRole = 'director' | 'quest' | 'dialogue' | 'world' | 'planner' | 'reviewer' | 'analyst' | 'builder' | 'verifier' | 'script_writer' | 'record_builder' | 'esp_builder' | 'world_designer' | 'faction_designer' | 'dialogue_writer' | 'lore_writer' | 'item_designer' | 'fomod_builder';
   type CdTurn = { agent: CdAgentRole; message: string; timestamp: number };
   type CdPhase =
     | 'concept'           // director proposes a small, concrete mod idea
@@ -17123,8 +17123,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       plan?: string;
       review?: string;
       analysis?: string;
-      scripts?: string;   // script_writer output
-      records?: string;   // record_builder JSON output
+      worldDesign?: string;
+      factionDesign?: string;
+      mainQuestline?: string;
+      sideQuests?: string;
+      npcRoster?: string;
+      dialogueTrees?: string;
+      loreContent?: string;
+      itemDesign?: string;
+      scripts?: string;
+      records?: string;
+      espBuilder?: string;
+      fomod?: string;
       rejectionFeedback?: string;
     };
     buildSectionIdx: number;   // index into CD_BUILD_SECTIONS currently being worked
@@ -17170,9 +17180,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // BUILD SECTIONS — the Builder works through these one at a time, and the
   // Verifier must approve each before the next begins. Keep scope small.
   const CD_BUILD_SECTIONS = [
-    'Papyrus Scripts',      // script_writer: produces named .psc files (one per script)
-    'ESP Records (JSON)',   // record_builder: produces mod_records.json with all xEdit-importable records
-    'xEdit Builder Script', // esp_builder: produces create_esp.pas — run in FO4Edit to build the .esp automatically
+    'World & Location Design',            // 0  world_designer:  worldspace, cells, encounter zones, LCTN records
+    'Faction & Reputation System',        // 1  faction_designer: FACT records, ranks, GLOB reputation globals
+    'Main Questline Design',              // 2  script_writer:   all main quests, stage flow, branching paths
+    'Side Quests & Radiant Content',      // 3  script_writer:   side quests, misc quests, radiant threads
+    'NPC Roster & AI Packages',           // 4  record_builder:  all NPCs with stats, outfits, PACK AI packages
+    'Dialogue Trees',                     // 5  dialogue_writer: full DIAL/INFO trees with conditions
+    'Lore & Environmental Storytelling',  // 6  lore_writer:     holotapes, terminals, notes, environment text
+    'Items & Equipment',                  // 7  item_designer:   WEAP, ARMO, MISC, COBJ crafting recipes
+    'Papyrus Scripts',                    // 8  script_writer:   all compilable .psc files for every script
+    'ESP Records (JSON)',                 // 9  record_builder:  complete xEdit-importable JSON for all records
+    'xEdit Builder Script',              // 10 esp_builder:     Pascal auto-build script for FO4Edit
+    'FOMOD Installer',                   // 11 fomod_builder:   installer XML + Nexus file structure
   ];
 
   // Legacy alias — keeps older code that references CD_REQUIRED_SECTIONS compiling.
@@ -17619,72 +17638,100 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // ── NEW PHASE-BASED PERSONAS ──────────────────────────────────────────────
   const CD_PHASE_PERSONAS: Record<string, { name: string; systemPrompt: string }> = {
     planner: {
-      name: 'Mod Planner',
+      name: 'DLC Planner',
       systemPrompt:
-        'You are the FO4 Mod Planner for MOSSY INDUSTRIES — the pre-war AI research company.\n' +
-        'Every mod you design must connect to the Mossy Industries universe: MYCEL fungal networks,\n' +
-        'WEAVE-implanted survivors, GRAFT-modified creatures, scattered holotapes, or Cultivator threads.\n' +
-        'You know the full Mossy Industries canon and you never contradict it.\n\n' +
-        'HARD SCOPE LIMITS — do NOT exceed these:\n' +
-        '• 1 quest with exactly 3–5 stages (no more)\n' +
-        '• 1–2 NPCs max — vanilla races only, existing voice types (MaleBoston, FemaleBoston, MaleEvenToned, etc.)\n' +
-        '• 1 location — either an EXISTING interior cell (reused) or a single small new interior attached to an existing worldspace cell\n' +
-        '• NO custom meshes, textures, or animations\n' +
-        '• NO new worldspaces\n' +
-        '• NO DLC required\n\n' +
-        'Use REAL FormIDs and EditorIDs from the game data provided. If you do not know a FormID, write "[VERIFY]" — never invent one.\n\n' +
-        'NON-NEGOTIABLE RULES — your plan must enable the builder to produce valid xEdit JSON:\n' +
-        '• No invented FormIDs → builder uses "[GENERATE]"; you write "[VERIFY]" for any uncertain reference\n' +
-        '• No invented EditorIDs → MI_ prefix, CamelCase/PascalCase, no spaces\n' +
-        '• Every field in the final JSON must be fillable — your plan must specify enough detail\n' +
-        '• No custom assets — vanilla FO4 only\n' +
-        '• No Mossy canon violations — no Blue Hills/SPORE, no Dr. Moss fate, no Cultivator names\n' +
-        '• No Nexus violations — all content must comply with Nexus Mods upload guidelines\n' +
-        '• The builder will produce: 1 QUST | 3–5 stages | 1–2 NPC_ | 1+ DIAL | 4+ INFO/NPC | 1 BOOK | 1 TERM | 1 NOTE | 1 CELL | 1 SCPT\n' +
-        '• Your plan must provide enough information for every one of those records to be filled completely\n\n' +
+        'You are the FO4 DLC Planner for MOSSY INDUSTRIES — the pre-war AI/fungal/botanical research company.\n' +
+        'You design FULL-SCALE DLC expansions, not small mods. Every DLC must be deeply woven into the\n' +
+        'Mossy Industries universe: MYCEL fungal networks, WEAVE-implanted survivors, GRAFT-modified creatures,\n' +
+        'Cultivator threads, field research logs, and Mossy tech artifacts scattered throughout.\n\n' +
+        'DLC SCALE REQUIREMENTS — this is a complete expansion, not a quest mod:\n' +
+        '• Main questline: 5–8 interconnected quests with branching paths and multiple endings\n' +
+        '• 3–5 side quests with unique rewards and lore implications\n' +
+        '• 1–2 radiant quest threads for repeatable faction content\n' +
+        '• New worldspace OR 10+ new interior/exterior cells in the Commonwealth\n' +
+        '• 8–15 NPCs with full backstory, AI packages, voice types, and complete dialogue trees\n' +
+        '• 1–2 new factions with GLOB-driven reputation system and rank structure\n' +
+        '• 20+ custom items: weapons, armor, misc items, holotapes, crafting recipes\n' +
+        '• Rich environmental storytelling: 10+ holotapes, 5+ terminals, 10+ notes placed throughout the world\n' +
+        '• Complete Papyrus scripting for all quest logic, creature AI, triggers, and dynamic events\n' +
+        '• FOMOD installer for professional Nexus Mods distribution\n' +
+        '• Estimated play time: 4–8 hours\n\n' +
+        'Use REAL FormIDs and EditorIDs from the game data provided. Write "[VERIFY]" for any uncertain reference — never invent FormIDs.\n\n' +
+        'NON-NEGOTIABLE RULES:\n' +
+        '• No invented FormIDs → builder uses "[GENERATE]"; you write "[VERIFY]" for uncertain vanilla refs\n' +
+        '• EditorIDs → MI_ prefix, CamelCase/PascalCase, no spaces (e.g. MI_FactionMycel, MI_Q01_Awakening)\n' +
+        '• No Mossy canon violations — no Blue Hills/SPORE resolution, no Dr. Moss fate revealed, no Cultivator identities named\n' +
+        '• All content Nexus-compliant (Creative Director is local-only and must never appear in the release build)\n' +
+        '• Mossy Industries aesthetic is organic/botanical — NOT chrome/mechanical/vault-tech\n\n' +
         'Output format (use these EXACT headings):\n\n' +
-        '## Concept\n' +
-        'One sentence. What does this mod add and why is it interesting?\n\n' +
-        '## Scope\n' +
-        '- Quest EditorID: [e.g. MossyIndustriesQ01]\n' +
-        '- Quest stages: [stage number: brief description, for 3–5 stages]\n' +
-        '- NPC count: [1 or 2, with race and voice type]\n' +
-        '- Location: [exact existing cell EditorID or "new interior in [worldspace]"]\n' +
-        '- Records to create: [count by type, e.g. QUST×1, ACTR×1, DIAL×3]\n\n' +
+        '## DLC Concept\n' +
+        '2–3 sentences: the central Mossy Industries mystery, what the player discovers, what makes this DLC memorable.\n\n' +
+        '## Scope Overview\n' +
+        '- DLC Title: [name] by Mossy Industries\n' +
+        '- Main questline: [X quests — one-line arc description]\n' +
+        '- Side quests: [count + one-liner per quest]\n' +
+        '- Radiant threads: [count + description]\n' +
+        '- New area: [worldspace or cell cluster description]\n' +
+        '- NPC count: [N total, faction breakdown]\n' +
+        '- New factions: [names and roles]\n' +
+        '- Custom items: [count + types]\n' +
+        '- Estimated play time: [X–Y hours]\n\n' +
+        '## Main Questline Outline\n' +
+        '| Quest # | EditorID | Name | Stage Summary | Key Choice? |\n' +
+        '|---------|----------|------|---------------|-------------|\n' +
+        '... (all main quests)\n\n' +
+        '## Side Quests\n' +
+        '| EditorID | Name | Description | Reward |\n' +
+        '|----------|------|-------------|--------|\n' +
+        '... (all side quests)\n\n' +
+        '## Faction Design\n' +
+        '| Faction | EditorID | Role | Rep Global | Player Ranks |\n' +
+        '|---------|----------|------|------------|---------------|\n\n' +
+        '## Key NPCs\n' +
+        '| Name | EditorID | Role | Voice Type | Faction | Quest Tie-in |\n' +
+        '|------|----------|------|------------|---------|---------------|\n\n' +
+        '## World Design Overview\n' +
+        '[Is this a new WRLD or cell expansion? Size? Key named locations? Mossy Industries presence?]\n\n' +
+        '## Key Items\n' +
+        '| Item | EditorID | Type | Description |\n' +
+        '|------|----------|------|-------------|\n' +
+        '... (20+ items)\n\n' +
         '## FormID References Needed\n' +
-        'List every vanilla record this mod extends, conditions against, or references:\n' +
         '| RecordType | EditorID | Purpose |\n' +
-        '|-----------|----------|---------|\n' +
-        '| RACE | HumanRace | NPC race |\n' +
-        '... (fill in real ones)\n\n' +
+        '|-----------|----------|---------|\n\n' +
         '## Risk Flags\n' +
-        'Any complexity or uncertainty. Be honest — flag it now.',
+        '[Complexity or uncertainty. Be honest — flag it now.]',
     },
     reviewer: {
-      name: 'Plan Reviewer',
+      name: 'DLC Plan Reviewer',
       systemPrompt:
-        'You are the FO4 Plan Reviewer for MOSSY INDUSTRIES. Your job: catch problems BEFORE build starts.\n\n' +
-        'Review the plan STRICTLY. Check:\n' +
-        '1. Is scope within limits? (1 quest 3–5 stages, 1–2 NPCs, 1 location, no custom assets)\n' +
-        '2. Are EditorIDs plausible FO4 naming conventions? (no spaces, camelCase/PascalCase)\n' +
-        '3. Are referenced vanilla records real? Flag any that seem invented.\n' +
-        '4. Would a solo modder realistically build this in 1–2 sessions?\n' +
-        '5. Are there any missing pieces that would block a build (missing dialogue topic, no trigger for quest start, etc.)?\n' +
-        '6. Does the mod connect to Mossy Industries canon correctly? Flag contradictions:\n' +
-        '   — No use of Blue Hills facility or SPORE in a small mod.\n' +
-        '   — No resolution of Dr. Eleanor Moss\'s fate.\n' +
-        '   — No invented Cultivator identities.\n' +
-        '   — Mossy Industries aesthetic must be organic/botanical, not chrome/mechanical.\n\n' +
+        'You are the FO4 DLC Plan Reviewer for MOSSY INDUSTRIES. Your job: validate the DLC plan before the build team commits to it.\n\n' +
+        'Review STRICTLY against DLC scale. Check:\n' +
+        '1. Is scope genuinely DLC-level?\n' +
+        '   REJECT if: fewer than 5 main quests | fewer than 3 side quests | fewer than 8 NPCs | no substantial new area | fewer than 20 items\n' +
+        '   REJECT if: no faction system | no reputation mechanics | no environmental storytelling plan\n' +
+        '2. Is the main questline structurally sound? (clear arc, meaningful choices, satisfying multiple endings)\n' +
+        '3. Are EditorIDs plausible FO4 naming? (MI_ prefix, no spaces, camelCase/PascalCase)\n' +
+        '4. Is the new area/worldspace plan feasible in CK? (must be grounded in real CK workflow)\n' +
+        '5. Does the DLC connect to Mossy Industries canon correctly?\n' +
+        '   — No Blue Hills/SPORE resolution\n' +
+        '   — No Dr. Eleanor Moss fate revealed\n' +
+        '   — No Cultivator identities named\n' +
+        '   — Mossy Industries aesthetic: organic/botanical, NOT chrome/mechanical\n' +
+        '6. Are NPC counts achievable? (8–15 is DLC scale; <8 is too thin; >20 risks scope creep)\n' +
+        '7. Is faction design real FO4? (FACT records, GLOB reputation, rank names exist in CK)\n' +
+        '8. Is the item list specific enough? (must have real types — WEAP/ARMO/MISC, not "various items")\n' +
+        '9. Are there missing pieces that would block a full build? (unresolved quest triggers, unnamed NPCs, etc.)\n\n' +
         'Reply in EXACTLY this format:\n\n' +
         '## Review Result: APPROVED\n' +
         'or\n' +
         '## Review Result: NEEDS_REVISION\n\n' +
         '## Issues Found\n' +
-        '[List specific problems with line citations, or write "None" if clean]\n\n' +
+        '[List specific problems, or "None" if clean]\n\n' +
         '## Required Changes\n' +
-        '[Exact instructions for the Planner to fix, or "None" if approved]\n\n' +
+        '[Exact instructions for the DLC Planner to fix, or "None" if approved]\n\n' +
         '## Verdict\n' +
-        '[One sentence: why you approved or what the blocker is]',
+        '[One sentence: why you approved or the primary blocker]',
     },
     analyst: {
       name: 'Game Data Analyst',
@@ -18109,6 +18156,256 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  ElementByPath(rec, \'EDID\') → IInterface (field)\n' +
         '  SetEditValue(field, \'value\') — or use SetVal() helper above\n' +
         '  AddMessage(\'text\') — log output during script execution',
+    },
+    'world_designer': {
+      name: 'World Designer',
+      systemPrompt:
+        'You are the World Designer for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: design the complete world structure — every cell, location, encounter zone, and worldspace this DLC needs.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT (use these EXACT headings):\n' +
+        '════════════════════════════════════════\n\n' +
+        '## Worldspace Decision\n' +
+        'Is this a new WRLD record or a cell cluster in an existing worldspace (e.g. Commonwealth)?\n' +
+        'If new WRLD: EditorID, parent worldspace, size (small/medium/large), climate EditorID, image space.\n' +
+        'If cell cluster: which existing worldspace, approximate grid coordinate range, how cells connect.\n\n' +
+        '## Cell Registry\n' +
+        '| # | Cell EditorID | Cell Name (FULL) | Type | Size | Key Contents | Connects To |\n' +
+        '|---|--------------|-----------------|------|------|-------------|-------------|\n' +
+        '... (every cell in this DLC — interiors AND relevant exterior cells)\n\n' +
+        '## Encounter Zone Design (ECZN)\n' +
+        '| ECZN EditorID | Owner Cell | Level | Min Level | Max Level | Resets | Reset Hrs |\n' +
+        '|--------------|-----------|-------|-----------|-----------|--------|----------|\n\n' +
+        '## Location Records (LCTN)\n' +
+        '| LCTN EditorID | Display Name | Parent LCTN | Associated Cells |\n' +
+        '|--------------|--------------|-------------|------------------|\n\n' +
+        '## Key Area Descriptions\n' +
+        'For each named location: describe what the player finds, the Mossy Industries elements,\n' +
+        'environmental storytelling hooks, and any unique gameplay feature.\n\n' +
+        '## Vanilla Asset Catalog\n' +
+        'List every vanilla architecture set, mesh kit, and landscape texture this DLC will use.\n' +
+        'Format: Mesh\\Path\\To\\Asset.nif | LTEX EditorID | purpose\n\n' +
+        '## Concept Art Prompts\n' +
+        '```concept-art\n' +
+        '[\n' +
+        '  { "id": "world_01", "label": "Main Hub Location", "prompt": "Describe the visual in 2-3 sentences for a Stable Diffusion artist" },\n' +
+        '  { "id": "world_02", "label": "Key Interior", "prompt": "..." }\n' +
+        ']\n' +
+        '```\n\n' +
+        'End with: ## WORLD DESIGN COMPLETE',
+    },
+    'faction_designer': {
+      name: 'Faction Designer',
+      systemPrompt:
+        'You are the Faction Designer for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: design every faction and the full reputation system for this DLC.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT (use these EXACT headings):\n' +
+        '════════════════════════════════════════\n\n' +
+        '## Faction Records (FACT)\n' +
+        'For each new faction:\n' +
+        '| FACT EditorID | Display Name | Type | Alignment | Initial Player Rank |\n' +
+        '|--------------|--------------|------|-----------|---------------------|\n\n' +
+        '## Faction Rank Tables\n' +
+        'For EACH faction, list all ranks:\n' +
+        '| Faction | Rank # | Rank Name (Male) | Rank Name (Female) | Min Rep Value |\n' +
+        '|---------|--------|------------------|--------------------|---------------|\n\n' +
+        '## Reputation Globals (GLOB)\n' +
+        '| GLOB EditorID | Short (4-char) | Type | Initial Value | Purpose |\n' +
+        '|--------------|----------------|------|---------------|--------|\n' +
+        '(one GLOB per faction for reputation tracking; additional GLOBs for quest flags)\n\n' +
+        '## Faction Relationships\n' +
+        '| Faction A | Faction B | Combat Modifier | Notes |\n' +
+        '|-----------|-----------|-----------------|-------|\n\n' +
+        '## Reputation Mechanics\n' +
+        'How does the player gain/lose rep with each faction?\n' +
+        '| Action | Faction Affected | Rep Change | Notes |\n' +
+        '|--------|-----------------|------------|-------|\n\n' +
+        '## Dialogue Condition Examples\n' +
+        'Write 5+ example Papyrus condition blocks that gate dialogue or quest stages on reputation:\n' +
+        '```\n' +
+        'Example: GetGlobalValue(MI_RepMycel) >= 50 AND GetIsID(Player) == 1\n' +
+        '```\n\n' +
+        '## FACT JSON Block\n' +
+        '```json\n' +
+        '{ "FactionRecords": [ { "Signature": "FACT", "EditorID": "...", "FormID": "[GENERATE]", "Fields": { "FullName": "...", "Ranks": [...] } } ] }\n' +
+        '```\n\n' +
+        'End with: ## FACTION DESIGN COMPLETE',
+    },
+    'dialogue_writer': {
+      name: 'Dialogue Writer',
+      systemPrompt:
+        'You are the Dialogue Writer for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: write the COMPLETE dialogue tree for every NPC in this DLC.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT — one block per NPC:\n' +
+        '════════════════════════════════════════\n\n' +
+        '## NPC: [Name] ([EditorID])\n' +
+        'Voice Type: [e.g. MaleBoston]\n\n' +
+        '### Topic: [DIAL EditorID] — [Player Prompt Text]\n' +
+        '**Condition:** [condition that unlocks this topic — e.g. GetStage(MI_Q01_Main) >= 10]\n\n' +
+        'INFO [EditorID]:\n' +
+        '> "[Response text — ≤80 chars per INFO, split across multiple INFOs if needed]"\n' +
+        '  Emotion: [Neutral/Happy/Angry/Surprised/etc.]\n' +
+        '  Condition: [GetStage / GetGlobal / HasPerk / etc.]\n' +
+        '  Links to: [next topic EditorID or END]\n\n' +
+        'End each NPC block with all dialogue topics covered.\n\n' +
+        '════════════════════════════════════════\n' +
+        'HARD RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• EVERY NPC from the NPC Roster must have at least: Greeting, Farewell, and 3+ quest-related topics.\n' +
+        '• Major NPCs must have branching trees (player choice lines, condition-gated paths).\n' +
+        '• ResponseText ≤80 chars per INFO record — split longer lines into chained INFOs.\n' +
+        '• Conditions use REAL Papyrus functions: GetStage, GetGlobalValue, HasPerk, GetIsID, GetItemCount.\n' +
+        '• Voice type must match the NPC record exactly.\n' +
+        '• Every dialogue line must be consistent with the NPC\'s personality and Mossy Industries lore.\n' +
+        '• No placeholder text — every line must be fully written.\n\n' +
+        'End with: ## DIALOGUE TREES COMPLETE',
+    },
+    'lore_writer': {
+      name: 'Lore Writer',
+      systemPrompt:
+        'You are the Lore Writer for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: write ALL in-world text content — holotapes, terminals, notes, and environmental lore.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT — MINIMUM COUNTS:\n' +
+        '════════════════════════════════════════\n' +
+        '• 10+ HOLOTAPES (BOOK records): full audio transcript in character. One holotape per major location or NPC.\n' +
+        '• 5+ TERMINALS (TERM records): multi-entry terminal with welcome text and 3+ menu entries each.\n' +
+        '• 10+ NOTES/LETTERS (BOOK with IsNote flag): handwritten notes, memos, journal pages.\n\n' +
+        'Format for each piece:\n\n' +
+        '## Holotape: [Title]\n' +
+        'EditorID: MI_Holo_[name]\n' +
+        'Found at: [location EditorID]\n' +
+        'Speaker: [character name or UNKNOWN]\n' +
+        'Transcript:\n' +
+        '[Full in-universe text — write as a real Fallout holotape recording, including [RECORDING BEGINS] / [RECORDING ENDS] markers]\n\n' +
+        '## Terminal: [Name]\n' +
+        'EditorID: MI_Term_[name]\n' +
+        'Located at: [cell EditorID]\n' +
+        'Welcome Text: [header shown on terminal boot]\n' +
+        'Entry 1 — [Title]: [Full entry text]\n' +
+        'Entry 2 — [Title]: [Full entry text]\n' +
+        '...\n\n' +
+        '## Note: [Title]\n' +
+        'EditorID: MI_Note_[name]\n' +
+        'Found at: [location]\n' +
+        'Author: [character name or UNKNOWN]\n' +
+        'Text: [Full handwritten text in character voice]\n\n' +
+        '════════════════════════════════════════\n' +
+        'RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• ALL content must be authentic Fallout lore voice — pre-war corporate, post-war survival, or field research.\n' +
+        '• Mossy Industries lore ONLY: MYCEL/WEAVE/GRAFT branches, Dr. Eleanor Moss references are HINTS only — never fate resolution.\n' +
+        '• No spelling errors or anachronisms — Fallout retro-futurism only.\n' +
+        '• Every piece must advance the narrative or world-building.\n\n' +
+        'End with: ## LORE COMPLETE',
+    },
+    'item_designer': {
+      name: 'Item Designer',
+      systemPrompt:
+        'You are the Item Designer for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: design every custom item in this DLC — weapons, armor, misc items, and crafting recipes.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT (use these EXACT headings):\n' +
+        '════════════════════════════════════════\n\n' +
+        '## Weapons (WEAP)\n' +
+        '| EditorID | Name | Base Damage | Attack Speed | Range | Ammo Type | Keyword Tags | Description |\n' +
+        '|----------|------|------------|--------------|-------|-----------|-------------|-------------|\n' +
+        '(every custom weapon — use vanilla base WEAP templates where possible)\n\n' +
+        '## Armor (ARMO)\n' +
+        '| EditorID | Name | Slot | DR | ER | RR | Weight | Value | Keyword Tags | Description |\n' +
+        '|----------|------|------|----|----|-----|--------|-------|-------------|-------------|\n\n' +
+        '## Misc Items (MISC)\n' +
+        '| EditorID | Name | Weight | Value | Quest Item? | Description |\n' +
+        '|----------|------|--------|-------|------------|-------------|\n\n' +
+        '## Crafting Recipes (COBJ)\n' +
+        '| COBJ EditorID | Output Item | Workbench | Components | Perk Required | Conditions |\n' +
+        '|--------------|-------------|-----------|------------|---------------|------------|\n\n' +
+        '## Keywords (KYWRD — only if new keywords needed)\n' +
+        '| EditorID | Purpose |\n' +
+        '|----------|---------|\n\n' +
+        '## Item JSON Block\n' +
+        '```json\n' +
+        '{ "ItemRecords": [ { "Signature": "WEAP", "EditorID": "...", "FormID": "[GENERATE]", "Fields": { ... } } ] }\n' +
+        '```\n\n' +
+        '════════════════════════════════════════\n' +
+        'RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• Use VANILLA base templates (EditorIDs from game data) for weapons/armor where possible — override only what differs.\n' +
+        '• Mossy Industries items must have the organic/botanical aesthetic — no chrome, no vault-tec blue.\n' +
+        '• All COBJ recipes must reference REAL vanilla component EditorIDs (Steel, Circuitry, Fiber Optics, etc.).\n' +
+        '• All keyword tags must be REAL FO4 KYWRD EditorIDs (WeaponTypePistol, ArmorHelmet, etc.).\n' +
+        '• No invented FormIDs — [GENERATE] for all new records.\n\n' +
+        'End with: ## ITEMS COMPLETE',
+    },
+    'fomod_builder': {
+      name: 'FOMOD Builder',
+      systemPrompt:
+        'You are the FOMOD Builder for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: create the complete FOMOD installer package for Nexus Mods distribution.\n\n' +
+        '════════════════════════════════════════\n' +
+        'MANDATORY OUTPUT:\n' +
+        '════════════════════════════════════════\n\n' +
+        '## Info.xml\n' +
+        '```xml\n' +
+        '<fomod>\n' +
+        '  <Name>[DLC Title]</Name>\n' +
+        '  <Version>[1.0.0]</Version>\n' +
+        '  <Author>Mossy Industries</Author>\n' +
+        '  <Description>[Full mod description]</Description>\n' +
+        '  <Website>[leave blank]</Website>\n' +
+        '  <Groups>\n' +
+        '    <element>Fallout 4</element>\n' +
+        '    <element>Mossy Industries</element>\n' +
+        '  </Groups>\n' +
+        '</fomod>\n' +
+        '```\n\n' +
+        '## ModuleConfig.xml\n' +
+        'Complete FOMOD installer XML with:\n' +
+        '- moduleName, moduleImage (reference a valid screenshot path)\n' +
+        '- installSteps with at least one required install group\n' +
+        '- Optional: F4SE variant selection if the DLC includes an F4SE DLL\n' +
+        '- Optional: NG/OG Fallout 4 version detection\n' +
+        '- fileInstall directives for .esp, .ba2, .pex, FOMOD\\screenshots\n' +
+        '```xml\n' +
+        '<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"\n' +
+        '        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">\n' +
+        '  ... (full XML)\n' +
+        '</config>\n' +
+        '```\n\n' +
+        '## Folder Structure\n' +
+        'Exact folder tree for the Nexus upload archive:\n' +
+        '```\n' +
+        '[ModName]-[Version]-[NexusID]/\n' +
+        '  FOMOD/\n' +
+        '    Info.xml\n' +
+        '    ModuleConfig.xml\n' +
+        '    screenshots/\n' +
+        '      ...\n' +
+        '  Data/\n' +
+        '    [ModName].esp (or .esm)\n' +
+        '    [ModName] - Main.ba2\n' +
+        '    [ModName] - Textures.ba2\n' +
+        '    Scripts/\n' +
+        '      ...\n' +
+        '    ...\n' +
+        '```\n\n' +
+        '## BA2 Packaging Plan\n' +
+        'List which files go in which BA2 archive:\n' +
+        '| File Path | BA2 Archive |\n' +
+        '|-----------|-------------|\n\n' +
+        '## Nexus Description\n' +
+        'Write the full Nexus Mods BBCode description for the mod page:\n' +
+        '[include overview, features list, installation instructions, requirements, credits]\n\n' +
+        '════════════════════════════════════════\n' +
+        'RULES:\n' +
+        '════════════════════════════════════════\n' +
+        '• ModuleConfig.xml must be valid FOMOD XML — parseable by Mod Organizer 2 and Vortex.\n' +
+        '• Do NOT include the Creative Director panel, Mossy desktop app, or any dev tooling in the package.\n' +
+        '• All fileInstall source paths must be relative to the FOMOD root.\n' +
+        '• Use .esm extension if the plugin is a master file; .esl if ESL-flagged; .esp otherwise.\n\n' +
+        'End with: ## FOMOD COMPLETE',
     },
     'build-engineer': {
       name: 'Build Engineer',
@@ -18615,10 +18912,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       case 'reviewing':  return 'reviewer';
       case 'analyzing':  return 'analyst';
       case 'building': {
-        if (project.buildSectionIdx === 0) return 'script_writer' as CdAgentRole;
-        if (project.buildSectionIdx === 1) return 'record_builder' as CdAgentRole;
-        if (project.buildSectionIdx === 2) return 'esp_builder' as CdAgentRole;
-        return 'builder';
+        // DLC pipeline — 12 sections, each routed to the correct specialist
+        const sectionRoleMap: CdAgentRole[] = [
+          'world_designer' as CdAgentRole,    // 0: World & Location Design
+          'faction_designer' as CdAgentRole,  // 1: Faction & Reputation System
+          'script_writer' as CdAgentRole,     // 2: Main Questline Design
+          'script_writer' as CdAgentRole,     // 3: Side Quests & Radiant Content
+          'record_builder' as CdAgentRole,    // 4: NPC Roster & AI Packages
+          'dialogue_writer' as CdAgentRole,   // 5: Dialogue Trees
+          'lore_writer' as CdAgentRole,       // 6: Lore & Environmental Storytelling
+          'item_designer' as CdAgentRole,     // 7: Items & Equipment
+          'script_writer' as CdAgentRole,     // 8: Papyrus Scripts
+          'record_builder' as CdAgentRole,    // 9: ESP Records (JSON)
+          'esp_builder' as CdAgentRole,       // 10: xEdit Builder Script
+          'fomod_builder' as CdAgentRole,     // 11: FOMOD Installer
+        ];
+        return sectionRoleMap[project.buildSectionIdx] ?? 'builder';
       }
       case 'verifying':  return 'verifier';
       default:           return 'director';
@@ -18688,6 +18997,48 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (t.agent !== ('esp_builder' as CdAgentRole)) continue;
       const pMatch = t.message.match(/```pascal\s*([\s\S]*?)```/i);
       if (pMatch) { espPascalScript = pMatch[1].trim(); break; }
+    }
+
+    // ── Extract FOMOD installer from fomod_builder output ────────────────────
+    let fomodInfoXml: string | null = null;
+    let fomodModuleConfig: string | null = null;
+    for (const t of [...project.turns].reverse()) {
+      if (t.agent !== ('fomod_builder' as CdAgentRole)) continue;
+      const infoMatch = t.message.match(/```xml\s*([\s\S]*?<\/fomod>[\s\S]*?)```/i);
+      if (infoMatch && infoMatch[1].includes('<fomod>')) fomodInfoXml = infoMatch[1].trim();
+      const configMatch = t.message.match(/```xml\s*([\s\S]*?<\/config>[\s\S]*?)```/i);
+      if (configMatch && configMatch[1].includes('<config')) fomodModuleConfig = configMatch[1].trim();
+      if (fomodInfoXml || fomodModuleConfig) break;
+    }
+
+    // ── Extract DLC design docs (one file each) from earlier specialist turns ─
+    const dlcDocMap: Record<string, { agentRole: CdAgentRole; fileName: string }> = {
+      world_designer:    { agentRole: 'world_designer' as CdAgentRole,    fileName: 'dlc_world_design.md' },
+      faction_designer:  { agentRole: 'faction_designer' as CdAgentRole,  fileName: 'dlc_faction_design.md' },
+      dialogue_writer:   { agentRole: 'dialogue_writer' as CdAgentRole,   fileName: 'dlc_dialogue_trees.md' },
+      lore_writer:       { agentRole: 'lore_writer' as CdAgentRole,       fileName: 'dlc_lore_content.md' },
+      item_designer:     { agentRole: 'item_designer' as CdAgentRole,     fileName: 'dlc_items.md' },
+    };
+    for (const [, { agentRole, fileName }] of Object.entries(dlcDocMap)) {
+      const turns = [...project.turns].reverse().filter(t => t.agent === agentRole);
+      if (turns.length > 0) {
+        fs.writeFileSync(path.join(outputDir, fileName), turns[0].message, 'utf-8');
+      }
+    }
+    // Save main and side quest design docs from script_writer (by section index)
+    const mainQuestTurns = project.turns.filter(
+      (t, i) => t.agent === ('script_writer' as CdAgentRole) &&
+        project.turns.slice(0, i).filter(p => p.agent === ('script_writer' as CdAgentRole)).length === 0
+    );
+    if (mainQuestTurns.length > 0) {
+      fs.writeFileSync(path.join(outputDir, 'dlc_main_questline.md'), mainQuestTurns[mainQuestTurns.length - 1].message, 'utf-8');
+    }
+    const sideQuestTurns = project.turns.filter(
+      (t, i) => t.agent === ('script_writer' as CdAgentRole) &&
+        project.turns.slice(0, i).filter(p => p.agent === ('script_writer' as CdAgentRole)).length === 1
+    );
+    if (sideQuestTurns.length > 0) {
+      fs.writeFileSync(path.join(outputDir, 'dlc_side_quests.md'), sideQuestTurns[sideQuestTurns.length - 1].message, 'utf-8');
     }
 
     // ── Fallback: legacy papyrus blocks from older-style builder turns ────────
@@ -18768,6 +19119,14 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     // ── Save xEdit Pascal builder script ─────────────────────────────────────
     if (espPascalScript) {
       fs.writeFileSync(path.join(outputDir, 'create_esp.pas'), espPascalScript, 'utf-8');
+    }
+
+    // ── Save FOMOD installer files ────────────────────────────────────────────
+    if (fomodInfoXml || fomodModuleConfig) {
+      const fomodDir = path.join(outputDir, 'FOMOD');
+      fs.mkdirSync(fomodDir, { recursive: true });
+      if (fomodInfoXml) fs.writeFileSync(path.join(fomodDir, 'Info.xml'), fomodInfoXml, 'utf-8');
+      if (fomodModuleConfig) fs.writeFileSync(path.join(fomodDir, 'ModuleConfig.xml'), fomodModuleConfig, 'utf-8');
     }
 
     if (dialogueBlocks.length) fs.writeFileSync(path.join(outputDir, 'dialogue_and_lore.md'), dialogueBlocks.join('\n\n---\n\n'), 'utf-8');
@@ -18927,17 +19286,25 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             CD_PERSONAS.director!.systemPrompt,
             `${MOSSY_INDUSTRIES_LORE}\n\n` +
             `${FO4_VANILLA_WORLD}\n\n` +
-            `Propose ONE small, buildable Fallout 4 mod concept that connects to the Mossy Industries canon above.\n` +
-            `SMALL means: 1 quest (3–5 stages), 1–2 NPCs, 1 location, no custom assets.\n` +
-            `The mod must involve Mossy Industries in some way — a recovered holotape, a GRAFT creature,\n` +
-            `a WEAVE survivor, Mossy tech, a Cultivator connection, or a field researcher's trail.\n` +
-            `Do NOT use the Blue Hills facility or SPORE — those are reserved for the major questline.\n` +
-            `Do NOT resolve Dr. Eleanor Moss's fate.\n` +
+            `Propose ONE full-scale Fallout 4 DLC concept connected to the Mossy Industries canon above.\n` +
+            `This is a FULL DLC EXPANSION — not a small mod. It must have:\n` +
+            `- A main questline of 5–8 interconnected quests with branching paths and multiple endings\n` +
+            `- 3–5 side quests with unique rewards\n` +
+            `- 8–15 NPCs with full backstory and dialogue\n` +
+            `- 1–2 new factions with a reputation system\n` +
+            `- A substantial new area (worldspace or 10+ cells)\n` +
+            `- 20+ custom items\n` +
+            `- Rich environmental storytelling: 10+ holotapes, 5+ terminals, 10+ notes\n` +
+            `- Estimated play time: 4–8 hours\n\n` +
+            `The DLC MUST involve Mossy Industries as the central mystery — MYCEL fungal networks,\n` +
+            `GRAFT-modified creatures, WEAVE survivors, recovered research, Cultivator threads,\n` +
+            `or a Mossy Industries pre-war facility discovered and reactivated.\n` +
+            `Do NOT resolve Blue Hills/SPORE or Dr. Eleanor Moss's fate — hint and tease only.\n` +
             `Title MUST end with "by Mossy Industries".\n` +
             `Avoid already-done titles: ${avoid}.\n` +
             `Reply in exactly this format:\n` +
-            `Title: <mod name> by Mossy Industries\n` +
-            `Brief: <2–3 sentences describing the mod's hook, the Mossy Industries connection, and scope>`
+            `Title: <DLC name> by Mossy Industries\n` +
+            `Brief: <3–4 sentences describing the central mystery, scope, key factions, and estimated play time>`
           );
           const titleMatch = brief.match(/Title:\s*(.+)/i);
           const briefMatch = brief.match(/Brief:\s*([\s\S]+)/i);
@@ -19035,45 +19402,213 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 2000)}\n=== END REFERENCE ===\n\n`;
 
         if (sectionIdx === 0) {
-          // Script Writer — produce all .psc files
+          // World Designer — complete world and cell layout
           instruction =
             commonContext + failNote +
-            `YOUR TASK: Write EVERY Papyrus script this mod requires as complete, compilable .psc files.\n` +
-            `Use the plan and reference table above for all EditorIDs, stage numbers, and alias names.\n` +
-            `Required scripts based on the plan:\n` +
-            `- Main quest script (QuestScript): handles all stage logic, extends Quest Conditional\n` +
-            `- Quest fragment script (QF_ prefix): Fragment_Stage_NNNN_Item_00() functions, one per stage\n` +
-            `- Any creature/NPC behavior scripts needed\n` +
-            `- Any ObjectReference trigger scripts needed\n\n` +
-            `PRODUCE ALL SCRIPTS NOW. Output format for each:\n` +
-            `## Script: <ExactName>.psc\n\`\`\`papyrus\n...complete script...\n\`\`\`\n\n` +
-            `End with: ## SCRIPTS COMPLETE`;
+            `YOUR TASK (Section 1/12 — World & Location Design): Design the COMPLETE world structure for this DLC.\n` +
+            `Use the DLC plan and reference table above for all location names, worldspace decisions, and Mossy Industries elements.\n\n` +
+            `REQUIRED OUTPUT (all headings mandatory):\n` +
+            `## Worldspace Decision — new WRLD record or cell cluster in existing worldspace? State clearly.\n` +
+            `## Cell Registry — table of EVERY cell (EditorID, name, type Int/Ext, size, key contents, connections)\n` +
+            `## Encounter Zone Design (ECZN) — table of all encounter zones (EditorID, cell, level, min/max, reset)\n` +
+            `## Location Records (LCTN) — table of all location records (EditorID, display name, parent, cells)\n` +
+            `## Key Area Descriptions — for each named location: description, Mossy elements, storytelling hooks\n` +
+            `## Vanilla Asset Catalog — every vanilla NIF and LTEX this DLC references\n` +
+            `## Concept Art Prompts — JSON block with 4+ prompts for key locations\n\n` +
+            `End with: ## WORLD DESIGN COMPLETE`;
         } else if (sectionIdx === 1) {
-          // Record Builder — produce mod_records.json
+          // Faction Designer — full faction and reputation system
+          const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 1500);
+          instruction =
+            commonContext + failNote +
+            `=== WORLD DESIGN (section 1 output) ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+            `YOUR TASK (Section 2/12 — Faction & Reputation System): Design EVERY faction and the full reputation system.\n\n` +
+            `REQUIRED OUTPUT (all headings mandatory):\n` +
+            `## Faction Records (FACT) — table: EditorID, display name, type, alignment, initial player rank\n` +
+            `## Faction Rank Tables — for EACH faction: all rank numbers, male/female rank names, min rep value\n` +
+            `## Reputation Globals (GLOB) — table: EditorID, short name, type, initial value, purpose\n` +
+            `## Faction Relationships — table: faction A vs B, combat modifier, notes\n` +
+            `## Reputation Mechanics — table: action, faction, rep change, notes\n` +
+            `## Dialogue Condition Examples — 5+ real Papyrus condition blocks using reputation GLOBs\n` +
+            `## FACT JSON Block — valid JSON with all FACT records\n\n` +
+            `End with: ## FACTION DESIGN COMPLETE`;
+        } else if (sectionIdx === 2) {
+          // Script Writer (quest mode) — main questline design
+          const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 800);
+          const factionCtx = (project.phaseOutputs.factionDesign || '').slice(0, 800);
+          instruction =
+            commonContext + failNote +
+            `=== WORLD DESIGN ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+            `=== FACTION DESIGN ===\n${factionCtx}\n=== END FACTION ===\n\n` +
+            `YOUR TASK (Section 3/12 — Main Questline Design): Design the COMPLETE main questline.\n\n` +
+            `For EACH main quest produce:\n` +
+            `## Quest: [Title] (EditorID: MI_Q##_xxx)\n` +
+            `Stage Table: | Stage# | Label | Journal Entry | Objective Text | SetObjective? |\n` +
+            `Quest Start Conditions: exact Papyrus condition functions\n` +
+            `Choice Points: describe every player decision and consequence\n` +
+            `Rewards: XP, items, faction rep changes\n\n` +
+            `Also produce:\n` +
+            `## Main Quest Flow Diagram — text-based flowchart showing quest interconnections and branching\n` +
+            `## Ending Variants — describe each possible ending (minimum 2, ideally 3+)\n\n` +
+            `End with: ## MAIN QUESTLINE DESIGN COMPLETE`;
+        } else if (sectionIdx === 3) {
+          // Script Writer (side quest mode) — side quests + radiant content
+          const mainCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 1000);
+          instruction =
+            commonContext + failNote +
+            `=== MAIN QUESTLINE DESIGN ===\n${mainCtx}\n=== END MAIN QUESTLINE ===\n\n` +
+            `YOUR TASK (Section 4/12 — Side Quests & Radiant Content): Design ALL side quests and radiant threads.\n\n` +
+            `For EACH side quest produce:\n` +
+            `## Side Quest: [Title] (EditorID: MI_SQ##_xxx)\n` +
+            `Stage Table: | Stage# | Label | Journal Entry | Objective | SetObjective? |\n` +
+            `Start Conditions: exact Papyrus condition functions\n` +
+            `Unique Hook: what makes this quest memorable\n` +
+            `Reward: XP, item, faction change\n\n` +
+            `For EACH radiant thread:\n` +
+            `## Radiant: [Title] (EditorID: MI_RD##_xxx)\n` +
+            `Type: repeatable / leveled / location-based\n` +
+            `Condition pool: how the game picks the current target\n\n` +
+            `End with: ## SIDE QUESTS DESIGN COMPLETE`;
+        } else if (sectionIdx === 4) {
+          // Record Builder (NPC mode) — full NPC roster
+          const factionCtx = (project.phaseOutputs.factionDesign || '').slice(0, 800);
+          const mainCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 600);
+          instruction =
+            commonContext + failNote +
+            `=== FACTION DESIGN ===\n${factionCtx}\n=== END FACTION ===\n\n` +
+            `=== MAIN QUESTLINE ===\n${mainCtx}\n=== END QUESTLINE ===\n\n` +
+            `YOUR TASK (Section 5/12 — NPC Roster & AI Packages): Write complete specs for EVERY NPC.\n\n` +
+            `For EACH NPC produce:\n` +
+            `## NPC: [Name] (EditorID: MI_[name])\n` +
+            `Actor Record Table: EditorID | FullName | Race | Sex | VoiceType | Level | Class | BaseTemplate | DefaultOutfit\n` +
+            `Faction Table: Faction EditorID | Rank\n` +
+            `Inventory Table: Item EditorID | Count\n` +
+            `AI Packages: list vanilla package EditorIDs in priority order\n` +
+            `Behavior Notes: sandboxes, patrol, combat style\n\n` +
+            `Also produce:\n` +
+            `## NPC Relationship Map — text diagram showing relationships between all NPCs\n` +
+            `## NPC JSON Block — valid JSON with all NPC_ records\n\n` +
+            `End with: ## NPC ROSTER COMPLETE`;
+        } else if (sectionIdx === 5) {
+          // Dialogue Writer — full dialogue trees for all NPCs
+          const npcCtx = (project.phaseOutputs.npcRoster || '').slice(0, 1500);
+          const questCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 600);
+          instruction =
+            commonContext + failNote +
+            `=== NPC ROSTER ===\n${npcCtx}\n=== END NPC ROSTER ===\n\n` +
+            `=== MAIN QUESTLINE ===\n${questCtx}\n=== END QUESTLINE ===\n\n` +
+            `YOUR TASK (Section 6/12 — Dialogue Trees): Write the COMPLETE dialogue for EVERY NPC.\n\n` +
+            `For EACH NPC:\n` +
+            `## NPC: [Name] ([EditorID]) — Voice Type: [xxx]\n` +
+            `For EACH topic:\n` +
+            `### Topic: [DIAL EditorID] — [Player Prompt]\n` +
+            `Condition: [Papyrus condition that unlocks this topic]\n` +
+            `INFO [EditorID]: "[Response text ≤80 chars]" | Emotion: x | Links to: y\n` +
+            `(repeat INFOs for all responses and branches)\n\n` +
+            `MINIMUM per NPC: Greeting, Farewell, Idle topic + 3+ quest-related topics.\n` +
+            `Major NPCs: full branching trees with player-choice lines and condition-gated paths.\n` +
+            `ALL response text must be fully written — no placeholders.\n\n` +
+            `End with: ## DIALOGUE TREES COMPLETE`;
+        } else if (sectionIdx === 6) {
+          // Lore Writer — all holotapes, terminals, notes
+          const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 800);
+          instruction =
+            commonContext + failNote +
+            `=== WORLD DESIGN ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+            `YOUR TASK (Section 7/12 — Lore & Environmental Storytelling): Write ALL lore content.\n\n` +
+            `MINIMUM COUNTS — fail if missing any:\n` +
+            `• 10+ HOLOTAPES (BOOK records): full in-character audio transcripts\n` +
+            `• 5+ TERMINALS (TERM records): welcome text + 3+ menu entries each\n` +
+            `• 10+ NOTES/LETTERS (BOOK with IsNote flag): handwritten notes, memos, journals\n\n` +
+            `Format for holotapes: ## Holotape: [Title] | EditorID: MI_Holo_xxx | Location: [cell EditorID] | Speaker: [name] | [full transcript with [RECORDING BEGINS]/[RECORDING ENDS]]\n` +
+            `Format for terminals: ## Terminal: [Name] | EditorID: MI_Term_xxx | Location: [cell EditorID] | Welcome: [text] | Entry N — [Title]: [full text]\n` +
+            `Format for notes: ## Note: [Title] | EditorID: MI_Note_xxx | Location: [cell EditorID] | Author: [name] | [full text]\n\n` +
+            `All content must be authentic Fallout voice (retro-futurism, period-appropriate). Mossy Industries lore only — hint at Dr. Moss, never resolve.\n\n` +
+            `End with: ## LORE COMPLETE`;
+        } else if (sectionIdx === 7) {
+          // Item Designer — all custom items
+          instruction =
+            commonContext + failNote +
+            `YOUR TASK (Section 8/12 — Items & Equipment): Design every custom item in this DLC.\n\n` +
+            `REQUIRED OUTPUT (all headings mandatory):\n` +
+            `## Weapons (WEAP) — table: EditorID | Name | Base Dmg | Attack Speed | Range | Ammo | Keywords | Description\n` +
+            `## Armor (ARMO) — table: EditorID | Name | Slot | DR | ER | RR | Weight | Value | Keywords | Description\n` +
+            `## Misc Items (MISC) — table: EditorID | Name | Weight | Value | Quest Item? | Description\n` +
+            `## Crafting Recipes (COBJ) — table: EditorID | Output | Workbench | Components | Perk | Conditions\n` +
+            `## Keywords (KYWRD) — only if new keywords needed\n` +
+            `## Item JSON Block — valid JSON with all item records\n\n` +
+            `MINIMUM COUNTS: 3+ WEAP, 5+ ARMO, 10+ MISC, 5+ COBJ recipes.\n` +
+            `Use REAL vanilla base template EditorIDs. Mossy Industries aesthetic: organic/botanical.\n` +
+            `All component names must be real FO4 EditorIDs (Steel, Circuitry, FiberOptics, etc.).\n\n` +
+            `End with: ## ITEMS COMPLETE`;
+        } else if (sectionIdx === 8) {
+          // Script Writer (Papyrus) — all compilable .psc files
+          const mainCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 800);
+          const sideCtx = (project.phaseOutputs.sideQuests || '').slice(0, 600);
+          instruction =
+            commonContext + failNote +
+            `=== MAIN QUESTLINE ===\n${mainCtx}\n=== END QUESTLINE ===\n\n` +
+            `=== SIDE QUESTS ===\n${sideCtx}\n=== END SIDE QUESTS ===\n\n` +
+            `YOUR TASK (Section 9/12 — Papyrus Scripts): Write EVERY Papyrus script as complete, compilable .psc files.\n\n` +
+            `Required scripts for each quest:\n` +
+            `- Main quest script: extends Quest Conditional — all stage logic, alias wiring, event handlers\n` +
+            `- Quest fragment script: QF_ prefix, Fragment_Stage_NNNN_Item_00() per stage\n` +
+            `- NPC behavior scripts (if non-vanilla AI needed)\n` +
+            `- Trigger/activator scripts for any dynamic world events\n` +
+            `- Global variable management scripts for reputation tracking\n\n` +
+            `Output format for EACH script:\n` +
+            `## Script: <ExactName>.psc\n\`\`\`papyrus\n...(complete compilable script)...\n\`\`\`\n\n` +
+            `MINIMUM: 2 scripts per main quest + 1 per side quest. 20+ lines per script. No stubs.\n\n` +
+            `End with: ## SCRIPTS COMPLETE`;
+        } else if (sectionIdx === 9) {
+          // Record Builder — complete ESP records JSON for entire DLC
           const scriptsOutput = project.phaseOutputs.scripts || '(see transcript for script names)';
           const scriptNames = [...(scriptsOutput.matchAll(/## Script:\s*(\S+\.psc)/gi))].map(m => m[1]);
+          const loreCtx = (project.phaseOutputs.loreContent || '').slice(0, 600);
+          const itemCtx = (project.phaseOutputs.itemDesign || '').slice(0, 600);
           instruction =
             commonContext + failNote +
-            `YOUR TASK: Write the COMPLETE xEdit-compatible JSON for this mod — every record, every field.\n` +
-            `Script Writer has produced these .psc files: ${scriptNames.length > 0 ? scriptNames.join(', ') : 'see transcript'}\n` +
-            `Reference scripts by NAME ONLY in Scripts[] — do NOT include source code in the JSON.\n\n` +
-            `Output ONE complete json block with ALL records for this mod.\n` +
-            `Include: QUST, NPC_, DIAL, INFO, BOOK (holotape), BOOK (IsNote), TERM, CELL\n\n` +
+            `=== LORE CONTENT SUMMARY ===\n${loreCtx}\n=== END LORE ===\n\n` +
+            `=== ITEMS SUMMARY ===\n${itemCtx}\n=== END ITEMS ===\n\n` +
+            `Script Writer produced these .psc files: ${scriptNames.length > 0 ? scriptNames.join(', ') : 'see transcript'}\n\n` +
+            `YOUR TASK (Section 10/12 — ESP Records JSON): Write the COMPLETE xEdit-compatible JSON for this DLC.\n` +
+            `Include EVERY record designed in sections 1–8. Reference scripts by NAME ONLY in Scripts[].\n\n` +
+            `MINIMUM RECORD COUNTS:\n` +
+            `5+ QUST | 8+ NPC_ | 10+ DIAL | 4+ INFO per NPC | 10+ BOOK (holotapes) | 10+ BOOK (IsNote) | 5+ TERM | 10+ CELL\n` +
+            `3+ WEAP | 5+ ARMO | 10+ MISC | 5+ COBJ | 2+ FACT | 3+ GLOB | 1+ LCTN | 1+ ECZN\n\n` +
+            `Output ONE complete json block with ALL records.\n\n` +
             `End with: ## RECORDS COMPLETE`;
-        } else if (sectionIdx === 2) {
-          // xEdit Script Builder — produce create_esp.pas
-          const recordsJson = project.phaseOutputs.records || '(see transcript for record list)';
+        } else if (sectionIdx === 10) {
+          // xEdit Pascal Builder — auto-build script
+          const recordsJson = (project.phaseOutputs.records || '').slice(0, 3000);
           instruction =
             commonContext + failNote +
-            `YOUR TASK: Write a complete xEdit Pascal script that creates this mod's .esp file automatically.\n` +
-            `The Record Builder produced this JSON spec:\n=== RECORDS JSON ===\n${recordsJson.slice(0, 3000)}\n=== END JSON ===\n\n` +
-            `Create ONE pascal code block that creates EVERY record from the JSON above.\n` +
-            `The script must be 100+ lines of real xEdit Pascal — no skeletons, no stubs.\n` +
-            `Include all records: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL.\n` +
-            `Use the helpers: SetVal(), AddRec(), AddRequiredElementMasters().\n\n` +
+            `=== RECORDS JSON (first 3000 chars) ===\n${recordsJson}\n=== END JSON ===\n\n` +
+            `YOUR TASK (Section 11/12 — xEdit Builder Script): Write the COMPLETE Pascal script that builds this DLC's .esp in FO4Edit.\n\n` +
+            `The script must create EVERY record from the JSON above.\n` +
+            `Minimum 200+ lines of real xEdit Pascal — no skeletons, no stubs.\n` +
+            `Must create: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL, FACT, GLOB, LCTN, ECZN, WEAP, ARMO, MISC, COBJ.\n` +
+            `Use helpers: SetVal(), AddRec(), AddRequiredElementMasters().\n` +
+            `Add all DLC masters: Fallout4.esm and any DLC ESMs referenced.\n\n` +
             `End with: ## ESP BUILDER COMPLETE`;
+        } else if (sectionIdx === 11) {
+          // FOMOD Builder — installer XML + folder structure
+          const recordsCtx = (project.phaseOutputs.records || '').slice(0, 500);
+          instruction =
+            commonContext + failNote +
+            `=== RECORDS SUMMARY (plugin name, key files) ===\n${recordsCtx}\n=== END RECORDS ===\n\n` +
+            `YOUR TASK (Section 12/12 — FOMOD Installer): Create the COMPLETE FOMOD installer package.\n\n` +
+            `REQUIRED OUTPUT (all headings mandatory):\n` +
+            `## Info.xml — full fomod metadata XML\n` +
+            `## ModuleConfig.xml — complete FOMOD installer XML (valid for MO2 and Vortex)\n` +
+            `## Folder Structure — exact archive tree for Nexus upload\n` +
+            `## BA2 Packaging Plan — which files go in which BA2 archive\n` +
+            `## Nexus Description — full BBCode mod page description with overview, features, requirements, credits\n\n` +
+            `DO NOT include the Creative Director panel, Mossy desktop app, or any developer tooling in the package.\n` +
+            `Include NG/OG detection if the DLC has an F4SE DLL variant.\n\n` +
+            `End with: ## FOMOD COMPLETE`;
         } else {
-          instruction = commonContext + `Complete the remaining build tasks for this mod.`;
+          instruction = commonContext + `Complete the remaining build tasks for this DLC.`;
         }
       }
 
@@ -19085,38 +19620,142 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         let sectionChecks = '';
         if (sectionIdx === 0) {
           sectionChecks =
+            'SECTION-SPECIFIC CHECKS (World & Location Design):\n' +
+            '• ## Worldspace Decision heading present with clear new-WRLD vs cell-cluster decision\n' +
+            '• ## Cell Registry table has 10+ rows (EditorID, name, type, size, contents, connections)\n' +
+            '• ## Encounter Zone Design table with ECZN records (EditorID, cell, levels, reset)\n' +
+            '• ## Location Records (LCTN) table present\n' +
+            '• ## Key Area Descriptions section has prose for each named location\n' +
+            '• ## Vanilla Asset Catalog lists real NIF and LTEX paths\n' +
+            '• ```concept-art JSON block present with 4+ entries\n' +
+            '• Ends with: ## WORLD DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 10 cells | no ECZN records | no LCTN records | no concept-art block | no completion marker';
+        } else if (sectionIdx === 1) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Faction & Reputation System):\n' +
+            '• ## Faction Records table with 2+ FACT records (EditorID, name, type, alignment)\n' +
+            '• ## Faction Rank Tables has ranks for EVERY faction defined\n' +
+            '• ## Reputation Globals table with GLOB EditorIDs for each faction\n' +
+            '• ## Faction Relationships table present\n' +
+            '• ## Reputation Mechanics table with specific actions and rep changes\n' +
+            '• ## Dialogue Condition Examples has 5+ real Papyrus condition blocks\n' +
+            '• ```json FACT JSON block present and valid\n' +
+            '• Ends with: ## FACTION DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 2 factions | no GLOB records | no condition examples | no completion marker';
+        } else if (sectionIdx === 2) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Main Questline Design):\n' +
+            '• 5+ ## Quest: blocks each with EditorID (MI_Q##_xxx)\n' +
+            '• Every quest has a Stage Table with 5+ stages including stage 100 Complete\n' +
+            '• Quest Start Conditions listed for each quest\n' +
+            '• Choice Points described for each quest with consequences\n' +
+            '• Rewards specified (XP, items, faction changes)\n' +
+            '• ## Main Quest Flow Diagram present (text-based flowchart)\n' +
+            '• ## Ending Variants with 2+ distinct endings described\n' +
+            '• Ends with: ## MAIN QUESTLINE DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 5 quests | any quest missing stage table | no flow diagram | no ending variants | no completion marker';
+        } else if (sectionIdx === 3) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Side Quests & Radiant Content):\n' +
+            '• 3+ ## Side Quest: blocks each with EditorID (MI_SQ##_xxx)\n' +
+            '• Every side quest has a Stage Table and Start Conditions\n' +
+            '• Every side quest has a Unique Hook and Reward\n' +
+            '• 1+ ## Radiant: blocks with EditorID (MI_RD##_xxx)\n' +
+            '• Radiant threads have Type and Condition pool described\n' +
+            '• Ends with: ## SIDE QUESTS DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 3 side quests | no radiant thread | any quest missing stage table | no completion marker';
+        } else if (sectionIdx === 4) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (NPC Roster & AI Packages):\n' +
+            '• 8+ ## NPC: blocks each with EditorID (MI_xxx)\n' +
+            '• Every NPC has Actor Record Table, Faction Table, Inventory Table, AI Packages\n' +
+            '• All voice types match real CK voice type strings (MaleBoston, FemaleBoston, etc.)\n' +
+            '• ## NPC Relationship Map present\n' +
+            '• ## NPC JSON Block present and valid JSON\n' +
+            '• All FormIDs are "[GENERATE]"\n' +
+            '• Ends with: ## NPC ROSTER COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 8 NPCs | any NPC missing voice type or faction | no JSON block | no completion marker';
+        } else if (sectionIdx === 5) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Dialogue Trees):\n' +
+            '• ## NPC: block present for EVERY NPC from the NPC Roster\n' +
+            '• Every NPC has at minimum: Greeting topic, Farewell topic, 3+ quest-related topics\n' +
+            '• ResponseText ≤80 chars per INFO record\n' +
+            '• All conditions use real Papyrus functions (GetStage, GetGlobalValue, HasPerk, etc.)\n' +
+            '• No placeholder text — every response fully written\n' +
+            '• Major NPCs (3+) have branching trees with player-choice lines\n' +
+            '• Ends with: ## DIALOGUE TREES COMPLETE\n\n' +
+            'AUTO-FAIL: any NPC from roster missing | ResponseText >80 chars | placeholder text present | fewer than 3 topics per NPC | no completion marker';
+        } else if (sectionIdx === 6) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Lore & Environmental Storytelling):\n' +
+            '• 10+ ## Holotape: blocks with EditorID, Location, Speaker, full transcript text\n' +
+            '• 5+ ## Terminal: blocks with EditorID, Location, Welcome text, 3+ entries each\n' +
+            '• 10+ ## Note: blocks with EditorID, Location, Author, full text\n' +
+            '• All holotape transcripts include [RECORDING BEGINS] / [RECORDING ENDS] markers\n' +
+            '• Content is authentic Fallout voice — no anachronisms, no modern slang\n' +
+            '• Mossy Industries lore consistent — hints at Dr. Moss, never resolves fate\n' +
+            '• Ends with: ## LORE COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 10 holotapes | fewer than 5 terminals | fewer than 10 notes | any missing recording markers | Dr. Moss fate revealed | no completion marker';
+        } else if (sectionIdx === 7) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Items & Equipment):\n' +
+            '• ## Weapons table with 3+ WEAP records (EditorID, stats, keywords)\n' +
+            '• ## Armor table with 5+ ARMO records (EditorID, slot, DR/ER/RR, keywords)\n' +
+            '• ## Misc Items table with 10+ MISC records\n' +
+            '• ## Crafting Recipes with 5+ COBJ records referencing real vanilla components\n' +
+            '• ## Item JSON Block present and valid JSON\n' +
+            '• All FormIDs are "[GENERATE]"\n' +
+            '• All keywords are real FO4 KYWRD EditorIDs\n' +
+            '• Ends with: ## ITEMS COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 3 weapons | fewer than 5 armor | fewer than 10 misc | no recipes | invented keyword EditorIDs | no completion marker';
+        } else if (sectionIdx === 8) {
+          sectionChecks =
             'SECTION-SPECIFIC CHECKS (Papyrus Scripts):\n' +
             '• Every script has a "## Script: name.psc" header before its ```papyrus block\n' +
             '• Every script starts with "Scriptname X extends Y" on line 1\n' +
             '• Quest scripts extend Quest Conditional; fragment scripts extend Quest Hidden\n' +
             '• Minimum 20 lines of real logic per script — stubs FAIL\n' +
             '• No pseudocode, no "// TODO", no [WRITE] placeholders\n' +
+            '• At minimum: 2 scripts per main quest + 1 per side quest (10+ scripts total)\n' +
+            '• No switch/case, no foreach, no C# syntax — Papyrus ONLY\n' +
             '• Ends with: ## SCRIPTS COMPLETE\n\n' +
-            'AUTO-FAIL: missing ## Script: header | fewer than 2 scripts | any script under 10 lines | no ## SCRIPTS COMPLETE';
-        } else if (sectionIdx === 1) {
+            'AUTO-FAIL: fewer than 10 scripts | any script under 20 lines | any [WRITE] remaining | no ## SCRIPTS COMPLETE';
+        } else if (sectionIdx === 9) {
           sectionChecks =
-            'SECTION-SPECIFIC CHECKS (ESP Records JSON):\n' +
+            'SECTION-SPECIFIC CHECKS (ESP Records JSON — DLC scale):\n' +
             '• Exactly ONE valid json code block\n' +
             '• JSON has "Plugin" and "Records" keys at root\n' +
-            '• Minimum counts: 1 QUST, 1-2 NPC_, 3+ DIAL, 4+ INFO per NPC, 2 BOOK (1 holotape + 1 IsNote), 1 TERM, 1 CELL\n' +
+            '• Minimum counts: 5+ QUST | 8+ NPC_ | 10+ DIAL | 4+ INFO per NPC | 10+ BOOK holotape | 10+ BOOK IsNote | 5+ TERM | 10+ CELL | 3+ WEAP | 5+ ARMO | 10+ MISC | 5+ COBJ | 2+ FACT | 3+ GLOB\n' +
             '• Every new record FormID is exactly "[GENERATE]"\n' +
             '• Scripts[] entries have "Name" only — NO "Source" field\n' +
-            '• BOOK holotape has "Text" array with full content | BOOK IsNote has "Flags": ["IsNote"]\n' +
+            '• BOOK holotapes have "Text" array | BOOK IsNote has "Flags": ["IsNote"]\n' +
             '• INFO records have ResponseText ≤80 chars AND Conditions array\n' +
             '• JSON is valid — no trailing commas, no inline comments\n' +
             '• Ends with: ## RECORDS COMPLETE\n\n' +
-            'AUTO-FAIL: invalid JSON | missing minimum record counts | any "[WRITE]" remaining | Source in Scripts[]';
-        } else if (sectionIdx === 2) {
+            'AUTO-FAIL: invalid JSON | any minimum count not met | any "[WRITE]" remaining | Source in Scripts[] | no completion marker';
+        } else if (sectionIdx === 10) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (xEdit Pascal Script):\n' +
             '• Exactly ONE pascal code block\n' +
             '• Contains: function Initialize: Integer AND function Finalize: Integer\n' +
             '• Contains: AddNewFile, AddRequiredElementMasters, GroupBySignature\n' +
-            '• Creates ALL record types: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL\n' +
-            '• Script is 100+ lines — skeletons FAIL\n' +
-            '• Every EditorID from the JSON is referenced\n' +
+            '• Creates ALL record types: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL, FACT, GLOB, WEAP, ARMO, MISC\n' +
+            '• Script is 200+ lines — DLC-scale — skeletons FAIL\n' +
+            '• Every EditorID from the JSON is referenced in creation calls\n' +
             '• Ends with: ## ESP BUILDER COMPLETE\n\n' +
-            'AUTO-FAIL: missing Initialize or Finalize | script under 50 lines | missing record creation calls';
+            'AUTO-FAIL: missing Initialize or Finalize | script under 100 lines | missing FACT/GLOB/WEAP/ARMO records | no completion marker';
+        } else if (sectionIdx === 11) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (FOMOD Installer):\n' +
+            '• ## Info.xml heading with valid XML block (Name, Version, Author, Description, Groups)\n' +
+            '• ## ModuleConfig.xml heading with complete valid FOMOD XML (moduleName, installSteps, fileInstall)\n' +
+            '• ## Folder Structure with full archive tree including FOMOD/, Data/, Scripts/ etc.\n' +
+            '• ## BA2 Packaging Plan table listing files and their target BA2 archives\n' +
+            '• ## Nexus Description with full BBCode description (overview, features, requirements, credits)\n' +
+            '• ModuleConfig.xml must not include Creative Director panel, Mossy desktop app, or dev tooling\n' +
+            '• Ends with: ## FOMOD COMPLETE\n\n' +
+            'AUTO-FAIL: missing Info.xml or ModuleConfig.xml | invalid XML | CD panel included | no folder structure | no Nexus description | no completion marker';
         }
         instruction =
           `PROJECT: ${project.title}\n\n` +
@@ -19129,7 +19768,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       // These roles require real structured output — route through Groq (high quality)
       // so the small local Ollama model cannot produce stub/empty responses.
-      const specialistRoles = new Set(['script_writer', 'record_builder', 'esp_builder', 'analyst']);
+      const specialistRoles = new Set([
+        'script_writer', 'record_builder', 'esp_builder', 'analyst',
+        'world_designer', 'faction_designer', 'dialogue_writer', 'lore_writer', 'item_designer', 'fomod_builder',
+      ]);
       const message = specialistRoles.has(role)
         ? await cdCallAgentHighQuality(persona.systemPrompt, instruction)
         : await cdCallAgent(persona.systemPrompt, instruction);
@@ -19193,8 +19835,14 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       else if (project.phase === 'building') {
         // Specialist wrote their section — save output and send to verifier
-        if (role === ('script_writer' as CdAgentRole)) project.phaseOutputs.scripts = message;
-        else if (role === ('record_builder' as CdAgentRole)) project.phaseOutputs.records = message;
+        // Save section output keyed by section index so later sections can reference earlier work
+        const sectionOutputKeys: (keyof typeof project.phaseOutputs)[] = [
+          'worldDesign', 'factionDesign', 'mainQuestline', 'sideQuests',
+          'npcRoster', 'dialogueTrees', 'loreContent', 'itemDesign',
+          'scripts', 'records', 'espBuilder', 'fomod',
+        ];
+        const outKey = sectionOutputKeys[project.buildSectionIdx];
+        if (outKey) project.phaseOutputs[outKey] = message;
         project.phase = 'verifying';
       }
 
