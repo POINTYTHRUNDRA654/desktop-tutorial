@@ -19089,7 +19089,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           message: `Compile check failed against PapyrusCompiler.exe:\n\n${compilationResults.join('\n')}\n\nScript Writer — fix all compile errors and resubmit.`,
           timestamp: Date.now(),
         });
-        project.buildSectionIdx = 0; // restart from script writing
+        project.buildSectionIdx = 8; // restart from Papyrus Scripts section (section 8 in DLC pipeline)
         project.phase = 'building';
         saveCdTeamState();
         return false;
@@ -19391,10 +19391,53 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       else if (project.phase === 'building') {
         const sectionIdx = project.buildSectionIdx;
-        const verifyFails = project.turns.filter(
+
+        // ── Count failures and surface verifier feedback to the builder ─────
+        // Find the most recent verifier FAILED turn
+        const lastVerifierFail = [...project.turns].reverse().find(
+          t => t.agent === 'verifier' && /Verification:\s*FAILED/i.test(t.message)
+        );
+        // Count failures since the last PASSED (= retries on the current section)
+        const lastPassedIdx = project.turns.reduceRight(
+          (found, t, i) => found === -1 && t.agent === 'verifier' && /Verification:\s*PASSED/i.test(t.message) ? i : found, -1
+        );
+        const sectionFailCount = project.turns.slice(lastPassedIdx + 1).filter(
           t => t.agent === 'verifier' && /Verification:\s*FAILED/i.test(t.message)
         ).length;
-        const failNote = verifyFails > 0 ? `PREVIOUS ATTEMPT FAILED VERIFICATION — fix every issue listed before resubmitting.\n\n` : '';
+
+        // Force-advance after 5 failures on the same section to avoid infinite loops
+        if (sectionFailCount >= 5) {
+          project.turns.push({
+            agent: 'director',
+            message: `[Section ${sectionIdx + 1} skipped after 5 failed attempts — moving to next section. Review manually.]`,
+            timestamp: Date.now(),
+          });
+          project.buildSectionIdx++;
+          if (project.buildSectionIdx < CD_BUILD_SECTIONS.length) {
+            project.phase = 'building';
+            saveCdTeamState();
+            return;
+          }
+        }
+
+        // Build the failure note with ACTUAL verifier output so the builder can learn
+        let failNote = '';
+        if (lastVerifierFail && sectionFailCount > 0) {
+          const issuesM = lastVerifierFail.message.match(/##\s*Issues Found\s*([\s\S]*?)(?=##|$)/i);
+          const correctM = lastVerifierFail.message.match(/##\s*Required Corrections\s*([\s\S]*?)(?=##|$)/i);
+          const issues = issuesM?.[1]?.trim().slice(0, 800) || lastVerifierFail.message.slice(0, 800);
+          const corrections = correctM?.[1]?.trim().slice(0, 600) || '';
+          const simplifyWarning = sectionFailCount >= 3
+            ? `\n⚠️ ${sectionFailCount} FAILURES IN A ROW. Simplify. Focus ONLY on the required structure. ` +
+              `Cut any extras. Make sure you hit every AUTO-FAIL check before submitting.\n`
+            : '';
+          failNote =
+            `⚠️ YOUR PREVIOUS OUTPUT WAS REJECTED BY THE VERIFIER (failure #${sectionFailCount} for this section).\n\n` +
+            `EXACT ISSUES FOUND BY VERIFIER:\n${issues}\n\n` +
+            (corrections ? `REQUIRED CORRECTIONS:\n${corrections}\n\n` : '') +
+            `You MUST fix ALL of these. Do not resubmit the same output.${simplifyWarning}\n\n`;
+        }
+
         const commonContext =
           `${MOSSY_INDUSTRIES_LORE}\n\n` +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
