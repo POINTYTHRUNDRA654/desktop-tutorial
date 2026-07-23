@@ -749,7 +749,64 @@ def ask_mossy_fo4(
     except Exception:
         pass
 
+    # Inject real, in-game-working reference examples from the user's
+    # configured FO4 Reference Mesh Library (see fo4_reference_library.py) so
+    # Mossy's guidance is grounded in actual game conventions instead of
+    # guessing -- e.g. asking about armor pulls in how a real CombatArmor NIF
+    # is structured (shape type, partitions, shader).
+    try:
+        category = _infer_reference_category(mesh_obj)
+        if category:
+            from . import fo4_reference_library as _frl
+            from . import preferences as _prefs_mod
+            prefs = _prefs_mod.get_preferences()
+            mesh_root = getattr(prefs, "fo4_reference_meshes_path", "") if prefs else ""
+            examples = _frl.get_reference_examples(category, root=mesh_root or None, kind="mesh")
+            if examples:
+                context["reference_mesh_examples"] = examples
+
+            tex_root = _frl.derive_sibling_root(mesh_root, "Textures") if mesh_root else None
+            tex_examples = _frl.get_reference_examples(category, root=tex_root, kind="texture")
+            if tex_examples:
+                context["reference_texture_examples"] = tex_examples
+
+            mat_root = _frl.derive_sibling_root(mesh_root, "Materials") if mesh_root else None
+            mat_examples = _frl.get_reference_examples(category, root=mat_root, kind="material")
+            if mat_examples:
+                context["reference_material_examples"] = mat_examples
+    except Exception:
+        pass
+
     return ask_mossy(query, context_data=context, timeout=timeout, fo4_context=True)
+
+
+def _infer_reference_category(mesh_obj) -> "str | None":
+    """Best-effort category guess for reference-library lookups.
+
+    Prefers the object's own imported source path (``fo4_source_nif``, set on
+    import -- see operators.py) since that directly tells us which top-level
+    Meshes/<Category>/ folder it came from, matching how the reference index
+    itself is categorized. Falls back to loose hints from FO4 custom props
+    for freshly-authored objects with no source NIF.
+    """
+    if mesh_obj is None:
+        return None
+    src = mesh_obj.get("fo4_source_nif")
+    if src:
+        try:
+            parts = str(src).replace("\\", "/").split("/")
+            low = [p.lower() for p in parts]
+            if "meshes" in low:
+                idx = low.index("meshes")
+                if idx + 1 < len(parts):
+                    return parts[idx + 1]
+        except Exception:
+            pass
+    if mesh_obj.get("fo4_body_slot") or mesh_obj.get("fo4_armor_body_slot"):
+        return "Armor"
+    if str(mesh_obj.get("fo4_object_type", "")).upper() == "VEGETATION":
+        return "Landscape"
+    return None
 
 
 def quick_connect() -> dict:

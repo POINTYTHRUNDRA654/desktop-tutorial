@@ -3616,6 +3616,17 @@ _FO4_SBP_SLOTS = [
 ]
 _SBP_ENUM = [(k, lbl, lbl) for k, lbl in _FO4_SBP_SLOTS]
 
+# The vertex-group name pyNIF actually recognizes for FO4 dismemberment
+# partitions. FO4's segment system (unlike Skyrim's "SBP_<n>_<name>" body-part
+# numbering) uses flat, generically-numbered segments -- "FO4 Seg 000",
+# "FO4 Seg 001", etc. (regex FO4Segment.fo4segmatch1 in pyNifly). A single
+# segment covering the whole shape is enough to make pyNIF emit a
+# BSSubIndexTriShape with a real FO4Segment partition, which is what solid
+# armor pieces need (confirmed against real CombatArmor/body NIFs -- true
+# per-limb dismemberment cuts are a separate, hierarchical FO4Subsegment
+# structure only seen on creature/NPC body meshes, not armor overlays).
+_FO4_SEGMENT_GROUP_NAME = "FO4 Seg 000"
+
 
 
 
@@ -3834,8 +3845,16 @@ class FO4_OT_GenerateLODs(bpy.types.Operator):
         def apply_decimate(target, ratio):
             context.view_layer.objects.active = target
             target.select_set(True)
+            # Remove shape keys first — they block modifier_apply
+            if target.data.shape_keys:
+                try:
+                    bpy.ops.object.shape_key_remove(all=True)
+                except Exception:
+                    pass
             mod = target.modifiers.new("Decimate", 'DECIMATE')
             mod.ratio = ratio
+            # Collapse within UV islands only — preserves leaf panels / UV seams
+            mod.delimit = {'UV', 'SEAM'}
             bpy.ops.object.modifier_apply(modifier=mod.name)
             target.select_set(False)
 
@@ -3945,9 +3964,13 @@ class FO4_OT_AddPhysicsBones(bpy.types.Operator):
 
 
 class FO4_OT_AddDismemberPartition(bpy.types.Operator):
-    """Add an FO4 BSDismember partition vertex group to the active mesh.
-    Creates the group (if missing) and assigns all selected vertices to it.
-    pyNIF converts this to BSDismemberSkinInstance on export."""
+    """Add an FO4 dismemberment/body-slot partition to the active mesh.
+    Creates a pyNIF-recognized 'FO4 Seg 000' vertex group (if missing) and
+    assigns all selected vertices to it -- pyNIF converts this to a
+    BSSubIndexTriShape with a real FO4Segment partition on export. The chosen
+    Slot is stored on the object as documentation of which CK ArmorAddon
+    biped slot this piece belongs to; it is not itself part of the NIF
+    partition name (FO4's segment naming carries no body-slot number)."""
     bl_idname  = "fo4.add_dismember_partition"
     bl_label   = "Add FO4 Partition Slot"
     bl_options = {'REGISTER', 'UNDO'}
@@ -3965,7 +3988,8 @@ class FO4_OT_AddDismemberPartition(bpy.types.Operator):
             return {'CANCELLED'}
 
         # Create group if absent
-        vg = obj.vertex_groups.get(self.slot) or obj.vertex_groups.new(name=self.slot)
+        vg = (obj.vertex_groups.get(_FO4_SEGMENT_GROUP_NAME)
+              or obj.vertex_groups.new(name=_FO4_SEGMENT_GROUP_NAME))
 
         # In edit mode assign selected; in object mode assign all
         if context.mode == 'EDIT_MESH':
@@ -3976,8 +4000,9 @@ class FO4_OT_AddDismemberPartition(bpy.types.Operator):
             sel = [v.index for v in obj.data.vertices]
 
         vg.add(sel, 1.0, 'ADD')
-        self.report({'INFO'}, f"Partition {self.slot} assigned to {len(sel)} vertices")
-        print(f"[FO4] Dismember partition {self.slot} → {len(sel)} verts")
+        obj["fo4_body_slot"] = self.slot
+        self.report({'INFO'}, f"Partition ({self.slot}) assigned to {len(sel)} vertices")
+        print(f"[FO4] Dismember partition '{_FO4_SEGMENT_GROUP_NAME}' ({self.slot}) -> {len(sel)} verts")
         return {'FINISHED'}
 
 
@@ -4120,7 +4145,20 @@ class FO4_OT_CreateFO4MaterialNodes(bpy.types.Operator):
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
-        # Create or reuse material
+        # This operator used to unconditionally replace material slot 0 with
+        # a brand-new, empty-image template -- silently destroying whatever
+        # material/textures were already there (e.g. from Install Texture).
+        # Only ever build a material here when the object genuinely has none;
+        # never delete or replace an existing one.
+        if any(slot for slot in obj.data.materials):
+            self.report(
+                {'INFO'},
+                f"'{obj.name}' already has a material — leaving it untouched. "
+                "Remove it first if you want a fresh FO4 node group."
+            )
+            return {'FINISHED'}
+
+        # Create material (object has none yet)
         mat_name = f"FO4_{obj.name}"
         mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
         mat.use_nodes = True
@@ -4211,11 +4249,8 @@ class FO4_OT_CreateFO4MaterialNodes(bpy.types.Operator):
         # BSDF → Output
         links.new(bsdf.outputs["BSDF"],    out.inputs["Surface"])
 
-        # Assign to object
-        if obj.data.materials:
-            obj.data.materials[0] = mat
-        else:
-            obj.data.materials.append(mat)
+        # Assign to object (guaranteed empty -- we returned above otherwise)
+        obj.data.materials.append(mat)
 
         self.report({'INFO'}, f"FO4 node group created: {mat_name} — assign your DDS textures")
         print(f"[FO4] Material node group created: {mat_name}")
@@ -4225,7 +4260,7 @@ class FO4_OT_CreateFO4MaterialNodes(bpy.types.Operator):
 
 class FO4_OT_GenerateBGSMFile(bpy.types.Operator):
     """Generate a FO4 .bgsm material file from a bundled template.
-    Opens a file dialog — save to your mod's Materials\ folder.
+    Opens a file dialog — save to your mod's Materials\\ folder.
     Fill in DDS texture paths in NifSkope or Material Editor afterward."""
     bl_idname  = "fo4.generate_bgsm_file"
     bl_label   = "Generate BGSM File"

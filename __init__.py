@@ -198,6 +198,12 @@ addon_updater = _try_import("addon_updater")
 # Post-edit learning: watches what you change on a generated mesh and adapts
 fo4_mesh_evolution = _try_import("fo4_mesh_evolution")
 
+# BGSM/MO2-aware texture resolver for imported FO4 assets
+fo4_texture_resolver = _try_import("fo4_texture_resolver")
+
+# Reference mesh library (ground-truth FO4 mesh structure index for Mossy)
+fo4_reference_library = _try_import("fo4_reference_library")
+
 # Shape key → .tri morph export and navmesh validation
 tri_export_helpers = _try_import("tri_export_helpers")
 navmesh_helpers = _try_import("navmesh_helpers")
@@ -333,6 +339,8 @@ _PHASE2_MODULES = list(filter(_filter, [
     image_to_mesh_helpers,
     ai_gen_operators,
     fo4_mesh_evolution,
+    fo4_texture_resolver,
+    fo4_reference_library,
     post_processing_helpers,
     content_panels,
     fo4_scene_diagnostics,

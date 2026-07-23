@@ -69,26 +69,35 @@ def _apply_cross_card(context, obj, card_count: int):
     angle_step = math.pi / card_count   # e.g. 90 deg for 2 cards, 60 deg for 3
     copies = []
 
-    for i in range(1, card_count):
-        # Duplicate preserving original selection state
+    try:
+        for i in range(1, card_count):
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            bpy.ops.object.duplicate(linked=False)
+            copy = context.active_object
+
+            copy.rotation_euler.rotate_axis('Z', angle_step * i)
+            bpy.ops.object.transform_apply(rotation=True, scale=False, location=False)
+            copies.append(copy)
+
+        # Join copies back into the original
         bpy.ops.object.select_all(action='DESELECT')
+        for c in copies:
+            c.select_set(True)
         obj.select_set(True)
         context.view_layer.objects.active = obj
-        bpy.ops.object.duplicate(linked=False)
-        copy = context.active_object
+        bpy.ops.object.join()
+        copies.clear()  # consumed by join; clear so finally block skips cleanup
 
-        # Rotate around the *local* Z axis of the copy (= face normal)
-        copy.rotation_euler.rotate_axis('Z', angle_step * i)
-        bpy.ops.object.transform_apply(rotation=True, scale=False, location=False)
-        copies.append(copy)
-
-    # Join copies back into the original
-    bpy.ops.object.select_all(action='DESELECT')
-    for c in copies:
-        c.select_set(True)
-    obj.select_set(True)
-    context.view_layer.objects.active = obj
-    bpy.ops.object.join()
+    except Exception:
+        # If the join failed, delete any stray copies so they don't pollute the scene.
+        for c in copies:
+            try:
+                bpy.data.objects.remove(c, do_unlink=True)
+            except Exception:
+                pass
+        raise
 
     # Merge overlapping vertices at the centre seam
     bpy.ops.object.mode_set(mode='EDIT')
@@ -507,23 +516,80 @@ existing UV layout to each rotated duplicate."""
         live_names = {p.name for p in all_parts}
         live_parts = [o for o in bpy.data.objects if o.name in live_names and o.type == 'MESH']
 
+        # Make sure every part is visible and in the active layer; join() silently
+        # cancels if any selected object is hidden or in an excluded collection.
+        for part in live_parts:
+            try:
+                part.hide_set(False)
+                part.hide_viewport = False
+            except Exception:
+                pass
+
         bpy.ops.object.select_all(action='DESELECT')
         for part in live_parts:
-            part.select_set(True)
+            try:
+                part.select_set(True)
+            except Exception:
+                pass
 
         # Prefer source_obj as join target so name / custom props are kept.
-        target = source_obj if source_obj.name in {p.name for p in live_parts} else live_parts[0]
+        live_part_names = {p.name for p in live_parts}
+        target = source_obj if source_obj.name in live_part_names else live_parts[0]
         context.view_layer.objects.active = target
-        bpy.ops.object.join()
 
-        result = context.active_object
-        result.name = orig_name
+        join_ok = False
+        try:
+            result = bpy.ops.object.join()
+            join_ok = (isinstance(result, set) and 'CANCELLED' not in result)
+        except Exception as exc:
+            print(f"[VegThicken] join() raised: {exc}")
+
+        if not join_ok:
+            # Fallback: merge geometry directly with bmesh so nothing is lost.
+            print("[VegThicken] operator join failed — falling back to bmesh merge")
+            try:
+                import bmesh as _bm
+                target_mesh = target.data
+                bm_target = _bm.new()
+                bm_target.from_mesh(target_mesh)
+                for part in live_parts:
+                    if part is target:
+                        continue
+                    bm_part = _bm.new()
+                    bm_part.from_mesh(part.data)
+                    # Transform into target's local space before merging.
+                    mat = target.matrix_world.inverted() @ part.matrix_world
+                    _bm.ops.transform(bm_part, matrix=mat, verts=bm_part.verts)
+                    # Append geometry into bm_target.
+                    src_verts = [bm_target.verts.new(v.co) for v in bm_part.verts]
+                    for face in bm_part.faces:
+                        try:
+                            bm_target.faces.new([src_verts[v.index] for v in face.verts])
+                        except Exception:
+                            pass
+                    bm_part.free()
+                    bpy.data.objects.remove(part, do_unlink=True)
+                bm_target.to_mesh(target_mesh)
+                bm_target.free()
+                target_mesh.update()
+                join_ok = True
+            except Exception as exc2:
+                print(f"[VegThicken] bmesh fallback also failed: {exc2}")
+
+        result_obj = context.active_object if join_ok else target
+        try:
+            result_obj.name = orig_name
+        except Exception:
+            pass
 
         msg = (
             f"Thickened {ok_count} leaf-card island(s); "
             f"{len(solid_parts)} 3-D part(s) left untouched"
         )
-        if fail_count:
+        if not join_ok:
+            msg += " — WARNING: rejoin failed, parts left separate (see console)"
+            self.report({'WARNING'}, msg)
+        elif fail_count:
             msg += f" — {fail_count} island(s) failed (see console)"
             self.report({'WARNING'}, msg)
         else:

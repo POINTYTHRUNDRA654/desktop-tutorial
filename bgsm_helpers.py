@@ -33,14 +33,16 @@ Common header (shared by BGSM and BGEM):
        0     4  char[4] magic ("BGSM" or "BGEM")
        4     4  uint32  version (2 for FO4)
        8     4  uint32  tileFlags  bit0=TileU, bit1=TileV
-      12     4  float   tileU  (U scale factor, 1.0 = no tile)
-      16     4  float   tileV  (V scale factor, 1.0 = no tile)
-      20     4  float   offsetU
-      24     4  float   offsetV
-      28     4  float   alpha
-      32     1  uint8   alphaBlendMode (0=None 1=Std 2=Add 3=Mul 4=Sub)
-      33     4  uint32  alphaTestRef (0–255)
-      37     1  bool    alphaTest
+      12     1  bool    bTileU
+      13     1  bool    bTileV
+      14     4  float   offsetU
+      18     4  float   offsetV
+      22     4  float   scaleU  (U tiling scale, 1.0 = no tile)
+      26     4  float   scaleV  (V tiling scale, 1.0 = no tile)
+      30     4  float   alpha
+      34     1  uint8   alphaBlendMode (0=None 1=Std 2=Add 3=Mul 4=Sub)
+      35     1  uint8   alphaTestRef (0–255)
+      36     1  bool    alphaTest
       38     1  bool    zBufferWrite
       39     1  bool    zBufferTest
       40     1  bool    screenSpaceReflections
@@ -244,12 +246,19 @@ def _read_nistring(buf: bytes, offset: int) -> tuple[str, int]:
     Returns (string_value, new_offset_after_string).
     """
     if offset + 4 > len(buf):
-        return "", offset + 4
+        raise ValueError(
+            f"BGSM parse error: expected NiString length at offset {offset} "
+            f"but buffer is only {len(buf)} bytes"
+        )
     length = struct.unpack_from("<I", buf, offset)[0]
+    if length > len(buf):
+        raise ValueError(
+            f"BGSM parse error: NiString at offset {offset} claims length "
+            f"{length} but buffer is only {len(buf)} bytes — file may be "
+            f"corrupt or written in an incompatible format"
+        )
     offset += 4
     end = offset + length
-    if end > len(buf):
-        return "", end
     text = buf[offset:end].decode("ascii", errors="replace")
     return text, end
 
@@ -272,6 +281,8 @@ class _CommonData:
     tile_v: bool = True
     offset_u: float = 0.0
     offset_v: float = 0.0
+    scale_u: float = 1.0
+    scale_v: float = 1.0
     # Alpha
     alpha: float = 1.0
     alpha_blend_mode: int = ALPHA_BLEND_NONE
@@ -391,21 +402,22 @@ def _pack_common(data: _CommonData) -> bytes:
 
     tile_flags = (_TILE_U if data.tile_u else 0) | (_TILE_V if data.tile_v else 0)
 
-    # tileFlags, tileU (scale), tileV (scale), offsetU, offsetV, alpha
-    tile_u_val = 1.0 if data.tile_u else 0.0
-    tile_v_val = 1.0 if data.tile_v else 0.0
+    # tileFlags (uint32), bTileU (bool 1B), bTileV (bool 1B),
+    # fOffsetU, fOffsetV, fScaleU, fScaleV, fAlpha (5 floats)
+    buf += struct.pack("<I", tile_flags)
+    buf += struct.pack("<BB", int(data.tile_u), int(data.tile_v))
     buf += struct.pack(
-        "<Ifffff",
-        tile_flags,
-        tile_u_val,
-        tile_v_val,
+        "<fffff",
         data.offset_u,
         data.offset_v,
+        getattr(data, 'scale_u', 1.0),
+        getattr(data, 'scale_v', 1.0),
         data.alpha,
     )
 
-    # alphaBlendMode (uint8), alphaTestRef (uint32), alphaTest (bool)
-    buf += struct.pack("<BIB", data.alpha_blend_mode, data.alpha_test_ref, int(data.alpha_test))
+    # alphaBlendMode (uint8), alphaTestRef (uint8), alphaTest (uint8)
+    # Real FO4 BGSM format stores all three as single bytes.
+    buf += struct.pack("<BBB", data.alpha_blend_mode, data.alpha_test_ref & 0xFF, int(data.alpha_test))
 
     # z-buffer and misc bool flags (each 1 byte)
     flags = [
@@ -509,18 +521,29 @@ def _unpack_common(buf: bytes, offset: int) -> tuple[_CommonData, int]:
     """Deserialise the common header fields from *buf* starting at *offset*."""
     data = _CommonData()
 
-    # tileFlags, tileU, tileV, offsetU, offsetV, alpha
-    (tile_flags, tile_u_val, tile_v_val,
-     data.offset_u, data.offset_v, data.alpha) = struct.unpack_from("<Ifffff", buf, offset)
-    offset += 24
+    # tileFlags (uint32), bTileU (bool 1B), bTileV (bool 1B),
+    # fOffsetU, fOffsetV, fScaleU, fScaleV, fAlpha (5 floats)
+    tile_flags = struct.unpack_from("<I", buf, offset)[0]
+    offset += 4
+    tile_u_byte, tile_v_byte = struct.unpack_from("<BB", buf, offset)
+    offset += 2
+    (data.offset_u, data.offset_v,
+     data.scale_u, data.scale_v, data.alpha) = struct.unpack_from("<fffff", buf, offset)
+    offset += 20
 
-    data.tile_u = bool(tile_flags & _TILE_U)
-    data.tile_v = bool(tile_flags & _TILE_V)
+    data.tile_u = bool(tile_u_byte)
+    data.tile_v = bool(tile_v_byte)
+    # tileFlags bits are authoritative for the tile-enable state
+    if tile_flags & _TILE_U:
+        data.tile_u = True
+    if tile_flags & _TILE_V:
+        data.tile_v = True
 
-    # alphaBlendMode, alphaTestRef, alphaTest
-    data.alpha_blend_mode, data.alpha_test_ref, alpha_test = struct.unpack_from("<BIB", buf, offset)
+    # alphaBlendMode (uint8), alphaTestRef (uint8), alphaTest (uint8)
+    # Real FO4 BGSM format stores all three as single bytes.
+    data.alpha_blend_mode, data.alpha_test_ref, alpha_test = struct.unpack_from("<BBB", buf, offset)
     data.alpha_test = bool(alpha_test)
-    offset += 6
+    offset += 3
 
     # z-buffer and misc bool flags
     def _rb(n: int) -> tuple:
@@ -680,23 +703,32 @@ def read_bgsm(raw: bytes) -> BGSMData:
     if version != _FO4_VERSION:
         raise ValueError(f"Unsupported BGSM version {version} (expected {_FO4_VERSION})")
 
-    common, offset = _unpack_common(raw, 8)
-    data = BGSMData(**{k: v for k, v in common.__dict__.items()})
+    try:
+        common, offset = _unpack_common(raw, 8)
+        data = BGSMData(**{k: v for k, v in common.__dict__.items()})
 
-    # Texture strings
-    data.diffuse_texture, offset = _read_nistring(raw, offset)
-    data.normal_texture, offset = _read_nistring(raw, offset)
-    data.smooth_spec_texture, offset = _read_nistring(raw, offset)
-    data.greyscale_texture, offset = _read_nistring(raw, offset)
-    data.glow_texture, offset = _read_nistring(raw, offset)
-    data.inner_layer_texture, offset = _read_nistring(raw, offset)
-    data.wrinkle_mask_texture, offset = _read_nistring(raw, offset)
-    data.displacement_texture, offset = _read_nistring(raw, offset)
+        # Texture strings
+        data.diffuse_texture, offset = _read_nistring(raw, offset)
+        data.normal_texture, offset = _read_nistring(raw, offset)
+        data.smooth_spec_texture, offset = _read_nistring(raw, offset)
+        data.greyscale_texture, offset = _read_nistring(raw, offset)
+        data.glow_texture, offset = _read_nistring(raw, offset)
+        data.inner_layer_texture, offset = _read_nistring(raw, offset)
+        data.wrinkle_mask_texture, offset = _read_nistring(raw, offset)
+        data.displacement_texture, offset = _read_nistring(raw, offset)
 
-    if offset + 8 <= len(raw):
-        data.shader_flags1, data.shader_flags2 = struct.unpack_from("<II", raw, offset)
+        if offset + 8 <= len(raw):
+            data.shader_flags1, data.shader_flags2 = struct.unpack_from("<II", raw, offset)
 
-    return data
+        return data
+    except Exception:
+        # Strict layout parse failed (compact / non-vanilla BGSM variant).  Fall
+        # back to scraping the embedded texture paths so NO caller ever crashes,
+        # even one that calls read_bgsm() directly without its own guard.
+        scraped = _bgsm_scrape_textures(raw)
+        if scraped is not None:
+            return scraped
+        raise
 
 
 def write_bgem(data: BGEMData) -> bytes:
@@ -799,29 +831,109 @@ def read_bgem(raw: bytes) -> BGEMData:
 # Blender material ↔ BGSM conversion
 # ---------------------------------------------------------------------------
 
-def _get_image_node_path(mat, node_name: str) -> str:
-    """Return the filepath of the image node named *node_name* in *mat*.
-
-    The path is normalised to use backslashes and is relative to ``Data/``
-    (the FO4 convention), e.g. ``textures\\clutter\\desk\\desk01_d.dds``.
-    If the node does not exist or has no image, returns an empty string.
-    """
-    if mat is None or not mat.use_nodes:
-        return ""
-    node = mat.node_tree.nodes.get(node_name)
-    if node is None or node.type != 'TEX_IMAGE' or node.image is None:
-        return ""
-    raw = node.image.filepath or node.image.name
-    # Normalise to Data/-relative backslash path
+def _normalize_tex_path(raw: str) -> str:
+    """Normalise a texture path to Data/-relative backslash form."""
     raw = raw.replace("/", "\\")
-    # Strip leading separators and absolute path components up to "Data"
     lower = raw.lower()
     data_idx = lower.find("\\data\\")
     if data_idx >= 0:
-        raw = raw[data_idx + 6:]  # strip everything up to and including \Data\
+        raw = raw[data_idx + 6:]
     elif raw.startswith("\\"):
         raw = raw.lstrip("\\")
     return raw
+
+
+def _get_image_node_path(mat, node_name: str) -> str:
+    """Return the filepath of the image node for *node_name* in *mat*.
+
+    Resolution order (first match wins):
+    1. Exact node name match (nodes created by bgsm_to_blender_mat/import).
+    2. fo4_tex_slot custom property on any TEX_IMAGE node.
+    3. Node label substring match ('FO4 Diffuse', 'FO4 Normal', …).
+    4. Filename-suffix heuristic (_d/_n/_s/_g.dds).
+    5. BSDF socket tracing — which image feeds Base Color / Normal / etc.
+
+    Path is normalised to Data/-relative backslash form.
+    """
+    if mat is None or not mat.use_nodes:
+        return ""
+    nodes = mat.node_tree.nodes
+
+    # Pass 1 — exact name (created by our BGSM importer)
+    node = nodes.get(node_name)
+    if node is not None and node.type == 'TEX_IMAGE':
+        if node.image is not None:
+            return _normalize_tex_path(node.image.filepath or node.image.name)
+        stored = node.get("fo4_tex_path", "")
+        if stored:
+            return stored  # Already normalised when stored
+
+    # Pass 2 — fo4_tex_slot custom property (any node)
+    for n in nodes:
+        if n.type == 'TEX_IMAGE' and n.get("fo4_tex_slot") == node_name:
+            if n.image is not None:
+                return _normalize_tex_path(n.image.filepath or n.image.name)
+            stored = n.get("fo4_tex_path", "")
+            if stored:
+                return stored
+
+    # Pass 3 — node label contains the slot name (fo4_texture_resolver uses
+    # labels like 'FO4 Diffuse', 'FO4 Normal', ...)
+    low_name = node_name.lower()
+    for n in nodes:
+        if n.type == 'TEX_IMAGE' and (n.label or "").lower().find(low_name) >= 0:
+            if n.image is not None:
+                return _normalize_tex_path(n.image.filepath or n.image.name)
+            stored = n.get("fo4_tex_path", "")
+            if stored:
+                return stored
+
+    # Pass 4 — filename-suffix heuristic (NIF-imported / manually built)
+    _suffix_hints = {
+        "Diffuse":  ("_d.dds",),
+        "Normal":   ("_n.dds",),
+        "Specular": ("_s.dds", "_smoothspec.dds"),
+        "Glow":     ("_g.dds",),
+        "EnvMap":   ("_e.dds", "_em.dds"),
+    }
+    suffixes = _suffix_hints.get(node_name, ())
+    if suffixes:
+        for n in nodes:
+            if n.type == 'TEX_IMAGE' and n.image is not None:
+                raw = n.image.filepath or n.image.name
+                if any(raw.lower().endswith(s) for s in suffixes):
+                    return _normalize_tex_path(raw)
+
+    # Pass 5 — BSDF socket tracing: find which TEX_IMAGE feeds the socket
+    # that corresponds to this slot type.
+    _socket_hints = {
+        "Diffuse":  ("Base Color", "Color"),
+        "Normal":   ("Normal",),
+        "Specular": ("Specular IOR Level", "Specular"),
+        "Glow":     ("Emission Color", "Emission"),
+    }
+    sockets = _socket_hints.get(node_name)
+    if sockets and mat.use_nodes:
+        bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if bsdf:
+            for sock_name in sockets:
+                sock = bsdf.inputs.get(sock_name)
+                if sock is None or not sock.links:
+                    continue
+                src = sock.links[0].from_node
+                # Direct image → BSDF
+                if src.type == 'TEX_IMAGE' and src.image is not None:
+                    return _normalize_tex_path(src.image.filepath or src.image.name)
+                # Image → NormalMap → BSDF (normal slot)
+                for inp in src.inputs:
+                    if inp.links:
+                        grandparent = inp.links[0].from_node
+                        if grandparent.type == 'TEX_IMAGE' and grandparent.image is not None:
+                            return _normalize_tex_path(
+                                grandparent.image.filepath or grandparent.image.name
+                            )
+
+    return ""
 
 
 def blender_mat_to_bgsm(mat) -> BGSMData:
@@ -831,11 +943,33 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
     "Normal", "Specular", "Glow", and "EnvMap".  Falls back gracefully
     when nodes are absent.
 
+    If the material carries a ``fo4_bgsm_path`` custom property (stashed by
+    ``fo4_texture_resolver``/``import_bgsm_for_object`` when the material was
+    resolved from an existing FO4 asset) and that file still exists, its
+    fields are used as the starting point instead of a blank BGSMData — so
+    fields Blender has no editable representation for (wetness, subsurface,
+    exact flag combinations, etc.) survive export unchanged.  Only fields
+    Blender actually has live data for are overwritten below.
+
     Returns a :class:`BGSMData` ready to be written with :func:`write_bgsm`.
     """
     data = BGSMData()
     if mat is None:
         return data
+
+    orig_path = mat.get("fo4_bgsm_path") if hasattr(mat, "get") else None
+    if orig_path and os.path.isfile(orig_path):
+        try:
+            with open(orig_path, "rb") as fh:
+                _orig_raw = fh.read()
+            try:
+                data = read_bgsm(_orig_raw)
+            except Exception:
+                _scraped = _bgsm_scrape_textures(_orig_raw)
+                if _scraped is not None:
+                    data = _scraped
+        except OSError:
+            pass
 
     data.diffuse_texture = _get_image_node_path(mat, "Diffuse")
     data.normal_texture = _get_image_node_path(mat, "Normal")
@@ -1032,20 +1166,23 @@ def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
         pbsdf = nodes.new('ShaderNodeBsdfPrincipled')
         pbsdf.location = (0, 300)
 
-    # Roughness from Glossiness
-    roughness = max(0.0, min(1.0, 1.0 - (data.smoothness / 255.0)))
-    if pbsdf.inputs.get("Roughness"):
+    # Roughness from Glossiness — clamp to 0.3 minimum so nothing looks like chrome
+    # in the Blender viewport. FO4 smoothness is stored as 0-255 float.
+    raw_rough = 1.0 - (data.smoothness / 255.0)
+    roughness = max(0.3, min(1.0, raw_rough))
+    if pbsdf.inputs.get("Roughness") and not pbsdf.inputs["Roughness"].links:
         pbsdf.inputs["Roughness"].default_value = roughness
 
-    # Alpha
-    if pbsdf.inputs.get("Alpha"):
+    # Alpha — only set if not alpha-test (alpha-test uses the texture alpha channel)
+    if not data.alpha_test and pbsdf.inputs.get("Alpha"):
         pbsdf.inputs["Alpha"].default_value = data.alpha
 
-    # Specular
-    if pbsdf.inputs.get("Specular IOR Level"):
-        pbsdf.inputs["Specular IOR Level"].default_value = min(1.0, data.specular_mult)
-    elif pbsdf.inputs.get("Specular"):
-        pbsdf.inputs["Specular"].default_value = min(1.0, data.specular_mult)
+    # Specular — keep it subtle; FO4 specular_mult is relative, not 0-1 IOR
+    spec_val = min(0.5, data.specular_mult * 0.1)
+    if pbsdf.inputs.get("Specular IOR Level") and not pbsdf.inputs["Specular IOR Level"].links:
+        pbsdf.inputs["Specular IOR Level"].default_value = spec_val
+    elif pbsdf.inputs.get("Specular") and not pbsdf.inputs["Specular"].links:
+        pbsdf.inputs["Specular"].default_value = spec_val
 
     # Emission
     if data.emit_enabled:
@@ -1060,7 +1197,19 @@ def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
                 *data.emittance_color, 1.0
             )
 
-    # Create texture image nodes
+    # Output node
+    out_node = None
+    for node in nodes:
+        if node.type == 'OUTPUT_MATERIAL':
+            out_node = node
+            break
+    if out_node is None:
+        out_node = nodes.new('ShaderNodeOutputMaterial')
+        out_node.location = (300, 300)
+    if not pbsdf.outputs[0].links:
+        links.new(pbsdf.outputs[0], out_node.inputs[0])
+
+    # Create / update texture image nodes and wire them to the BSDF
     _x = -600
     _y_map = {
         "Diffuse":  400,
@@ -1076,24 +1225,71 @@ def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
         "Glow":     data.greyscale_texture,
         "EnvMap":   data.envmap_mask_texture,
     }
-    for node_name, tex_path in _tex_map.items():
-        if not tex_path:
-            continue
-        existing = nodes.get(node_name)
-        if existing is None:
-            existing = nodes.new('ShaderNodeTexImage')
-            existing.name = node_name
-            existing.label = node_name
-            existing.location = (_x, _y_map.get(node_name, 0))
 
-        # Try to load the image if it exists on disk
-        try:
-            abs_path = bpy.path.abspath("//" + tex_path.replace("\\", "/"))
-            if os.path.isfile(abs_path):
-                img = bpy.data.images.load(abs_path, check_existing=True)
-                existing.image = img
-        except Exception:
+    def _resolve_tex(tex_path: str):
+        """Return a loaded bpy.data.images entry or None."""
+        for candidate in (
+            tex_path,
+            tex_path.replace("\\", "/"),
+            bpy.path.abspath("//" + tex_path.replace("\\", "/")),
+        ):
+            try:
+                if os.path.isfile(candidate):
+                    return bpy.data.images.load(candidate, check_existing=True)
+            except Exception:
+                pass
+        return None
+
+    for node_name, tex_path in _tex_map.items():
+        tex_node = nodes.get(node_name)
+        if tex_node is None:
+            if not tex_path:
+                continue
+            tex_node = nodes.new('ShaderNodeTexImage')
+            tex_node.name = node_name
+            tex_node.label = node_name
+            tex_node.location = (_x, _y_map.get(node_name, 0))
+
+        # Tag so _get_image_node_path can find this node even if renamed.
+        tex_node["fo4_tex_slot"] = node_name
+
+        # Load image — only set if the node has no image yet.  Never replace
+        # an image the user (or the NIF import) already assigned.
+        if tex_path and tex_node.image is None:
+            img = _resolve_tex(tex_path)
+            if img is not None:
+                tex_node.image = img
+            else:
+                # DDS not on disk; store the path so export can still write it.
+                tex_node["fo4_tex_path"] = _normalize_tex_path(tex_path)
+
+        # Wire to BSDF
+        if node_name == "Diffuse":
+            if pbsdf.inputs.get("Base Color") and not pbsdf.inputs["Base Color"].links:
+                links.new(tex_node.outputs["Color"], pbsdf.inputs["Base Color"])
+            if data.alpha_test and pbsdf.inputs.get("Alpha") and not pbsdf.inputs["Alpha"].links:
+                links.new(tex_node.outputs["Alpha"], pbsdf.inputs["Alpha"])
+        elif node_name == "Normal":
+            if tex_node.image:
+                tex_node.image.colorspace_settings.name = 'Non-Color'
+            nm = nodes.get("_NormalMap")
+            if nm is None:
+                nm = nodes.new('ShaderNodeNormalMap')
+                nm.name = "_NormalMap"
+                nm.location = (_x + 200, _y_map["Normal"])
+            if not nm.inputs["Color"].links:
+                links.new(tex_node.outputs["Color"], nm.inputs["Color"])
+            if pbsdf.inputs.get("Normal") and not pbsdf.inputs["Normal"].links:
+                links.new(nm.outputs["Normal"], pbsdf.inputs["Normal"])
+        elif node_name == "Specular":
+            # FO4 _s.dds: RGB = specular color, alpha = smoothness/gloss.
+            # Don't wire to Roughness — scalar values are set above from BGSM data.
             pass
+        elif node_name == "Glow" and data.emit_enabled:
+            if pbsdf.inputs.get("Emission Color") and not pbsdf.inputs["Emission Color"].links:
+                links.new(tex_node.outputs["Color"], pbsdf.inputs["Emission Color"])
+            elif pbsdf.inputs.get("Emission") and not pbsdf.inputs["Emission"].links:
+                links.new(tex_node.outputs["Color"], pbsdf.inputs["Emission"])
 
 
 # ---------------------------------------------------------------------------
@@ -1148,6 +1344,176 @@ def export_bgsm_for_object(
     return results
 
 
+def export_textures_for_object(
+    obj,
+    output_dir: str,
+    *,
+    all_slots: bool = True,
+) -> list[tuple[bool, str]]:
+    """Copy (or DDS-convert) every texture image referenced by *obj*'s
+    material(s) into *output_dir*, alongside the exported NIF and BGSM.
+
+    For each ``ShaderNodeTexImage`` node with a loaded image whose source
+    file still exists on disk:
+      - If it's already ``.dds``, copy it as-is.
+      - Otherwise (PNG/TGA/etc.), convert it to DDS via
+        :func:`nvtt_helpers.NVTTHelpers.convert_to_dds` (texconv/NVTT,
+        auto-picking BC1/BC3/BC5/BC7 from the FO4 filename suffix) when a
+        converter is configured; falls back to a plain copy of the original
+        file with a warning if no converter is available, since FO4 can't
+        load PNG/TGA textures at all.
+
+    Without this, a texture that never went through
+    :meth:`texture_helpers.TextureHelpers.install_texture` (e.g. a material
+    built by hand, or a mesh whose textures were wired up before this
+    addon's own texture tools existed) stays wherever it originally sat
+    (a Downloads folder, source-art path, etc.) and never actually ships
+    with the exported asset.
+
+    Args:
+        obj:        Blender mesh object.
+        output_dir: Directory to write texture files into (mirrors the
+                    Materials folder convention already used for BGSM —
+                    typically a ``Textures\\...`` folder next to the NIF's
+                    own ``Meshes\\...`` path).
+        all_slots:  If True, scan every material slot. If False, only the
+                    active material.
+
+    Returns a list of ``(success, message)`` pairs, one per texture found.
+    """
+    if obj is None or obj.type != 'MESH':
+        return [(False, "No mesh object provided")]
+    if not obj.data.materials:
+        return [(False, f"'{obj.name}' has no material slots")]
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    try:
+        from . import nvtt_helpers as _nvtt
+    except Exception:
+        _nvtt = None
+
+    slots = obj.data.materials if all_slots else [obj.active_material]
+    results = []
+    seen_src = set()
+    for mat in slots:
+        if mat is None or not getattr(mat, "use_nodes", False):
+            continue
+        for node in mat.node_tree.nodes:
+            if node.type != 'TEX_IMAGE' or not node.image:
+                continue
+            img = node.image
+            try:
+                src_path = bpy.path.abspath(img.filepath) if img.filepath else ""
+            except Exception:
+                src_path = ""
+            if not src_path or not os.path.isfile(src_path):
+                results.append((
+                    False,
+                    f"'{node.name}' on '{mat.name}': source texture not found on disk ({img.filepath!r})"
+                ))
+                continue
+            src_norm = os.path.normcase(os.path.normpath(src_path))
+            if src_norm in seen_src:
+                continue
+            seen_src.add(src_norm)
+
+            src_ext = os.path.splitext(src_path)[1].lower()
+            base_name = os.path.splitext(os.path.basename(src_path))[0]
+            dest_dds = os.path.join(output_dir, base_name + ".dds")
+
+            if src_ext == ".dds":
+                dest_path = os.path.join(output_dir, os.path.basename(src_path))
+                if os.path.normcase(os.path.normpath(dest_path)) == src_norm:
+                    results.append((True, f"'{os.path.basename(src_path)}' already at destination"))
+                    continue
+                try:
+                    import shutil as _shutil
+                    _shutil.copy2(src_path, dest_path)
+                    results.append((True, f"Copied '{os.path.basename(src_path)}' → {dest_path}"))
+                except Exception as exc:
+                    results.append((False, f"Failed to copy '{src_path}': {exc}"))
+                continue
+
+            # Non-DDS source (PNG/TGA/etc.) -- convert via texconv/NVTT so the
+            # shipped asset is actually loadable by FO4, which has no PNG/TGA
+            # texture support at all.
+            converted = False
+            if _nvtt and (_nvtt.NVTTHelpers.is_nvtt_available() or _nvtt.NVTTHelpers.is_texconv_available()):
+                try:
+                    ok, msg = _nvtt.NVTTHelpers.convert_to_dds(src_path, dest_dds, slot=node.name)
+                    if ok:
+                        results.append((True, f"Converted '{os.path.basename(src_path)}' → {dest_dds}"))
+                        converted = True
+                    else:
+                        results.append((False, f"DDS conversion failed for '{src_path}': {msg}"))
+                except Exception as exc:
+                    results.append((False, f"DDS conversion failed for '{src_path}': {exc}"))
+            if not converted:
+                dest_path = os.path.join(output_dir, os.path.basename(src_path))
+                try:
+                    import shutil as _shutil
+                    _shutil.copy2(src_path, dest_path)
+                    results.append((
+                        True,
+                        f"Copied '{os.path.basename(src_path)}' → {dest_path} "
+                        "(NOT converted to DDS — no texconv/NVTT configured; FO4 cannot load this format)"
+                    ))
+                except Exception as exc:
+                    results.append((False, f"Failed to copy '{src_path}': {exc}"))
+
+    if not results:
+        results.append((False, "No textures found on any material"))
+    return results
+
+
+def _bgsm_scrape_textures(raw: bytes):
+    """Best-effort recovery when the strict BGSM parser fails (unknown layout or
+    a non-vanilla exporter): pull the embedded ``.dds`` texture paths straight
+    out of the bytes and classify them by the Fallout 4 naming suffix.
+
+    Returns a :class:`BGSMData` with only the texture fields populated, or
+    ``None`` if no texture paths are present.
+    """
+    import re as _re
+    matches = _re.findall(rb'[ -~]{3,}\.dds', raw, _re.IGNORECASE)
+    if not matches:
+        return None
+    data = BGSMData()
+    seen = []
+    for m in matches:
+        s = m.decode('ascii', 'replace').strip()
+        low = s.lower()
+        # Trim any leading junk so the path starts at the 'textures' token.
+        i = low.find('textures')
+        if i > 0:
+            s = s[i:]
+            low = s.lower()
+        if s in seen:
+            continue
+        seen.append(s)
+        if low.endswith('_n.dds') or 'normal' in low:
+            if not data.normal_texture:
+                data.normal_texture = s
+        elif low.endswith('_s.dds') or 'specular' in low or 'smooth' in low:
+            if not data.smooth_spec_texture:
+                data.smooth_spec_texture = s
+        elif low.endswith('_g.dds') or 'glow' in low:
+            if not data.glow_texture:
+                data.glow_texture = s
+        elif (low.endswith('_d.dds') or 'diffuse' in low
+              or 'basecolor' in low or 'albedo' in low):
+            if not data.diffuse_texture:
+                data.diffuse_texture = s
+        else:
+            if not data.diffuse_texture:
+                data.diffuse_texture = s
+    if not (data.diffuse_texture or data.normal_texture
+            or data.smooth_spec_texture or data.glow_texture):
+        return None
+    return data
+
+
 def import_bgsm_for_object(obj, bgsm_path: str) -> tuple[bool, str]:
     """Import a ``.bgsm`` file and apply it to *obj*'s active material.
 
@@ -1167,19 +1533,49 @@ def import_bgsm_for_object(obj, bgsm_path: str) -> tuple[bool, str]:
     # Detect BGSM vs BGEM
     magic = raw[:4]
     if magic == _BGSM_MAGIC:
+        _warn = ""
         try:
             data = read_bgsm(raw)
-        except ValueError as exc:
-            return False, str(exc)
+        except Exception as exc:
+            # Strict parse failed (unknown BGSM layout/variant, e.g. a non-vanilla
+            # exporter).  Fall back to scraping the embedded .dds paths so the
+            # material still loads with its textures instead of crashing.
+            data = _bgsm_scrape_textures(raw)
+            if data is None:
+                return False, (f"Could not parse BGSM and found no texture paths "
+                               f"to fall back on ({exc})")
+            _warn = f"  [lenient recovery - strict parse failed: {exc}]"
         mat_name = Path(bgsm_path).stem
         if bpy is not None:
-            mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
             if not obj.data.materials:
+                # No material slot at all — create one.
+                mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
                 obj.data.materials.append(mat)
             else:
-                obj.active_material = mat
+                existing = obj.active_material
+                has_tex_nodes = (
+                    existing is not None
+                    and existing.use_nodes
+                    and existing.node_tree is not None
+                    and any(n.type == 'TEX_IMAGE' and n.image is not None
+                            for n in existing.node_tree.nodes)
+                )
+                if has_tex_nodes:
+                    # Existing material already has images loaded (e.g. from NIF
+                    # import).  Apply BGSM properties to it in-place so we keep
+                    # the textures the user can already see.
+                    mat = existing
+                else:
+                    # Empty or nodeless slot — replace with the BGSM material.
+                    mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
+                    obj.active_material = mat
             bgsm_to_blender_mat(data, mat)
-        return True, f"Imported '{mat_name}' from {bgsm_path}"
+            # Store the source path so the export path can mirror it
+            try:
+                mat["fo4_bgsm_path"] = str(bgsm_path)
+            except Exception:
+                pass
+        return True, f"Imported '{mat_name}' from {bgsm_path}{_warn}"
     elif magic == _BGEM_MAGIC:
         return False, (
             "BGEM effect material files are not supported for direct Blender import "

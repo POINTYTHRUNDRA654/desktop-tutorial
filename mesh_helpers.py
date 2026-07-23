@@ -4,6 +4,7 @@ Mesh helper functions for Fallout 4 mod creation
 
 import bpy
 import bmesh
+import math
 from mathutils import Vector
 from . import preferences
 
@@ -140,17 +141,238 @@ class MeshHelpers:
         return obj
     
     @staticmethod
-    def optimize_mesh(obj):
-        """Optimize mesh for Fallout 4"""
+    def solidify_flat_faces(obj, thickness=0.02, fill_rim=True,
+                             use_even_offset=True, flatness_threshold=0.7):
+        """Detect flat card/plane islands in a mixed mesh and solidify only those.
+
+        Uses area-weighted face-normal vector sum per connected island:
+        - Magnitude near 1.0 → all normals agree → flat card → solidify
+        - Magnitude near 0.0 → normals cancel  → 3D volume  → skip
+
+        Separation/modifier/rejoin is used so rim UV mapping and even-thickness
+        work correctly (bmesh.ops.solidify lacks those features).
+
+        Returns (flat_island_count, flat_face_count).
+        """
+        from mathutils import Vector
+
+        # ── Step 1: classify connected islands ────────────────────────────────
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.normal_update()
+        bm.faces.ensure_lookup_table()
+
+        visited = set()
+        flat_indices = set()
+        flat_island_count = 0
+
+        for seed in bm.faces:
+            if seed.index in visited:
+                continue
+            # BFS flood-fill by edge adjacency
+            island, island_idx = [], set()
+            queue = [seed]
+            while queue:
+                f = queue.pop()
+                if f.index in island_idx:
+                    continue
+                island_idx.add(f.index)
+                island.append(f)
+                for e in f.edges:
+                    for lf in e.link_faces:
+                        if lf.index not in island_idx:
+                            queue.append(lf)
+            visited.update(island_idx)
+
+            # Area-weighted normal vector sum magnitude
+            total_area = 0.0
+            wsum = Vector()
+            for f in island:
+                a = f.calc_area()
+                total_area += a
+                wsum += f.normal * a
+
+            if total_area > 1e-8 and (wsum.length / total_area) >= flatness_threshold:
+                flat_indices.update(island_idx)
+                flat_island_count += 1
+
+        bm.free()
+
+        if not flat_indices:
+            return 0, 0
+
+        flat_face_count = len(flat_indices)
+
+        # ── Step 2: select flat faces and separate into temp object ───────────
+        ctx_obj = bpy.context.view_layer.objects.active
+        bpy.context.view_layer.objects.active = obj
+
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+
+        bm_edit = bmesh.from_edit_mesh(obj.data)
+        bm_edit.faces.ensure_lookup_table()
+        for f in bm_edit.faces:
+            f.select = (f.index in flat_indices)
+        bmesh.update_edit_mesh(obj.data)
+
+        bpy.ops.mesh.separate(type='SELECTED')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # After separate: obj is active (remaining geometry), new obj is selected
+        flat_obj = next(
+            (o for o in bpy.context.selected_objects if o is not obj), None
+        )
+        if flat_obj is None:
+            return 0, 0
+
+        # ── Step 3: apply Solidify modifier on the flat-faces object ─────────
+        bpy.ops.object.select_all(action='DESELECT')
+        flat_obj.select_set(True)
+        bpy.context.view_layer.objects.active = flat_obj
+
+        if flat_obj.data.users > 1:
+            flat_obj.data = flat_obj.data.copy()
+
+        mod = flat_obj.modifiers.new(name="FO4_Solidify", type='SOLIDIFY')
+        mod.thickness = thickness
+        mod.offset = 0.0          # grow from centre both ways
+        mod.use_even_offset = use_even_offset
+        mod.use_rim = fill_rim
+        mod.use_rim_only = False
+        mod.use_flip_normals = False
+        if fill_rim:
+            # Tag rim faces as material slot 1 so we can find and fix their UVs
+            mod.material_offset_rim = 1
+
+        try:
+            bpy.ops.object.modifier_apply(modifier=mod.name)
+        except Exception as e:
+            try:
+                flat_obj.modifiers.remove(mod)
+            except Exception:
+                pass
+            # Rejoin without solidify so we don't lose geometry
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+            bpy.ops.object.join()
+            raise RuntimeError(f"Solidify modifier failed: {e}")
+
+        # ── Fix rim face UVs ──────────────────────────────────────────────────
+        # Rim faces inherit UVs that stretch from the front boundary edge to the
+        # back boundary edge, producing striped texture artifacts. Collapse each
+        # rim face's UV to its own centroid so it samples one consistent colour
+        # from the texture at the leaf boundary instead.
+        if fill_rim:
+            from mathutils import Vector as _Vec
+            bm_rim = bmesh.new()
+            bm_rim.from_mesh(flat_obj.data)
+            bm_rim.faces.ensure_lookup_table()
+            uv_layer = bm_rim.loops.layers.uv.active
+            if uv_layer:
+                for f in bm_rim.faces:
+                    if f.material_index == 1:       # rim face tagged by modifier
+                        uvs = [loop[uv_layer].uv.copy() for loop in f.loops]
+                        centroid = sum(uvs, _Vec((0.0, 0.0))) / len(uvs)
+                        for loop in f.loops:
+                            loop[uv_layer].uv = centroid.copy()
+                        f.material_index = 0        # reset so slot unification works
+            bm_rim.to_mesh(flat_obj.data)
+            flat_obj.data.update()
+            bm_rim.free()
+
+        # Recalculate normals on the solidified piece
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.normals_make_consistent(inside=False)
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        # ── Step 4: rejoin back into original object ──────────────────────────
+        obj.select_set(True)
+        flat_obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.join()
+
+        # Restore previous active object context
+        if ctx_obj:
+            try:
+                bpy.context.view_layer.objects.active = ctx_obj
+            except Exception:
+                pass
+
+        return flat_island_count, flat_face_count
+
+    @staticmethod
+    def unify_material_slots(obj):
+        """Consolidate all material slots to the one with the most loaded textures.
+
+        After joining two meshes that had different materials, each mesh's faces
+        still point to their original slot. This reassigns every face to the slot
+        with the most TEX_IMAGE nodes that have loaded images, then removes the
+        empty/duplicate slots.
+        """
+        if not obj or obj.type != 'MESH' or len(obj.material_slots) <= 1:
+            return 0  # nothing to do
+
+        # Score each slot by number of loaded TEX_IMAGE nodes
+        best_idx, best_score = 0, -1
+        for i, slot in enumerate(obj.material_slots):
+            mat = slot.material
+            score = 0
+            if mat and mat.use_nodes and mat.node_tree:
+                score = sum(
+                    1 for n in mat.node_tree.nodes
+                    if n.type == 'TEX_IMAGE' and n.image is not None
+                )
+            if score > best_score:
+                best_score, best_idx = score, i
+
+        best_mat = obj.material_slots[best_idx].material
+
+        # Put best material in slot 0 and point all faces there
+        obj.material_slots[0].material = best_mat
+        was_edit = (obj.mode == 'EDIT')
+        if not was_edit:
+            bpy.ops.object.mode_set(mode='EDIT')
+        bm = bmesh.from_edit_mesh(obj.data)
+        for face in bm.faces:
+            face.material_index = 0
+        bmesh.update_edit_mesh(obj.data)
+        if not was_edit:
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        # Remove all slots beyond slot 0
+        removed = 0
+        while len(obj.material_slots) > 1:
+            obj.active_material_index = len(obj.material_slots) - 1
+            bpy.ops.object.material_slot_remove()
+            removed += 1
+
+        return removed
+
+    @staticmethod
+    def optimize_mesh(obj, limited_dissolve=False, dissolve_angle_deg=1.0,
+                       target_faces=0):
+        """Optimize mesh for Fallout 4.
+
+        Parameters
+        ----------
+        limited_dissolve : bool
+            Remove edges between near-coplanar faces without moving vertices.
+        dissolve_angle_deg : float
+            Angle threshold for Limited Dissolve (degrees).
+        target_faces : int
+            If > 0, apply a Decimate modifier after dissolving to hit this
+            approximate face count.  UV seams are locked as boundaries first
+            so the texture layout doesn't distort.  0 = no target, skip.
+        """
         if obj.type != 'MESH':
             return False, "Object is not a mesh"
-        
+
         prefs = preferences.get_preferences()
         apply_trans = prefs.optimize_apply_transforms if prefs else True
         threshold = prefs.optimize_remove_doubles_threshold if prefs else 0.0001
         preserve_uvs = prefs.optimize_preserve_uvs if prefs else True
 
-        # Switch to object mode and optionally apply transforms
         if bpy.context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
         bpy.context.view_layer.objects.active = obj
@@ -158,12 +380,14 @@ class MeshHelpers:
         if apply_trans:
             bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
-        # Use bmesh for operations
+        import math
         me = obj.data
         bm = bmesh.new()
         bm.from_mesh(me)
 
-        # UV-aware remove doubles
+        before_faces = len(bm.faces)
+
+        # Merge nearby vertices (UV-aware to avoid seam collapse)
         uv_layer = bm.loops.layers.uv.active
         remove_kwargs = {'verts': bm.verts, 'dist': threshold}
         if preserve_uvs and uv_layer is not None:
@@ -171,23 +395,286 @@ class MeshHelpers:
         try:
             bmesh.ops.remove_doubles(bm, **remove_kwargs)
         except TypeError:
-            # use_uvs is not supported in this version of Blender; retry without it
             remove_kwargs.pop('use_uvs', None)
             bmesh.ops.remove_doubles(bm, **remove_kwargs)
 
-        # Recalculate normals consistently
+        # Limited Dissolve — collapses coplanar interior edges with zero vertex
+        # movement.  Silhouette and UV boundaries are untouched.
+        dissolved = 0
+        if limited_dissolve:
+            angle_rad = math.radians(max(0.01, dissolve_angle_deg))
+            bmesh.ops.dissolve_limit(
+                bm,
+                angle_limit=angle_rad,
+                verts=bm.verts[:],
+                edges=bm.edges[:],
+            )
+            dissolved = before_faces - len(bm.faces)
+
         bm.normal_update()
-
-        # Triangulate
-        bmesh.ops.triangulate(bm, faces=bm.faces[:])
-
-        # write back to mesh
         bm.to_mesh(me)
         bm.free()
+        me.update()
 
-        return True, "Mesh optimized successfully (UV-safe)"
+        after_dissolve = len(me.polygons)
 
-    
+        # ── Smart Reduce to target face count ────────────────────────────────
+        # Uses Blender's Decimate modifier (quadric edge collapse) which scores
+        # each edge collapse by visual error and collapses the cheapest first.
+        # UV seam edges are marked as sharp boundaries before decimation so the
+        # texture mapping is preserved — the silhouette and UV layout survive,
+        # only interior polygon detail is removed.
+        decimated_to = after_dissolve
+        if target_faces > 0 and after_dissolve > target_faces:
+            ratio = max(0.01, min(0.999, target_faces / after_dissolve))
+
+            # Mark UV seam edges as sharp so the decimator treats them as
+            # hard boundaries and won't collapse across them.
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.seams_from_islands()   # auto-detect UV island borders
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            # Use seam edges as UV split boundaries for the decimate modifier
+            # by temporarily marking them as sharp.
+            seam_edges_were_sharp = {}
+            for edge in me.edges:
+                seam_edges_were_sharp[edge.index] = edge.use_edge_sharp
+                if edge.use_seam:
+                    edge.use_edge_sharp = True
+
+            dec = obj.modifiers.new(name="_fo4_decimate", type='DECIMATE')
+            dec.decimate_type = 'COLLAPSE'
+            dec.ratio = ratio
+            dec.use_collapse_triangulate = True
+            dec.use_symmetry = False
+
+            try:
+                bpy.ops.object.modifier_apply(modifier=dec.name)
+                decimated_to = len(obj.data.polygons)
+            except Exception as exc:
+                print(f"[FO4Optimize] Decimate apply failed: {exc}")
+                try:
+                    obj.modifiers.remove(dec)
+                except Exception:
+                    pass
+
+            # Restore sharp-edge state
+            for edge in obj.data.edges:
+                if edge.index in seam_edges_were_sharp:
+                    edge.use_edge_sharp = seam_edges_were_sharp[edge.index]
+
+        # Final triangulate (FO4 BSTriShape requires all-tris).
+        # BEAUTY ngon method avoids the spiky fan-triangulation that the default
+        # produces after Limited Dissolve creates large n-gons.
+        bm2 = bmesh.new()
+        bm2.from_mesh(obj.data)
+        bmesh.ops.triangulate(
+            bm2,
+            faces=bm2.faces[:],
+            quad_method='BEAUTY',
+            ngon_method='BEAUTY',
+        )
+        bm2.to_mesh(obj.data)
+        bm2.free()
+
+        after_faces = len(obj.data.polygons)
+
+        parts = [f"Optimized: {before_faces:,} → {after_faces:,} tris"]
+        if limited_dissolve and dissolved:
+            parts.append(f"dissolved {dissolved:,} coplanar")
+        if target_faces > 0 and decimated_to != after_dissolve:
+            parts.append(f"decimated to ~{decimated_to:,}")
+        return True, "  |  ".join(parts)
+
+    @staticmethod
+    def quadriflow_retopo(obj, target_faces, preserve_boundary=True, use_curvature=True):
+        """Retopologize *obj* in place to ~target_faces quads via QuadriFlow.
+
+        Falls back to a Voxel Remesh modifier, then Decimate, if QuadriFlow
+        fails (common on non-manifold/self-intersecting AI-generated meshes).
+        Does NOT touch UVs — the caller must re-unwrap afterwards, since
+        remesh invalidates any existing UV layout.
+
+        Precondition: ``bpy.context.view_layer.objects.active is obj``
+        (required by ``bpy.ops.object.quadriflow_remesh``).
+        """
+        target_faces = max(10, int(target_faces))
+        remesh_ok = False
+        original_face_count = len(obj.data.polygons)
+        # Backup the pristine input so a catastrophically bad attempt (see
+        # below) can be rolled back and retried with the next fallback
+        # method, instead of leaving the object stuck with broken topology.
+        original_data = obj.data.copy()
+
+        def _restore_original():
+            obj.data = original_data.copy()
+
+        # A result is only "accepted" if it's in the right ballpark -- both
+        # QuadriFlow and Voxel Remesh have been observed to badly MISS
+        # target_faces in either direction: overshooting 10x-100x on small
+        # simple meshes (handled by the clamp below), but also -- on
+        # extremely dense/non-manifold "triangle soup" input, e.g. a 1.4M-tri
+        # AI-generated (Meshy) mesh -- catastrophically UNDERSHOOTING down to
+        # a few dozen degenerate faces instead of the requested thousands.
+        # That's not a "slightly off" budget, it's a broken retopo; don't
+        # accept it silently, roll back and fall through to the next method.
+        def _acceptable(actual):
+            return actual >= target_faces * 0.25
+
+        # Try QuadriFlow (best quality, needs near-manifold geometry)
+        try:
+            bpy.ops.object.quadriflow_remesh(
+                target_faces=target_faces,
+                use_preserve_boundary=preserve_boundary,
+                use_mesh_curvature=use_curvature,
+                mode='FACES',
+            )
+            if _acceptable(len(obj.data.polygons)):
+                remesh_ok = True
+            else:
+                _restore_original()
+        except Exception:
+            _restore_original()
+
+        # Fallback: Voxel remesh modifier. The right voxel_size for a given
+        # target_faces depends entirely on the source's actual geometric
+        # complexity, not just its bounding box -- a smooth blob and a
+        # highly branching/thorny organic mesh (e.g. AI-generated creatures)
+        # need wildly different voxel sizes to hit the same face count. A
+        # single fixed formula either comes out far too coarse for a
+        # thin/branching source -- which doesn't produce a smooth simplified
+        # envelope, it produces a chaotic mess of jagged, partially-resolved
+        # spike shards, because each thin protrusion sits right at the edge
+        # of what that resolution can represent -- or wildly overshoots on a
+        # simple one. Bisect toward target_faces instead of trusting one
+        # guess: each retry restores the untouched original geometry first
+        # (compounding remesh attempts on an already-coarsened result would
+        # only destroy more source detail, not refine toward the target).
+        if not remesh_ok:
+            try:
+                dim = max(obj.dimensions) or 1.0
+                voxel_size = dim / max(1.0, math.sqrt(target_faces))
+                best_mesh, best_diff = None, None
+                active_before = bpy.context.view_layer.objects.active
+                # Each attempt runs on a disposable throwaway object (rather
+                # than repeatedly swapping obj.data in place on the live
+                # object) -- doing that in-place swap under a tight loop
+                # triggered a hard EXCEPTION_ACCESS_VIOLATION crash in
+                # Blender's own RNA layer, almost certainly from stale
+                # mesh/modifier state left over between iterations.
+                for _attempt in range(4):
+                    trial_data = original_data.copy()
+                    trial_obj = bpy.data.objects.new("_QF_VoxelTrial", trial_data)
+                    bpy.context.collection.objects.link(trial_obj)
+                    bpy.context.view_layer.objects.active = trial_obj
+                    trial_obj.select_set(True)
+                    mod = trial_obj.modifiers.new(name="Remesh", type='REMESH')
+                    mod.mode = 'VOXEL'
+                    mod.voxel_size = max(0.0001, voxel_size)
+                    bpy.ops.object.modifier_apply(modifier=mod.name)
+                    actual = len(trial_data.polygons)
+                    diff = abs(actual - target_faces) / target_faces
+                    bpy.data.objects.remove(trial_obj)
+                    if best_diff is None or diff < best_diff:
+                        if best_mesh is not None and best_mesh.users == 0:
+                            bpy.data.meshes.remove(best_mesh)
+                        best_diff = diff
+                        best_mesh = trial_data
+                    elif trial_data.users == 0:
+                        bpy.data.meshes.remove(trial_data)
+                    if _acceptable(actual) and actual <= target_faces * 1.5:
+                        break
+                    voxel_size *= math.sqrt(actual / target_faces) if actual > 0 else 0.5
+                bpy.context.view_layer.objects.active = active_before
+                if best_mesh is not None:
+                    obj.data = best_mesh
+                if _acceptable(len(obj.data.polygons)):
+                    remesh_ok = True
+                else:
+                    _restore_original()
+            except Exception:
+                _restore_original()
+
+        # Last resort: fall back to Decimate so we always produce something
+        if not remesh_ok:
+            try:
+                ratio = max(0.01, min(0.999, target_faces / max(1, original_face_count)))
+                mod = obj.modifiers.new(name="Decimate", type='DECIMATE')
+                mod.ratio = ratio
+                mod.delimit = {'UV', 'SEAM'}
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+                remesh_ok = True
+            except Exception:
+                pass
+
+        # Clean up the backup copy now that we're done retrying.
+        if original_data.users == 0:
+            bpy.data.meshes.remove(original_data)
+
+        # Safety net: QuadriFlow (and the Voxel fallback) do not reliably hit
+        # target_faces -- verified overshooting by 10x-100x on both large and
+        # (especially) very small/simple input meshes, regardless of which
+        # path above actually ran. Rather than trust either to be accurate,
+        # clamp the result back down with a final Decimate pass whenever it
+        # overshot by more than 50%, so target_faces is a real, honored
+        # budget instead of just a hint.
+        if remesh_ok:
+            actual = len(obj.data.polygons)
+            if actual > target_faces * 1.5:
+                try:
+                    ratio = max(0.01, min(0.999, target_faces / actual))
+                    mod = obj.modifiers.new(name="Decimate_ClampTarget", type='DECIMATE')
+                    mod.ratio = ratio
+                    mod.delimit = {'UV', 'SEAM'}
+                    bpy.ops.object.modifier_apply(modifier=mod.name)
+                except Exception:
+                    pass
+
+        # Voxel Remesh on a source with disconnected fragments (common in
+        # AI-generated "triangle soup" -- stray specks that were never part
+        # of the main connected surface) can carry those fragments straight
+        # through as tiny separate floating islands in the output. Drop
+        # anything far smaller than the main body; keep any island that's a
+        # real, substantial piece (e.g. a genuinely separate limb/prop from
+        # a multi-piece join) rather than assuming a single-island result.
+        if remesh_ok:
+            try:
+                bm = bmesh.new()
+                bm.from_mesh(obj.data)
+                bm.faces.ensure_lookup_table()
+                visited = set()
+                islands = []
+                for f in bm.faces:
+                    if f.index in visited:
+                        continue
+                    stack = [f]
+                    comp = []
+                    while stack:
+                        cur = stack.pop()
+                        if cur.index in visited:
+                            continue
+                        visited.add(cur.index)
+                        comp.append(cur)
+                        for e in cur.edges:
+                            for lf in e.link_faces:
+                                if lf.index not in visited:
+                                    stack.append(lf)
+                    islands.append(comp)
+                if len(islands) > 1:
+                    islands.sort(key=len, reverse=True)
+                    threshold = max(4, len(islands[0]) * 0.02)
+                    to_remove = [f for isl in islands[1:] if len(isl) < threshold for f in isl]
+                    if to_remove:
+                        bmesh.ops.delete(bm, geom=to_remove, context='FACES')
+                        bm.to_mesh(obj.data)
+                        obj.data.update()
+                bm.free()
+            except Exception:
+                pass
+
+        return remesh_ok
+
     @staticmethod
     def validate_mesh(obj, is_collision=False):
         """Validate mesh for Fallout 4 compatibility.
@@ -482,6 +969,14 @@ class MeshHelpers:
 
         collision_obj = bpy.context.active_object
 
+        # See the matching comment in advanced_mesh_helpers.generate_lod_chain --
+        # bpy.ops.object.duplicate() only copies mesh data independently if the
+        # user's own "Duplicate Data > Mesh" preference is enabled; force it
+        # regardless so the decimation/bmesh rebuild below can never mutate
+        # the source object's mesh data.
+        if collision_obj.data.users > 1:
+            collision_obj.data = collision_obj.data.copy()
+
         # Fallout 4 collision naming convention: UCX_ prefix (recognised by the
         # NIF exporter and standard FBX-to-NIF pipelines)
         collision_obj.name = ucx_name
@@ -713,6 +1208,13 @@ class MeshHelpers:
 
         collision_obj = bpy.context.active_object
         collision_obj.name = ucx_name
+        # See the matching comment in advanced_mesh_helpers.generate_lod_chain --
+        # bpy.ops.object.duplicate() only copies mesh data independently if the
+        # user's own "Duplicate Data > Mesh" preference is enabled; force it
+        # regardless so the upcoming bmesh convex-hull rebuild (which writes
+        # directly into collision_obj.data) can never mutate lod_obj's mesh.
+        if collision_obj.data.users > 1:
+            collision_obj.data = collision_obj.data.copy()
 
         # Mark so exporters can identify it as a collision/physics mesh.
         collision_obj["fo4_collision"] = True
@@ -741,6 +1243,16 @@ class MeshHelpers:
         # low-poly so no pre-decimation is required; just build the hull directly.
         bm = bmesh.new()
         bm.from_mesh(collision_obj.data)
+
+        # Strip any loose vertices (not attached to a face) inherited from the
+        # LOD source before hulling -- a decimated LOD can carry stray points
+        # left behind by collapsed-away faces (see generate_lod_chain /
+        # generate_lod_mesh), and feeding those into convex_hull alongside
+        # real surface verts can leave the "hull" indistinguishable from the
+        # raw input instead of a genuinely reduced closed shape.
+        _loose = [v for v in bm.verts if not v.link_faces]
+        if _loose:
+            bmesh.ops.delete(bm, geom=_loose, context='VERTS')
 
         # Merge nearly-coincident vertices to heal seams.
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
@@ -1485,15 +1997,50 @@ class SmartPresets:
             )
             return None
 
-        folder = _P(data_dir) / folder_rel
+        root = _P(data_dir)
+        # Tolerate an extra 'Data' wrapper folder (some extractions nest under Data\).
+        if not (root / 'meshes').exists() and (root / 'Data' / 'meshes').exists():
+            root = root / 'Data'
+
+        folder = root / folder_rel
         if not folder.exists():
+            # The catalog's exact sub-path may not match this extraction's layout,
+            # so search the meshes/ tree for the mesh instead of giving up.
+            meshes_base = root / 'meshes'
+            search_base = meshes_base if meshes_base.exists() else root
+            # a) exact candidate filenames anywhere under meshes/
+            for _name in candidates:
+                try:
+                    _hit = next(iter(search_base.rglob(_name)), None)
+                except Exception:
+                    _hit = None
+                if _hit:
+                    print(f"[FO4 Add-on] Smart Preset: located '{_name}' at {_hit}")
+                    return str(_hit)
+            # b) keyword fallback: first non-LOD nif whose name matches the type
+            _leaf = folder_rel.rstrip('/').split('/')[-1]
+            _kws = {_leaf.rstrip('s')} | {c.split('.')[0].rstrip('0123456789') for c in candidates}
+            _kws = {k.lower() for k in _kws if len(k) >= 3}
+            _scanned = 0
+            try:
+                for _nif in search_base.rglob('*.nif'):
+                    _scanned += 1
+                    if _scanned > 40000:
+                        break
+                    _low = _nif.stem.lower()
+                    if '_lod' in _low:
+                        continue
+                    if any(k in _low for k in _kws):
+                        print(f"[FO4 Add-on] Smart Preset: keyword-matched {_nif}")
+                        return str(_nif)
+            except Exception:
+                pass
             print(
-                f"[FO4 Add-on] Smart Preset: folder not found: {folder}\n"
+                f"[FO4 Add-on] Smart Preset: could not locate a '{folder_rel}' mesh.\n"
                 f"  Data dir: {data_dir}\n"
-                f"  Expected sub-path: {folder_rel}\n"
-                "  → Make sure you pointed the 'Meshes' path at the Data root\n"
-                "    (the folder that contains the 'meshes/' sub-folder),\n"
-                "    not at the 'meshes/' folder itself."
+                f"  Searched {search_base} for {candidates} and type keywords — none found.\n"
+                "  → If your extraction nests under a 'Data' folder, point the Meshes path there.\n"
+                "  → To load your OWN asset, use 'Import Asset' instead of a preset."
             )
             return None
 
@@ -1548,7 +2095,25 @@ class SmartPresets:
 
     @staticmethod
     def auto_apply_textures_from_game_asset(nif_path: str):
-        """Locate FO4 textures matching the imported NIF and apply to the active object."""
+        """Ensure the imported asset shows the materials/textures it references.
+
+        The importer (PyNifly for NIF, Blender's FBX/OBJ/GLTF importers for other
+        formats) already builds a textured material whenever it can resolve the
+        texture files.  Older code unconditionally called setup_fo4_material()
+        here, which CLEARED that material and left the mesh grey.  This version:
+
+          1. Leaves the imported material untouched if it already has a loaded
+             diffuse texture.
+          2. Otherwise resolves any referenced-but-unloaded texture nodes by
+             searching next to the source file (works for mod assets, not just
+             the FO4 Data folder), a sibling/parent ``textures`` folder, and any
+             configured FO4 textures root.  Whatever image format is present is
+             used (dds/png/tga/...), so non-DDS sources work too.
+          3. As a last resort, name-globs those folders for ``<stem>*.dds``.
+
+        Works for NIF/FBX/OBJ/GLB because it only inspects the active object's
+        material, not the NIF format.
+        """
         from pathlib import Path as _P
         from . import texture_helpers
 
@@ -1556,31 +2121,107 @@ class SmartPresets:
         if not obj or obj.type != 'MESH':
             return
 
-        nif = _P(nif_path)
-        parts = nif.parts
-        if "meshes" in (p.lower() for p in parts):
+        def _diffuse_loaded(m):
+            if not (m and m.use_nodes):
+                return False
+            for node in m.node_tree.nodes:
+                if node.type == 'BSDF_PRINCIPLED':
+                    sock = node.inputs.get('Base Color')
+                    if (sock and sock.links
+                            and sock.links[0].from_node.type == 'TEX_IMAGE'
+                            and sock.links[0].from_node.image is not None
+                            and sock.links[0].from_node.image.has_data):
+                        return True
+            return False
+
+        # 1. Importer already textured it — do not clobber PyNifly / FBX / GLTF.
+        if any(_diffuse_loaded(s.material) for s in obj.material_slots if s.material):
+            print("[FO4] Import: kept importer-supplied textures/materials")
+            return
+
+        src = _P(nif_path)
+        _IMG_EXTS = ['.dds', '.png', '.tga', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp']
+
+        # Candidate texture folders: the asset's own folder (mod layout) and any
+        # sibling/parent 'textures' folder, plus a configured FO4 textures root.
+        search_dirs = []
+        def _add(d):
             try:
-                meshes_idx = [i for i, p in enumerate(parts) if p.lower() == "meshes"][-1]
-                data_root = _P(*parts[:meshes_idx])
+                d = _P(d)
+                if d.exists() and d.is_dir() and d not in search_dirs:
+                    search_dirs.append(d)
             except Exception:
-                data_root = nif.parent.parent
-        else:
-            data_root = nif.parent.parent
+                pass
+        _add(src.parent)
+        _add(src.parent / "textures")
+        for up in list(src.parents)[:5]:
+            _add(up / "textures")
+        for _attr in ("fo4_textures_folder", "fo4_data_folder"):
+            try:
+                val = getattr(bpy.context.scene, _attr, "") or ""
+                if val:
+                    root = _P(bpy.path.abspath(val))
+                    _add(root); _add(root / "textures")
+            except Exception:
+                pass
 
-        textures_root = data_root / "textures"
-        if not textures_root.exists():
+        def _find_texture_by_name(name):
+            name = _P(name).name
+            stem = _P(name).stem.lower()
+            for d in search_dirs:
+                exact = d / name
+                if exact.exists():
+                    return exact
+                for e in _IMG_EXTS:
+                    cand = d / (stem + e)
+                    if cand.exists():
+                        return cand
+                for e in _IMG_EXTS:
+                    hits = list(d.rglob(stem + e))
+                    if hits:
+                        return hits[0]
+            return None
+
+        # 2. Fill referenced-but-missing image nodes by their filename.
+        installed = False
+        for slot in obj.material_slots:
+            mat = slot.material
+            if not (mat and mat.use_nodes):
+                continue
+            for node in mat.node_tree.nodes:
+                if node.type != 'TEX_IMAGE' or (node.image is not None and node.image.has_data):
+                    continue
+                want = None
+                if node.image is not None:
+                    want = _P(bpy.path.abspath(node.image.filepath)).name or node.image.name
+                if not want:
+                    continue
+                hit = _find_texture_by_name(want)
+                if hit:
+                    try:
+                        img = bpy.data.images.load(str(hit), check_existing=True)
+                        node.image = img
+                        lbl = (node.name + (node.label or '')).lower()
+                        if 'normal' in lbl or lbl.endswith('_n') or '_n' in lbl:
+                            node.image.colorspace_settings.name = 'Non-Color'
+                        installed = True
+                    except Exception:
+                        pass
+        if installed:
+            print("[FO4] Import: resolved textures from the asset's folder")
             return
 
-        stem = nif.stem.split("_lod")[0].lower()
-        candidates = list(textures_root.rglob(f"{stem}*.dds"))
-        if not candidates:
-            return
-
-        mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
-        for tex in candidates:
-            tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(str(tex))
-            texture_helpers.TextureHelpers.install_texture(obj, str(tex), tex_type)
-        return mat
+        # 3. Last resort — name-glob the search folders for <stem>*.dds.
+        stem = src.stem.split("_lod")[0].lower()
+        for d in search_dirs:
+            candidates = list(d.rglob(f"{stem}*.dds"))
+            if candidates:
+                mat = texture_helpers.TextureHelpers.setup_fo4_material(obj)
+                for tex in candidates:
+                    tex_type = texture_helpers.TextureHelpers.detect_fo4_texture_type(str(tex))
+                    texture_helpers.TextureHelpers.install_texture(obj, str(tex), tex_type)
+                return mat
+        print("[FO4] Import: no textures found near the asset — mesh imported untextured")
 
     @staticmethod
     def apply_nif_v25_settings(context, preset_key: str):

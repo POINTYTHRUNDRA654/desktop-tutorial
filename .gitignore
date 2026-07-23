@@ -132,3 +132,7 @@ test_output/
 *.pytest_cache
 htmlcov/
 .coverage
+
+# ── Claude Code local tool config ───────────────────────────────────────────
+# Local permission settings / machine-specific paths, not project source.
+.claude/

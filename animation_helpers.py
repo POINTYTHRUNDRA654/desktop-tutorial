@@ -119,6 +119,129 @@ def _get_action_fcurves(action):
         f"{bpy.app.version[0]}.{bpy.app.version[1]}"
     )
 
+
+def _read_color_attr_per_vertex(mesh, ca, channel_avg_rgb=False):
+    """Read one value per vertex out of color attribute *ca*, handling both
+    the POINT domain (indexed directly by vertex) and CORNER/loop domain
+    (indexed by loop, requiring a vertex_index lookup) -- mixing these up
+    causes an IndexError (POINT-domain data is only len(vertices) long, not
+    len(loops)). If channel_avg_rgb, returns the average of R/G/B (PyNifly's
+    own convention for its "VERTEX_ALPHA" map); otherwise returns the alpha
+    (4th) channel."""
+    mesh_verts = len(mesh.vertices)
+    values = {}
+    if ca.domain == 'POINT':
+        for vi in range(mesh_verts):
+            c = ca.data[vi].color
+            values[vi] = (c[0] + c[1] + c[2]) / 3.0 if channel_avg_rgb else c[3]
+    else:
+        for poly in mesh.polygons:
+            for li in poly.loop_indices:
+                vi = mesh.loops[li].vertex_index
+                if vi not in values:
+                    c = ca.data[li].color
+                    values[vi] = (c[0] + c[1] + c[2]) / 3.0 if channel_avg_rgb else c[3]
+    return values
+
+
+def _read_wind_color_alpha_per_vertex(mesh_obj, attr_name="Col"):
+    """Read the baked wind alpha per vertex, PyNifly-style: prefer a
+    "VERTEX_ALPHA" color attribute (averaging its R/G/B -- that's what
+    PyNifly's own exporter actually reads as the alpha channel, see
+    apply_wind_vertex_colors's docstring for why), falling back to
+    *attr_name*'s own alpha component when "VERTEX_ALPHA" doesn't exist.
+    Returns a dict {vertex_index: alpha}, or {} if neither attribute exists.
+    """
+    mesh = mesh_obj.data
+    try:
+        va = mesh.color_attributes.get("VERTEX_ALPHA")
+        if va is not None:
+            return _read_color_attr_per_vertex(mesh, va, channel_avg_rgb=True)
+    except Exception:
+        pass
+    try:
+        ca = mesh.color_attributes.get(attr_name)
+        if ca is not None:
+            return _read_color_attr_per_vertex(mesh, ca, channel_avg_rgb=False)
+    except Exception:
+        pass
+    # Legacy vertex_colors API (Blender 3.x without color_attributes).
+    alphas = {}
+    try:
+        vc = mesh.vertex_colors.get(attr_name)
+        if vc is not None:
+            for poly in mesh.polygons:
+                for li in poly.loop_indices:
+                    vi = mesh.loops[li].vertex_index
+                    if vi not in alphas:
+                        alphas[vi] = vc.data[li].color[3]
+    except Exception:
+        pass
+    return alphas
+
+
+def _find_unwelded_near_duplicates(mesh_obj, epsilon=0.001):
+    """Return the list of (vert_i, vert_j) pairs that sit within *epsilon* of
+    each other in world space but aren't connected by a mesh edge -- i.e.
+    they only look connected at rest. This is the classic result of
+    Object > Join-ing new geometry (e.g. a Solidify-thickened plane) onto an
+    existing mesh without a follow-up Merge by Distance: the seam isn't
+    actually welded, so any bend (wind, armature) pulls the pieces apart
+    proportional to how far that region moves -- worst at high-wind-weight
+    tips, invisible near the anchored base."""
+    from mathutils import kdtree as _kdtree
+
+    me = mesh_obj.data
+    n = len(me.vertices)
+    if n == 0:
+        return []
+
+    coords = [mesh_obj.matrix_world @ v.co for v in me.vertices]
+    kd = _kdtree.KDTree(n)
+    for i, co in enumerate(coords):
+        kd.insert(co, i)
+    kd.balance()
+
+    edge_set = {frozenset(e.vertices) for e in me.edges}
+
+    seen_pairs = set()
+    pairs = []
+    for i, co in enumerate(coords):
+        for _co2, j, _dist in kd.find_range(co, epsilon):
+            if j <= i:
+                continue
+            pair = (i, j)
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            if frozenset((i, j)) not in edge_set:
+                pairs.append(pair)
+    return pairs
+
+
+def _count_unwelded_near_duplicates(mesh_obj, epsilon=0.001):
+    """Count of _find_unwelded_near_duplicates -- see that function for what
+    this actually detects and why."""
+    return len(_find_unwelded_near_duplicates(mesh_obj, epsilon))
+
+
+def _count_stale_wind_colors(mesh_obj, weights, tolerance=0.05):
+    """Count vertices whose baked "Col" alpha no longer matches *weights*
+    (the current Wind group weight, indexed by vertex index) beyond
+    *tolerance*. Returns 0 if there's no "Col" attribute yet (nothing to be
+    stale relative to)."""
+    alphas = _read_wind_color_alpha_per_vertex(mesh_obj)
+    if not alphas:
+        return 0
+    stale = 0
+    for vi, alpha in alphas.items():
+        if vi >= len(weights):
+            continue
+        if abs(alpha - weights[vi]) > tolerance:
+            stale += 1
+    return stale
+
+
 class AnimationHelpers:
     """Helper functions for animation setup and validation"""
     
@@ -474,14 +597,261 @@ class AnimationHelpers:
         return True, "Idle animation created"
 
     @staticmethod
-    def generate_wind_weights(mesh_obj, group_name="Wind", axis='Z', invert=False):
-        """Generate a simple wind‑weight vertex group for a mesh.
+    def scan_wind_readiness(mesh_obj):
+        """Pre-flight check that *mesh_obj* is safe for wind setup.
 
-        The algorithm computes a linear falloff along the specified local axis
-        (default Z, bottom-to-top).  Vertices at the minimum coordinate on that
-        axis receive weight 0.0 and those at the maximum receive 1.0.  The result
-        is stored in a vertex group named ``group_name`` (created or replaced).
-        The ``invert`` flag swaps the falloff direction.
+        The armature-driven wind bends the mesh by rotating a bone that the
+        Wind vertex group follows.  If the object still carries an **unapplied
+        scale** (especially a non-uniform one) or **unapplied rotation**, that
+        transform sandwiches the bone rotation and turns part of it into a
+        shear/scale every cycle — the plant appears to "breathe" (inflate and
+        deflate) instead of swaying.  A pivot that sits at the mesh centre
+        rather than the base makes the whole plant swing about its middle.
+
+        This scan looks for those mesh-specific problems *before* any bone is
+        built.  It changes nothing — it only reports.  Use
+        :func:`ensure_wind_ready` to auto-fix.
+
+        **Returns:** ``(ready: bool, issues: list[str], info: dict)``
+        where ``issues`` is empty when the mesh is safe and ``info`` carries the
+        raw measurements (scale, rotation, origin offset, gradient state).
+        """
+        issues = []
+        info = {}
+        if mesh_obj is None or mesh_obj.type != 'MESH':
+            return False, ["Object is not a mesh"], info
+
+        # --- scale applied & uniform -----------------------------------
+        sx, sy, sz = mesh_obj.scale
+        info['scale'] = (sx, sy, sz)
+        scale_off = max(abs(sx - 1.0), abs(sy - 1.0), abs(sz - 1.0))
+        non_uniform = max(abs(sx - sy), abs(sy - sz), abs(sx - sz)) > 1e-4
+        if scale_off > 1e-3:
+            if non_uniform:
+                issues.append(
+                    f"Scale is not applied and is NON-UNIFORM "
+                    f"({sx:.3f}, {sy:.3f}, {sz:.3f}) — this is the usual cause "
+                    f"of the 'breathing'/inflating wind bug"
+                )
+            else:
+                issues.append(
+                    f"Scale is not applied ({sx:.3f}, {sy:.3f}, {sz:.3f})"
+                )
+
+        # --- rotation applied ------------------------------------------
+        rx, ry, rz = (mesh_obj.rotation_euler
+                      if mesh_obj.rotation_mode not in {'QUATERNION', 'AXIS_ANGLE'}
+                      else mesh_obj.rotation_euler)
+        info['rotation'] = (rx, ry, rz)
+        if max(abs(rx), abs(ry), abs(rz)) > 1e-3:
+            issues.append(
+                f"Rotation is not applied "
+                f"({rx:.3f}, {ry:.3f}, {rz:.3f} rad) — the wind gradient axis "
+                f"will not line up with the mesh"
+            )
+
+        # --- origin at the base (min-Z), not the centre ----------------
+        me = mesh_obj.data
+        if me.vertices:
+            world_z = [(mesh_obj.matrix_world @ v.co).z for v in me.vertices]
+            min_z, max_z = min(world_z), max(world_z)
+            height = max_z - min_z
+            origin_z = mesh_obj.matrix_world.translation.z
+            info['height'] = height
+            info['origin_above_base'] = origin_z - min_z
+            if height > 1e-4 and (origin_z - min_z) > 0.15 * height:
+                pct = (origin_z - min_z) / height * 100.0
+                issues.append(
+                    f"Origin sits {pct:.0f}% up the mesh, not at the base — "
+                    f"the plant will swing about its middle"
+                )
+
+        # --- unwelded seams: near-duplicate vertices with no connecting edge ---
+        # Joining new geometry (e.g. a Solidify-thickened plane) onto an
+        # existing mesh via Object > Join does NOT weld touching vertices at
+        # the seam -- the pieces only look connected at rest. Any bend then
+        # pulls them apart proportional to how far that region actually
+        # moves, which is why this shows up worst at the tip (highest wind
+        # weight) and is invisible near the anchored base -- the "top
+        # separates, bottom is fine" symptom. Skipped on very large meshes
+        # (KD-tree cost).
+        if me.vertices and len(me.vertices) <= 50000:
+            unwelded = _count_unwelded_near_duplicates(mesh_obj)
+            if unwelded:
+                info['unwelded_seam_pairs'] = unwelded
+                issues.append(
+                    f"{unwelded} pair(s) of near-duplicate vertices are not "
+                    "welded together (touching but not connected by an edge) "
+                    "— likely a seam from joining new geometry without "
+                    "merging it. These will visibly separate under wind "
+                    "bending, worse the more they sway. Run Merge by Distance "
+                    "(Edit Mode > Mesh > Merge > By Distance) before "
+                    "re-exporting."
+                )
+
+        # --- armature modifiers ----------------------------------------
+        arm_mods = [m for m in mesh_obj.modifiers if m.type == 'ARMATURE' and m.object]
+        info['armature_mod_count'] = len(arm_mods)
+        non_wind = [m for m in arm_mods
+                    if not (m.object.type == 'ARMATURE'
+                            and 'Wind' in m.object.data.bones)]
+        if len(arm_mods) > 1:
+            issues.append(
+                f"{len(arm_mods)} armature modifiers present — stacked "
+                f"deformers will fight the wind bone"
+            )
+        if non_wind:
+            issues.append(
+                "A non-Wind armature modifier is bound to this mesh"
+            )
+
+        # --- Wind vertex group gradient --------------------------------
+        vg = mesh_obj.vertex_groups.get("Wind")
+        uncovered = 0
+        if vg is not None and me.vertices:
+            weights = []
+            for v in me.vertices:
+                w = None
+                for g in v.groups:
+                    if g.group == vg.index:
+                        w = g.weight
+                        break
+                if w is None:
+                    uncovered += 1
+                    w = 0.0
+                weights.append(w)
+            if weights:
+                spread = max(weights) - min(weights)
+                info['wind_weight_spread'] = spread
+                if spread < 0.05:
+                    issues.append(
+                        "Existing 'Wind' group is uniform (no anchor→tip "
+                        "gradient) — every vertex will sway equally"
+                    )
+
+            # --- Group coverage: vertices with NO Wind membership at all --
+            # A uniform-spread check alone can't catch this: vertices that
+            # were never added to the group (e.g. new geometry joined onto
+            # an already wind-rigged mesh) are silently treated as weight 0
+            # above, which still looks like a valid anchored region even
+            # though it was simply never processed. This is the exact cause
+            # of pieces visually separating from the rest of the mesh under
+            # wind sway in-game.
+            info['wind_uncovered_verts'] = uncovered
+            if uncovered:
+                issues.append(
+                    f"{uncovered} vertex(es) have no 'Wind' group membership at "
+                    "all — likely new geometry added after the initial wind "
+                    "setup; re-run wind generation on the whole mesh"
+                )
+
+            # --- Vertex-color staleness: alpha vs. current group weight ---
+            # apply_wind_vertex_colors() bakes the Wind group weight into the
+            # "Col" attribute's alpha channel at the time it's run. If the
+            # mesh changed afterward (more geometry, re-weighted verts) and
+            # the colors were never regenerated, the baked alpha the engine
+            # actually reads no longer matches the current gradient.
+            stale = _count_stale_wind_colors(mesh_obj, weights)
+            if stale:
+                info['wind_stale_color_verts'] = stale
+                issues.append(
+                    f"{stale} vertex(es) have vertex-color alpha that doesn't "
+                    "match the current Wind group weight — vertex colors are "
+                    "stale, re-run 'Apply Vegetation Wind'"
+                )
+
+        return (len(issues) == 0), issues, info
+
+    @staticmethod
+    def ensure_wind_ready(mesh_obj, auto_fix=True):
+        """Verify — and optionally repair — a mesh so wind behaves correctly.
+
+        Runs :func:`scan_wind_readiness`.  When ``auto_fix`` is True it applies
+        the non-destructive geometric fixes that eliminate the breathing bug:
+
+        1. Applies rotation and scale (never location, so the mesh stays put).
+        2. Moves the object origin to the bottom-centre (base) of the mesh so
+           the wind bone pivots at the roots.
+
+        Armature-modifier conflicts and a uniform Wind group are *reported* but
+        never auto-deleted — those may be intentional, so they are left for the
+        user to resolve.
+
+        **Returns:** ``(ok: bool, actions: list[str], remaining: list[str])``
+        where ``actions`` is what was fixed and ``remaining`` is what still
+        needs manual attention.
+        """
+        ready, issues, info = AnimationHelpers.scan_wind_readiness(mesh_obj)
+        if ready:
+            return True, [], []
+        if not auto_fix:
+            return False, [], issues
+
+        actions = []
+
+        # --- apply rotation & scale ------------------------------------
+        scale_off = max(abs(s - 1.0) for s in mesh_obj.scale)
+        rot_off = max(abs(a) for a in mesh_obj.rotation_euler)
+        if scale_off > 1e-3 or rot_off > 1e-3:
+            prev_active = bpy.context.view_layer.objects.active
+            prev_selected = [o for o in bpy.context.selected_objects]
+            try:
+                for o in prev_selected:
+                    o.select_set(False)
+                mesh_obj.select_set(True)
+                bpy.context.view_layer.objects.active = mesh_obj
+                bpy.ops.object.transform_apply(
+                    location=False, rotation=True, scale=True
+                )
+                actions.append("Applied rotation & scale")
+            except Exception as exc:
+                return False, actions, [f"Could not apply transforms: {exc}"]
+            finally:
+                try:
+                    mesh_obj.select_set(False)
+                    for o in prev_selected:
+                        if o:
+                            o.select_set(True)
+                    bpy.context.view_layer.objects.active = prev_active
+                except Exception:
+                    pass
+
+        # --- move origin to base (bottom-centre) -----------------------
+        me = mesh_obj.data
+        if me.vertices:
+            xs = [v.co.x for v in me.vertices]
+            ys = [v.co.y for v in me.vertices]
+            zs = [v.co.z for v in me.vertices]
+            # Bottom-centre in local space (after transforms are applied).
+            target = Vector((
+                (min(xs) + max(xs)) * 0.5,
+                (min(ys) + max(ys)) * 0.5,
+                min(zs),
+            ))
+            if target.length > 1e-5:
+                for v in me.vertices:
+                    v.co -= target
+                me.update()
+                mesh_obj.location += mesh_obj.matrix_world.to_3x3() @ target
+                actions.append("Moved origin to base of mesh")
+
+        ready2, remaining, _ = AnimationHelpers.scan_wind_readiness(mesh_obj)
+        return ready2, actions, remaining
+
+    @staticmethod
+    def generate_wind_weights(mesh_obj, group_name="Wind", axis='Z', invert=False,
+                              base_anchor=0.15):
+        """Generate a wind‑weight vertex group with an anchored (solid) base.
+
+        The algorithm computes a falloff along the specified local axis
+        (default Z, bottom-to-top).  The bottom ``base_anchor`` fraction of the
+        plant's height is held fully anchored (near-zero weight) so the base
+        stays planted in the ground and does not sway.  Above that anchor zone
+        the weight ramps from 0 at the anchor line to 1.0 at the tip using a
+        smoothstep ease-in, so the bend builds gradually up the plant instead of
+        the whole mesh thrashing uniformly.  The result is stored in a vertex
+        group named ``group_name`` (created or replaced).  The ``invert`` flag
+        swaps the falloff direction (tip becomes the anchored end).
 
         This is intended for FO4 vegetation assets where the game uses a single
         weight channel to drive procedural wind/bending (often referred to as
@@ -492,12 +862,21 @@ class AnimationHelpers:
         - ``mesh_obj`` (bpy.types.Object): mesh to tag
         - ``group_name`` (str): name of the vertex group to create/update
         - ``axis`` (str): local axis to use for falloff ('X','Y','Z')
-        - ``invert`` (bool): if True, highest coordinate gets zero weight
+        - ``invert`` (bool): if True, highest coordinate becomes the anchored end
+        - ``base_anchor`` (float): fraction (0.0-1.0) of the plant height, measured
+          from the base, that stays solid/unmoving.  Default 0.15 keeps the
+          bottom 15% planted.  Set to 0.0 for the old pure-gradient behaviour.
 
         **Returns:** ``(success: bool, message: str)``
         """
         if mesh_obj.type != 'MESH':
             return False, "Object is not a mesh"
+
+        # VertexGroup.add() raises RuntimeError if the object is in Edit Mode
+        # (e.g. the user just ran Merge by Distance and re-ran wind generation
+        # without leaving Edit Mode first) -- bail out to Object Mode first.
+        if bpy.context.object == mesh_obj and bpy.context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
 
         mesh = mesh_obj.data
         # ensure vertex group exists
@@ -507,6 +886,9 @@ class AnimationHelpers:
 
         # figure out axis index
         idx = {'X': 0, 'Y': 1, 'Z': 2}.get(axis.upper(), 2)
+
+        # clamp the anchor fraction into a sane range
+        base_anchor = min(max(base_anchor, 0.0), 0.95)
 
         # gather coordinates in object space
         coords = [(mesh_obj.matrix_world @ v.co) for v in mesh.vertices]
@@ -520,49 +902,168 @@ class AnimationHelpers:
             for i in range(len(mesh.vertices)):
                 vg.add([i], 1.0, 'REPLACE')
         else:
+            # Height (0..1) of the anchor line above the base.  Below this the
+            # plant is solid; above it, weight ramps 0 -> 1 up to the tip.
+            span = 1.0 - base_anchor  # normalized height of the moving region
             for i, val in enumerate(values):
-                w = (val - minv) / diff
+                # normalized position along the axis, 0 = base, 1 = tip
+                pos = (val - minv) / diff
                 if invert:
-                    w = 1.0 - w
+                    pos = 1.0 - pos
+
+                if pos <= base_anchor or span < 1e-6:
+                    # inside the solid base zone -> anchored
+                    w = 0.0
+                else:
+                    # remap the moving region to 0..1, then smoothstep ease-in
+                    t = (pos - base_anchor) / span
+                    w = t * t * (3.0 - 2.0 * t)
+
                 # Floor at 0.001: pure 0.0 weight is treated as "unweighted"
                 # by PyNifly's exporter and causes a hard error.  0.001 is
                 # imperceptibly small and won't cause visible root-sway.
                 vg.add([i], max(0.001, w), 'REPLACE')
 
-        return True, f"Wind weights ('{group_name}') generated"
+        return True, (
+            f"Wind weights ('{group_name}') generated "
+            f"(base {int(base_anchor * 100)}% anchored)"
+        )
 
     @staticmethod
-    def apply_vegetation_wind(mesh_obj, amplitude: float = 0.2, period: float = 60.0):
-        """Set up FO4 vegetation wind using vertex groups only — no armature.
+    def apply_wind_vertex_colors(mesh_obj, group_name="Wind", attr_name="Col"):
+        """Write the Wind vertex-group gradient into vertex color data.
 
-        Fallout 4 vegetation wind is fully procedural in-engine.  The game reads
-        the ``Wind`` vertex group weight to decide how much each vertex sways; no
-        bone skeleton is involved.  Using this method instead of
-        ``apply_wind_animation`` keeps the object export-clean (no orphaned bone
-        weights, no spurious armature modifier, correct ``BSTreeNode`` path).
+        FO4's BSLeafAnimNode reads a per-vertex alpha value to decide how much
+        each vertex sways (0 = anchored base/trunk, 1 = full sway/tips).
+        Without this gradient the whole mesh sways uniformly ("breathing").
 
-        Steps:
-        1. Generate a Z-axis linear wind-weight gradient on the ``Wind`` group.
-        2. Tag the object with ``fo4_object_type = 'VEGETATION'`` so that the
-           export helper skips the orphaned-weight check.
-        3. Store amplitude/period as custom properties for the BGSM exporter.
+        PyNifly does **not** read this from ``attr_name``'s own alpha
+        component -- confirmed in its own ``export_nif.py``
+        (``ALPHA_MAP_NAME = "VERTEX_ALPHA"``, ``find_colormaps``/
+        ``extract_colors``): if a color attribute named ``"VERTEX_ALPHA"``
+        exists, PyNifly averages *its* R/G/B (greyscale) and uses that as the
+        exported alpha, completely ignoring ``attr_name``'s alpha -- which is
+        exactly what PyNifly's own NIF importer creates on import (see
+        ``import_nif.py``: ``ALPHA_MAP_NAME = "VERTEX_ALPHA"``,
+        ``COLOR_MAP_NAME = "Col"``, both created at ``domain='POINT'``). So
+        this writes the Wind weight as greyscale RGB into ``"VERTEX_ALPHA"``
+        (POINT domain, matching PyNifly's own convention exactly) -- this is
+        the value that actually reaches the exported NIF for any mesh that
+        already has that attribute (i.e. anything imported from an existing
+        FO4 NIF). ``attr_name`` ("Col") is also written as a plain white tint
+        for Blender-side preview and as the fallback PyNifly uses when
+        ``"VERTEX_ALPHA"`` doesn't exist at all (freshly-authored meshes).
+
+        If no Wind group exists the function returns False so the caller can
+        run generate_wind_weights first.
 
         Returns ``(success, message)``.
         """
         if mesh_obj.type != 'MESH':
             return False, "Object is not a mesh"
 
+        # Writing color_attributes data while the object is in Edit Mode
+        # doesn't reliably propagate (and vertex-group reads below assume
+        # Object Mode too) -- same fragility as generate_wind_weights.
+        if bpy.context.object == mesh_obj and bpy.context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        vg = mesh_obj.vertex_groups.get(group_name)
+        if vg is None:
+            return False, f"No '{group_name}' vertex group — run Apply Vegetation Wind first"
+
+        mesh = mesh_obj.data
+
+        # Build a per-vertex weight lookup from the Wind group.
+        weights = {}
+        for v in mesh.vertices:
+            for ge in v.groups:
+                if ge.group == vg.index:
+                    weights[v.index] = ge.weight
+                    break
+
+        wrote_alpha_map = False
+        try:
+            va = mesh.color_attributes.get("VERTEX_ALPHA")
+            if va is None:
+                va = mesh.color_attributes.new(
+                    name="VERTEX_ALPHA", type='FLOAT_COLOR', domain='POINT'
+                )
+            for vi in range(len(mesh.vertices)):
+                w = weights.get(vi, 0.0)
+                va.data[vi].color = (w, w, w, 1.0)
+            wrote_alpha_map = True
+        except Exception as exc:
+            print(f"[AnimationHelpers] Could not write 'VERTEX_ALPHA': {exc}")
+
+        # Also write attr_name ("Col") as a white tint + alpha=weight, kept for
+        # Blender-side preview and as PyNifly's fallback when VERTEX_ALPHA is
+        # absent entirely.
+        try:
+            ca = mesh.color_attributes.get(attr_name)
+            if ca is None:
+                ca = mesh.color_attributes.new(
+                    name=attr_name, type='FLOAT_COLOR', domain='POINT'
+                )
+            if ca.domain == 'POINT':
+                for vi in range(len(mesh.vertices)):
+                    w = weights.get(vi, 0.0)
+                    ca.data[vi].color = (1.0, 1.0, 1.0, w)
+            else:
+                for poly in mesh.polygons:
+                    for li in poly.loop_indices:
+                        vi = mesh.loops[li].vertex_index
+                        w = weights.get(vi, 0.0)
+                        ca.data[li].color = (1.0, 1.0, 1.0, w)
+        except Exception as exc:
+            if not wrote_alpha_map:
+                return False, f"Could not write vertex colors: {exc}"
+
+        mesh.update()
+        if wrote_alpha_map:
+            return True, "Wind vertex colors written to 'VERTEX_ALPHA' (PyNifly's alpha channel) + 'Col'"
+        return True, f"Wind vertex colors written to '{attr_name}' (alpha = Wind weight)"
+
+    @staticmethod
+    def apply_vegetation_wind(mesh_obj, amplitude: float = 0.2, period: float = 60.0):
+        """Set up FO4 vegetation wind using vertex groups and vertex color alpha.
+
+        FO4 vegetation wind is procedural in-engine.  The BSLeafAnimNode reads
+        the vertex color alpha channel per-vertex (0=anchored, 1=full sway).
+        This method generates both the Wind vertex group (for Blender preview)
+        and the vertex color alpha gradient (for the in-game engine).
+
+        Steps:
+        1. Apply transforms / fix origin so the mesh can't "breathe" on export.
+        2. Generate a Z-axis gradient on the ``Wind`` vertex group.
+        3. Mirror that gradient into vertex color alpha (white RGB, alpha=weight).
+        4. Tag the object as VEGETATION for export.
+
+        Returns ``(success, message)``.
+        """
+        if mesh_obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        # Pre-flight: apply transforms / fix origin so the mesh can't "breathe".
+        ready, fixes, remaining = AnimationHelpers.ensure_wind_ready(mesh_obj, auto_fix=True)
+        fix_note = f" [prep: {', '.join(fixes)}]" if fixes else ""
+
         ok, msg = AnimationHelpers.generate_wind_weights(mesh_obj, group_name="Wind")
         if not ok:
             return False, msg
+
+        # Mirror the wind weights into vertex color alpha so FO4's BSLeafAnimNode
+        # can read the per-vertex sway amount in-engine.
+        vc_ok, vc_msg = AnimationHelpers.apply_wind_vertex_colors(mesh_obj)
+        vc_note = f" | {vc_msg}" if not vc_ok else ""
 
         mesh_obj["fo4_object_type"]    = "VEGETATION"
         mesh_obj["fo4_wind_amplitude"] = amplitude
         mesh_obj["fo4_wind_period"]    = period
 
         return True, (
-            f"Vegetation wind weights applied to '{mesh_obj.name}' "
-            f"(amplitude={amplitude}, period={period} frames) — no armature needed"
+            f"Vegetation wind applied to '{mesh_obj.name}' "
+            f"(vertex group + vertex color alpha gradient){fix_note}{vc_note}"
         )
 
     @staticmethod
@@ -579,6 +1080,11 @@ class AnimationHelpers:
         """
         if mesh_obj.type != 'MESH':
             return False, "Object is not a mesh"
+
+        # Pre-flight: apply transforms / fix origin BEFORE building the wind
+        # bone.  Skipping this on a mesh with unapplied (non-uniform) scale is
+        # what makes the plant "breathe"/inflate instead of sway.
+        AnimationHelpers.ensure_wind_ready(mesh_obj, auto_fix=True)
 
         # ensure weight channel exists
         AnimationHelpers.generate_wind_weights(mesh_obj)
@@ -702,11 +1208,16 @@ class AnimationHelpers:
         if _wind_preview_handler is not None:
             return False, "Preview already running"
         def _handler(scene):
+            import math
             for obj in scene.objects:
                 if obj.type == 'ARMATURE' and 'Wind' in obj.pose.bones:
                     bone = obj.pose.bones['Wind']
                     idx = {'X':0,'Y':1,'Z':2}.get(axis.upper(),0)
-                    bone.rotation_euler[idx] += speed
+                    # Bounded oscillation.  The old code did '+= speed' every
+                    # frame, so the rotation accumulated without limit and wound
+                    # the weighted mesh into shards.  Set an absolute, small sway
+                    # derived from the current frame instead (never accumulates).
+                    bone.rotation_euler[idx] = math.sin(scene.frame_current * speed) * 0.12
         _handler._mossy_wind_preview = True
         bpy.app.handlers.frame_change_post.append(_handler)
         _wind_preview_handler = _handler
@@ -721,6 +1232,178 @@ class AnimationHelpers:
             _wind_preview_handler = None
             return True, "Wind preview stopped"
         return False, "No wind preview running"
+
+    @staticmethod
+    def weld_wind_seams(mesh_obj, epsilon=0.001):
+        """Weld only the specific unwelded near-duplicate vertex pairs
+        `_find_unwelded_near_duplicates` finds -- NOT a blanket "select all,
+        Merge by Distance" over the whole mesh.
+
+        A whole-mesh merge is risky on dense foliage: it can weld unrelated
+        close-together vertices that were never meant to be joined (e.g.
+        opposite sides of a thin leaf blade thinner than the merge
+        threshold), collapsing them into degenerate slivers -- confirmed
+        live: this produced worse smeared/stretched texture artifacts, not a
+        fix. Restricting the merge to just the flagged vertex indices (via
+        `bmesh.ops.remove_doubles(..., verts=[...])`) can't touch anything
+        outside that set.
+
+        Returns ``(welded_pair_count: int, message: str)``.
+        """
+        import bmesh as _bmesh
+
+        if mesh_obj.type != 'MESH':
+            return 0, "Object is not a mesh"
+        if bpy.context.object == mesh_obj and bpy.context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        pairs = _find_unwelded_near_duplicates(mesh_obj, epsilon)
+        if not pairs:
+            return 0, "No unwelded near-duplicate vertices found"
+
+        flagged_indices = sorted({i for pair in pairs for i in pair})
+
+        me = mesh_obj.data
+        bm = _bmesh.new()
+        bm.from_mesh(me)
+        bm.verts.ensure_lookup_table()
+        target_verts = [bm.verts[i] for i in flagged_indices]
+        before_count = len(bm.verts)
+        _bmesh.ops.remove_doubles(bm, verts=target_verts, dist=epsilon)
+        merged = before_count - len(bm.verts)
+        bm.to_mesh(me)
+        bm.free()
+        me.update()
+
+        return merged, f"Welded {merged} vertex(es) at {len(pairs)} flagged seam pair(s)"
+
+    @staticmethod
+    def test_wind_deformation(mesh_obj, test_angle_deg: float = 15.0, stretch_threshold: float = 0.3):
+        """Physically test that *mesh_obj*'s wind setup won't visibly tear.
+
+        Poses the mesh's Wind bone (creating a temporary one if none exists),
+        evaluates the deformed mesh, and flags any edge whose length changes
+        by more than *stretch_threshold* (30% by default) under the bend --
+        the direct symptom of a piece visually separating from the rest of
+        the mesh in-game because part of it has stale/missing wind weights
+        relative to its neighbours (e.g. new geometry joined on after the
+        original wind setup, see scan_wind_readiness's coverage/staleness
+        checks for the same root cause detected without a simulation).
+
+        Non-destructive: any temporary armature/modifier created for the
+        test is removed afterward, and the Wind bone's pose is restored.
+
+        Returns ``(passed: bool, issues: list[str], flagged_vertex_indices: set[int])``.
+        On failure, the flagged vertices are also written into a
+        "WindTestFailures" vertex group so they can be selected/inspected in
+        Weight Paint mode.
+        """
+        import math
+
+        if mesh_obj.type != 'MESH':
+            return False, ["Object is not a mesh"], set()
+
+        _ready, issues, _info = AnimationHelpers.scan_wind_readiness(mesh_obj)
+        issues = list(issues)
+
+        me = mesh_obj.data
+        if not me.vertices or not me.edges:
+            return (len(issues) == 0), issues, set()
+
+        original_positions = [mesh_obj.matrix_world @ v.co for v in me.vertices]
+
+        # Find the armature already deforming this mesh via a "Wind" bone.
+        arm_obj = None
+        for mod in mesh_obj.modifiers:
+            if mod.type == 'ARMATURE' and mod.object and mod.object.type == 'ARMATURE':
+                if "Wind" in mod.object.data.bones:
+                    arm_obj = mod.object
+                    break
+        if arm_obj is None and mesh_obj.parent and mesh_obj.parent.type == 'ARMATURE':
+            if "Wind" in mesh_obj.parent.data.bones:
+                arm_obj = mesh_obj.parent
+
+        created_temp_rig = False
+        prev_parent = mesh_obj.parent
+        temp_mod_name = None
+
+        if arm_obj is None:
+            # No wind rig yet -- build a temporary one purely for this test
+            # (same construction as apply_wind_animation's bone creation).
+            arm = bpy.data.armatures.new("_WindTest_Arm")
+            arm_obj = bpy.data.objects.new("_WindTest_ArmObj", arm)
+            bpy.context.collection.objects.link(arm_obj)
+            bpy.context.view_layer.objects.active = arm_obj
+            bpy.ops.object.mode_set(mode='EDIT')
+            bone = arm.edit_bones.new("Wind")
+            bone.head = mesh_obj.location
+            bone.tail = mesh_obj.location + Vector((0.0, 0.0, 0.1))
+            bpy.ops.object.mode_set(mode='OBJECT')
+            mesh_obj.parent = arm_obj
+            wm = mesh_obj.modifiers.new(name="_WindTestArmature", type='ARMATURE')
+            wm.object = arm_obj
+            temp_mod_name = wm.name
+            created_temp_rig = True
+
+        pose_bone = arm_obj.pose.bones.get("Wind") if arm_obj.pose else None
+        if pose_bone is None:
+            issues.append("Wind armature has no 'Wind' pose bone")
+            if created_temp_rig:
+                mesh_obj.modifiers.remove(mesh_obj.modifiers[temp_mod_name])
+                mesh_obj.parent = prev_parent
+                bpy.data.objects.remove(arm_obj, do_unlink=True)
+            return False, issues, set()
+
+        prev_rotation = pose_bone.rotation_euler.copy()
+        pose_bone.rotation_euler = (math.radians(test_angle_deg), 0.0, 0.0)
+
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        eval_obj = mesh_obj.evaluated_get(depsgraph)
+        eval_mesh = eval_obj.to_mesh()
+        deformed_positions = [eval_obj.matrix_world @ v.co for v in eval_mesh.vertices]
+        eval_obj.to_mesh_clear()
+
+        flagged = set()
+        if len(deformed_positions) == len(original_positions):
+            for e in me.edges:
+                v1, v2 = e.vertices
+                orig_len = (original_positions[v1] - original_positions[v2]).length
+                new_len = (deformed_positions[v1] - deformed_positions[v2]).length
+                if orig_len < 1e-6:
+                    continue
+                change = abs(new_len - orig_len) / orig_len
+                if change > stretch_threshold:
+                    flagged.add(v1)
+                    flagged.add(v2)
+        else:
+            issues.append(
+                "Evaluated mesh vertex count changed under deformation -- "
+                "cannot compare edges"
+            )
+
+        # Restore pose, then tear down the temporary rig if one was created.
+        pose_bone.rotation_euler = prev_rotation
+        if created_temp_rig:
+            mod = mesh_obj.modifiers.get(temp_mod_name)
+            if mod:
+                mesh_obj.modifiers.remove(mod)
+            mesh_obj.parent = prev_parent
+            bpy.data.objects.remove(arm_obj, do_unlink=True)
+
+        if flagged:
+            issues.append(
+                f"{len(flagged)} vertex(es) stretch by more than "
+                f"{int(stretch_threshold * 100)}% under a {test_angle_deg:.0f}° "
+                "wind bend -- likely a seam between old and newly-added "
+                "geometry with inconsistent wind weights"
+            )
+            vg = mesh_obj.vertex_groups.get("WindTestFailures")
+            if vg is not None:
+                mesh_obj.vertex_groups.remove(vg)
+            vg = mesh_obj.vertex_groups.new(name="WindTestFailures")
+            vg.add(list(flagged), 1.0, 'REPLACE')
+
+        return (len(issues) == 0), issues, flagged
 
     @staticmethod
     def apply_emittance_pulse(

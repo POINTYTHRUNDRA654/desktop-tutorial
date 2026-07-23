@@ -959,6 +959,12 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                     opt_sub.prop(scene, "fo4_opt_preserve_uvs")
             row = box.row()
             row.enabled = bool(has_mesh)
+            row.operator("fo4.solidify_mesh", text="Solidify Planes", icon='MOD_SOLIDIFY')
+            row = box.row()
+            row.enabled = bool(has_mesh and (context.active_object and len(context.active_object.material_slots) > 1))
+            row.operator("fo4.unify_material_slots", text="Unify Material Slots", icon='MATERIAL')
+            row = box.row()
+            row.enabled = bool(has_mesh)
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
             row = box.row()
             row.enabled = bool(has_mesh)
@@ -1098,6 +1104,13 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 text="Foliage UV Unwrap (leaf cards)",
                 icon='SHADERFX',
             )
+            row_atlas = uv_box.row()
+            row_atlas.enabled = bool(has_mesh)
+            row_atlas.operator(
+                "fo4.vegetation_atlas_uv",
+                text="Vegetation Atlas UV (orient + pack)",
+                icon='UV_FACESEL',
+            )
             uv_box.separator()
 
             # Step 2 - face-picking for selective unwrap
@@ -1170,6 +1183,12 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                     opt_sub.prop(scene, "fo4_opt_apply_transforms")
                     opt_sub.prop(scene, "fo4_opt_doubles")
                     opt_sub.prop(scene, "fo4_opt_preserve_uvs")
+            row = box.row()
+            row.enabled = bool(has_mesh)
+            row.operator("fo4.solidify_mesh", text="Solidify Planes", icon='MOD_SOLIDIFY')
+            row = box.row()
+            row.enabled = bool(has_mesh and (context.active_object and len(context.active_object.material_slots) > 1))
+            row.operator("fo4.unify_material_slots", text="Unify Material Slots", icon='MATERIAL')
             row = box.row()
             row.enabled = bool(has_mesh)
             row.operator("fo4.validate_mesh", text="Validate Mesh", icon='CHECKMARK')
@@ -1254,6 +1273,13 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row.enabled = bool(has_mesh)
             row.operator("fo4.re_unwrap_uv",  text="Re-Unwrap",     icon='UV_SYNC_SELECT')
             row.operator("fo4.optimize_uvs",  text="Pack Islands",  icon='UV_FACESEL')
+            row_atlas2 = uv_box.row()
+            row_atlas2.enabled = bool(has_mesh)
+            row_atlas2.operator(
+                "fo4.vegetation_atlas_uv",
+                text="Vegetation Atlas UV",
+                icon='UV_FACESEL',
+            )
             row = uv_box.row()
             row.enabled = bool(has_mesh)
             row.operator("fo4.open_uv_editing", text="Edit UV Map", icon='UV_ISLANDSEL')
@@ -1279,6 +1305,47 @@ class FO4_PT_TexturePanel(_FO4SubPanel):
         layout = self.layout
         obj = context.active_object
         has_mesh = bool(obj and obj.type == 'MESH')
+
+        # ── Texture search paths ──────────────────────────────────────────────
+        paths_box = layout.box()
+        paths_box.label(text="Texture Search Paths", icon='FILE_FOLDER')
+        paths_col = paths_box.column(align=True)
+        # Prefer addon preferences (persistent across blend files/restarts).
+        _addon_prefs = None
+        try:
+            _addon_prefs = context.preferences.addons.get(__package__).preferences
+        except Exception:
+            pass
+        if _addon_prefs is not None:
+            paths_col.prop(_addon_prefs, "fo4_game_data_path",
+                           text="FO4 Data Folder")
+            paths_col.prop(_addon_prefs, "fo4_mo2_mods_root",
+                           text="MO2 Mods Root (optional)")
+        else:
+            scene = context.scene
+            if scene:
+                paths_col.prop(scene, "fo4_game_data_path",
+                               text="FO4 Data Folder")
+                paths_col.prop(scene, "fo4_mo2_mods_root",
+                               text="MO2 Mods Root (optional)")
+        paths_box.separator(factor=0.3)
+        _res_row = paths_box.row()
+        _res_row.enabled = bool(has_mesh)
+        _res_row.operator("fo4.resolve_textures",
+                          text="Resolve Textures Now", icon='TEXTURE')
+
+        # ── Reference library (ground-truth FO4 mesh/texture/material data for Mossy) ──
+        ref_box = layout.box()
+        ref_box.label(text="Reference Library", icon='ASSET_MANAGER')
+        ref_col = ref_box.column(align=True)
+        ref_col.scale_y = 0.8
+        ref_col.label(text="Known-good FO4 meshes (e.g. a full Data/Meshes", icon='INFO')
+        ref_col.label(text="folder) used as ground truth for anything built here.")
+        ref_col.label(text="Sibling Textures/Materials folders are indexed too.")
+        if _addon_prefs is not None:
+            ref_box.prop(_addon_prefs, "fo4_reference_meshes_path", text="Mesh Library Folder")
+        ref_box.operator("fo4.scan_reference_mesh_library",
+                         text="Scan Reference Library", icon='FILE_REFRESH')
 
         box = layout.box()
         box.label(text="Texture Setup", icon='TEXTURE')
@@ -2087,6 +2154,8 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
                          text="Vegetation Wind (Vertex Groups)", icon='FORCE_WIND')
         veg_row.operator("fo4.generate_wind_weights",
                          text="", icon='WPAINT_HLT')
+        type_col.operator("fo4.fix_wind_vertex_colors",
+                          text="Fix Wind Vertex Colors (stops breathing)", icon='VPAINT_HLT')
 
         type_col.separator(factor=0.4)
         type_col.label(text="Creatures / Characters (armature):", icon='ARMATURE_DATA')
@@ -2106,6 +2175,7 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         row.operator("fo4.batch_generate_wind_weights", text="Batch Wind Weights")
         row.operator("fo4.batch_apply_wind_animation", text="Batch Wind Anim")
         wind_box.operator("fo4.batch_auto_weight_paint", text="Batch Auto-Weight")
+        wind_box.operator("fo4.scan_wind_readiness", text="Scan Wind Readiness", icon='CHECKMARK')
         wind_box.operator("fo4.toggle_wind_preview", text="Toggle Wind Preview", icon='PLAY')
 
         # Motion Generation section
@@ -3160,7 +3230,6 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             text="Export Entire Scene as NIF",
             icon='SCENE_DATA',
         )
-
         act_box.operator("fo4.export_all", text="Export Complete Mod Folder", icon='PACKAGE')
 
         # ── Mod Folder Import/Export ─────────────────────────────────────────
@@ -3567,6 +3636,21 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         tool_row.scale_y = 0.9
         tool_row.operator("fo4.flip_skeleton_facing", text="Flip Skeleton 180°", icon='LOOP_BACK')
         tool_row.operator("fo4.fix_nif_scale", text="Fix NIF Scale ÷100", icon='MOD_LENGTH')
+        hero.operator(
+            "fo4.fix_wrongly_scaled_import",
+            text="Fix Wrongly-Scaled FBX/OBJ/GLB Import",
+            icon='MOD_LENGTH',
+        )
+        hero.operator(
+            "fo4.auto_scale_to_skeleton_landmarks",
+            text="Auto-Scale to Skeleton Landmarks",
+            icon='MOD_LENGTH',
+        )
+        hero.operator(
+            "fo4.fix_skeleton_scale_bug",
+            text="Fix Skeleton ÷100 Scale Bug (+ its armor)",
+            icon='MOD_LENGTH',
+        )
 
         # Texture auto-connect
         tex_row = hero.row()
@@ -3576,6 +3660,20 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
             "fo4.auto_connect_armor_textures",
             text="Auto-Connect Textures",
             icon='NODE_TEXTURE',
+        )
+
+        # Export a whole outfit's pieces in one click -- vanilla FO4 armor
+        # (see F_Arm_Heavy_L.nif / F_Leg_Heavy_L.nif / F_Helmet.nif etc.) is
+        # always separate NIFs per piece, not one merged file, so this
+        # exports each selected mesh to its own correctly-named NIF rather
+        # than combining them.
+        export_row = hero.row()
+        export_row.enabled = bool(has_mesh)
+        export_row.scale_y = 1.1
+        export_row.operator(
+            "fo4.batch_export_meshes",
+            text="Export All Selected Pieces (.nif each)",
+            icon='EXPORT',
         )
 
         layout.separator()

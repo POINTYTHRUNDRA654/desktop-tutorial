@@ -123,6 +123,22 @@ def generate_lod_mesh(source_obj, ratio: float, lod_name: str) -> "tuple[object,
     bpy.context.view_layer.objects.active = new_obj
     bpy.ops.object.modifier_apply(modifier=mod.name)
 
+    # Decimate's COLLAPSE algorithm can strand vertices whose surrounding
+    # faces all collapsed away without cleaning up the vertex itself --
+    # worse at aggressive ratios (low LOD levels). Confirmed on a real asset:
+    # loose-vertex count climbed with each more-aggressive LOD, visible as
+    # holes/gaps in the mesh and propagating into any collision hull built
+    # from it. Strip them here so every consumer of this LOD gets clean data.
+    import bmesh as _bmesh
+    _loose_bm = _bmesh.new()
+    _loose_bm.from_mesh(new_obj.data)
+    _loose_verts = [v for v in _loose_bm.verts if not v.link_faces]
+    if _loose_verts:
+        _bmesh.ops.delete(_loose_bm, geom=_loose_verts, context='VERTS')
+        _loose_bm.to_mesh(new_obj.data)
+        new_obj.data.update()
+    _loose_bm.free()
+
     n_tris = sum(len(p.loop_indices) - 2 for p in new_obj.data.polygons)
     msg = (
         f"LOD '{lod_name}': {n_tris} triangles "
@@ -223,6 +239,153 @@ def prepare_ao_bake(low_obj, tex_size: int = 2048) -> tuple:
         f"AO bake ready: {img_name} ({tex_size}×{tex_size}px). "
         "Click 'Bake' in Render Properties → Ambient Occlusion."
     )
+
+
+# ── Billboard LOD (the real FO4 farthest LOD level) ──────────────────────────
+
+def generate_billboard_lod(source_obj, billboard_name: str, tex_size: int = 512) -> tuple:
+    """Generate a baked-billboard LOD for *source_obj*.
+
+    Real FO4 assets don't just keep decimating the organic mesh down for
+    their farthest LOD level — verified against a real reference asset
+    (``BlastedForestBurntTreeUpright01`` in the vanilla/DLC library): its
+    last LOD level is 8 verts / 4 tris (two independent perpendicular quads —
+    a classic "cross" billboard) using its own dedicated billboard texture,
+    not the shared trunk atlas the closer LOD levels use.
+
+    This renders a single front-view (looking down +Y, matching this addon's
+    existing "front faces -Y" convention used elsewhere for facing-direction
+    checks) orthographic capture of *source_obj* with a transparent
+    background, builds that same 8-vert/4-tri cross shape sized to the
+    object's bounding box, and applies the render to both quads via an
+    alpha-clip material.
+
+    Never modifies *source_obj* itself, and restores the scene's prior active
+    camera / render engine / resolution / film_transparent afterward so this
+    doesn't leave the user's scene in a different state.
+
+    Returns (new_obj, message).
+    """
+    import os
+    import tempfile
+    from mathutils import Vector
+
+    scene = bpy.context.scene
+
+    corners = [source_obj.matrix_world @ Vector(c) for c in source_obj.bound_box]
+    min_x = min(c.x for c in corners); max_x = max(c.x for c in corners)
+    min_y = min(c.y for c in corners); max_y = max(c.y for c in corners)
+    min_z = min(c.z for c in corners); max_z = max(c.z for c in corners)
+    width = max(max_x - min_x, max_y - min_y, 1e-4)
+    height = max(max_z - min_z, 1e-4)
+    center_x = (min_x + max_x) * 0.5
+    center_y = (min_y + max_y) * 0.5
+    cam_distance = max(width, height) * 2.0 + 1.0
+
+    # Save scene state so this is fully non-destructive to the user's setup.
+    _prev_camera = scene.camera
+    _prev_engine = scene.render.engine
+    _prev_res_x = scene.render.resolution_x
+    _prev_res_y = scene.render.resolution_y
+    _prev_film_transparent = scene.render.film_transparent
+    _prev_filepath = scene.render.filepath
+
+    new_obj = None
+    cam_obj = None
+    try:
+        cam_data = bpy.data.cameras.new(f"{billboard_name}_BakeCam")
+        cam_data.type = 'ORTHO'
+        cam_data.ortho_scale = max(width, height) * 1.05
+        cam_obj = bpy.data.objects.new(f"{billboard_name}_BakeCam", cam_data)
+        scene.collection.objects.link(cam_obj)
+        cam_obj.location = (center_x, min_y - cam_distance, (min_z + max_z) * 0.5)
+        # Look down +Y ("front", matching this addon's -Y-facing-front convention).
+        cam_obj.rotation_euler = (1.5707963267948966, 0.0, 0.0)
+        scene.camera = cam_obj
+
+        for _engine in ('BLENDER_EEVEE_NEXT', 'BLENDER_EEVEE', 'CYCLES'):
+            try:
+                scene.render.engine = _engine
+                break
+            except Exception:
+                continue
+        scene.render.film_transparent = True
+        scene.render.resolution_x = tex_size
+        scene.render.resolution_y = tex_size
+
+        out_path = os.path.join(tempfile.gettempdir(), f"{billboard_name}_billboard.png")
+        scene.render.filepath = out_path
+        scene.render.image_settings.file_format = 'PNG'
+        scene.render.image_settings.color_mode = 'RGBA'
+        bpy.ops.render.render(write_still=True)
+
+        img = bpy.data.images.load(out_path, check_existing=False)
+        img.name = f"{billboard_name}_d"
+
+        # Cross billboard: two independent perpendicular quads (4 verts + 2
+        # tris each = 8 verts / 4 tris total) -- matching the verified real
+        # asset exactly, rather than a single flat card.
+        half_w = width * 0.5
+        mesh = bpy.data.meshes.new(billboard_name)
+        verts = [
+            (-half_w, 0.0, 0.0), (half_w, 0.0, 0.0), (half_w, 0.0, height), (-half_w, 0.0, height),
+            (0.0, -half_w, 0.0), (0.0, half_w, 0.0), (0.0, half_w, height), (0.0, -half_w, height),
+        ]
+        faces = [(0, 1, 2, 3), (4, 5, 6, 7)]
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+
+        uv_layer = mesh.uv_layers.new(name="UVMap")
+        quad_uv = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        for poly in mesh.polygons:
+            for corner, loop_index in enumerate(poly.loop_indices):
+                uv_layer.data[loop_index].uv = quad_uv[corner]
+
+        new_obj = bpy.data.objects.new(billboard_name, mesh)
+        scene.collection.objects.link(new_obj)
+        new_obj.location = (center_x, center_y, min_z)
+
+        mat = bpy.data.materials.new(f"{billboard_name}_Mat")
+        mat.use_nodes = True
+        mat.blend_method = 'CLIP'
+        try:
+            mat.shadow_method = 'CLIP'
+        except AttributeError:
+            pass  # removed in some Blender versions
+        mat.use_backface_culling = False
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        tex_node = nodes.new('ShaderNodeTexImage')
+        tex_node.name = "Diffuse"
+        tex_node.label = "Diffuse"
+        tex_node.image = img
+        if bsdf:
+            links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+            alpha_input = bsdf.inputs.get('Alpha')
+            if alpha_input:
+                links.new(tex_node.outputs['Alpha'], alpha_input)
+        new_obj.data.materials.append(mat)
+
+        new_obj["fo4_mesh_type"] = 'LOD'
+        new_obj["fo4_billboard"] = True
+        new_obj["PYN_GAME"] = "FO4"
+
+        msg = (
+            f"Billboard '{billboard_name}' generated: "
+            f"{len(mesh.vertices)} verts / {len(mesh.polygons)*2} tris, "
+            f"{tex_size}x{tex_size}px texture."
+        )
+        return new_obj, msg
+    finally:
+        if cam_obj is not None:
+            bpy.data.objects.remove(cam_obj, do_unlink=True)
+        scene.camera = _prev_camera
+        scene.render.engine = _prev_engine
+        scene.render.resolution_x = _prev_res_x
+        scene.render.resolution_y = _prev_res_y
+        scene.render.film_transparent = _prev_film_transparent
+        scene.render.filepath = _prev_filepath
 
 
 # ══════════════════════════════════════════════════════════════════════════════

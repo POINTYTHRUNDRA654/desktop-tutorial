@@ -643,6 +643,12 @@ For more details:
         bpy.context.view_layer.objects.active = mesh_obj
         bpy.ops.object.duplicate()
         simplified_mesh = bpy.context.active_object
+        # Force single-user mesh data regardless of the user's own "Duplicate
+        # Data > Mesh" Blender preference -- otherwise this "copy" can share
+        # the source's mesh datablock, and the transform/decimate steps below
+        # would fail or mutate mesh_obj's own geometry.
+        if simplified_mesh.data.users > 1:
+            simplified_mesh.data = simplified_mesh.data.copy()
         simplified_mesh.name = f"{mesh_obj.name}_rignet_ready"
         
         try:

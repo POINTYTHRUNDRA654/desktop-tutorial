@@ -45,5 +45,5 @@ bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL', limit=4)
 bpy.ops.object.mode_set(mode='OBJECT')
 
 print("Creature rigging complete.")
-print("Next: Add SBP_32 partition if gore needed, then export with pyNIF (Skinning=ON)")
+print("Next: Add 'FO4 Seg 000' partition if gore needed, then export with pyNIF (Skinning=ON)")
 print("For animations: create Actions → export FBX → convert to HKX with hkxcmd")

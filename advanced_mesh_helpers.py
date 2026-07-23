@@ -244,7 +244,23 @@ class AdvancedMeshHelpers:
         # Apply modifier
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.modifier_apply(modifier=decimate_mod.name)
-        
+
+        # Decimate's COLLAPSE algorithm, especially UV-seam-delimited at
+        # aggressive ratios (LOD3/LOD4), can strand vertices whose
+        # surrounding faces all collapsed away without cleaning up the
+        # vertex itself -- confirmed on a real asset: loose-vertex count
+        # climbed with each more-aggressive LOD (7 -> 21 -> 53 -> 113 out of
+        # 406 total on the lowest level), visible as holes/gaps in the mesh
+        # and propagating straight into the collision hull built from it.
+        _loose_bm = bmesh.new()
+        _loose_bm.from_mesh(obj.data)
+        _loose_verts = [v for v in _loose_bm.verts if not v.link_faces]
+        if _loose_verts:
+            bmesh.ops.delete(_loose_bm, geom=_loose_verts, context='VERTS')
+            _loose_bm.to_mesh(obj.data)
+            obj.data.update()
+        _loose_bm.free()
+
         new_poly_count = len(obj.data.polygons)
         reduction_percent = ((original_poly_count - new_poly_count) / original_poly_count) * 100
         
@@ -394,14 +410,21 @@ class AdvancedMeshHelpers:
         Fallout 4 uses separate NIF files for each LOD level.  The *source*
         object is treated as ``LOD0`` (the full-detail model seen up close).
         This function generates progressively simplified copies named
-        ``_LOD1`` through ``_LOD4`` so they follow the FO4 LOD naming
-        convention without confusing the source with a generated level.
+        ``_LOD1``/``_LOD2`` so they follow the FO4 LOD naming convention
+        without confusing the source with a generated level.
 
         Default simplification ratios (relative to the original poly count):
-          - LOD1: 75 % – subtle reduction, noticeable only up close
-          - LOD2: 50 % – medium reduction for mid-range distances
-          - LOD3: 25 % – aggressive reduction for far distances
-          - LOD4: 10 % – extreme reduction for the farthest draw distance
+          - LOD1: 15 % – medium distance
+          - LOD2: 4 %  – far distance (the last real 3D mesh level)
+
+        Verified against real FO4 assets (`BlastedForestBurntTreeUpright01` in
+        the vanilla/DLC reference library): actual LOD meshes are in the TENS
+        of triangles, not hundreds, and there are only two real reduced-mesh
+        levels — the third/farthest level in the game is a baked billboard
+        (see ``fo4_lod_generator.generate_billboard_lod``), not a further-
+        decimated copy of the organic mesh. These ratios intentionally match
+        that much more aggressive real-world reduction; still fully
+        overridable via *lod_levels* for assets that need something different.
 
         Each generated LOD object is stamped with ``fo4_mesh_type = 'LOD'``
         so the NIF export pipeline uses the correct BSFadeNode root and
@@ -425,7 +448,7 @@ class AdvancedMeshHelpers:
         obj["PYN_GAME"] = "FO4"
 
         if lod_levels is None:
-            lod_levels = [0.75, 0.5, 0.25, 0.1]
+            lod_levels = [0.15, 0.04]
 
         lod_objects = []
         original_poly_count = len(obj.data.polygons)
@@ -440,6 +463,19 @@ class AdvancedMeshHelpers:
             lod_obj = bpy.context.active_object
             # LOD levels are numbered starting at 1; the source object is LOD0.
             lod_obj.name = f"{obj.name}_LOD{i + 1}"
+
+            # bpy.ops.object.duplicate() only makes an independent mesh copy
+            # if the user's Blender preferences have "Duplicate Data > Mesh"
+            # enabled (Edit > Preferences > Editing) -- if that's off, this
+            # LOD "copy" actually shares the SAME mesh datablock as the
+            # source. The decimate step below then either fails outright
+            # ("Modifiers cannot be applied to multi-user data") or, if
+            # forced through some other path, permanently mutates the
+            # shared data -- corrupting the source mesh's geometry/UVs.
+            # Force single-user data unconditionally so this never depends
+            # on the user's own duplicate-data preference.
+            if lod_obj.data.users > 1:
+                lod_obj.data = lod_obj.data.copy()
 
             # ── FO4 LOD mesh type ──────────────────────────────────────────────
             # Tag the object so the NIF export pipeline selects the LOD root

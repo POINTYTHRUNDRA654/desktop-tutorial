@@ -39,7 +39,7 @@ _CORE_MODULE_NAMES = [
     "shap_e_helpers", "point_e_helpers", "advisor_helpers",
     "ue_importer_helpers", "umodel_tools_helpers", "unity_fbx_importer_helpers",
     "post_processing_helpers", "fo4_material_browser", "fo4_reference_helpers",
-    "bgsm_helpers",
+    "bgsm_helpers", "fo4_lod_generator",
 ]
 for _mod_name in _CORE_MODULE_NAMES:
     try:
@@ -56,6 +56,36 @@ def _notify(msg: str, level: str = 'INFO') -> None:
     """Fire a notification safely; no-op if notification_system failed to import."""
     if notification_system:
         notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
+def _default_export_filepath(obj) -> str:
+    """Best-effort default .nif path for an export file-browser dialog.
+
+    Our export operators use a plain StringProperty for filepath (not
+    Blender's ExportHelper mixin), so unlike File > Export > NIF (PyNifly) --
+    which auto-fills the name from the object -- ours opened the browser
+    with nothing typed in unless the caller pre-populates self.filepath in
+    invoke(). Mirrors that behavior: prefers the name captured at import time
+    (fo4_original_name, set by FO4_OT_ImportFO4AssetFile) over the current
+    Blender object name so a renamed-by-the-addon object (e.g. "_LOD1") still
+    suggests the real asset name, and defaults the directory to the object's
+    original source NIF's folder (fo4_source_nif) so re-exporting a tweaked
+    asset naturally suggests writing back to where it came from.
+    """
+    if obj is None:
+        return ""
+    name = obj.get("fo4_original_name") or obj.name
+    # Strip PyNifly's "Name:0" shape-index suffix, if present.
+    name = str(name).split(":")[0].strip()
+    directory = ""
+    src = obj.get("fo4_source_nif")
+    if src:
+        try:
+            directory = _os.path.dirname(src)
+        except Exception:
+            directory = ""
+    filename = name + ".nif" if name else ""
+    return _os.path.join(directory, filename) if directory and filename else filename
 
 
 def _frame_viewport_to_selection(context) -> bool:
@@ -83,10 +113,17 @@ _FO4_UNIT_SCALE    = 1.0 / 69.99125   # ≈ 0.01429  — import scale factor
 _FO4_UNIT_SCALE_INV = 69.99125         # ≈ 70        — export restore factor
 
 
-def _apply_fo4_import_scale(context) -> int:
-    """Scale all currently-selected mesh/armature objects from FO4 game units
-    to Blender metres (÷70), apply the scale so Blender measurements are
+def _apply_fo4_import_scale(context, objects=None) -> int:
+    """Scale freshly-imported mesh/armature objects from FO4 game units to
+    Blender metres (÷70), apply the scale so Blender measurements are
     meaningful, then frame the viewport.
+
+    ``objects`` is the explicit list of objects to scale — pass the objects that
+    were just imported (e.g. captured via a before/after scene diff).  This is
+    more reliable than trusting the selection, because some importers (PyNifly)
+    leave only the parent NiNode *empties* selected rather than the mesh, which
+    would otherwise leave nothing scaled and the mesh at full game size.  If
+    ``objects`` is None, falls back to the current selection.
 
     Each object is tagged with ``fo4_unit_scale = 69.99125`` so that
     :func:`export_helpers.ExportHelpers.export_mesh_to_nif` can multiply back
@@ -95,7 +132,8 @@ def _apply_fo4_import_scale(context) -> int:
     Returns the number of objects scaled.
     """
     _SCALABLE = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE', 'META', 'FONT'}
-    imported = [o for o in context.selected_objects if o.type in _SCALABLE]
+    candidates = objects if objects is not None else context.selected_objects
+    imported = [o for o in candidates if o.type in _SCALABLE]
     if not imported:
         return 0
 
@@ -103,14 +141,51 @@ def _apply_fo4_import_scale(context) -> int:
     # transform_apply works reliably (it operates on the active object).
     bpy.ops.object.select_all(action='DESELECT')
     for obj in imported:
+        # select_set(True) silently fails on hidden objects; ensure visible first.
+        try:
+            obj.hide_set(False)
+            obj.hide_viewport = False
+        except Exception:
+            pass
         context.view_layer.objects.active = obj
         obj.select_set(True)
         obj.scale = (_FO4_UNIT_SCALE, _FO4_UNIT_SCALE, _FO4_UNIT_SCALE)
+        # Bake the scale into the mesh so Blender measurements are meaningful and
+        # the object stays downsized.  transform_apply can fail on PyNifly
+        # imports (mesh parented to a skeleton, multi-user mesh data, or a
+        # mismatched operator context), so run it inside an explicit context
+        # override.  If it STILL fails, single-user the mesh and retry.  Only as
+        # a last resort do we leave the scale unbaked — but we never reset to
+        # 1.0, so the mesh is always visually downsized; the export path
+        # multiplies back x70 from the fo4_unit_scale tag regardless.
+        applied = False
+        _override = getattr(context, "temp_override", None)
         try:
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            if _override is not None:
+                with _override(active_object=obj, selected_objects=[obj],
+                               selected_editable_objects=[obj]):
+                    bpy.ops.object.transform_apply(
+                        location=False, rotation=False, scale=True)
+            else:
+                bpy.ops.object.transform_apply(
+                    location=False, rotation=False, scale=True)
+            applied = True
         except Exception:
-            obj.scale = (1.0, 1.0, 1.0)  # couldn't apply; at least reset
+            try:
+                # Multi-user mesh data is a common apply blocker — make it
+                # single-user, then retry the apply once more.
+                if obj.data and getattr(obj.data, "users", 1) > 1:
+                    obj.data = obj.data.copy()
+                bpy.ops.object.transform_apply(
+                    location=False, rotation=False, scale=True)
+                applied = True
+            except Exception:
+                # Leave obj.scale at _FO4_UNIT_SCALE (downsized but unbaked)
+                # rather than resetting to 1.0 (which left the mesh at full
+                # game size — the bug this fixes).
+                applied = False
         obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+        obj["fo4_scale_applied"] = applied
         obj.select_set(False)
 
     # Re-select for viewport framing
@@ -120,6 +195,159 @@ def _apply_fo4_import_scale(context) -> int:
         context.view_layer.objects.active = imported[0]
     _frame_viewport_to_selection(context)
     return len(imported)
+
+
+# Real-world-scale FBX/OBJ/GLB content (~1.7-1.8m human) does not natively
+# match FO4's own skeleton convention (~1.25 Blender units tall under the
+# standard ÷70 Havok scale factor -- see _FO4_UNIT_SCALE_INV above). Rather
+# than guessing a flat human-height constant, measure the actual loaded
+# skeleton's real bone landmarks and scale each garment to fit them.
+_LEG_GARMENT_KEYWORDS   = ("pant", "trouser", "legging", "skirt", "jean")
+_TORSO_GARMENT_KEYWORDS = ("shirt", "jacket", "coat", "vest", "tunic", "blouse", "torso")
+_BONE_LANDMARK_EXCLUDE  = ("skin", "low", "fat", "rear", "helper")
+# Attachment/decoration pieces are commonly named after the garment they sit
+# on (e.g. "SKM_G3_Combat_Pants_Kneepads") -- checked before the garment
+# keywords above so a name like that doesn't get misread as "contains pant".
+_ACCESSORY_EXCLUDE_KEYWORDS = (
+    "kneepad", "knee_pad", "knee pad", "elbowpad", "elbow_pad", "elbow pad",
+    "patch", "buckle", "strap", "pouch", "holster", "insert", "lining",
+)
+
+
+def _find_bone_landmark_z(armature_obj, keywords, exclude=_BONE_LANDMARK_EXCLUDE):
+    """Average world-Z of bone heads whose name (case-insensitive) contains
+    any of *keywords* and none of *exclude*.  Returns None if nothing matches.
+    Keyword substring matching (rather than exact names) is deliberate — rigs
+    in the wild use very different bone-naming conventions (this project has
+    seen both Skyrim-style "NPC Pelvis [Pelv]" and plain "Pelvis"/"Leg_Thigh.L")."""
+    zs = []
+    for b in armature_obj.data.bones:
+        name_l = b.name.lower()
+        if any(k in name_l for k in keywords) and not any(x in name_l for x in exclude):
+            zs.append((armature_obj.matrix_world @ b.head_local).z)
+    if not zs:
+        return None
+    return sum(zs) / len(zs)
+
+
+def _classify_garment_target_span(obj_name, fo4_skel):
+    """Return (target_bottom_z, target_top_z, segment_label) for a garment
+    classified by its object name, using real bone landmarks on *fo4_skel*.
+    Returns (None, None, None) if the garment type can't be classified or the
+    needed landmark bones aren't found.
+
+    Accessory names are checked FIRST and unconditionally return unclassified
+    (None, None, None), even if the name also contains a leg/torso keyword —
+    e.g. "SKM_G3_Combat_Pants_Kneepads" contains "Pant" as a plain substring,
+    which would otherwise wrongly classify a small kneepad patch as a
+    full-leg garment and scale/reposition it using its own (tiny) bounding
+    box instead of inheriting the actual pants' already-correct factor."""
+    name_l = obj_name.lower()
+    if any(k in name_l for k in _ACCESSORY_EXCLUDE_KEYWORDS):
+        return None, None, None
+    if any(k in name_l for k in _LEG_GARMENT_KEYWORDS):
+        floor_z = _find_bone_landmark_z(fo4_skel, ("foot",))
+        waist_z = _find_bone_landmark_z(fo4_skel, ("pelvis", "hip"))
+        if floor_z is not None and waist_z is not None:
+            return floor_z, waist_z, "leg"
+    if any(k in name_l for k in _TORSO_GARMENT_KEYWORDS):
+        waist_z    = _find_bone_landmark_z(fo4_skel, ("pelvis", "hip"))
+        shoulder_z = _find_bone_landmark_z(fo4_skel, ("collarbone", "clavicle", "shoulder"))
+        if waist_z is not None and shoulder_z is not None:
+            return waist_z, shoulder_z, "torso"
+    return None, None, None
+
+
+def _find_sibling_landmark_factor(context, obj, fo4_skel):
+    """Find an already-scaled mesh sharing the same skeleton as *obj* and
+    return its ``fo4_landmark_scale_factor``, or None.  Real FO4 rigs
+    typically parent every piece directly to the ARMATURE (not to each
+    other), so an accessory's own ``.parent`` is almost always the skeleton
+    itself, not a related garment mesh — this is the fallback that actually
+    matches how these rigs are built."""
+    for o in context.scene.objects:
+        if o is obj or o.type != 'MESH':
+            continue
+        factor = o.get("fo4_landmark_scale_factor")
+        if factor is None:
+            continue
+        if export_helpers is not None and export_helpers.ExportHelpers._find_skinned_armature(o) is fo4_skel:
+            return factor
+    return None
+
+
+def _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel):
+    """Scale+reposition *obj* (a MESH) so its world-space vertical extent
+    matches real bone-landmark positions on *fo4_skel* — see module notes
+    above _LEG_GARMENT_KEYWORDS for why this is needed instead of a flat
+    scale constant.  Returns (ok: bool, message: str).
+
+    Accessories that can't be classified by name (kneepads, patches, etc.)
+    inherit an already-scaled sibling's factor when available (checking a
+    direct parent first, then any other mesh sharing the same skeleton),
+    since they're authored at the same real-world scale as the piece(s) they
+    attach to.
+    """
+    from mathutils import Vector as _V
+
+    target_bottom, target_top, seg = _classify_garment_target_span(obj.name, fo4_skel)
+    if target_bottom is None:
+        parent = obj.parent
+        factor = None
+        if parent is not None and parent.get("fo4_landmark_scale_factor") is not None:
+            factor = parent["fo4_landmark_scale_factor"]
+        if factor is None:
+            factor = _find_sibling_landmark_factor(context, obj, fo4_skel)
+        if factor is not None:
+            obj.scale = tuple(s * factor for s in obj.scale)
+            try:
+                with context.temp_override(active_object=obj, selected_objects=[obj],
+                                            selected_editable_objects=[obj]):
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            except Exception:
+                pass
+            obj["fo4_landmark_scale_factor"] = factor
+            # Also tag fo4_unit_scale — this is what export_helpers.py checks to
+            # know it must multiply back ×70 before writing the NIF. Without it,
+            # this object silently skips that restoration and exports at
+            # Blender-metre scale directly (~70x too small in-game/NifSkope).
+            obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+            return True, f"'{obj.name}' inherited parent scale ×{factor:.4f}"
+        return False, f"'{obj.name}' — couldn't classify garment type (name has no shirt/pants/etc keyword) and no scaled parent to inherit from"
+
+    world_pts = [obj.matrix_world @ _V(c) for c in obj.bound_box]
+    cur_bottom = min(p.z for p in world_pts)
+    cur_top    = max(p.z for p in world_pts)
+    cur_span   = cur_top - cur_bottom
+    if cur_span < 1e-6:
+        return False, f"'{obj.name}' has near-zero height, cannot compute scale"
+
+    factor = (target_top - target_bottom) / cur_span
+    obj.scale = tuple(s * factor for s in obj.scale)
+    try:
+        with context.temp_override(active_object=obj, selected_objects=[obj],
+                                    selected_editable_objects=[obj]):
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    except Exception:
+        try:
+            if obj.data and getattr(obj.data, "users", 1) > 1:
+                obj.data = obj.data.copy()
+            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        except Exception:
+            pass
+
+    # Reposition so the bottom lands exactly on the target landmark (X/Y untouched).
+    world_pts2 = [obj.matrix_world @ _V(c) for c in obj.bound_box]
+    new_bottom = min(p.z for p in world_pts2)
+    obj.location.z += (target_bottom - new_bottom)
+
+    obj["fo4_landmark_scale_factor"] = factor
+    # Also tag fo4_unit_scale — this is what export_helpers.py checks to know
+    # it must multiply back ×70 before writing the NIF. Without it, this
+    # object silently skips that restoration and exports at Blender-metre
+    # scale directly (~70x too small in-game/NifSkope).
+    obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+    return True, f"'{obj.name}' scaled ×{factor:.4f} to match {seg} landmarks"
 
 
 # ── Class-level EnumProperty fallbacks ───────────────────────────────────────
@@ -1101,6 +1329,7 @@ class FO4_OT_LoadFO4Skeleton(Operator):
         # ── 1. Already in scene? ──────────────────────────────────────────────
         existing = self._find_existing(context.scene)
         if existing:
+            existing["PYN_GAME"] = "FO4"
             self.report({'INFO'}, f"FO4 skeleton already in scene: '{existing.name}'")
             return {'FINISHED'}
 
@@ -1132,15 +1361,27 @@ class FO4_OT_LoadFO4Skeleton(Operator):
                 ):
                     bpy.data.objects.remove(o, do_unlink=True)
 
-            # Scale correction: Niftools imports NIF in Havok units (≈ cm).
-            # If the armature is > 5 Blender units tall it's at Havok scale; apply 0.01.
+            # Scale correction: raw NIF import is in FO4 Havok units (~70/metre).
+            # If the armature is > 5 Blender units tall it's still at that raw
+            # scale; apply the SAME ÷69.99125 conversion (_apply_fo4_import_scale)
+            # used everywhere else in this addon. This used to hardcode ÷100
+            # instead -- a real, confirmed bug: it left the loaded skeleton
+            # ~30% smaller than the true skeleton.nif in every scene that used
+            # this operator (verified directly: real skeleton.nif Pelvis =
+            # 68.91 Havok units -> should be 0.9846 Blender units at ÷69.99125,
+            # but the ÷100 bug produced 0.6891 instead -- exactly 0.01 x 68.91).
+            # Every landmark-scale comparison against a skeleton loaded this
+            # way was therefore measured against an undersized skeleton.
             if arm:
                 arm_height = (arm.dimensions.z if arm.dimensions.z > 0 else 0)
                 if arm_height > 5.0:
-                    arm.scale = (0.01, 0.01, 0.01)
-                    bpy.context.view_layer.objects.active = arm
-                    arm.select_set(True)
-                    bpy.ops.object.transform_apply(scale=True)
+                    _apply_fo4_import_scale(context, objects=[arm])
+                # Tell PyNifly explicitly this is an FO4 skeleton (PYN_GAME custom
+                # prop) so its export-time game auto-detection (which otherwise
+                # falls back to guessing from bone names -- and can misfire to
+                # SKYRIM, producing NiTriShape/SkyPartition instead of
+                # BSSubIndexTriShape/FO4Segment) never has to guess.
+                arm["PYN_GAME"] = "FO4"
                 self.report({'INFO'}, "FO4 skeleton imported from assets: skeleton.nif")
                 return {'FINISHED'}
 
@@ -1148,6 +1389,7 @@ class FO4_OT_LoadFO4Skeleton(Operator):
         try:
             from . import fo4_armor_animation as _fa
             arm = _fa.build_reference_skeleton()
+            arm["PYN_GAME"] = "FO4"
             bone_count = len(arm.data.bones)
             if nif_path:
                 self.report({'WARNING'},
@@ -1197,6 +1439,240 @@ class FO4_OT_FixNIFScale(Operator):
                 "Mesh is now at FO4/Havok units (1 BU ≈ 1 cm).")
         else:
             self.report({'INFO'}, "Objects already appear to be at the correct scale.")
+        return {'FINISHED'}
+
+
+class FO4_OT_FixWronglyScaledImport(Operator):
+    """Undo an erroneous ÷70 scale that older versions of this add-on applied
+    to FBX/OBJ/GLB imports (only raw NIF data is in FO4/Havok game units and
+    actually needs that conversion — these formats were already correctly
+    scaled by Blender's own importer, so the extra ÷70 left them ~70x too
+    small next to a skeleton).
+
+    Select the affected mesh/armature objects (or run with nothing selected
+    to scan the whole scene), then click this button. Objects are detected
+    via the ``fo4_unit_scale`` tag that import left behind, minus anything
+    that also carries ``fo4_source_nif`` (real NIF imports are untouched —
+    they need that scale). Safe to run more than once; already-fixed objects
+    are skipped.
+    """
+    bl_idname  = "fo4.fix_wrongly_scaled_import"
+    bl_label   = "Fix Wrongly-Scaled FBX/OBJ/GLB Import"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        targets = list(context.selected_objects) or list(context.scene.objects)
+        candidates = [
+            o for o in targets
+            if o.get("fo4_unit_scale") is not None
+            and o.get("fo4_source_nif") is None
+            and not o.get("fo4_import_scale_fixed")
+        ]
+        if not candidates:
+            self.report({'INFO'},
+                "No wrongly-scaled FBX/OBJ/GLB imports found "
+                "(already fixed, or these are real NIF imports that need the ÷70).")
+            return {'FINISHED'}
+
+        fixed = 0
+        for obj in candidates:
+            context.view_layer.objects.active = obj
+            bpy.ops.object.select_all(action='DESELECT')
+            try:
+                obj.hide_set(False)
+                obj.hide_viewport = False
+            except Exception:
+                pass
+            obj.select_set(True)
+            obj.scale = tuple(s * _FO4_UNIT_SCALE_INV for s in obj.scale)
+            try:
+                with context.temp_override(active_object=obj, selected_objects=[obj],
+                                            selected_editable_objects=[obj]):
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            except Exception:
+                try:
+                    if obj.data and getattr(obj.data, "users", 1) > 1:
+                        obj.data = obj.data.copy()
+                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                except Exception:
+                    pass
+            obj["fo4_import_scale_fixed"] = True
+            del obj["fo4_unit_scale"]
+            if "fo4_scale_applied" in obj:
+                del obj["fo4_scale_applied"]
+            obj.select_set(False)
+            fixed += 1
+
+        self.report({'INFO'}, f"Corrected scale on {fixed} object(s) — scaled up ×70 to undo the erroneous import conversion.")
+        _notify(f"Fixed scale on {fixed} object(s)", 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_FixSkeletonScaleBug(Operator):
+    """Undo the ÷100 skeleton-loading bug (fo4.load_fo4_skeleton used to
+    hardcode a wrong 0.01 scale constant instead of the correct 1/69.99125
+    used everywhere else in this addon).
+
+    Confirmed by comparing against the real skeleton.nif: its Pelvis bone is
+    at 68.91 Havok units, which should import to 0.9846 Blender units at the
+    correct ÷69.99125 conversion -- but the ÷100 bug produced 0.6891 instead
+    (exactly 68.91 × 0.01). Any skeleton loaded via the old code, and every
+    garment scaled to fit it (e.g. via "Auto-Scale to Skeleton Landmarks"),
+    ended up a consistent ~30% too small.
+
+    Since the garments were correctly fitted to the undersized skeleton, this
+    scales BOTH the skeleton's bones and every mesh skinned to it by the same
+    correction factor (100/69.99125 ≈ 1.4288) together, preserving their
+    already-correct relative proportions while bringing the whole rig up to
+    true scale.
+
+    Select the skeleton (or anything skinned to it), or run with nothing
+    selected to auto-detect the scene's FO4 skeleton, then click this button.
+    Safe to run only once — tags the skeleton so a repeat run is a no-op.
+    """
+    bl_idname  = "fo4.fix_skeleton_scale_bug"
+    bl_label   = "Fix Skeleton ÷100 Scale Bug"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _CORRECTION_FACTOR = 100.0 / _FO4_UNIT_SCALE_INV  # ≈ 1.4288
+
+    def execute(self, context):
+        fo4_skel = next((o for o in context.scene.objects if o.type == 'ARMATURE'), None)
+        if fo4_skel is None:
+            self.report({'ERROR'}, "No armature found in scene.")
+            return {'CANCELLED'}
+
+        if fo4_skel.get("fo4_skeleton_scale_bug_fixed"):
+            self.report({'INFO'}, f"'{fo4_skel.name}' already fixed — skipping.")
+            return {'FINISHED'}
+
+        if not export_helpers:
+            self.report({'ERROR'}, "export_helpers module not available")
+            return {'CANCELLED'}
+
+        factor = self._CORRECTION_FACTOR
+
+        try:
+            export_helpers.ExportHelpers._scale_armature_bones(fo4_skel, factor)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Could not rescale skeleton bones: {exc}")
+            return {'CANCELLED'}
+
+        # Scale each mesh's OBJECT (location + scale) around the skeleton's own
+        # world-space origin, not the mesh's own object origin -- the skeleton's
+        # bones scale around ITS origin, so a mesh that scales around some other
+        # point would end up correctly SIZED but wrongly POSITIONED relative to
+        # the now-corrected skeleton (confirmed empirically: naively multiplying
+        # only obj.scale left a test mesh floating with its bottom below the
+        # floor instead of tracking the skeleton's new foot-bone position).
+        #
+        # Temporarily unparent (keep transform) so obj.location is a plain
+        # world-space point, scale that point around the skeleton's origin
+        # directly, then re-parent (keep transform) so the Armature modifier
+        # binding is undisturbed. Avoids bpy.ops.transform.resize, which
+        # depends on viewport/cursor context that isn't reliably available
+        # outside an interactive 3D view.
+        from mathutils import Vector as _Vec
+        skel_origin = fo4_skel.matrix_world.translation.copy()
+
+        fixed_meshes = 0
+        for obj in list(context.scene.objects):
+            if obj.type != 'MESH':
+                continue
+            if export_helpers.ExportHelpers._find_skinned_armature(obj) is not fo4_skel:
+                continue
+
+            had_parent = obj.parent is fo4_skel
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            if had_parent:
+                bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
+            new_loc = skel_origin + (_Vec(obj.location) - skel_origin) * factor
+            obj.location = new_loc
+            obj.scale = tuple(s * factor for s in obj.scale)
+            try:
+                if obj.data and getattr(obj.data, "users", 1) > 1:
+                    obj.data = obj.data.copy()
+                bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+            except Exception:
+                pass
+
+            if had_parent:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                fo4_skel.select_set(True)
+                context.view_layer.objects.active = fo4_skel
+                bpy.ops.object.parent_set(type='OBJECT', keep_transform=True)
+
+            fixed_meshes += 1
+
+        fo4_skel["fo4_skeleton_scale_bug_fixed"] = True
+        msg = (
+            f"Rescaled '{fo4_skel.name}' and {fixed_meshes} skinned mesh(es) "
+            f"×{factor:.4f} to correct the ÷100 skeleton-loading bug."
+        )
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_AutoScaleToSkeletonLandmarks(Operator):
+    """Scale FBX/OBJ/GLB-sourced garment meshes to match the actual FO4
+    skeleton's body proportions, using real bone landmark positions (ankle,
+    pelvis, collarbone) instead of a flat human-height guess.
+
+    Real-world-scale content (~1.7-1.8m human) does not natively match FO4's
+    own skeleton convention (~1.25 Blender units tall under the standard ÷70
+    Havok scale factor) — this measures your actual loaded skeleton and
+    scales each selected mesh to fit it. Garments are classified by name
+    (shirt/jacket/coat -> torso span between pelvis and collarbone;
+    pants/trousers/skirt -> leg span between ankle and pelvis); accessories
+    that can't be classified (kneepads, patches, etc.) inherit the scale
+    factor already computed for their parent object.
+
+    Select the garment mesh objects (or run with nothing selected to process
+    every mesh in the scene), then click this button.
+    """
+    bl_idname  = "fo4.auto_scale_to_skeleton_landmarks"
+    bl_label   = "Auto-Scale to Skeleton Landmarks"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        fo4_skel = next((o for o in context.scene.objects if o.type == 'ARMATURE'), None)
+        if fo4_skel is None:
+            self.report({'ERROR'}, "No armature found in scene.")
+            return {'CANCELLED'}
+
+        targets = [o for o in (context.selected_objects or context.scene.objects) if o.type == 'MESH']
+        if not targets:
+            self.report({'WARNING'}, "No mesh objects selected or in scene.")
+            return {'CANCELLED'}
+
+        # Process classifiable garments (shirt/pants/etc.) before accessories
+        # (kneepads/patches/etc.) so an accessory can inherit an already-
+        # computed sibling factor — real FO4 rigs typically parent every
+        # piece directly to the armature (not to each other), so ordering by
+        # name-classifiability is what actually determines whether a sibling
+        # factor exists yet, not parent/child relationships.
+        targets.sort(key=lambda o: 1 if any(
+            k in o.name.lower() for k in _ACCESSORY_EXCLUDE_KEYWORDS
+        ) else 0)
+
+        fixed, skipped = 0, []
+        for obj in targets:
+            ok, msg = _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel)
+            if ok:
+                fixed += 1
+            else:
+                skipped.append(msg)
+
+        if skipped:
+            self.report({'WARNING'}, f"Scaled {fixed} object(s). Skipped {len(skipped)}: " + "; ".join(skipped))
+        else:
+            self.report({'INFO'}, f"Scaled {fixed} object(s) to match skeleton landmarks.")
+        _notify(f"Auto-scaled {fixed} object(s) to skeleton", 'INFO')
         return {'FINISHED'}
 
 
@@ -1288,6 +1764,11 @@ class FO4_OT_QuickFBXArmorSetup(Operator):
 
         # ── 3. Find FO4 skeleton and auto-weight paint ────────────────────────
         fo4_skel = self._find_fo4_skeleton(context.scene)
+        if fo4_skel is not None:
+            # Ensure PyNifly's own game-detection (PYN_GAME) is set even for a
+            # skeleton found already in the scene from before this tagging
+            # existed -- see FO4_OT_LoadFO4Skeleton for why this matters.
+            fo4_skel["PYN_GAME"] = "FO4"
 
         if fo4_skel is None:
             # Auto-load the skeleton (from assets folder or built programmatically)
@@ -1379,6 +1860,20 @@ class FO4_OT_QuickFBXArmorSetup(Operator):
                 )
         except Exception:
             pass  # non-critical — user can click Flip Skeleton manually
+
+        # ── 3d. Auto-scale mesh to match skeleton body-landmark proportions ──
+        # Real-world-scale FBX content (~1.7-1.8m human) doesn't match FO4's
+        # own skeleton convention (~1.25 units tall under the standard ÷70
+        # Havok scale factor) — landmark-match against actual bone positions
+        # instead of guessing a flat human-height constant.
+        try:
+            _scale_ok, _scale_msg = _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel)
+            if _scale_ok:
+                steps_done.append(_scale_msg)
+            else:
+                self.report({'WARNING'}, f"Landmark auto-scale skipped: {_scale_msg}")
+        except Exception as _scale_exc:
+            self.report({'WARNING'}, f"Landmark auto-scale failed: {_scale_exc}")
 
         # Restore mesh as active before weighting
         bpy.ops.object.select_all(action='DESELECT')
@@ -1693,11 +2188,23 @@ class FO4_OT_CreateBaseMesh(Operator):
         return {'FINISHED'}
 
 class FO4_OT_OptimizeMesh(Operator):
-    """Optimize mesh for Fallout 4"""
+    """Optimize mesh for Fallout 4.
+
+Select multiple meshes to join them before optimizing — useful when you have
+two halves of a vegetation mesh that need to merge into one FO4-ready asset."""
     bl_idname = "fo4.optimize_mesh"
     bl_label = "Optimize Mesh"
     bl_options = {'REGISTER', 'UNDO'}
 
+    join_selected: bpy.props.BoolProperty(
+        name="Join Selected Meshes First",
+        default=False,
+        description=(
+            "Join all selected mesh objects into one before optimizing. "
+            "Use this when you have multiple pieces that belong together "
+            "(e.g. two halves of a vegetation mesh)"
+        ),
+    )
     apply_transforms: bpy.props.BoolProperty(
         name="Apply Transforms",
         default=True,
@@ -1715,37 +2222,111 @@ class FO4_OT_OptimizeMesh(Operator):
         default=True,
         description="Avoid collapsing vertices across UV seams",
     )
+    limited_dissolve: bpy.props.BoolProperty(
+        name="Limited Dissolve",
+        default=False,
+        description=(
+            "Remove edges between coplanar faces without moving any vertices. "
+            "Silhouette stays exact. Good first pass before Smart Reduce"
+        ),
+    )
+    dissolve_angle: bpy.props.FloatProperty(
+        name="Dissolve Angle (degrees)",
+        default=1.0,
+        min=0.01,
+        max=45.0,
+        soft_max=10.0,
+        precision=2,
+        description=(
+            "Faces within this many DEGREES of each other are treated as coplanar. "
+            "1° = only truly flat faces. Raise to 5–10° for gentle curves. "
+            "Keep low for organic/curved meshes — too high destroys the shape"
+        ),
+    )
+    use_target: bpy.props.BoolProperty(
+        name="Smart Reduce to Target",
+        default=False,
+        description=(
+            "Reduce to a specific triangle count using quadric edge collapse — "
+            "the same algorithm game engines use for LOD generation. Collapses "
+            "the cheapest edges first while locking UV seams as boundaries so "
+            "textures don't distort. 7,000 is the FO4 sweet spot for most props"
+        ),
+    )
+    target_faces: bpy.props.IntProperty(
+        name="Target Triangles",
+        default=7000,
+        min=100,
+        max=65535,
+        description="Approximate triangle count to reduce to (FO4 limit = 65,535)",
+    )
 
     def draw(self, context):
         layout = self.layout
+        sel_meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        if len(sel_meshes) > 1:
+            layout.prop(self, "join_selected")
         layout.prop(self, "apply_transforms")
         layout.prop(self, "threshold")
         layout.prop(self, "preserve_uvs")
+        layout.separator()
+        layout.prop(self, "limited_dissolve")
+        row = layout.row()
+        row.enabled = self.limited_dissolve
+        row.prop(self, "dissolve_angle")
+        layout.separator()
+        layout.prop(self, "use_target")
+        row = layout.row()
+        row.enabled = self.use_target
+        row.prop(self, "target_faces")
+        if self.use_target:
+            layout.label(text="FO4 sweet spot: 7,000  |  hard limit: 65,535",
+                         icon='INFO')
 
     def invoke(self, context, event):
-        # load current preferences as defaults so the dialog reflects saved settings
         prefs = preferences.get_preferences() if preferences else None
         if prefs:
             self.apply_transforms = prefs.optimize_apply_transforms
             self.threshold = prefs.optimize_remove_doubles_threshold
             self.preserve_uvs = prefs.optimize_preserve_uvs
-        return context.window_manager.invoke_props_dialog(self)
+        # Auto-tick join if multiple meshes selected
+        sel_meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        if len(sel_meshes) > 1:
+            self.join_selected = True
+        return context.window_manager.invoke_props_dialog(self, width=320)
 
     def execute(self, context):
         obj = context.active_object
-        
+
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
-        
-        # override global preferences with operator values
+
+        # ── Optional join ─────────────────────────────────────────────────────
+        if self.join_selected:
+            sel_meshes = [o for o in context.selected_objects if o.type == 'MESH']
+            if len(sel_meshes) > 1:
+                context.view_layer.objects.active = obj
+                bpy.ops.object.join()
+                obj = context.active_object
+                # Unify material slots so the joined mesh uses the textured material
+                removed = mesh_helpers.MeshHelpers.unify_material_slots(obj)
+                if removed:
+                    self.report({'INFO'}, f"Unified material slots: removed {removed} duplicate slot(s)")
+
         prefs = preferences.get_preferences() if preferences else None
         if prefs:
             prefs.optimize_apply_transforms = self.apply_transforms
             prefs.optimize_remove_doubles_threshold = self.threshold
             prefs.optimize_preserve_uvs = self.preserve_uvs
-        success, message = mesh_helpers.MeshHelpers.optimize_mesh(obj)
-        
+
+        success, message = mesh_helpers.MeshHelpers.optimize_mesh(
+            obj,
+            limited_dissolve=self.limited_dissolve,
+            dissolve_angle_deg=self.dissolve_angle,  # stored as degrees directly
+            target_faces=self.target_faces if self.use_target else 0,
+        )
+
         if success:
             self.report({'INFO'}, message)
             _notify(message, 'INFO')
@@ -1753,8 +2334,138 @@ class FO4_OT_OptimizeMesh(Operator):
             self.report({'ERROR'}, message)
             _notify(message, 'ERROR')
             return {'CANCELLED'}
-        
+
         return {'FINISHED'}
+
+class FO4_OT_SolidifyMesh(Operator):
+    """Add thickness to flat plane / card meshes in a mixed mesh for a more 3D look.
+
+    Automatically detects which parts of the mesh are flat cards vs 3D volumes
+    using face-normal alignment — only flat islands are solidified, the 3D parts
+    are left untouched. Rim faces are filled and UV-mapped so the texture wraps
+    completely around all sides with no see-through gaps."""
+    bl_idname = "fo4.solidify_mesh"
+    bl_label = "Solidify Planes"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    thickness: bpy.props.FloatProperty(
+        name="Thickness",
+        default=0.02,
+        min=0.001,
+        max=1.0,
+        precision=3,
+        description=(
+            "Thickness in Blender units (÷70 = FO4 game units). "
+            "0.02 BU ≈ 1.4 FO4 units — visible from the side without looking inflated."
+        ),
+    )
+    fill_rim: bpy.props.BoolProperty(
+        name="Fill Rim (no see-through)",
+        default=True,
+        description=(
+            "Add faces around the perimeter edges so the mesh is fully sealed — "
+            "no gaps visible from the sides, top, or bottom. "
+            "The texture wraps around the rim edges using the boundary UV coordinates."
+        ),
+    )
+    use_even_offset: bpy.props.BoolProperty(
+        name="Even Thickness",
+        default=True,
+        description="Maintain consistent thickness across curved frond surfaces",
+    )
+    unify_slots: bpy.props.BoolProperty(
+        name="Unify Material Slots After",
+        default=True,
+        description="Merge duplicate material slots created by Solidify so all faces share one material",
+    )
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=340)
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(self, "thickness")
+        fo4_units = self.thickness * 70.0
+        col.label(text=f"  ≈ {fo4_units:.1f} FO4 game units thick", icon='INFO')
+        layout.separator(factor=0.5)
+        layout.prop(self, "use_even_offset")
+        layout.prop(self, "fill_rim")
+        layout.separator(factor=0.5)
+        layout.prop(self, "unify_slots")
+        layout.separator(factor=0.5)
+        layout.label(
+            text="Flat card islands are detected automatically — 3D parts are skipped.",
+            icon='QUESTION',
+        )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if obj.data.users > 1:
+            obj.data = obj.data.copy()
+
+        try:
+            flat_islands, flat_faces = mesh_helpers.MeshHelpers.solidify_flat_faces(
+                obj,
+                thickness=self.thickness,
+                fill_rim=self.fill_rim,
+                use_even_offset=self.use_even_offset,
+            )
+        except RuntimeError as e:
+            self.report({'ERROR'}, str(e))
+            return {'CANCELLED'}
+
+        if flat_faces == 0:
+            self.report({'WARNING'},
+                "No flat card/plane islands detected — nothing solidified. "
+                "If your planes are curved or merged with the 3D mesh, try selecting "
+                "the plane faces manually in Edit Mode first.")
+            return {'FINISHED'}
+
+        # obj may have been re-joined; re-fetch active object
+        obj = context.active_object
+
+        msg_parts = [
+            f"Solidified {flat_islands} flat island(s) "
+            f"({self.thickness * 70:.1f} FO4 units thick)"
+        ]
+
+        if self.unify_slots and len(obj.material_slots) > 1:
+            removed = mesh_helpers.MeshHelpers.unify_material_slots(obj)
+            if removed:
+                msg_parts.append(f"{removed} material slot(s) unified")
+
+        self.report({'INFO'}, " — ".join(msg_parts))
+        return {'FINISHED'}
+
+
+class FO4_OT_UnifyMaterialSlots(Operator):
+    """Reassign all faces to the material slot with the most loaded textures and remove duplicates.
+    Use this after joining two meshes that had different materials — it fixes the
+    half-textured / half-black result by consolidating everything onto one material."""
+    bl_idname = "fo4.unify_material_slots"
+    bl_label = "Unify Material Slots"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+        if len(obj.material_slots) <= 1:
+            self.report({'INFO'}, "Only one material slot — nothing to unify")
+            return {'FINISHED'}
+        removed = mesh_helpers.MeshHelpers.unify_material_slots(obj)
+        if removed:
+            self.report({'INFO'}, f"Unified material slots: removed {removed} duplicate slot(s)")
+        else:
+            self.report({'INFO'}, "Material slots already unified")
+        return {'FINISHED'}
+
 
 class FO4_OT_ValidateMesh(Operator):
     """Validate mesh for Fallout 4 compatibility"""
@@ -2133,6 +2844,172 @@ class FO4_OT_BatchApplyWindAnimation(Operator):
         self.report({'INFO'}, f"Processed {len(meshes)} meshes")
         return {'FINISHED'}
 
+class FO4_OT_ScanWindReadiness(Operator):
+    """Scan selected mesh(es) for problems that break wind animation.
+
+    Checks each mesh for the mesh-specific issues that cause the plant to
+    "breathe"/inflate instead of sway: unapplied (especially non-uniform)
+    scale, unapplied rotation, an origin that isn't at the base, stacked
+    armature modifiers, and a flat/uniform Wind weight group.
+
+    Leave *Auto-fix* on to apply rotation & scale and move the origin to the
+    base automatically (the safe fixes).  Turn it off for a report-only pass.
+    """
+    bl_idname = "fo4.scan_wind_readiness"
+    bl_label = "Scan Wind Readiness"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    auto_fix: bpy.props.BoolProperty(
+        name="Auto-fix (apply transforms, fix origin)",
+        description=(
+            "Apply rotation & scale and move the origin to the base of each "
+            "mesh.  Armature conflicts and uniform Wind groups are only "
+            "reported, never auto-deleted."
+        ),
+        default=True,
+    )
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        AH = animation_helpers.AnimationHelpers
+        clean = 0
+        fixed = 0
+        still_bad = 0
+        for m in meshes:
+            if self.auto_fix:
+                ready, actions, remaining = AH.ensure_wind_ready(m, auto_fix=True)
+                if actions:
+                    fixed += 1
+                    self.report({'INFO'}, f"{m.name}: fixed — {', '.join(actions)}")
+                if remaining:
+                    still_bad += 1
+                    self.report({'WARNING'}, f"{m.name}: still needs — {'; '.join(remaining)}")
+                if ready and not actions:
+                    clean += 1
+            else:
+                ready, issues, _ = AH.scan_wind_readiness(m)
+                if ready:
+                    clean += 1
+                else:
+                    still_bad += 1
+                    self.report({'WARNING'}, f"{m.name}: {'; '.join(issues)}")
+
+        self.report(
+            {'INFO'},
+            f"Wind scan: {len(meshes)} mesh(es) — {clean} clean, "
+            f"{fixed} auto-fixed, {still_bad} need attention"
+        )
+        return {'FINISHED'}
+
+
+class FO4_OT_TestWindDeformation(Operator):
+    """Physically test wind on selected mesh(es) by bending them and
+    checking for a visible tear.
+
+    Run this after altering a mesh that already has wind attached (e.g.
+    adding Solidify planes or joining new geometry) — or right after
+    attaching wind to a mesh for the first time — to confirm it actually
+    deforms as one piece instead of separating in-game.
+    """
+    bl_idname = "fo4.test_wind_deformation"
+    bl_label = "Test Wind Deformation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    test_angle: bpy.props.FloatProperty(
+        name="Test Bend Angle (deg)",
+        description="How far to bend the Wind bone for the test",
+        default=15.0, min=1.0, max=45.0,
+    )
+    stretch_threshold: bpy.props.FloatProperty(
+        name="Stretch Threshold",
+        description="Flag an edge if its length changes by more than this "
+                    "fraction under the test bend (0.3 = 30%)",
+        default=0.3, min=0.05, max=1.0,
+    )
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        AH = animation_helpers.AnimationHelpers
+        passed = 0
+        failed = 0
+        for m in meshes:
+            ok, issues, flagged = AH.test_wind_deformation(
+                m, test_angle_deg=self.test_angle, stretch_threshold=self.stretch_threshold
+            )
+            if ok:
+                passed += 1
+            else:
+                failed += 1
+                note = f" (see '{m.name}' vertex group 'WindTestFailures')" if flagged else ""
+                self.report({'WARNING'}, f"{m.name}: {'; '.join(issues)}{note}")
+
+        self.report(
+            {'INFO'},
+            f"Wind deformation test: {len(meshes)} mesh(es) — {passed} passed, {failed} failed"
+        )
+        _notify(f"Wind deformation test: {passed} passed, {failed} failed",
+                'INFO' if not failed else 'WARNING')
+        return {'FINISHED'}
+
+
+class FO4_OT_WeldWindSeams(Operator):
+    """Weld only the specific unwelded seam vertices scan_wind_readiness
+    flags (see 'N vertex(es) are not welded together' issue) -- NOT a
+    blanket 'select all, Merge by Distance'.
+
+    Use this instead of a manual whole-mesh merge: welding everything can
+    collapse unrelated close-together geometry (e.g. thin leaf blades) into
+    degenerate slivers, which shows up as smeared/stretched textures in-game.
+    This only touches the exact vertex pairs flagged as an unwelded seam.
+    """
+    bl_idname = "fo4.weld_wind_seams"
+    bl_label = "Weld Wind Seams (Targeted)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    epsilon: bpy.props.FloatProperty(
+        name="Distance",
+        description="Vertices closer than this (in world units) that aren't "
+                    "already connected by an edge are considered an unwelded seam",
+        default=0.001, min=0.0001, max=0.1,
+    )
+
+    def execute(self, context):
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        meshes = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not meshes:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        AH = animation_helpers.AnimationHelpers
+        total_welded = 0
+        for m in meshes:
+            welded, msg = AH.weld_wind_seams(m, epsilon=self.epsilon)
+            total_welded += welded
+            if welded:
+                self.report({'INFO'}, f"{m.name}: {msg}")
+
+        self.report({'INFO'}, f"Welded {total_welded} vertex(es) across {len(meshes)} mesh(es). "
+                              "Re-run wind generation before exporting.")
+        _notify(f"Weld Wind Seams: {total_welded} vertex(es) welded", 'INFO')
+        return {'FINISHED'}
+
+
 class FO4_OT_BatchAutoWeightPaint(Operator):
     """Auto weight paint all selected meshes to the first armature found"""
     bl_idname = "fo4.batch_auto_weight_paint"
@@ -2344,6 +3221,31 @@ class FO4_OT_VegetationWindSetup(Operator):
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_FixWindVertexColors(Operator):
+    """Write the Wind vertex-group gradient into vertex color alpha.
+
+    Use this if your FO4 vegetation is breathing (uniform sway) or has no
+    wind animation in-game. FO4's BSLeafAnimNode reads the vertex color alpha
+    channel (0=anchored, 1=full sway) — this button pushes your existing Wind
+    vertex-group weights into that channel without re-running the full wind setup.
+    """
+    bl_idname  = "fo4.fix_wind_vertex_colors"
+    bl_label   = "Fix Wind Vertex Colors"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        ok, msg = animation_helpers.AnimationHelpers.apply_wind_vertex_colors(obj)
+        self.report({'INFO'} if ok else {'WARNING'}, msg)
+        return {'FINISHED'} if ok else {'CANCELLED'}
 
 
 class FO4_OT_SmartWindSetup(Operator):
@@ -2816,6 +3718,26 @@ class FO4_OT_ExportMesh(Operator):
         if not export_helpers:
             self.report({'ERROR'}, "export_helpers module not available")
             return {'CANCELLED'}
+
+        # If more than one mesh is selected, combine all of them into a
+        # single NIF instead of silently exporting only the active object —
+        # PyNifly's own raw export operator exports whatever is selected, and
+        # this button should behave the same way rather than quietly
+        # dropping every mesh except the active one.
+        multi_selected = [o for o in context.selected_objects if o.type == 'MESH']
+        if len(multi_selected) > 1:
+            success, message = export_helpers.ExportHelpers.export_scene_as_single_nif(
+                context.scene, self.filepath, objects=multi_selected
+            )
+            if success:
+                self.report({'INFO'}, message)
+                _notify(message, 'INFO')
+            else:
+                self.report({'ERROR'}, message)
+                _notify(message, 'ERROR')
+                return {'CANCELLED'}
+            return {'FINISHED'}
+
         # Use the object captured at invoke time when possible
         if self.source_object:
             obj = context.scene.objects.get(self.source_object)
@@ -2837,7 +3759,7 @@ class FO4_OT_ExportMesh(Operator):
         success, message = export_helpers.ExportHelpers.export_mesh_to_nif(
             obj, self.filepath
         )
-        
+
         if success:
             self.report({'INFO'}, message)
             _notify(message, 'INFO')
@@ -2849,6 +3771,18 @@ class FO4_OT_ExportMesh(Operator):
         return {'FINISHED'}
     
     def invoke(self, context, event):
+        # With multiple meshes selected, execute() combines them into one
+        # NIF and doesn't need a single tracked source_object -- skip the
+        # active-object-specific checks below (the active object might
+        # legitimately be a collision mesh alongside other valid selections;
+        # export_scene_as_single_nif filters those out on its own).
+        multi_selected = [o for o in context.selected_objects if o.type == 'MESH']
+        if len(multi_selected) > 1:
+            if not self.filepath:
+                self.filepath = _default_export_filepath(context.active_object or multi_selected[0])
+            context.window_manager.fileselect_add(self)
+            return {'RUNNING_MODAL'}
+
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
@@ -2859,6 +3793,8 @@ class FO4_OT_ExportMesh(Operator):
             return {'CANCELLED'}
         # Store the name now so execute() can find it after the file dialog
         self.source_object = obj.name
+        if not self.filepath:
+            self.filepath = _default_export_filepath(obj)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -2999,6 +3935,8 @@ class FO4_OT_ExportMeshWithCollision(Operator):
                 getattr(obj, 'fo4_collision_type', inferred), inferred)
             if self.simplify_ratio == 0.25:
                 self.simplify_ratio = mesh_helpers.MeshHelpers._TYPE_DEFAULT_RATIOS.get(self.collision_type, 0.25)
+        if not self.filepath:
+            self.filepath = _default_export_filepath(obj)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -3211,8 +4149,15 @@ class FO4_OT_ExportSceneAsNif(Operator):
         if not export_helpers:
             self.report({'ERROR'}, "export_helpers module not available")
             return {'CANCELLED'}
+        # If the user has specific objects selected, combine exactly those
+        # into one NIF instead of every mesh in the scene -- matches how
+        # PyNifly's own raw export operator behaves (exports the selection),
+        # and lets a user recombine just the shapes that belong together
+        # (e.g. the pieces from one multi-shape source NIF) without pulling
+        # in unrelated LOD copies or other scene content.
+        selected = [o for o in context.selected_objects if o.type == 'MESH']
         success, message = export_helpers.ExportHelpers.export_scene_as_single_nif(
-            context.scene, self.filepath
+            context.scene, self.filepath, objects=selected or None
         )
         if success:
             self.report({'INFO'}, message)
@@ -3224,6 +4169,8 @@ class FO4_OT_ExportSceneAsNif(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+        if not self.filepath:
+            self.filepath = _default_export_filepath(context.active_object)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -4203,15 +5150,18 @@ class FO4_OT_GenerateLOD(Operator):
 
 
 class FO4_OT_GenerateLODAndCollision(Operator):
-    """Generate both a LOD chain and a collision mesh in one step.
+    """Generate a LOD chain, a baked billboard, and a collision mesh in one step.
 
-    Treats the active object as LOD0 (full detail), creates LOD1–LOD4
-    simplified copies, then builds the collision mesh from the lowest LOD
-    (LOD4 / the most simplified copy) rather than re-decimating the full
-    mesh.  This produces a tighter, more accurate collision shape and avoids
-    unnecessary polygon reduction passes.  The recommended one-click workflow
-    for static props and vegetation that need both distance rendering and
-    physics collision in-game.
+    Treats the active object as LOD0 (full detail), creates LOD1/LOD2
+    simplified copies, then adds a baked-billboard LOD3 — the real FO4
+    convention for the farthest level (verified against a reference asset:
+    only two real reduced-mesh levels, then a ~4-triangle cross billboard
+    with its own dedicated texture, not a further-decimated organic mesh).
+    The collision mesh is built from LOD2 (the last real 3D level) rather
+    than re-decimating the full mesh or using the billboard, which produces
+    a tighter, more accurate collision shape. The recommended one-click
+    workflow for static props and vegetation that need both distance
+    rendering and physics collision in-game.
     """
     bl_idname = "fo4.generate_lod_and_collision"
     bl_label = "Generate LOD Chain + Collision"
@@ -4223,6 +5173,11 @@ class FO4_OT_GenerateLODAndCollision(Operator):
         items=_COLLISION_TYPES,
         default='DEFAULT'
     )
+    billboard_tex_size: IntProperty(
+        name="Billboard Texture Size",
+        description="Resolution of the baked billboard (farthest LOD level) texture",
+        default=512, min=64, max=2048,
+    )
 
     def execute(self, context):
         obj = context.active_object
@@ -4232,7 +5187,7 @@ class FO4_OT_GenerateLODAndCollision(Operator):
 
         results = []
 
-        # --- LOD chain ---
+        # --- LOD chain (real, decimated levels only — LOD1/LOD2) ---
         success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(obj)
         if success:
             results.append(f"LOD: {len(lod_objects)} levels created")
@@ -4246,7 +5201,7 @@ class FO4_OT_GenerateLODAndCollision(Operator):
         else:
             results.append(f"LOD failed: {message}")
 
-        # --- Collision mesh from the lowest LOD ---
+        # --- Collision mesh from the lowest REAL LOD (never the billboard) ---
         # Using the most-simplified LOD as the collision base produces a
         # tighter shape than re-decimating the full mesh, and avoids an
         # extra polygon-reduction pass.
@@ -4274,6 +5229,16 @@ class FO4_OT_GenerateLODAndCollision(Operator):
                 results.append(f"Collision failed: {str(e)}")
         else:
             results.append(f"Collision: skipped for type '{self.collision_type}'")
+
+        # --- Baked billboard as the final, farthest LOD level ---
+        try:
+            billboard_name = f"{obj.name}_LOD{len(lod_objects) + 1}"
+            billboard_obj, billboard_msg = fo4_lod_generator.generate_billboard_lod(
+                obj, billboard_name, tex_size=self.billboard_tex_size
+            )
+            results.append(billboard_msg)
+        except Exception as e:
+            results.append(f"Billboard failed: {str(e)}")
 
         summary = " | ".join(results)
         self.report({'INFO'}, summary)
@@ -5974,6 +6939,213 @@ class FO4_OT_FoliageUVUnwrap(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+class FO4_OT_VegetationAtlasUV(Operator):
+    """Professional UV atlas layout for FO4 vegetation meshes.
+
+    Produces a clean atlas like the ones used in commercial plant assets:
+
+    1. (optional) Smart-projects each disconnected mesh component as its
+       own island so leaf cards and bark strips become clean rectangles.
+    2. Rotates every island so its longest dimension runs along the V axis
+       (tall strips point up, short pieces lay flat) — matching the visual
+       style of reference-quality vegetation UV atlases.
+    3. Normalises texel density so every part of the mesh gets the same
+       texture resolution.
+    4. Packs all islands tightly (rotation disabled — step 2 already
+       set the ideal orientation).
+
+    Run on a fresh import or immediately after 'Foliage UV Unwrap'."""
+    bl_idname  = "fo4.vegetation_atlas_uv"
+    bl_label   = "Vegetation Atlas UV"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    re_unwrap: bpy.props.BoolProperty(
+        name="Re-unwrap Components",
+        description=(
+            "Smart-project each disconnected mesh component before orienting "
+            "(recommended for fresh meshes). Uncheck to only orient and repack "
+            "existing UVs."
+        ),
+        default=True,
+    )
+
+    margin: bpy.props.FloatProperty(
+        name="Island Margin",
+        description="Gap between UV islands (0.005 ≈ 5 px at 1024 px)",
+        default=0.005, min=0.001, max=0.05, subtype='FACTOR',
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "re_unwrap")
+        layout.prop(self, "margin")
+        layout.separator()
+        layout.label(text="Tall strips → vertical  |  Uniform texel density", icon='INFO')
+
+    # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _mesh_components(mesh):
+        """Return list of face-index lists, one per disconnected 3-D component."""
+        n = len(mesh.polygons)
+        adj = [[] for _ in range(n)]
+        vert_to_faces = {}
+        for fi, poly in enumerate(mesh.polygons):
+            for vi in poly.vertices:
+                vert_to_faces.setdefault(vi, []).append(fi)
+        for fi, poly in enumerate(mesh.polygons):
+            for vi in poly.vertices:
+                for nfi in vert_to_faces.get(vi, []):
+                    if nfi != fi:
+                        adj[fi].append(nfi)
+
+        visited = [False] * n
+        components = []
+        for start in range(n):
+            if visited[start]:
+                continue
+            stack = [start]
+            group = []
+            while stack:
+                fi = stack.pop()
+                if visited[fi]:
+                    continue
+                visited[fi] = True
+                group.append(fi)
+                stack.extend(adj[fi])
+            components.append(group)
+        return components
+
+    @staticmethod
+    def _orient_components_vertical(mesh, components):
+        """Rotate each component's UV region 90° CCW if it is wider than tall."""
+        import bmesh as _bmesh
+        bm = _bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        uv_layer = bm.loops.layers.uv.verify()
+
+        rotated = 0
+        for comp_faces in components:
+            loops = [loop for fi in comp_faces for loop in bm.faces[fi].loops]
+            if not loops:
+                continue
+
+            us = [l[uv_layer].uv.x for l in loops]
+            vs = [l[uv_layer].uv.y for l in loops]
+            min_u, max_u = min(us), max(us)
+            min_v, max_v = min(vs), max(vs)
+            width  = max_u - min_u
+            height = max_v - min_v
+
+            if width > height + 1e-5:
+                # Rotate 90° CCW around the island centre
+                cx = (min_u + max_u) * 0.5
+                cy = (min_v + max_v) * 0.5
+                for loop in loops:
+                    uv = loop[uv_layer].uv
+                    du = uv.x - cx
+                    dv = uv.y - cy
+                    uv.x = cx - dv
+                    uv.y = cy + du
+                rotated += 1
+
+        bm.to_mesh(mesh)
+        bm.free()
+        return rotated
+
+    # ------------------------------------------------------------------
+    # execute
+    # ------------------------------------------------------------------
+    def execute(self, context):
+        import math
+
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        prev_active = context.view_layer.objects.active
+        context.view_layer.objects.active = obj
+
+        try:
+            bpy.ops.object.mode_set(mode='OBJECT')
+            mesh = obj.data
+
+            if not mesh.uv_layers:
+                mesh.uv_layers.new(name="UVMap")
+
+            # ── Step 1: find 3-D components ──────────────────────────────
+            components = self._mesh_components(mesh)
+            total = len(components)
+
+            # ── Step 2 (optional): Smart-project each component ──────────
+            if self.re_unwrap:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+                for comp_faces in components:
+                    comp_set = set(comp_faces)
+                    for fi, poly in enumerate(mesh.polygons):
+                        poly.select = fi in comp_set
+                    for v in mesh.vertices:
+                        v.select = False
+
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    context.tool_settings.mesh_select_mode = (False, False, True)
+                    try:
+                        bpy.ops.uv.smart_project(
+                            angle_limit=math.radians(66),
+                            island_margin=self.margin,
+                        )
+                    except TypeError:
+                        try:
+                            bpy.ops.uv.smart_project(angle_limit=66.0)
+                        except Exception:
+                            pass
+                    except Exception:
+                        try:
+                            bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=self.margin)
+                        except Exception:
+                            pass
+                    bpy.ops.object.mode_set(mode='OBJECT')
+
+            # ── Step 3: orient each component's UV region vertically ─────
+            rotated = self._orient_components_vertical(mesh, components)
+
+            # ── Step 4: normalise scale + pack ───────────────────────────
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            try:
+                bpy.ops.uv.average_islands_scale()
+            except Exception:
+                pass
+            try:
+                bpy.ops.uv.pack_islands(rotate=False, margin=self.margin)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=self.margin)
+
+        finally:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+            context.view_layer.objects.active = prev_active
+
+        msg = (
+            f"Vegetation Atlas UV: {total} islands, "
+            f"{rotated} rotated vertical, packed (margin={self.margin:.3f})"
+        )
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
 # Batch Processing Operators
 
 class FO4_OT_BatchOptimizeMeshes(Operator):
@@ -6361,16 +7533,17 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         filename = os.path.basename(filepath)
 
         # ── Mesh import ──────────────────────────────────────────────────────
-        # All 3D mesh formats are scaled from FO4 game units to Blender metres
-        # after import (_apply_fo4_import_scale ÷70, apply, tag fo4_unit_scale).
-        # The export path multiplies back ×70 so round-tripping produces a NIF
-        # at the original Fallout 4 game scale.
+        # Only raw NIF data is in FO4/Havok game units (~70 units/metre) and
+        # needs the ÷70 conversion below. FBX/OBJ/GLB/GLTF are converted to
+        # real-world metres by Blender's own importers already — applying an
+        # extra ÷70 on top of that shrinks an already-correct mesh down to
+        # ~1.4% size (confirmed: a source FBX exported cleanly from Blender,
+        # re-imported here, ended up ~70x too small next to its skeleton).
 
         if ext == '.fbx':
             try:
                 bpy.ops.import_scene.fbx(filepath=filepath)
-                n = _apply_fo4_import_scale(context)
-                self.report({'INFO'}, f"Imported FBX: {filename} ({n} object(s) scaled to Blender metres)")
+                self.report({'INFO'}, f"Imported FBX: {filename}")
                 _notify(f"Imported {filename}", 'INFO')
                 return {'FINISHED'}
             except Exception as e:
@@ -6384,8 +7557,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
                     bpy.ops.wm.obj_import(filepath=filepath)
                 else:
                     bpy.ops.import_scene.obj(filepath=filepath)
-                n = _apply_fo4_import_scale(context)
-                self.report({'INFO'}, f"Imported OBJ: {filename} ({n} object(s) scaled to Blender metres)")
+                self.report({'INFO'}, f"Imported OBJ: {filename}")
                 _notify(f"Imported {filename}", 'INFO')
                 return {'FINISHED'}
             except Exception as e:
@@ -6396,8 +7568,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
             try:
                 if hasattr(bpy.ops.import_scene, 'gltf'):
                     bpy.ops.import_scene.gltf(filepath=filepath)
-                    n = _apply_fo4_import_scale(context)
-                    self.report({'INFO'}, f"Imported GLB/GLTF: {filename} ({n} object(s) scaled to Blender metres)")
+                    self.report({'INFO'}, f"Imported GLB/GLTF: {filename}")
                     _notify(f"Imported {filename}", 'INFO')
                     return {'FINISHED'}
                 else:
@@ -6411,9 +7582,70 @@ class FO4_OT_ImportFO4AssetFile(Operator):
             # Use PyNifly (import_scene.pynifly) — Niftools is broken on Blender 4.1+
             if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
                 try:
+                    _before = set(context.scene.objects)
                     bpy.ops.import_scene.pynifly(filepath=filepath)
-                    n = _apply_fo4_import_scale(context)
-                    self.report({'INFO'}, f"Imported NIF: {filename} ({n} object(s) scaled to Blender metres)")
+                    # Collect everything PyNifly added, regardless of selection.
+                    _new = [o for o in context.scene.objects if o not in _before]
+
+                    # PyNifly honours NIF visibility flags and may hide objects
+                    # (hide_viewport / hide_set) that are tagged as initially
+                    # invisible in the file.  Unhide all imported objects so the
+                    # user can see every mesh and work with the full asset.
+                    for _o in _new:
+                        try:
+                            _o.hide_set(False)
+                            _o.hide_viewport = False
+                        except Exception:
+                            pass
+
+                    n = _apply_fo4_import_scale(context, objects=_new)
+
+                    # Follow the NIF's BGSM material and load its textures from the
+                    # asset's mod folder (MO2-aware). Run on ALL imported meshes
+                    # (not just selected_objects — PyNifly may only select empties).
+                    try:
+                        from . import fo4_texture_resolver as _ftr
+                        from . import preferences as _prefs_mod
+                        _extra = []
+                        # Prefer addon preferences (persistent); fall back to scene props.
+                        _p = _prefs_mod.get_preferences()
+                        _mo2 = (getattr(_p, "fo4_mo2_mods_root", "") or "") if _p else ""
+                        if not _mo2:
+                            _mo2 = getattr(context.scene, "fo4_mo2_mods_root", "") or ""
+                        _gdata = (getattr(_p, "fo4_game_data_path", "") or "") if _p else ""
+                        if not _gdata:
+                            _gdata = getattr(context.scene, "fo4_game_data_path", "") or ""
+                        if _mo2:
+                            _extra.append(bpy.path.abspath(_mo2))
+                        if _gdata:
+                            _extra.append(bpy.path.abspath(_gdata))
+                        for _o in _new:
+                            if _o.type == 'MESH':
+                                _rok, _rmsg = _ftr.resolve_and_apply(_o, filepath, extra_roots=_extra)
+                                print(f"[FO4Tex] {_o.name}: {_rmsg}")
+                    except Exception as _re:
+                        print(f"[FO4Tex] auto-resolve skipped: {_re}")
+
+                    # Tag every imported object so the whole asset is traceable.
+                    _helpers = 0
+                    for _o in _new:
+                        try:
+                            _o["fo4_source_nif"] = filepath
+                            # Name as PyNifly imported it -- i.e. the original NIF
+                            # block name, before any renaming.  Export uses this as
+                            # the default root/shape name unless the user actually
+                            # renamed the object (see export_helpers.py).
+                            _o["fo4_original_name"] = _o.name
+                            if _o.type != 'MESH':
+                                _o["fo4_node_role"] = _o.type
+                                _helpers += 1
+                        except Exception:
+                            pass
+
+                    _mesh_names = [o.name for o in _new if o.type == 'MESH']
+                    print(f"[FO4Import] {len(_mesh_names)} mesh(es): {_mesh_names}")
+                    _htxt = f", {_helpers} helper node(s) kept" if _helpers else ""
+                    self.report({'INFO'}, f"Imported NIF: {filename} ({n} mesh(es) scaled to Blender metres){_htxt}")
                     _notify(f"Imported {filename}", 'INFO')
                     return {'FINISHED'}
                 except Exception as e:
@@ -6908,8 +8140,6 @@ class FO4_OT_ImportUnityAsset(Operator):
             return {'CANCELLED'}
 
         ok, msg = self._import_asset_file(asset_path)
-        if ok:
-            _apply_fo4_import_scale(context)
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, f"{asset['name']}: {msg}")
         _notify(f"Unity import: {msg}", level)
@@ -7056,8 +8286,6 @@ class FO4_OT_ImportUnrealAsset(Operator):
             return {'CANCELLED'}
 
         ok, msg = self._import_asset_file(asset_path, asset.get("type"))
-        if ok:
-            _apply_fo4_import_scale(context)
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, f"{asset['name']}: {msg}")
         _notify(f"Unreal import: {msg}", level)
@@ -7636,8 +8864,14 @@ class FO4_OT_CombineVegetationMeshes(Operator):
             if self.generate_lod:
                 bpy.ops.object.duplicate()
                 lod_obj = context.active_object
+                # See generate_lod_chain's comment (advanced_mesh_helpers.py) --
+                # duplicate() only copies mesh data independently if the user's
+                # own "Duplicate Data > Mesh" preference is enabled. Force it
+                # regardless so the decimate-apply below can't mutate combined_obj.
+                if lod_obj.data.users > 1:
+                    lod_obj.data = lod_obj.data.copy()
                 lod_obj.name = f"{combined_obj.name}_LOD"
-                
+
                 # Add decimate modifier for LOD
                 modifier = lod_obj.modifiers.new(name="Decimate_LOD", type='DECIMATE')
                 modifier.ratio = 0.3  # 30% of original poly count
@@ -7662,6 +8896,350 @@ class FO4_OT_CombineVegetationMeshes(Operator):
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_RetopologizeAndBake(Operator):
+    """Retopologize an AI-generated (triangle-soup) mesh — e.g. a Meshy
+    "smart topology" import — into a clean quad mesh and bake its original
+    diffuse/normal appearance onto the new UVs.
+
+    Workflow: select all pieces of the import (e.g. mushroom cap + stem
+    objects), run this operator, then continue with the normal vegetation
+    pipeline: Setup Vegetation Material -> Wind Animation -> Export Vegetation NIF.
+    """
+    bl_idname = "fo4.retopo_and_bake"
+    bl_label = "Retopologize & Bake"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    join_selected: BoolProperty(
+        name="Combine Selected Pieces",
+        description="Retopologize each selected piece individually (so thin "
+                    "parts don't get starved of faces by a large piece), then "
+                    "join them into one object. Disable to process only the "
+                    "active object",
+        default=True,
+    )
+    target_faces: IntProperty(
+        name="Target Quad Faces",
+        description="Approximate face count for the retopologized mesh",
+        default=2500, min=200, max=50000,
+    )
+    bake_diffuse: BoolProperty(
+        name="Bake Diffuse",
+        description="Bake the original diffuse/vertex-color appearance onto the new UVs",
+        default=True,
+    )
+    bake_normal: BoolProperty(
+        name="Bake Normal Map",
+        description="Also bake a tangent-space normal map capturing high-poly surface detail",
+        default=False,
+    )
+    resolution: EnumProperty(
+        name="Resolution",
+        description="Minimum bake resolution -- automatically raised for "
+                    "assets with many separate pieces, since each one needs "
+                    "its own share of UV atlas space",
+        items=[
+            ('512', "512", "512x512"),
+            ('1024', "1K (1024)", "1024x1024"),
+            ('2048', "2K (2048)", "2048x2048"),
+            ('4096', "4K (4096)", "4096x4096"),
+            ('8192', "8K (8192)", "8192x8192"),
+        ],
+        default='2048',
+    )
+    convert_to_dds: BoolProperty(
+        name="Convert to DDS",
+        description="Convert the baked PNG to DDS via NVTT/texconv if available",
+        default=True,
+    )
+    keep_highpoly_backup: BoolProperty(
+        name="Keep High-Poly Backup",
+        description="Keep the pre-retopo hidden duplicate in the scene instead of deleting it",
+        default=False,
+    )
+
+    @classmethod
+    def poll(cls, context):
+        return bool([o for o in context.selected_objects if o.type == 'MESH'])
+
+    def _bake_target_node(self, mat, node_name, image, non_color=False):
+        node = mat.node_tree.nodes.get(node_name)
+        if node is None or node.type != 'TEX_IMAGE':
+            return None
+        node.image = image
+        if non_color:
+            try:
+                image.colorspace_settings.name = 'Non-Color'
+            except Exception:
+                pass
+        return node
+
+    def execute(self, context):
+        if not texture_helpers:
+            self.report({'ERROR'}, "texture_helpers module not available")
+            return {'CANCELLED'}
+
+        selected = [o for o in context.selected_objects if o.type == 'MESH']
+        if not selected:
+            self.report({'ERROR'}, "Select at least one mesh object first")
+            return {'CANCELLED'}
+
+        original_tri_count = sum(len(o.data.polygons) for o in selected)
+        original_engine = context.scene.render.engine
+        highpolys = []
+        n_pieces = len(selected)
+
+        try:
+            base_name = selected[0].name.split('.')[0]
+
+            if self.join_selected and len(selected) > 1:
+                # 1. Duplicate EACH piece as its own hidden high-poly bake
+                # source BEFORE any destructive retopo.
+                for o in selected:
+                    bpy.ops.object.select_all(action='DESELECT')
+                    o.select_set(True)
+                    context.view_layer.objects.active = o
+                    bpy.ops.object.duplicate()
+                    hp = context.active_object
+                    # Force single-user mesh data regardless of the user's own
+                    # "Duplicate Data > Mesh" Blender preference (see
+                    # generate_lod_chain's comment in advanced_mesh_helpers.py) --
+                    # otherwise this "frozen high-poly reference" would silently
+                    # share data with `o`, and quadriflow_retopo modifying `o`
+                    # in place below would flatten this bake source too.
+                    if hp.data.users > 1:
+                        hp.data = hp.data.copy()
+                    hp.name = f"{o.name}_HIGHPOLY_SRC"
+                    hp.hide_set(True)
+                    hp.hide_render = True
+                    highpolys.append(hp)
+
+                # 2. Retopologize each ORIGINAL piece individually, BEFORE
+                # joining, giving each its own share of target_faces (weighted
+                # by its original poly count, with a floor). QuadriFlow
+                # allocates its face budget by surface area: joining a cluster
+                # of wildly different-scale pieces first (e.g. one big mushroom
+                # cap + a thicket of thin stems) starves the thin pieces of
+                # faces and produces degenerate topology on them, since the
+                # large piece eats the whole shared budget.
+                total_original = sum(len(o.data.polygons) for o in selected) or 1
+                # The per-piece floor exists so a handful of thin/complex
+                # pieces (e.g. mushroom stems) aren't starved of faces by one
+                # dominant piece sharing the same budget. But a flat 50-face
+                # floor applied to HUNDREDS of tiny pieces (e.g. a detailed
+                # plant with individual leaf/petal objects) balloons the
+                # total face count wildly -- 500 pieces x 50 = 25,000+ faces
+                # even when target_faces is 2,500. Scale the floor down as
+                # piece count grows so its total contribution never exceeds
+                # roughly half the requested budget.
+                piece_floor = max(10, min(50, round((self.target_faces * 0.5) / max(1, n_pieces))))
+                for o in selected:
+                    share = len(o.data.polygons) / total_original
+                    piece_target = max(piece_floor, round(self.target_faces * share))
+                    context.view_layer.objects.active = o
+                    mesh_helpers.MeshHelpers.quadriflow_retopo(
+                        o, piece_target, preserve_boundary=True, use_curvature=True
+                    )
+
+                # 3. Join the now-retopologized pieces into one object
+                bpy.ops.object.select_all(action='DESELECT')
+                for o in selected:
+                    o.select_set(True)
+                context.view_layer.objects.active = selected[0]
+                bpy.ops.object.join()
+                joined = context.active_object
+                joined.name = f"{base_name}_Retopo"
+            else:
+                joined = context.active_object if context.active_object in selected else selected[0]
+
+                # Duplicate as a hidden high-poly bake source BEFORE any
+                # destructive retopo (quadriflow_retopo modifies in place).
+                bpy.ops.object.select_all(action='DESELECT')
+                joined.select_set(True)
+                context.view_layer.objects.active = joined
+                bpy.ops.object.duplicate()
+                hp = context.active_object
+                # See the matching comment above -- force single-user data so
+                # this frozen bake reference can't share (and later lose) its
+                # high-poly geometry when `joined` gets retopologized in place.
+                if hp.data.users > 1:
+                    hp.data = hp.data.copy()
+                hp.name = f"{joined.name}_HIGHPOLY_SRC"
+                hp.hide_set(True)
+                hp.hide_render = True
+                highpolys.append(hp)
+
+                context.view_layer.objects.active = joined
+                mesh_helpers.MeshHelpers.quadriflow_retopo(
+                    joined, self.target_faces, preserve_boundary=True, use_curvature=True
+                )
+                joined.name = f"{base_name}_Retopo"
+
+            bpy.ops.object.select_all(action='DESELECT')
+            joined.select_set(True)
+            context.view_layer.objects.active = joined
+
+            # 4b. Shade smooth -- QuadriFlow/Voxel/Decimate output is flat
+            # shaded by default, which reads as a faceted, blocky low-poly
+            # blob regardless of face count. Baked normal maps are meant to
+            # ADD detail on top of a smooth base, not compensate for a flat
+            # one -- without this, even a good retopo looks broken.
+            for poly in joined.data.polygons:
+                poly.use_smooth = True
+
+            # 5. Re-UV-unwrap the new topology
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.02)
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            # 6. Fresh single FO4 material with named Diffuse/Normal bake targets
+            joined.data.materials.clear()
+            mat = texture_helpers.TextureHelpers.setup_fo4_material(joined)
+
+            # Auto-raise the bake resolution for many-piece assets: each
+            # separate piece needs its own UV island in the same atlas, so a
+            # detailed plant with hundreds of individual leaf/petal objects
+            # needs far more total pixels than a handful of mushroom pieces
+            # to keep any per-leaf detail legible. Never lowers what the user
+            # picked, only raises it.
+            res = int(self.resolution)
+            auto_res = 512
+            if n_pieces > 100:
+                auto_res = 8192
+            elif n_pieces > 20:
+                auto_res = 4096
+            if auto_res > res:
+                res = auto_res
+            diffuse_image = None
+            normal_image = None
+            if self.bake_diffuse:
+                image_name = f"{joined.name}_Diffuse"
+                if image_name in bpy.data.images:
+                    bpy.data.images.remove(bpy.data.images[image_name])
+                diffuse_image = bpy.data.images.new(image_name, width=res, height=res, alpha=False)
+                self._bake_target_node(mat, "Diffuse", diffuse_image)
+            if self.bake_normal:
+                image_name = f"{joined.name}_Normal"
+                if image_name in bpy.data.images:
+                    bpy.data.images.remove(bpy.data.images[image_name])
+                normal_image = bpy.data.images.new(image_name, width=res, height=res, alpha=False)
+                self._bake_target_node(mat, "Normal", normal_image, non_color=True)
+
+            # 7. Configure Cycles selected-to-active bake
+            context.scene.render.engine = 'CYCLES'
+            context.scene.cycles.samples = 32
+            context.scene.render.bake.use_selected_to_active = True
+            dim = max(joined.dimensions) or 1.0
+            context.scene.render.bake.cage_extrusion = max(0.001, dim * 0.02)
+            context.scene.render.bake.max_ray_distance = max(0.01, dim * 0.1)
+
+            # 8. Select all high-poly backups (source, not active) + the
+            # joined low-poly mesh (target, active) -- Blender's
+            # selected-to-active bake accepts multiple simultaneously-selected
+            # source objects, so the retopologized pieces can each pull their
+            # own appearance from their own original.
+            bpy.ops.object.select_all(action='DESELECT')
+            for hp in highpolys:
+                hp.hide_set(False)
+                hp.select_set(True)
+            joined.select_set(True)
+            context.view_layer.objects.active = joined
+
+            # 9. Bake diffuse (pure albedo, no lighting)
+            if self.bake_diffuse:
+                context.scene.render.bake.use_pass_direct = False
+                context.scene.render.bake.use_pass_indirect = False
+                context.scene.render.bake.use_pass_color = True
+                mat.node_tree.nodes.active = mat.node_tree.nodes.get("Diffuse")
+                bpy.ops.object.bake(type='DIFFUSE')
+
+            # 10. Bake normal (tangent space)
+            if self.bake_normal:
+                context.scene.render.bake.normal_space = 'TANGENT'
+                mat.node_tree.nodes.active = mat.node_tree.nodes.get("Normal")
+                bpy.ops.object.bake(type='NORMAL')
+
+            # 11. Restore render engine
+            context.scene.render.engine = original_engine
+
+            # 12. Save baked image(s) to disk and optionally convert to DDS
+            status_parts = []
+            blend_path = bpy.data.filepath
+            save_dir = _os.path.dirname(blend_path) if blend_path else None
+            for label, image, tex_type in (
+                ("diffuse", diffuse_image, 'DIFFUSE'),
+                ("normal", normal_image, 'NORMAL'),
+            ):
+                if image is None:
+                    continue
+                if not save_dir:
+                    image.pack()
+                    status_parts.append(f"{label} baked (packed, unsaved .blend)")
+                    continue
+                png_path = _os.path.join(save_dir, f"{image.name}.png")
+                image.filepath_raw = png_path
+                image.file_format = 'PNG'
+                image.save()
+                if self.convert_to_dds and nvtt_helpers and (
+                    nvtt_helpers.NVTTHelpers.is_nvtt_available()
+                    or nvtt_helpers.NVTTHelpers.is_texconv_available()
+                ):
+                    dds_path = _os.path.splitext(png_path)[0] + '.dds'
+                    conv_ok, conv_msg = nvtt_helpers.NVTTHelpers.convert_to_dds(
+                        png_path, dds_path, slot=tex_type
+                    )
+                    if conv_ok:
+                        texture_helpers.TextureHelpers.install_texture(
+                            joined, dds_path, texture_type=tex_type
+                        )
+                        status_parts.append(f"{label} baked -> DDS")
+                    else:
+                        status_parts.append(f"{label} baked (DDS conversion failed: {conv_msg})")
+                else:
+                    status_parts.append(f"{label} baked -> PNG (no DDS conversion)")
+
+            # 13. Cleanup high-poly backups
+            if not self.keep_highpoly_backup:
+                for hp in highpolys:
+                    mesh_data = hp.data
+                    bpy.data.objects.remove(hp, do_unlink=True)
+                    if mesh_data and mesh_data.users == 0:
+                        bpy.data.meshes.remove(mesh_data)
+                highpolys = []
+            else:
+                for hp in highpolys:
+                    hp.hide_set(True)
+
+            bpy.ops.object.select_all(action='DESELECT')
+            joined.select_set(True)
+            context.view_layer.objects.active = joined
+
+            new_face_count = len(joined.data.polygons)
+            pieces_note = f"{n_pieces} piece(s) -> " if n_pieces > 1 else ""
+            res_note = f"  |  bake res {res}x{res}" if (self.bake_diffuse or self.bake_normal) else ""
+            summary = (f"{pieces_note}{original_tri_count:,} tris -> {new_face_count:,} faces  |  "
+                       + (", ".join(status_parts) if status_parts else "no bake requested")
+                       + res_note)
+            self.report({'INFO'}, summary)
+            _notify(
+                f"Retopologized '{joined.name}': {new_face_count:,} faces. "
+                "Next: Setup Vegetation Material -> Wind Animation -> Export.",
+                'INFO'
+            )
+            return {'FINISHED'}
+
+        except Exception as e:
+            try:
+                context.scene.render.engine = original_engine
+            except Exception:
+                pass
+            self.report({'ERROR'}, f"Retopologize & Bake failed: {str(e)}")
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=340)
 
 
 class FO4_OT_ScatterVegetation(Operator):
@@ -7827,59 +9405,248 @@ class FO4_OT_OptimizeVegetationForFPS(Operator):
 
 
 class FO4_OT_CreateVegetationLODChain(Operator):
-    """Create LOD chain for vegetation (LOD0, LOD1, LOD2)"""
+    """Create FO4 LOD copies of the active mesh.
+
+    Decimate mode: UV-boundary-aware collapse — best for alpha-cutout leaf planes.
+    Remesh mode: QuadriFlow (Voxel fallback) + UV reproject — best for solid
+    organic meshes where Decimate produces mangled topology."""
     bl_idname = "fo4.create_vegetation_lod_chain"
     bl_label = "Create LOD Chain"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+    lod_mode: bpy.props.EnumProperty(
+        name="Method",
+        items=[
+            ('DECIMATE', "Decimate",
+             "Collapse within UV/seam boundaries — fast, good for alpha-cutout leaf planes"),
+            ('REMESH',   "Remesh",
+             "QuadriFlow remesh + UV reproject — Meshy-style clean topology for solid organic meshes"),
+        ],
+        default='DECIMATE',
+    )
+    lod1_ratio: bpy.props.FloatProperty(
+        name="LOD1", default=0.5, min=0.1, max=0.95, step=5,
+        description="Triangle ratio for LOD1 (50% = half the polys)")
+    lod2_ratio: bpy.props.FloatProperty(
+        name="LOD2", default=0.25, min=0.05, max=0.9, step=5,
+        description="Triangle ratio for LOD2")
+    lod3_ratio: bpy.props.FloatProperty(
+        name="LOD3", default=0.1, min=0.01, max=0.5, step=1,
+        description="Triangle ratio for LOD3 (far-distance silhouette)")
+    preserve_uv_islands: bpy.props.BoolProperty(
+        name="Preserve UV Islands", default=True,
+        description="(Decimate mode) Never collapse across UV seams — keeps leaf panels intact")
+    rename_source: bpy.props.BoolProperty(
+        name="Rename source to _LOD0", default=True,
+        description="Append _LOD0 to the original mesh name")
+
+    # ------------------------------------------------------------------ helpers
+
+    def _duplicate_source(self, context, source, suffix):
+        bpy.ops.object.select_all(action='DESELECT')
+        source.select_set(True)
+        context.view_layer.objects.active = source
+        bpy.ops.object.duplicate()
+        lod_obj = context.active_object
+        # bpy.ops.object.duplicate() only makes an independent mesh copy if
+        # the user's Blender preferences have "Duplicate Data > Mesh" enabled
+        # (Edit > Preferences > Editing) -- if that's off, this "copy" shares
+        # the SAME mesh datablock as the source, and the decimate/remesh step
+        # that follows would mutate (or outright fail to apply to) the
+        # source's own geometry and UVs. Force single-user unconditionally.
+        if lod_obj.data.users > 1:
+            lod_obj.data = lod_obj.data.copy()
+        base = source.name.removesuffix("_LOD0")
+        lod_obj.name = f"{base}_{suffix}"
+        if lod_obj.data.shape_keys:
+            try:
+                context.view_layer.objects.active = lod_obj
+                bpy.ops.object.shape_key_remove(all=True)
+            except Exception:
+                pass
+        return lod_obj
+
+    @staticmethod
+    def _smart_uv(lod_obj):
+        try:
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.02)
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except Exception:
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+
+    def _make_lod(self, context, source, suffix, ratio):
+        """Decimate — collapses within UV/seam boundaries."""
+        lod_obj = self._duplicate_source(context, source, suffix)
+
+        mod = lod_obj.modifiers.new("Decimate", 'DECIMATE')
+        mod.ratio = ratio
+        mod.use_collapse_triangulate = False
+        if self.preserve_uv_islands:
+            mod.delimit = {'UV', 'SEAM'}
+
+        context.view_layer.objects.active = lod_obj
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        lod_obj.select_set(False)
+        return lod_obj
+
+    def _make_lod_remesh(self, context, source, suffix, ratio):
+        """QuadriFlow remesh + Smart UV reproject (Voxel fallback)."""
+        lod_obj = self._duplicate_source(context, source, suffix)
+        context.view_layer.objects.active = lod_obj
+
+        target_faces = max(10, int(len(lod_obj.data.polygons) * ratio))
+        mesh_helpers.MeshHelpers.quadriflow_retopo(
+            lod_obj, target_faces, preserve_boundary=True, use_curvature=True
+        )
+
+        # Remesh destroys UVs — reproject so the mesh stays texture-ready
+        self._smart_uv(lod_obj)
+        lod_obj.select_set(False)
+        return lod_obj
+
     def execute(self, context):
         obj = context.active_object
-        
         if not obj or obj.type != 'MESH':
-            self.report({'ERROR'}, "No mesh object selected")
+            self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
-        
+
+        original_count = len(obj.data.polygons)
+        original_name = obj.name.removesuffix("_LOD0")
+
         try:
-            lod_ratios = [1.0, 0.5, 0.25, 0.1]  # LOD0, LOD1, LOD2, LOD3
-            lod_names = ['LOD0', 'LOD1', 'LOD2', 'LOD3']
-            
-            original_name = obj.name
-            lod_objects = []
-            
-            for i, (ratio, name) in enumerate(zip(lod_ratios, lod_names)):
-                if i == 0:
-                    # LOD0 is the original
-                    obj.name = f"{original_name}_{name}"
-                    lod_objects.append(obj)
-                else:
-                    # Create duplicates for other LODs
-                    bpy.ops.object.duplicate()
-                    lod_obj = context.active_object
-                    lod_obj.name = f"{original_name}_{name}"
-                    
-                    # Apply decimation
-                    modifier = lod_obj.modifiers.new(name="Decimate", type='DECIMATE')
-                    modifier.ratio = ratio
-                    bpy.ops.object.modifier_apply(modifier="Decimate")
-                    
-                    # Move to the side for visibility
-                    lod_obj.location.x = obj.location.x + (i * 3.0)
-                    
-                    lod_objects.append(lod_obj)
-                    
-                    poly_count = len(lod_obj.data.polygons)
-                    self.report({'INFO'}, f"{name}: {poly_count} polygons")
-            
-            self.report({'INFO'}, f"Created LOD chain with {len(lod_objects)} levels")
-            _notify(
-                f"Created {len(lod_objects)} LOD levels", 'INFO'
-            )
-            
+            if self.rename_source:
+                obj.name = f"{original_name}_LOD0"
+
+            levels = [
+                ("LOD1", self.lod1_ratio),
+                ("LOD2", self.lod2_ratio),
+                ("LOD3", self.lod3_ratio),
+            ]
+            make_fn = self._make_lod_remesh if self.lod_mode == 'REMESH' else self._make_lod
+            lines = [f"LOD0: {original_count:,} tris (source)"]
+            for suffix, ratio in levels:
+                lod_obj = make_fn(context, obj, suffix, ratio)
+                count = len(lod_obj.data.polygons)
+                lines.append(f"{suffix}: {count:,} tris ({ratio*100:.0f}%)")
+
+            # Restore selection to the source object
+            context.view_layer.objects.active = obj
+            obj.select_set(True)
+
+            summary = "  |  ".join(lines)
+            self.report({'INFO'}, summary)
+            _notify(f"LOD chain created: {summary}", 'INFO')
             return {'FINISHED'}
-            
-        except Exception as e:
-            self.report({'ERROR'}, f"Failed to create LOD chain: {str(e)}")
+
+        except Exception as exc:
+            self.report({'ERROR'}, f"LOD chain failed: {exc}")
             return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self, width=340)
+
+
+class FO4_OT_ImportGLBAsLOD(Operator):
+    """Import a GLB/GLTF file and attach it as a LOD copy of the active mesh.
+
+    Copies materials from the source object and Smart-UV-projects the imported
+    mesh so it is immediately export-ready without any manual cleanup."""
+    bl_idname  = "fo4.import_glb_as_lod"
+    bl_label   = "Import GLB as LOD"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(subtype='FILE_PATH')
+    filter_glob: bpy.props.StringProperty(default="*.glb;*.gltf", options={'HIDDEN'})
+
+    lod_level: bpy.props.EnumProperty(
+        name="LOD Level",
+        items=[
+            ('LOD1', "LOD1", "Closest-range replacement (~50%)"),
+            ('LOD2', "LOD2", "Mid-range replacement (~25%)"),
+            ('LOD3', "LOD3", "Far-distance silhouette (~10%)"),
+        ],
+        default='LOD1',
+    )
+    copy_material: bpy.props.BoolProperty(
+        name="Copy material from source", default=True,
+        description="Replace imported materials with the source object's material")
+
+    def execute(self, context):
+        source = context.active_object
+        if not source or source.type != 'MESH':
+            self.report({'ERROR'}, "Select the source (LOD0) mesh first")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "No file selected")
+            return {'CANCELLED'}
+
+        base = source.name.removesuffix("_LOD0")
+        lod_name = f"{base}_{self.lod_level}"
+        col = context.collection
+
+        before = set(bpy.data.objects.keys())
+        try:
+            bpy.ops.import_scene.gltf(filepath=self.filepath)
+        except Exception as exc:
+            self.report({'ERROR'}, f"GLB import failed: {exc}")
+            return {'CANCELLED'}
+
+        new_objs = [bpy.data.objects[k] for k in bpy.data.objects.keys() if k not in before]
+        mesh_objs = [o for o in new_objs if o.type == 'MESH']
+        if not mesh_objs:
+            for o in new_objs:
+                bpy.data.objects.remove(o, do_unlink=True)
+            self.report({'ERROR'}, "No mesh found in GLB file")
+            return {'CANCELLED'}
+
+        # Keep the largest mesh, remove the rest
+        lod_obj = max(mesh_objs, key=lambda o: len(o.data.polygons))
+        for o in new_objs:
+            if o is not lod_obj:
+                bpy.data.objects.remove(o, do_unlink=True)
+
+        # Move into the active collection and match source transform
+        for c in list(lod_obj.users_collection):
+            c.objects.unlink(lod_obj)
+        col.objects.link(lod_obj)
+        lod_obj.name     = lod_name
+        lod_obj.location = source.location.copy()
+        lod_obj.rotation_euler = source.rotation_euler.copy()
+        lod_obj.scale    = source.scale.copy()
+
+        # Copy material
+        if self.copy_material and source.data.materials:
+            lod_obj.data.materials.clear()
+            for mat in source.data.materials:
+                lod_obj.data.materials.append(mat)
+
+        # Ensure a UV map (GLBs usually have one, but just in case)
+        if not lod_obj.data.uv_layers:
+            context.view_layer.objects.active = lod_obj
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=0.02)
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                try:
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                except Exception:
+                    pass
+
+        context.view_layer.objects.active = source
+        poly_count = len(lod_obj.data.polygons)
+        self.report({'INFO'}, f"Imported {lod_name}: {poly_count:,} triangles")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 class FO4_OT_BakeVegetationAO(Operator):
@@ -8133,6 +9900,8 @@ class FO4_OT_ExportVegetationAsNif(Operator):
             return {'CANCELLED'}
 
     def invoke(self, context, event):
+        if not self.filepath:
+            self.filepath = _default_export_filepath(context.active_object)
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
 
@@ -8174,6 +9943,24 @@ class FO4_OT_ExportLODChainAsNif(Operator):
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
+
+        # A collision mesh (UCX_*, fo4_collision, *_COLLISION) is easy to end
+        # up as the active object when it was selected together with its
+        # source mesh and LODs. Rather than deriving a bogus base name from
+        # it and failing every export, redirect to its parent -- that's the
+        # source mesh it was built from (see collision_from_lod_mesh /
+        # add_collision_mesh, which always parent the collision to the
+        # source), so this is almost certainly what the user meant.
+        def _looks_like_collision(o):
+            return bool(o.get("fo4_collision")) or o.name.upper().startswith("UCX_") or o.name.upper().endswith("_COLLISION")
+
+        if _looks_like_collision(obj):
+            if obj.parent and obj.parent.type == 'MESH' and not _looks_like_collision(obj.parent):
+                self.report({'INFO'}, f"Active object '{obj.name}' is a collision mesh — using its source mesh '{obj.parent.name}' instead.")
+                obj = obj.parent
+            else:
+                self.report({'ERROR'}, f"'{obj.name}' is a collision mesh, not a LOD source — select the original mesh instead.")
+                return {'CANCELLED'}
 
         # Determine the base name (strip any existing _LOD* suffix so both the
         # raw source mesh and a renamed LOD0 object work as the starting point).
@@ -12664,6 +14451,9 @@ classes = (
     FO4_OT_CleanImportedArmature,
     FO4_OT_LoadFO4Skeleton,
     FO4_OT_FixNIFScale,
+    FO4_OT_FixWronglyScaledImport,
+    FO4_OT_FixSkeletonScaleBug,
+    FO4_OT_AutoScaleToSkeletonLandmarks,
     FO4_OT_QuickFBXArmorSetup,
     FO4_OT_FlipSkeletonFacing,
     FO4_OT_AutoConnectArmorTextures,
@@ -12672,6 +14462,8 @@ classes = (
     FO4_OT_ShowMessage,
     FO4_OT_CreateBaseMesh,
     FO4_OT_OptimizeMesh,
+    FO4_OT_SolidifyMesh,
+    FO4_OT_UnifyMaterialSlots,
     FO4_OT_ValidateMesh,
     FO4_OT_SetupTextures,
     FO4_OT_InstallTexture,
@@ -12685,9 +14477,13 @@ classes = (
     FO4_OT_DetectObjectType,
     FO4_OT_SetupLeafCard,
     FO4_OT_VegetationWindSetup,
+    FO4_OT_FixWindVertexColors,
     FO4_OT_SmartWindSetup,
     FO4_OT_BatchGenerateWindWeights,
     FO4_OT_BatchApplyWindAnimation,
+    FO4_OT_ScanWindReadiness,
+    FO4_OT_TestWindDeformation,
+    FO4_OT_WeldWindSeams,
     FO4_OT_BatchAutoWeightPaint,
     FO4_OT_ToggleWindPreview,
     FO4_OT_CheckRigNetInstallation,
@@ -12735,9 +14531,11 @@ classes = (
     # New vegetation/landscaping operators
     FO4_OT_CreateVegetationPreset,
     FO4_OT_CombineVegetationMeshes,
+    FO4_OT_RetopologizeAndBake,
     FO4_OT_ScatterVegetation,
     FO4_OT_OptimizeVegetationForFPS,
     FO4_OT_CreateVegetationLODChain,
+    FO4_OT_ImportGLBAsLOD,
     FO4_OT_BakeVegetationAO,
     FO4_OT_SetupVegetationMaterial,
     FO4_OT_ExportVegetationAsNif,
@@ -12815,6 +14613,7 @@ classes = (
     FO4_OT_HybridUnwrap,
     FO4_OT_RebakeTextureToNewUV,
     FO4_OT_FoliageUVUnwrap,
+    FO4_OT_VegetationAtlasUV,
     # Face-selective UV unwrap
     FO4_OT_PickFacesForUnwrap,
     FO4_OT_UnwrapSelectedFaces,

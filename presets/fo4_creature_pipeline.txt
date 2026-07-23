@@ -24,8 +24,8 @@ STEP 4 — Transfer weights from vanilla creature
   Then: Weights → Clean (0.001)   Weights → Limit Total (4)
 
 STEP 5 — Dismember partitions (if gore required)
-  Vertex Groups → Add SBP_32 → Assign all vertices
-  pyNIF converts to BSDismemberSkinInstance
+  Vertex Groups → Add "FO4 Seg 000" → Assign all vertices
+  pyNIF converts to a BSSubIndexTriShape with an FO4Segment partition
 
 STEP 6 — Export rigged creature NIF (pyNIF)
   Game: Fallout 4 | Version: 20.2.0.7 | User Version: 12 | User Version 2: 83

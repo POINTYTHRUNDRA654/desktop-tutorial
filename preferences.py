@@ -54,6 +54,9 @@ _PERSISTENT_PREF_FIELDS = [
     # Game asset paths
     "fo4_assets_path", "fo4_assets_mesh_path", "fo4_assets_tex_path",
     "fo4_assets_mat_path", "unity_assets_path", "unreal_assets_path",
+    "fo4_reference_meshes_path",
+    # Texture resolver paths
+    "fo4_game_data_path", "fo4_mo2_mods_root",
     # Havok / animation settings
     "havok_output_dir", "havok_anim_name", "havok_anim_type",
     "havok_fps", "havok_loop", "havok_root_motion", "havok_bake_anim",
@@ -680,6 +683,44 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         subtype="DIR_PATH",
         default="",
         description="Path to the Fallout 4 materials sub-folder (e.g. Data/materials)",
+        update=_pref_path_update,
+    )
+
+    fo4_game_data_path: bpy.props.StringProperty(
+        name="FO4 Data Folder",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to your Fallout 4 Data folder with extracted textures "
+            "(e.g. E:\\Steam\\steamapps\\common\\Fallout 4\\Data). "
+            "Used by the texture resolver to find loose DDS files."
+        ),
+        update=_pref_path_update,
+    )
+
+    fo4_mo2_mods_root: bpy.props.StringProperty(
+        name="MO2 Mods Root",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to your MO2 mods parent folder "
+            "(e.g. C:\\MO2\\mods). The resolver scans one level deep to find "
+            "individual mod folders that contain Textures/Materials subfolders."
+        ),
+        update=_pref_path_update,
+    )
+
+    fo4_reference_meshes_path: bpy.props.StringProperty(
+        name="FO4 Reference Mesh Library",
+        subtype="DIR_PATH",
+        default="",
+        description=(
+            "Path to a folder of known-good, in-game-working FO4 meshes to use as "
+            "the ground-truth structural reference for anything this addon builds "
+            "(e.g. a full extracted Data/Meshes folder). Indexed by "
+            "'Scan Reference Mesh Library'; Mossy pulls matching examples in "
+            "automatically as context when relevant."
+        ),
         update=_pref_path_update,
     )
 

@@ -68,6 +68,19 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         # ── Asset-path status banner ─────────────────────────────────────────
         _draw_game_path_box(layout, context)
 
+        # Import & Retopologize (AI-generated meshes: Meshy, etc.)
+        box = layout.box()
+        box.label(text="Import & Retopologize (AI Mesh)", icon='MOD_REMESH')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="For triangle-soup AI imports (Meshy etc.): select all", icon='INFO')
+        sub.label(text="pieces, then Retopologize & Bake.", icon='INFO')
+        box.label(text=f"Selected: {len(selected_meshes)} mesh object(s)")
+        row = box.row()
+        row.enabled = bool(selected_meshes)
+        row.scale_y = 1.3
+        row.operator("fo4.retopo_and_bake", text="Retopologize & Bake", icon='MOD_REMESH')
+
         # Create vegetation
         box = layout.box()
         box.label(text="Create Vegetation", icon='OUTLINER_OB_FORCE_FIELD')
@@ -110,6 +123,9 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         row2 = box.row()
         row2.enabled = bool(obj and obj.type == 'MESH')
         row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+        row3 = box.row()
+        row3.enabled = bool(obj and obj.type == 'MESH')
+        row3.operator("fo4.import_glb_as_lod", text="Import GLB / GLTF as LOD", icon='IMPORT')
 
         # Collision for vegetation
         box = layout.box()
@@ -152,6 +168,21 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         r2 = col.row()
         r2.enabled = has_sel
         r2.operator("fo4.batch_apply_wind_animation", text="Batch: Wind Anim (Selected)", icon='ANIM')
+        r3 = col.row()
+        r3.enabled = has_sel
+        r3.operator("fo4.scan_wind_readiness", text="Scan Wind Readiness", icon='CHECKMARK')
+        r4 = col.row()
+        r4.enabled = has_sel
+        r4.operator("fo4.test_wind_deformation", text="Test Wind Deformation", icon='MOD_PHYSICS')
+        r5 = col.row()
+        r5.enabled = has_sel
+        r5.operator("fo4.weld_wind_seams", text="Weld Wind Seams (Targeted)", icon='AUTOMERGE_ON')
+        sub = col.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Run after adding geometry to an already wind-rigged", icon='INFO')
+        sub.label(text="mesh (Solidify, join, etc.) to catch pieces separating.")
+        sub.label(text="Use Weld Wind Seams instead of a manual Merge by", icon='INFO')
+        sub.label(text="Distance -- it only welds the flagged seam, not everything.")
 
         # Leaf card setup (one-click for AI-generated foliage)
         box = layout.box()
