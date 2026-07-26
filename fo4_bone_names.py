@@ -86,17 +86,26 @@ CREATURE_NO_PREFIX = True   # reminder: creature bones must NOT start with "NPC 
 
 # ---------------------------------------------------------------------------
 # Weapon bone names (generic rig — 3rd-person world model)
+#
+# Verified against real vanilla weapon NIFs (10mmPistol.nif, CombatShotgun.nif)
+# via PyNifly: the real root node is literally named "WEAPON" (not "Weapon"/
+# "WeaponRoot"), the muzzle/projectile-origin node is "ProjectileNode" (not
+# "Muzzle"), and TRIGGER/MAGAZINE/BOLT carry the "Weapon" prefix in the real
+# files. GRIP/BARREL/HAMMER have no confirmed real NIF node equivalent --
+# real weapons animate per-part shapes (e.g. "Pistol10mmHammer:0") as
+# independently keyframed rigid nodes, not named joints on a shared rig --
+# so these three remain Blender-only authoring aids, not real node names.
 # ---------------------------------------------------------------------------
 WEAPON = {
-    "ROOT":     "Weapon",
+    "ROOT":     "WEAPON",
     "GRIP":     "Grip",
-    "TRIGGER":  "Trigger",
+    "TRIGGER":  "WeaponTrigger",
     "BARREL":   "Barrel",
-    "MUZZLE":   "Muzzle",
-    "MAGAZINE": "Magazine",
-    "BOLT":     "Bolt",
+    "MUZZLE":   "ProjectileNode",
+    "MAGAZINE": "WeaponMagazine",
+    "BOLT":     "WeaponBolt",
     "HAMMER":   "Hammer",
-    "SCOPE":    "Scope",
+    "SCOPE":    "WeaponOptics1",
 }
 
 # 1st-person arm skeleton attachment bones

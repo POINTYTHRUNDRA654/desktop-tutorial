@@ -1768,6 +1768,22 @@ class FO4_OT_QuickFBXArmorSetup(Operator):
         except Exception as exc:
             self.report({'WARNING'}, f"Transform step failed: {exc}")
 
+        # ── Rigid armor (e.g. Power Armor) never gets skin-weighted ───────────
+        # Real power armor pieces are rigid and unskinned (has_skin_instance=0,
+        # no bone_names -- verified against real GO_T60a_Torso.nif/
+        # GO_T60a_Arm.nif via PyNifly): each piece attaches wholesale to its
+        # own frame bone rather than deforming with the human skeleton like
+        # clothing does. Binding it to the FO4 skeleton and auto-weighting it
+        # anyway would produce a NIF that doesn't match how the game actually
+        # loads power armor.
+        if obj.get("fo4_rigid_armor"):
+            self.report({'INFO'},
+                f"✓ Quick setup done: {' · '.join(steps_done)}.  "
+                "Skipped skeleton binding/skin-weighting -- this piece is tagged "
+                "as rigid armor (e.g. Power Armor), which attaches to its own "
+                "frame bone rather than deforming with the human skeleton.")
+            return {'FINISHED'}
+
         # ── 3. Find FO4 skeleton and auto-weight paint ────────────────────────
         fo4_skel = self._find_fo4_skeleton(context.scene)
         if fo4_skel is not None:
@@ -10713,6 +10729,13 @@ class FO4_OT_CreatePowerArmorPiece(Operator):
                 if ok:
                     if context.active_object:
                         context.active_object.name = f"FO4_PA_{self.piece}"
+                        # Real power armor pieces are rigid and unskinned
+                        # (has_skin_instance=0, no bone_names -- verified
+                        # against real GO_T60a_Torso.nif/GO_T60a_Arm.nif via
+                        # PyNifly), unlike ordinary skinned clothing. Tag so
+                        # the armor pipeline's skin-weighting steps know to
+                        # skip themselves for this object.
+                        context.active_object["fo4_rigid_armor"] = True
                     mesh_helpers.SmartPresets.apply_nif_v25_settings(context, self.piece)
                     self.report({'INFO'}, msg)
                     _notify(msg, 'INFO')
@@ -14986,6 +15009,38 @@ def _make_scene_to_pref_sync(scene_attr, pref_attr):
     return _update
 
 
+_FO4_SBP_SLOT_ITEMS_STATIC = [
+    ('SBP_32',  "SBP_32 — Body",      ""),
+    ('SBP_33',  "SBP_33 — Head",      ""),
+    ('SBP_34',  "SBP_34 — Hair",       ""),
+    ('SBP_37',  "SBP_37 — Hands",      ""),
+    ('SBP_38',  "SBP_38 — Forearms",   ""),
+    ('SBP_41',  "SBP_41 — Torso",      ""),
+    ('SBP_46',  "SBP_46 — Legs",       ""),
+    ('SBP_47',  "SBP_47 — Feet",       ""),
+    ('SBP_130', "SBP_130 — FX01",      ""),
+]
+
+
+def _fo4_sbp_slot_items(self, context):
+    """Dynamic items callback for Scene.fo4_sbp_slot_choice.
+
+    The SBP_* entries are a display label only for armor (confirmed correct
+    against real vanilla ArmyFatigues/FatiguesM.nif -- it never reaches the
+    real NIF partition). The Meatcap/Gore limb entries are real,
+    PyNifly-recognized dismemberment subsegments -- sourced live from
+    ai_gen_operators._MEATCAP_ENUM/_CREATURE_LIMB_ENUM (built from PyNifly's
+    own bundled fo4BoneIDs table) rather than duplicated by hand here, so
+    this dropdown can never drift out of sync with the ~95-entry real table.
+    Falls back to the SBP-only list if ai_gen_operators (a Phase 2 module)
+    hasn't registered yet.
+    """
+    try:
+        from . import ai_gen_operators as _ai_ops
+        return _FO4_SBP_SLOT_ITEMS_STATIC + _ai_ops._MEATCAP_ENUM + _ai_ops._CREATURE_LIMB_ENUM
+    except Exception:
+        return _FO4_SBP_SLOT_ITEMS_STATIC
+
 
 def register():
     for cls in classes:
@@ -15274,17 +15329,17 @@ def register():
                         "Controls root node, BSXFlags, shader flags, and skinning.",
             items=[
                 ('AUTO',         "Auto-detect",    "Classify automatically from armature / name / material"),
-                ('STATIC',       "Static",         "Non-animated world object - BSFadeNode root, BSTriShape, no skinning"),
+                ('STATIC',       "Static",         "Non-animated world object - NiNode root, BSXFlags 130 (Havok+Articulated), BSTriShape, no skinning (verified against real CrateDeathclaw01.nif/wall NIFs via PyNifly)"),
                 ('SKINNED',      "Skinned",        "Character / creature mesh - NiNode root, BSSubIndexTriShape, BSSkin::Instance"),
                 ('ARMOR',        "Armor",          "Wearable armor - NiNode root, BSSubIndexTriShape, BSSkin::Instance, Skinned SF1"),
                 ('ANIMATED',     "Animated",       "Animated prop - NiNode with NiKeyframeController"),
                 ('LOD',          "LOD",            "Level-of-detail mesh - BSFadeNode root, reduced poly, same flags as Static"),
                 ('VEGETATION',   "Vegetation",     "Tree / bush / plant - BSFadeNode root, Two_Sided SF2, Alpha Clip material"),
-                ('FURNITURE',    "Furniture",      "Sit/activate furniture - NiNode root, BSXFlags Animated (1), CK markers"),
+                ('FURNITURE',    "Furniture",      "Sit/activate furniture - NiNode root, BSXFlags 130 (Havok+Articulated), bhkNPCollisionObject (verified against real ModernDomesticLoungeChair01.nif/WorkshopMilitaryCot01.nif via PyNifly)"),
                 ('WEAPON',       "Weapon",         "Held weapon - NiNode root, no vertex skinning, attach via named bone"),
-                ('ARCHITECTURE', "Architecture",   "Building / wall - BSFadeNode root, BSXFlags Has-Havok (2), collision required"),
+                ('ARCHITECTURE', "Architecture",   "Building / wall - NiNode root, BSXFlags 130 (Havok+Articulated), concave mesh-based collision, not convex (verified against real NCA2x1Wall01.nif/DecoBaseA1x1Wall01.nif via PyNifly)"),
                 ('FLORA',        "Flora",          "Harvestable flora - BSFadeNode root, Alpha Clip, harvest node required"),
-                ('DEBRIS',       "Debris",         "Small physics debris - BSFadeNode root, BSXFlags Has-Havok (2)"),
+                ('DEBRIS',       "Debris",         "Small physics debris - NiNode root, BSXFlags 194 (Havok+Dynamic+Articulated) for genuinely movable pieces (verified against real ModCrate.nif via PyNifly)"),
             ],
             default='AUTO',
         )
@@ -15418,18 +15473,10 @@ def register():
         bpy.types.Scene.fo4_sbp_slot_choice = bpy.props.EnumProperty(
             name="SBP Slot",
             description="FO4 BSDismember body partition slot",
-            items=[
-                ('SBP_32',  "SBP_32 — Body",      ""),
-                ('SBP_33',  "SBP_33 — Head",      ""),
-                ('SBP_34',  "SBP_34 — Hair",       ""),
-                ('SBP_37',  "SBP_37 — Hands",      ""),
-                ('SBP_38',  "SBP_38 — Forearms",   ""),
-                ('SBP_41',  "SBP_41 — Torso",      ""),
-                ('SBP_46',  "SBP_46 — Legs",       ""),
-                ('SBP_47',  "SBP_47 — Feet",       ""),
-                ('SBP_130', "SBP_130 — FX01",      ""),
-            ],
-            default='SBP_32',
+            items=_fo4_sbp_slot_items,
+            default=0,  # 'SBP_32' -- index, not string: Blender requires an
+                        # int default when items is a callable, not a string
+                        # identifier.
         )
         bpy.types.Scene.fo4_bgsm_template_choice = bpy.props.EnumProperty(
             name="BGSM Template",

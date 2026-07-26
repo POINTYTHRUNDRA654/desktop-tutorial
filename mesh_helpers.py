@@ -1098,6 +1098,17 @@ class MeshHelpers:
         collision_obj.parent = obj
         collision_obj.matrix_parent_inverse = obj.matrix_world.inverted()
 
+        # PyNifly's REAL collision-discovery mechanism (nif/collision.py,
+        # export_collisions()) does NOT look at parenting or the UCX_ name
+        # prefix at all -- it only checks for a COPY_TRANSFORMS constraint
+        # targeting the collision object, or this exact custom property.
+        # Without it, PyNifly silently exports with no collision at all (no
+        # error, no warning) despite the collision object being correctly
+        # selected and named -- confirmed by reading PyNifly's own exporter
+        # source directly after a parented-only UCX_ object produced no
+        # collision in the exported file.
+        obj["pynCollisionTarget"] = collision_obj.name
+
         # Configure as a static Rigid Body so the Niftools NIF exporter can
         # emit the correct bhkCollisionObject / bhkRigidBody nodes for FO4.
         # The operation may not be available in every context; wrap in try/except.
@@ -1111,7 +1122,28 @@ class MeshHelpers:
             # convex hull) has already been baked into the object data, so FINAL
             # and BASE are equivalent here, but FINAL is the safer default.
             collision_obj.rigid_body.mesh_source = 'FINAL'
-            collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+            # Real static architecture (verified against real
+            # NCA2x1Wall01.nif/DecoBaseA1x1Wall01.nif/MetalIntFloor1x1Mid01.nif
+            # via PyNifly) uses a concave-capable mesh-based Havok shape, not a
+            # convex hull -- a convex hull would wrongly seal openings like a
+            # wall corner or a window/door cutout. Only the genuinely dynamic/
+            # movable test case (ModCrate.nif) used a convex hull.
+            collision_obj.rigid_body.collision_shape = (
+                'MESH' if collision_type == 'BUILDING' else 'CONVEX_HULL'
+            )
+            # PyNifly's real native-physics export path (nif/collision.py,
+            # export_collision_object) branches on these two custom
+            # properties, NOT on rigid_body.collision_shape above (that
+            # Blender-native setting only affects Blender's own physics
+            # preview) -- confirmed by reading PyNifly's exporter source
+            # directly. Without pynRigidBody='bhkPhysicsSystem', PyNifly
+            # falls back to an older collision path that doesn't reliably
+            # attach as a real bhkNPCollisionObject at all. This is what
+            # actually produces the correct concave/convex Havok shape.
+            collision_obj['pynRigidBody'] = 'bhkPhysicsSystem'
+            collision_obj['pynCollisionShapeType'] = (
+                'compressed_mesh' if collision_type == 'BUILDING' else 'polytope'
+            )
             # FO4 static collision: mass must be 0 so Niftools emits the
             # correct PASSIVE / FIXED motion-system flags.  Friction and
             # restitution are set per collision type so the in-game surface
@@ -1307,6 +1339,10 @@ class MeshHelpers:
         collision_obj.parent = source_obj
         collision_obj.matrix_parent_inverse = source_obj.matrix_world.inverted()
 
+        # See add_collision_mesh's matching comment: this is PyNifly's real
+        # collision-discovery key, not parenting/naming.
+        source_obj["pynCollisionTarget"] = collision_obj.name
+
         # Configure as a static Rigid Body for NIF export.
         try:
             bpy.ops.object.select_all(action='DESELECT')
@@ -1315,7 +1351,18 @@ class MeshHelpers:
             bpy.ops.rigidbody.object_add()
             collision_obj.rigid_body.type = 'PASSIVE'
             collision_obj.rigid_body.mesh_source = 'FINAL'
-            collision_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+            # See add_collision_mesh's matching comment: real static
+            # architecture uses a concave-capable mesh shape, not a convex
+            # hull, verified against real vanilla wall/floor NIFs.
+            collision_obj.rigid_body.collision_shape = (
+                'MESH' if collision_type == 'BUILDING' else 'CONVEX_HULL'
+            )
+            # See add_collision_mesh's matching comment: these are what
+            # PyNifly's real exporter actually branches on.
+            collision_obj['pynRigidBody'] = 'bhkPhysicsSystem'
+            collision_obj['pynCollisionShapeType'] = (
+                'compressed_mesh' if collision_type == 'BUILDING' else 'polytope'
+            )
             phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
                 collision_type,
                 MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'],

@@ -1851,6 +1851,14 @@ class FO4_PT_RiggedArmorPipeline(_FO4SubPanel):
         obj = context.active_object
         has_mesh = bool(obj and obj.type == 'MESH')
 
+        if has_mesh and obj.get("fo4_rigid_armor"):
+            warn = layout.box()
+            warn.alert = True
+            warn.label(text="This piece is tagged as rigid armor (e.g. Power Armor)", icon='ERROR')
+            warn.label(text="Real power armor is unskinned -- it attaches to its own", icon='BLANK1')
+            warn.label(text="frame bone, not the human skeleton. Steps 4-6 below don't apply.", icon='BLANK1')
+            layout.separator()
+
         layout.label(text="Skeleton NIF import settings:", icon='ARMATURE_DATA')
         info = layout.box()
         info.label(text="Import Skeleton / Skin Weights / Partitions = ON", icon='INFO')
@@ -3030,7 +3038,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
                     mtype_val = detected
                 _MESH_TYPE_NOTES = {
                     'STATIC':
-                        "BSFadeNode root · BSTriShape · no skinning",
+                        "NiNode root · BSXFlags 130 (Havok+Articulated) · BSTriShape · no skinning",
                     'SKINNED':
                         "NiNode root · BSSubIndexTriShape · BSSkin::Instance · Skinned SF1",
                     'ARMOR':
@@ -3042,15 +3050,15 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
                     'VEGETATION':
                         "BSFadeNode root · Two_Sided SF2 · Alpha Clip material required",
                     'FURNITURE':
-                        "NiNode root · BSXFlags Animated (1) · enable CK furniture markers",
+                        "NiNode root · BSXFlags 130 (Havok+Articulated) · bhkNPCollisionObject",
                     'WEAPON':
                         "NiNode root · no vertex skinning · attach via named bone",
                     'ARCHITECTURE':
-                        "BSFadeNode root · BSXFlags Has-Havok (2) · collision required",
+                        "NiNode root · BSXFlags 130 (Havok+Articulated) · concave mesh collision, not convex",
                     'FLORA':
                         "BSFadeNode root · Alpha Clip · harvest node (PO_HarvestNode) required",
                     'DEBRIS':
-                        "BSFadeNode root · BSXFlags Has-Havok (2) · small physics object",
+                        "NiNode root · BSXFlags 194 (Havok+Dynamic+Articulated) · small movable physics object",
                 }
                 note = _MESH_TYPE_NOTES.get(mtype_val, "")
                 if note:

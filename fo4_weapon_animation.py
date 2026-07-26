@@ -10,16 +10,24 @@ Pipeline
    PISTOL | RIFLE | SHOTGUN | LAUNCHER | MELEE_BLADE | MELEE_BLUNT | THROWN
 
 2. Standard Weapon Bone Setup
-   Places the FO4 standard weapon bone hierarchy:
-     Weapon (root)
-       └─ Grip        ← hand attachment point
-       └─ Trigger      ← trigger pull animation
-       └─ Barrel       ← barrel/recoil movement
-       └─ Muzzle       ← muzzle flash / suppressor attach
-       └─ Magazine     ← reload drop/insert
-       └─ Bolt         ← cycling animation (rifle/pistol)
-       └─ Hammer       ← hammer cock (pistols)
-       └─ Scope        ← scope/optic attachment
+   Places a Blender-side animation-authoring rig, named to match real FO4
+   weapon node names where a real equivalent is confirmed (verified via
+   PyNifly against 10mmPistol.nif/CombatShotgun.nif) so animation baked
+   here and exported through the FBX->HKX pipeline actually applies to the
+   matching node in the real weapon NIF. Grip/Barrel/Hammer have no
+   confirmed real NIF node equivalent -- real weapons animate per-part
+   shapes (e.g. "Pistol10mmHammer:0") as independently keyframed rigid
+   nodes, not skin-weighted bones, so these three stay as Blender-only
+   authoring aids:
+     WEAPON (root)
+       └─ Grip           ← hand attachment point (Blender-only aid)
+       └─ WeaponTrigger  ← trigger pull animation
+       └─ Barrel         ← barrel/recoil movement (Blender-only aid)
+       └─ ProjectileNode ← muzzle flash / projectile origin
+       └─ WeaponMagazine ← reload drop/insert
+       └─ WeaponBolt     ← cycling animation (rifle/pistol)
+       └─ Hammer         ← hammer cock (pistols, Blender-only aid)
+       └─ WeaponOptics1  ← scope/optic attachment
 
 3. Animation Generation
    Generates keyframe actions matching weapon type:
@@ -53,26 +61,26 @@ from typing import List, Optional
 # Standard FO4 weapon bone layout with approximate positions
 # (relative to weapon root, in Blender units at FO4 scale)
 WEAPON_BONE_LAYOUT = {
-    "Weapon":   {"head": (0,0,0),      "tail": (0,0,0.05), "parent": None},
-    "Grip":     {"head": (0,0,0),      "tail": (0,-0.05,0), "parent": "Weapon"},
-    "Trigger":  {"head": (0.02,-0.02,0),"tail":(0.02,-0.04,0),"parent":"Grip"},
-    "Barrel":   {"head": (0,0.1,0),    "tail": (0,0.3,0),  "parent": "Weapon"},
-    "Muzzle":   {"head": (0,0.3,0),    "tail": (0,0.35,0), "parent": "Barrel"},
-    "Magazine": {"head": (0,-0.05,-0.05),"tail":(0,-0.05,-0.12),"parent":"Weapon"},
-    "Bolt":     {"head": (0,0.05,0.02),"tail": (0,0.1,0.02), "parent": "Weapon"},
-    "Hammer":   {"head": (0,-0.02,0.02),"tail":(0,-0.02,0.04),"parent":"Weapon"},
-    "Scope":    {"head": (0,0.1,0.05), "tail": (0,0.15,0.05),"parent":"Weapon"},
+    "WEAPON":   {"head": (0,0,0),      "tail": (0,0,0.05), "parent": None},
+    "Grip":     {"head": (0,0,0),      "tail": (0,-0.05,0), "parent": "WEAPON"},
+    "WeaponTrigger":  {"head": (0.02,-0.02,0),"tail":(0.02,-0.04,0),"parent":"Grip"},
+    "Barrel":   {"head": (0,0.1,0),    "tail": (0,0.3,0),  "parent": "WEAPON"},
+    "ProjectileNode":   {"head": (0,0.3,0),    "tail": (0,0.35,0), "parent": "Barrel"},
+    "WeaponMagazine": {"head": (0,-0.05,-0.05),"tail":(0,-0.05,-0.12),"parent":"WEAPON"},
+    "WeaponBolt":     {"head": (0,0.05,0.02),"tail": (0,0.1,0.02), "parent": "WEAPON"},
+    "Hammer":   {"head": (0,-0.02,0.02),"tail":(0,-0.02,0.04),"parent":"WEAPON"},
+    "WeaponOptics1":    {"head": (0,0.1,0.05), "tail": (0,0.15,0.05),"parent":"WEAPON"},
 }
 
 # Which bones each weapon type actually uses
 WEAPON_BONE_SETS = {
-    "PISTOL":      ["Weapon","Grip","Trigger","Barrel","Muzzle","Magazine","Bolt","Hammer"],
-    "RIFLE":       ["Weapon","Grip","Trigger","Barrel","Muzzle","Magazine","Bolt","Scope"],
-    "SHOTGUN":     ["Weapon","Grip","Trigger","Barrel","Muzzle","Magazine","Bolt"],
-    "LAUNCHER":    ["Weapon","Grip","Trigger","Barrel","Muzzle","Magazine"],
-    "MELEE_BLADE": ["Weapon","Grip"],
-    "MELEE_BLUNT": ["Weapon","Grip"],
-    "THROWN":      ["Weapon","Grip"],
+    "PISTOL":      ["WEAPON","Grip","WeaponTrigger","Barrel","ProjectileNode","WeaponMagazine","WeaponBolt","Hammer"],
+    "RIFLE":       ["WEAPON","Grip","WeaponTrigger","Barrel","ProjectileNode","WeaponMagazine","WeaponBolt","WeaponOptics1"],
+    "SHOTGUN":     ["WEAPON","Grip","WeaponTrigger","Barrel","ProjectileNode","WeaponMagazine","WeaponBolt"],
+    "LAUNCHER":    ["WEAPON","Grip","WeaponTrigger","Barrel","ProjectileNode","WeaponMagazine"],
+    "MELEE_BLADE": ["WEAPON","Grip"],
+    "MELEE_BLUNT": ["WEAPON","Grip"],
+    "THROWN":      ["WEAPON","Grip"],
 }
 
 # Weapon type metadata
@@ -245,7 +253,7 @@ def build_weapon_rig(weapon_obj, weapon_type: str) -> Optional[bpy.types.Object]
     bpy.ops.object.mode_set(mode='EDIT')
     eb = arm_data.edit_bones
 
-    bone_set = WEAPON_BONE_SETS.get(weapon_type, ["Weapon","Grip"])
+    bone_set = WEAPON_BONE_SETS.get(weapon_type, ["WEAPON","Grip"])
     origin   = mathutils.Vector((cx, cy, cz))
 
     def _v(rel):
@@ -321,8 +329,8 @@ def gen_fire_pistol(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
-    bolt   = arm_obj.pose.bones.get("Bolt")
+    weapon = arm_obj.pose.bones.get("WEAPON")
+    bolt   = arm_obj.pose.bones.get("WeaponBolt")
     hammer = arm_obj.pose.bones.get("Hammer")
 
     if weapon:
@@ -351,8 +359,8 @@ def gen_fire_rifle(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
-    bolt   = arm_obj.pose.bones.get("Bolt")
+    weapon = arm_obj.pose.bones.get("WEAPON")
+    bolt   = arm_obj.pose.bones.get("WeaponBolt")
 
     if weapon:
         _rot_key(weapon, 0,   0, 0, 0)
@@ -375,8 +383,8 @@ def gen_reload(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    mag  = arm_obj.pose.bones.get("Magazine")
-    bolt = arm_obj.pose.bones.get("Bolt")
+    mag  = arm_obj.pose.bones.get("WeaponMagazine")
+    bolt = arm_obj.pose.bones.get("WeaponBolt")
 
     if mag:
         _loc_key(mag,  0, 0, 0,    0)
@@ -398,7 +406,7 @@ def gen_melee_swing(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0,  0,  0,  60)   # cocked back to right
         _rot_key(weapon,  8,  0, 10, -80)   # fast swing through
@@ -415,7 +423,7 @@ def gen_melee_power(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0,  0,  0,   0)
         _rot_key(weapon, 12,-80,  0,  10)  # raise overhead
@@ -434,7 +442,7 @@ def gen_equip(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0, 60,  0, -20)  # starts low/holstered
         _rot_key(weapon, 12, 10,  0,   5)  # sweeps up fast
@@ -451,7 +459,7 @@ def gen_unequip(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0,  0,  0,   0)
         _rot_key(weapon, 15, 50,  0, -15)  # swings down to holster
@@ -466,7 +474,7 @@ def gen_inspect(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0,  0,   0,  0)
         _rot_key(weapon, 15,  5, -30,  10)  # tilt to look at side
@@ -483,7 +491,7 @@ def gen_thrown(arm_obj, **kwargs) -> bpy.types.Action:
     bpy.context.view_layer.objects.active = arm_obj
     bpy.ops.object.mode_set(mode='POSE')
 
-    weapon = arm_obj.pose.bones.get("Weapon")
+    weapon = arm_obj.pose.bones.get("WEAPON")
     if weapon:
         _rot_key(weapon,  0,  0,  0,  0)
         _rot_key(weapon,  8,-40,  0, 20)   # pull back to throw

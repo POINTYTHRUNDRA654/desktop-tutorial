@@ -3648,6 +3648,47 @@ _FO4_SBP_SLOTS = [
 ]
 _SBP_ENUM = [(k, lbl, lbl) for k, lbl in _FO4_SBP_SLOTS]
 
+# Real, PyNifly-recognized gore/dismemberment subsegments (verified against
+# real Molerat.nif/Dogmeat.nif via PyNifly: ordinary body-region subsegments
+# all carry user_slot=0 differentiated only by an internal material hash we
+# have no verified formula for, but gore "meatcap" shapes use dedicated,
+# fixed user_slot values -- 100 for the head, 101 for the body -- confirmed
+# against niflytools.py's own fo4Parts dict: "Head Meatcap": 100,
+# "Body Meatcap": 101). Unlike the SBP_* armor slots above (a display label
+# only), picking one of these actually creates a real FO4Subsegment via
+# PyNifly's "FO4 Seg NNN | <part name>" vertex-group naming convention.
+_FO4_MEATCAP_SLOTS = [
+    ("MEATCAP_HEAD", "Gore: Head Meatcap (user_slot 100)"),
+    ("MEATCAP_BODY", "Gore: Body Meatcap (user_slot 101)"),
+]
+_MEATCAP_ENUM = [(k, lbl, lbl) for k, lbl in _FO4_MEATCAP_SLOTS]
+_MEATCAP_SUBSEG_NAMES = {
+    "MEATCAP_HEAD": "Head Meatcap",
+    "MEATCAP_BODY": "Body Meatcap",
+}
+
+# Real per-limb creature dismemberment. PyNifly bundles its own complete
+# name -> material-hash lookup table (niflytools.fo4BoneIDs) covering
+# generic humanoid limbs plus every FO4 creature species with a unique
+# skeleton (Ghoul, Death Claw, Super Mutant Hound, Mirelurk, Dog, Behemoth,
+# Robot). Verified end-to-end via a real PyNifly export round-trip this
+# session: a vertex group named "FO4 Seg 000 | 000 | Up Arm.R" exports with
+# material=3001185871 (0xb2e2764f) -- an EXACT match to both this table's
+# own entry and to the real material hash found in vanilla Molerat.nif via
+# PyNifly. This is real, verified data, not a guessed hash formula.
+try:
+    from io_scene_nifly.pyn import niflytools as _niflytools
+    _FO4_BONE_IDS = dict(_niflytools.fo4BoneIDs)
+except Exception:
+    _niflytools = None
+    _FO4_BONE_IDS = {}
+
+_LIMB_SUBSEG_NAMES = {f"LIMB_{i}": name for i, name in enumerate(_FO4_BONE_IDS)}
+_CREATURE_LIMB_ENUM = [
+    (key, f"Gore: {name}", f"Real FO4 dismemberment bone (material 0x{_FO4_BONE_IDS[name]:08x})")
+    for key, name in _LIMB_SUBSEG_NAMES.items()
+]
+
 # The vertex-group name pyNIF actually recognizes for FO4 dismemberment
 # partitions. FO4's segment system (unlike Skyrim's "SBP_<n>_<name>" body-part
 # numbering) uses flat, generically-numbered segments -- "FO4 Seg 000",
@@ -3997,19 +4038,43 @@ class FO4_OT_AddPhysicsBones(bpy.types.Operator):
 
 class FO4_OT_AddDismemberPartition(bpy.types.Operator):
     """Add an FO4 dismemberment/body-slot partition to the active mesh.
-    Creates a pyNIF-recognized 'FO4 Seg 000' vertex group (if missing) and
-    assigns all selected vertices to it -- pyNIF converts this to a
-    BSSubIndexTriShape with a real FO4Segment partition on export. The chosen
-    Slot is stored on the object as documentation of which CK ArmorAddon
-    biped slot this piece belongs to; it is not itself part of the NIF
-    partition name (FO4's segment naming carries no body-slot number)."""
+
+    For the SBP_* armor slots: creates a pyNIF-recognized 'FO4 Seg 000'
+    vertex group (if missing) and assigns all selected vertices to it --
+    pyNIF converts this to a BSSubIndexTriShape with a real FO4Segment
+    partition on export. The chosen slot is stored on the object as
+    documentation of which CK ArmorAddon biped slot this piece belongs to;
+    it is not itself part of the NIF partition name (FO4's segment naming
+    carries no body-slot number) -- confirmed correct for armor against real
+    vanilla ArmyFatigues/FatiguesM.nif.
+
+    For the Gore: Meatcap slots: creates a REAL 'FO4 Seg 000 | Head Meatcap'
+    or 'FO4 Seg 000 | Body Meatcap' vertex group instead -- PyNifly parses
+    this "FO4 Seg NNN | <part name>" naming into an actual FO4Subsegment
+    with user_slot 100/101, verified against real Molerat.nif/Dogmeat.nif,
+    which is what lets a creature's gore variant actually work in-game.
+
+    For the Gore: <limb name> slots: creates a REAL
+    'FO4 Seg 000 | 000 | <limb name>' vertex group -- PyNifly resolves the
+    third segment against its own bundled fo4BoneIDs table into the exact
+    real material hash a vanilla creature uses for that limb (verified via
+    a full export round-trip: "Up Arm.R" -> material=3001185871, an exact
+    match to real Molerat.nif). Covers every FO4 creature species with a
+    unique skeleton (Ghoul, Death Claw, Super Mutant Hound, Mirelurk, Dog,
+    Behemoth, Robot) in addition to generic humanoid limbs.
+
+    Note: PyNifly may still warn "no cut offsets" on export for these --
+    the material/segment metadata is now correct and real, but the exact
+    slice-plane geometry data controlling precisely where the limb visually
+    separates in combat is a separate, not-yet-automated piece.
+    """
     bl_idname  = "fo4.add_dismember_partition"
     bl_label   = "Add FO4 Partition Slot"
     bl_options = {'REGISTER', 'UNDO'}
 
     slot: bpy.props.EnumProperty(
         name="Slot",
-        items=_SBP_ENUM,
+        items=_SBP_ENUM + _MEATCAP_ENUM + _CREATURE_LIMB_ENUM,
         default="SBP_32",
     )
 
@@ -4019,9 +4084,18 @@ class FO4_OT_AddDismemberPartition(bpy.types.Operator):
             self.report({'ERROR'}, "Select a mesh object first")
             return {'CANCELLED'}
 
+        limb_name = _LIMB_SUBSEG_NAMES.get(self.slot)
+        meatcap_name = _MEATCAP_SUBSEG_NAMES.get(self.slot)
+        if limb_name:
+            group_name = f"{_FO4_SEGMENT_GROUP_NAME} | 000 | {limb_name}"
+        elif meatcap_name:
+            group_name = f"{_FO4_SEGMENT_GROUP_NAME} | {meatcap_name}"
+        else:
+            group_name = _FO4_SEGMENT_GROUP_NAME
+
         # Create group if absent
-        vg = (obj.vertex_groups.get(_FO4_SEGMENT_GROUP_NAME)
-              or obj.vertex_groups.new(name=_FO4_SEGMENT_GROUP_NAME))
+        vg = (obj.vertex_groups.get(group_name)
+              or obj.vertex_groups.new(name=group_name))
 
         # In edit mode assign selected; in object mode assign all
         if context.mode == 'EDIT_MESH':
@@ -4034,7 +4108,7 @@ class FO4_OT_AddDismemberPartition(bpy.types.Operator):
         vg.add(sel, 1.0, 'ADD')
         obj["fo4_body_slot"] = self.slot
         self.report({'INFO'}, f"Partition ({self.slot}) assigned to {len(sel)} vertices")
-        print(f"[FO4] Dismember partition '{_FO4_SEGMENT_GROUP_NAME}' ({self.slot}) -> {len(sel)} verts")
+        print(f"[FO4] Dismember partition '{group_name}' ({self.slot}) -> {len(sel)} verts")
         return {'FINISHED'}
 
 

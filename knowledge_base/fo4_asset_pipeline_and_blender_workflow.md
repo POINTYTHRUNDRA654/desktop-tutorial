@@ -87,8 +87,14 @@ armor/outfit conforming work, since Outfit Studio's tools expect it).
 **Skeleton requirements:**
 - Creatures: exact vanilla bone names — extra bones require also patching
   the relevant behavior graph, they don't "just work."
-- Weapons: WeaponRoot, the weapon's own bone, muzzle node(s), and a scope
-  node if the weapon supports scope attachments.
+- Weapons: root node literally named `WEAPON` (verified against real vanilla
+  weapon NIFs via PyNifly -- not "WeaponRoot"), plus real per-part nodes like
+  `WeaponBolt`/`WeaponMagazine`/`WeaponTrigger`, a `ProjectileNode` for the
+  muzzle/projectile origin, and `WeaponOptics1`/`WeaponOptics2` if the
+  weapon supports scope attachments. Weapons are never skinned
+  (`has_skin_instance=0` on every real weapon shape checked) -- moving
+  parts are separate rigid shapes animated via their own node transforms,
+  not vertex-weighted to a shared skeleton.
 - Armor: correct body-slot partitions **and** the correct numeric slot
   assignment, or the piece z-fights or silently fails to equip alongside
   other worn items.

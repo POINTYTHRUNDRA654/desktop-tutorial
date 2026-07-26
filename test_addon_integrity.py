@@ -253,6 +253,7 @@ class TestOperatorsRegistered(unittest.TestCase):
         # of our operator files.
         KNOWN_BLENDER_OPERATORS = {
             "wm.url_open",   # bpy.ops.wm.url_open() - opens a URL in the OS browser
+            "wm.call_menu",  # bpy.ops.wm.call_menu(name=...) - invokes a registered Menu by idname
         }
 
         registered = self._collect_registered_ids()
@@ -978,41 +979,71 @@ class TestMossyLinkRegistrationOrder(unittest.TestCase):
     }
 
     def _modules_list_order(self):
-        """Return the ordered list of module names from __init__.py's modules list."""
+        """Return the ordered list of module names from __init__.py's modules list.
+
+        __init__.py builds the final registration order as
+        ``modules = _PHASE1_MODULES + [m for m in _PHASE2_MODULES if m not in
+        _PHASE1_MODULES]`` -- i.e. two separate ``list(filter(_filter, [...]))``
+        assignments (``_PHASE1_MODULES``, ``_PHASE2_MODULES``) concatenated in
+        that order, rather than a single ``modules = list(filter(...))``
+        literal. Extract both in source order and chain them (de-duplicating
+        so a module present in both phases -- like the real ``modules``
+        expression above -- only counts at its earlier, Phase 1 position).
+        """
         source = _read("__init__.py")
         tree = ast.parse(source, filename="__init__.py")
 
-        # Find the assignment: modules = list(filter(_filter, [...]))
-        # Walk top-level assignments to find `modules = list(filter(...))`
+        def _names_from_list_filter_call(call):
+            # Drill into list(filter(func, list_arg))  ->  list( filter(_filter, [...]) )
+            if not isinstance(call, ast.Call) or len(call.args) < 1:
+                return None
+            inner = call.args[0]  # filter(...)
+            if not isinstance(inner, ast.Call) or len(inner.args) < 2:
+                return None
+            list_arg = inner.args[1]  # the [...] literal
+            if not isinstance(list_arg, (ast.List, ast.Tuple)):
+                return None
+            names = []
+            for elt in list_arg.elts:
+                if isinstance(elt, ast.Name):
+                    names.append(elt.id)
+                elif isinstance(elt, ast.Attribute):
+                    names.append(elt.attr)
+            return names
+
+        phase_lists = {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                if not (isinstance(target, ast.Name)
+                        and target.id in ("_PHASE1_MODULES", "_PHASE2_MODULES")):
+                    continue
+                names = _names_from_list_filter_call(node.value)
+                if names is not None:
+                    phase_lists[target.id] = names
+
+        if phase_lists:
+            seen = set()
+            ordered = []
+            for phase in ("_PHASE1_MODULES", "_PHASE2_MODULES"):
+                for name in phase_lists.get(phase, []):
+                    if name not in seen:
+                        seen.add(name)
+                        ordered.append(name)
+            return ordered
+
+        # Fall back to the older single `modules = list(filter(_filter, [...]))`
+        # shape, in case __init__.py reverts to it.
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign):
                 continue
             for target in node.targets:
                 if not (isinstance(target, ast.Name) and target.id == "modules"):
                     continue
-                # The value should be a Call to list(filter(..., [...]))
-                call = node.value
-                if not isinstance(call, ast.Call):
-                    continue
-                # Drill into list(filter(func, list_arg))
-                # list( filter(_filter, [...]) )
-                if len(call.args) < 1:
-                    continue
-                inner = call.args[0]  # filter(...)
-                if not isinstance(inner, ast.Call):
-                    continue
-                if len(inner.args) < 2:
-                    continue
-                list_arg = inner.args[1]  # the [...] literal
-                if not isinstance(list_arg, (ast.List, ast.Tuple)):
-                    continue
-                names = []
-                for elt in list_arg.elts:
-                    if isinstance(elt, ast.Name):
-                        names.append(elt.id)
-                    elif isinstance(elt, ast.Attribute):
-                        names.append(elt.attr)
-                return names
+                names = _names_from_list_filter_call(node.value)
+                if names is not None:
+                    return names
         return []
 
     def test_mossy_link_before_torch_dependent_modules(self):
@@ -1508,53 +1539,71 @@ class TestPyTorchWarningAndToolCaching(unittest.TestCase):
     # Section F: deferred_startup() refreshes all tool caches
     # =====================================================================
 
-    def test_deferred_startup_refreshes_hunyuan3d_cache(self):
-        """startup_helpers.deferred_startup() must call check_hunyuan3d_availability().
+    # NOTE: these four tests originally asserted that
+    # startup_helpers.deferred_startup() eagerly calls each AI helper's
+    # check_*_availability()/_cached_rignet_status() ~2s after load. That
+    # design was deliberately replaced: importing torch (even off the main
+    # thread) holds the GIL while loading CUDA DLLs, which blocked Blender's
+    # UI for several seconds on every launch (see the "Step 6b: AI-tool
+    # checks are now LAZY" comment in startup_helpers.py). Availability is
+    # now checked lazily -- on demand, the first time each specific panel
+    # draws -- so these tests instead guard that the lazy checks are still
+    # actually wired into ui_panels.py's draw methods (not silently dropped
+    # during some future refactor), and that deferred_startup() doesn't
+    # regress back to eager checking.
 
-        This is the deferred first check that runs ~2 s after load, by which
-        time torch_custom_path is in sys.path.  Without it the user sees stale
-        'Not checked' status until they manually click 'Check Status'.
-        """
+    def test_deferred_startup_does_not_eagerly_check_ai_tools(self):
+        """deferred_startup() must NOT re-introduce eager (blocking) AI-tool
+        availability checks -- they belong in each panel's lazy draw-time
+        check instead. See the "Step 6b" comment in startup_helpers.py."""
         source = _read("startup_helpers.py")
-        self.assertIn(
+        for eager_call in (
             "check_hunyuan3d_availability",
-            source,
-            "startup_helpers.py does not call check_hunyuan3d_availability(). "
-            "deferred_startup() must probe Hunyuan3D after torch paths are set "
-            "up so the panel shows correct status on every restart.",
-        )
-
-    def test_deferred_startup_refreshes_hymotion_cache(self):
-        """startup_helpers.deferred_startup() must call check_hymotion_availability()."""
-        source = _read("startup_helpers.py")
-        self.assertIn(
             "check_hymotion_availability",
-            source,
-            "startup_helpers.py does not call check_hymotion_availability(). "
-            "Add a deferred re-check so HY-Motion status is correct on restart.",
-        )
-
-    def test_deferred_startup_invalidates_zoedepth_cache(self):
-        """startup_helpers.deferred_startup() must refresh the ZoeDepth status at startup."""
-        source = _read("startup_helpers.py")
-        self.assertIn(
             "check_zoedepth_availability",
-            source,
-            "startup_helpers.py does not call check_zoedepth_availability() for "
-            "ZoeDepth.  Without this the deferred-startup check is skipped and "
-            "diagnostics reports 'status not yet checked' until a UI draw occurs.",
+            "_cached_rignet_status",
+        ):
+            self.assertNotIn(
+                eager_call,
+                source,
+                f"startup_helpers.py calls {eager_call}() -- this re-introduces "
+                "the UI-blocking startup import of torch/CUDA that Step 6b's "
+                "lazy redesign specifically removed. Availability checks "
+                "belong in each panel's draw method instead.",
+            )
+
+    def test_hunyuan3d_lazy_check_wired_into_panel(self):
+        """ui_panels.py must call check_hunyuan3d_availability() on draw
+        (the lazy replacement for the old eager startup check)."""
+        source = _read("ui_panels.py")
+        self.assertIn("check_hunyuan3d_availability", source)
+
+    def test_hymotion_lazy_check_wired_into_panel_or_operator(self):
+        """check_hymotion_availability() must be reachable from the UI so
+        status is refreshed the first time it's needed (lazy replacement
+        for the old eager startup check)."""
+        found = any(
+            "check_hymotion_availability" in _read(f)
+            for f in ("ui_panels.py", "ai_gen_operators.py", "install_operators.py")
+        )
+        self.assertTrue(
+            found,
+            "check_hymotion_availability() is not called from any UI-facing "
+            "module -- HY-Motion status would never refresh without the old "
+            "eager startup check it replaced.",
         )
 
-    def test_deferred_startup_invalidates_rignet_cache(self):
-        """startup_helpers.deferred_startup() must populate the RigNet status cache at startup."""
-        source = _read("startup_helpers.py")
-        self.assertIn(
-            "_cached_rignet_status",
-            source,
-            "startup_helpers.py does not call _cached_rignet_status(). "
-            "Without this the RigNet panel and diagnostics show 'cache invalidated' "
-            "on every startup until the RigNet panel draws for the first time.",
-        )
+    def test_zoedepth_lazy_check_wired_into_panel(self):
+        """ui_panels.py must call check_zoedepth_availability() on draw
+        (the lazy replacement for the old eager startup check)."""
+        source = _read("ui_panels.py")
+        self.assertIn("check_zoedepth_availability", source)
+
+    def test_rignet_lazy_check_wired_into_panel(self):
+        """ui_panels.py must call _cached_rignet_status() on draw (the lazy
+        replacement for the old eager startup check)."""
+        source = _read("ui_panels.py")
+        self.assertIn("_cached_rignet_status", source)
 
     # =====================================================================
     # Section G: install operators re-probe after a successful install

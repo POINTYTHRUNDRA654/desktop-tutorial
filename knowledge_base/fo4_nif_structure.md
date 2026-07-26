@@ -7,16 +7,23 @@ Blender exporters (PyNifly / Niftools) expect for each mesh type.
 
 ## Root Node Types
 
+**Static prop, Furniture, and Architecture rows corrected 2026-07-26** after
+reverse-engineering real vanilla NIFs via PyNifly (CrateDeathclaw01.nif,
+ModCrate.nif, NCA2x1Wall01.nif, DecoBaseA1x1Wall01.nif,
+MetalIntFloor1x1Mid01.nif, ModernDomesticLoungeChair01.nif,
+WorkshopMilitaryCot01.nif) — the previous BSFadeNode/BSXFlags values below
+were wrong and had never actually been verified against a real file.
+
 | Mesh Type         | Root Node         | BSXFlags  | Notes                          |
 |-------------------|-------------------|-----------|--------------------------------|
-| Static prop       | BSFadeNode        | 2 (Havok) | Most world objects             |
+| Static prop       | NiNode            | 130 (Havok+Articulated), or 194 (+Dynamic) if genuinely movable | Verified against real crate/wall/floor NIFs |
 | Skinned (NPC/armor)| NiNode           | —         | Always has BSSkin::Instance    |
 | LOD mesh          | BSFadeNode        | 2         | Same as static, reduced poly   |
 | Vegetation        | BSFadeNode        | 2         | Needs Alpha Clip material      |
 | Animated prop     | NiNode            | 1 (Animated) | Has NiKeyframeController    |
-| Furniture         | NiNode            | 1         | Needs CK furniture markers     |
-| Architecture      | BSFadeNode        | 2         | Collision required             |
-| Weapon            | NiNode            | —         | Attached via bone, not skin    |
+| Furniture         | NiNode            | 130 (Havok+Articulated) | Root-level bhkNPCollisionObject; sit/interact markers live in the ESP, not the NIF |
+| Architecture      | NiNode            | 130 (Havok+Articulated) | Collision is a concave-capable mesh shape, not convex — see below |
+| Weapon            | NiNode            | 203 (held) / 706 (world-drop, has collision) | Never skinned (has_skin_instance=0) — moving parts are separate rigid nodes, not skin-weighted |
 
 ---
 
@@ -55,11 +62,32 @@ Nine texture slots (0-indexed):
 All texture paths must be relative to the `Data/` folder and use backslash
 separators: `textures\actors\character\basemale\basemalebody_d.dds`.
 
-### bhkCollisionObject (Havok Physics)
-Required when BSXFlags bit 1 is set. Children:
-- `bhkRigidBodyT` — PASSIVE (static) or DYNAMIC (movable).
-- `bhkMoppBvTreeShape` → `bhkPackedNiTriStripsShape` — for complex shapes.
-- `bhkConvexVerticesShape` — for simple (≤ 256 vertex) convex shapes.
+### Havok collision — corrected 2026-07-26
+
+Real static-object collision (verified via PyNifly + the addon's own bundled
+`bhk_autounpack.py` Havok packfile decoder against CrateDeathclaw01.nif,
+ModCrate.nif, and 3 real architecture NIFs) is **not**
+`bhkCollisionObject → bhkRigidBody → shape`. It's:
+
+```
+NiNode → bhkNPCollisionObject → bhkPhysicsSystem
+```
+
+`bhkPhysicsSystem` is a compiled Havok packfile blob (the modern hknp*
+runtime), not a set of plain NIF blocks — that's why this addon bundles its
+own packfile decoder just to read it. Decoded shape types:
+- **Static, non-movable objects** (walls, floors, most props) use a
+  concave-capable **compressed mesh** (`hknpCompressedMeshShapeData`),
+  matching the real visible geometry, including concave shapes.
+- **Genuinely movable/dynamic props** (e.g. a physics-enabled crate) use a
+  **convex hull** (`polytope`) instead.
+
+This addon's own collision generator (`mesh_helpers.py`) works at the
+Blender level — it sets `rigid_body.collision_shape` to `'MESH'` for
+Building/Architecture (concave-capable, matching real static geometry) and
+`'CONVEX_HULL'` for everything else, then lets PyNifly's own exporter
+translate that into the actual Havok representation. It does not author raw
+Havok packfile data directly.
 
 ---
 

@@ -91,6 +91,22 @@ class ExportHelpers:
         if forced:
             return forced.upper()
 
+        # fo4_weapon_animation.build_weapon_rig() parents a weapon mesh to a
+        # Blender-only animation-authoring armature (for previewing
+        # fire/reload poses before FBX->HKX export) and tags both the mesh
+        # and the armature with fo4_weapon_type. Without this check, the
+        # generic "parented to an armature with non-NPC bone names" rule
+        # below would misclassify that weapon as CREATURE.
+        if obj.get("fo4_weapon_type"):
+            return 'WEAPON'
+
+        # Power Armor and other rigid, unskinned armor pieces (tagged by
+        # FO4_OT_CreatePowerArmorPiece) attach to their own frame bone rather
+        # than deforming with the human skeleton -- classify like a static
+        # prop, not skinned clothing.
+        if obj.get("fo4_rigid_armor"):
+            return 'STATIC'
+
         if ExportHelpers._is_vegetation_object(obj):
             return 'VEGETATION'
 
@@ -448,6 +464,23 @@ class ExportHelpers:
                     )
                     kwargs[game_key] = game_val if game_val else "FO4"
                     break
+
+            # ── Disable PyNifly's own game auto-detection ────────────────────
+            # ExportNIF.intuit_defaults defaults to True and is only forced
+            # False inside the operator's invoke() (UI path). We call execute()
+            # directly via bpy.ops (no invoke()), so without this override
+            # ExportNIF.execute() silently re-derives target_game from the
+            # selection via _discover_game() and OVERWRITES the value set
+            # above. For objects with no armature (or an armature lacking the
+            # internal PYN_GAME_PROP marker) _discover_game() falls through to
+            # a hard-coded "SKYRIM" default, regardless of what we pass in --
+            # this was silently downgrading every unskinned export (static
+            # props, architecture, furniture, weapons) to Skyrim's legacy
+            # NiTriShape format and is why FO4-only blocks like
+            # bhkNPCollisionObject/bhkPhysicsSystem never made it into those
+            # files. Must explicitly opt out so our target_game sticks.
+            if "intuit_defaults" in prop_keys:
+                kwargs["intuit_defaults"] = False
 
             # ── Apply modifiers ───────────────────────────────────────────────
             # V27 defaults to False — must override to True so decimation,
@@ -819,6 +852,7 @@ class ExportHelpers:
             restore_scale_objs = []      # (obj, orig_scale) pairs — restored in finally
             restore_armature_scales = [] # (armature_obj, factor) pairs — restored in finally
             wind_token = None        # author-only wind rig detached during export
+            weapon_token = None      # author-only weapon animation rig detached during export
 
             try:
                 # ── Strip author-only procedural-wind rig ──────────────────────
@@ -826,6 +860,12 @@ class ExportHelpers:
                 # "Wind" armature.  Left attached, PyNifly skins the mesh to a
                 # bogus bone and corrupts it.  Detach now, restore in finally.
                 wind_token = ExportHelpers._detach_wind_authoring_rig(obj)
+
+                # ── Strip author-only weapon animation rig ──────────────────────
+                # build_weapon_rig() parents a weapon mesh to a preview-only
+                # animation-authoring armature. Real weapons are never skinned
+                # (has_skin_instance=0) -- detach now, restore in finally.
+                weapon_token = ExportHelpers._detach_weapon_authoring_rig(obj)
 
                 # ── FO4 unit scale round-trip ──────────────────────────────────
                 # Objects imported via our "Import Asset" button are stored at
@@ -1057,8 +1097,35 @@ class ExportHelpers:
                             _rt_summary = _nrt.summarize(_rt_report)
                             if _rt_summary:
                                 _roundtrip_note = f"  [{_rt_summary}]"
+                        else:
+                            # No original NIF to round-trip from (a freshly
+                            # authored asset, not a reimport) -- still write
+                            # the correct BSXFlags for mesh types where we
+                            # have a verified real value (e.g. Furniture).
+                            from . import nif_roundtrip as _nrt
+                            _fresh_report = _nrt.patch_fresh_bsxflags(
+                                filepath, obj.get("fo4_mesh_type", "")
+                            )
+                            _fresh_summary = _nrt.summarize(_fresh_report)
+                            if _fresh_summary:
+                                _roundtrip_note = f"  [{_fresh_summary}]"
                     except Exception as _rte:
                         print(f"[FO4Export] NIF round-trip patch skipped: {_rte}")
+
+                    # ── Attach real Havok collision (PyNifly's own export-side
+                    # attachment silently fails to persist when the target is
+                    # a leaf mesh shape rather than a NiNode -- see
+                    # nif_roundtrip.patch_native_collision for the full story)
+                    try:
+                        _coll_for_patch = ExportHelpers._find_collision_mesh(obj)
+                        if _coll_for_patch is not None:
+                            from . import nif_roundtrip as _nrt
+                            _coll_report = _nrt.patch_native_collision(filepath, _coll_for_patch)
+                            _coll_summary = _nrt.summarize(_coll_report)
+                            if _coll_summary:
+                                _roundtrip_note += f"  [{_coll_summary}]"
+                    except Exception as _ce:
+                        print(f"[FO4Export] Native collision patch skipped: {_ce}")
 
                     return True, f"Exported NIF via {exporter_label}: {filepath}{note}{_bgsm_note}{_tex_note}{_roundtrip_note}"
 
@@ -1089,6 +1156,8 @@ class ExportHelpers:
                         pass
                 # Restore the author-only wind rig removed before export.
                 ExportHelpers._reattach_wind_authoring_rig(obj, wind_token)
+                # Restore the author-only weapon animation rig removed before export.
+                ExportHelpers._reattach_weapon_authoring_rig(obj, weapon_token)
                 # Restore any skinned armature's bind-pose bones back down.
                 for _arm, _factor in restore_armature_scales:
                     try:
@@ -1133,6 +1202,91 @@ class ExportHelpers:
         # Authoring rig = just the Wind bone (optionally a root).  Real FO4
         # skeletons have dozens of bones; never strip those.
         return len(bone_names) <= 2
+
+    @staticmethod
+    def _is_weapon_authoring_armature(arm_obj):
+        """Return True when *arm_obj* is the author-only animation rig built
+        by ``fo4_weapon_animation.build_weapon_rig`` for previewing/authoring
+        fire/reload/melee poses in Blender before conversion to HKX, NOT a
+        real skeleton.
+
+        Real FO4 weapons are never skinned (``has_skin_instance=0`` on every
+        shape, verified against real 10mmPistol.nif/CombatShotgun.nif) --
+        moving parts are separate rigid nodes animated by their own keyframed
+        transforms, not vertex weights. If this rig is left attached at NIF
+        export, PyNifly would skin the mesh to it, producing an
+        incorrectly-skinned weapon NIF that doesn't match how FO4 actually
+        loads weapons.
+        """
+        if not arm_obj or getattr(arm_obj, 'type', None) != 'ARMATURE':
+            return False
+        return bool(arm_obj.get("fo4_weapon_type"))
+
+    @staticmethod
+    def _detach_weapon_authoring_rig(obj):
+        """Temporarily remove the author-only weapon animation rig (modifier
+        and/or parent) so the mesh exports as the rigid, unskinned geometry
+        real weapon NIFs actually use.
+
+        Returns a restore token for :func:`_reattach_weapon_authoring_rig`,
+        or ``None`` when nothing was detached.
+        """
+        token = {'mods': [], 'parent': None, 'matrix': None}
+        detached = False
+
+        for mod in list(getattr(obj, 'modifiers', [])):
+            if mod.type == 'ARMATURE' and ExportHelpers._is_weapon_authoring_armature(
+                    getattr(mod, 'object', None)):
+                token['mods'].append({
+                    'name': mod.name,
+                    'object': mod.object,
+                    'use_vertex_groups': getattr(mod, 'use_vertex_groups', True),
+                    'use_bone_envelopes': getattr(mod, 'use_bone_envelopes', False),
+                })
+                try:
+                    obj.modifiers.remove(mod)
+                    detached = True
+                except Exception:
+                    pass
+
+        if obj.parent and ExportHelpers._is_weapon_authoring_armature(obj.parent):
+            token['parent'] = obj.parent
+            try:
+                token['matrix'] = obj.matrix_world.copy()
+                obj.parent = None
+                obj.matrix_world = token['matrix']
+                detached = True
+            except Exception:
+                token['parent'] = None
+
+        return token if detached else None
+
+    @staticmethod
+    def _reattach_weapon_authoring_rig(obj, token):
+        """Restore the author-only weapon rig removed by
+        :func:`_detach_weapon_authoring_rig` so the user's scene is unchanged
+        after export.
+        """
+        if not token:
+            return
+        parent = token.get('parent')
+        if parent is not None:
+            try:
+                obj.parent = parent
+                if token.get('matrix') is not None:
+                    obj.matrix_world = token['matrix']
+            except Exception:
+                pass
+        for info in token.get('mods', []):
+            try:
+                if info['name'] in obj.modifiers:
+                    continue
+                m = obj.modifiers.new(name=info['name'], type='ARMATURE')
+                m.object = info['object']
+                m.use_vertex_groups = info.get('use_vertex_groups', True)
+                m.use_bone_envelopes = info.get('use_bone_envelopes', False)
+            except Exception:
+                pass
 
     @staticmethod
     def _detach_wind_authoring_rig(obj):
@@ -1404,6 +1558,7 @@ class ExportHelpers:
         # them when we're done, regardless of whether export succeeds or fails.
         added_mods_per_obj = {}
         wind_tokens_per_obj = {}  # author-only wind rigs detached during export
+        weapon_tokens_per_obj = {}  # author-only weapon animation rigs detached during export
         restore_scale_objs = []  # (obj, orig_scale) pairs — restored in finally
         restore_armature_scales = []  # (armature_obj, factor) pairs — restored in finally
         _scaled_armatures = set()  # armature objects already ×70'd this batch — avoid re-scaling a shared skeleton per sibling mesh
@@ -1418,6 +1573,13 @@ class ExportHelpers:
                 wt = ExportHelpers._detach_wind_authoring_rig(obj)
                 if wt:
                     wind_tokens_per_obj[obj.name] = wt
+
+                # ── Strip author-only weapon animation rig ────────────────────
+                # build_weapon_rig() parents a weapon mesh to a preview-only
+                # animation-authoring armature. Real weapons are never skinned.
+                weap_t = ExportHelpers._detach_weapon_authoring_rig(obj)
+                if weap_t:
+                    weapon_tokens_per_obj[obj.name] = weap_t
 
                 # ── FO4 unit scale round-trip ─────────────────────────────────
                 # Objects imported via our tools are stored at Blender-metre scale
@@ -1549,8 +1711,33 @@ class ExportHelpers:
                         _ok = ExportHelpers._export_output_written(filepath)
                     if _ok:
                         mesh_count = len(meshes)
+                        _coll_note = ""
+                        try:
+                            # Attach real Havok collision the same way
+                            # export_mesh_to_nif does (PyNifly's own
+                            # export-side attachment doesn't persist when
+                            # targeting a leaf shape -- see
+                            # nif_roundtrip.patch_native_collision). Only
+                            # handled when exactly one collision mesh is
+                            # involved -- patch_native_collision writes a
+                            # single root-level collision block, so a scene
+                            # combining multiple independently-collided
+                            # meshes isn't supported here.
+                            _colls = {
+                                id(c): c for m in meshes
+                                if (c := ExportHelpers._find_collision_mesh(m)) is not None
+                            }
+                            if len(_colls) == 1:
+                                from . import nif_roundtrip as _nrt
+                                _coll_report = _nrt.patch_native_collision(
+                                    filepath, next(iter(_colls.values())))
+                                _coll_summary = _nrt.summarize(_coll_report)
+                                if _coll_summary:
+                                    _coll_note = f"  [{_coll_summary}]"
+                        except Exception as _ce:
+                            print(f"[FO4Export] Native collision patch skipped: {_ce}")
                         return True, (f"Exported {mesh_count} mesh(es) as single NIF via "
-                                      f"{exporter_label}: {filepath}{multi_obj_note}")
+                                      f"{exporter_label}: {filepath}{multi_obj_note}{_coll_note}")
                     fallback_msg = f"NIF export did not finish ({result}); falling back to FBX."
                 except Exception as e:
                     print(
@@ -1609,6 +1796,11 @@ class ExportHelpers:
                 obj = scene.objects.get(obj_name)
                 if obj:
                     ExportHelpers._reattach_wind_authoring_rig(obj, wt)
+            # Restore any author-only weapon animation rigs detached before export.
+            for obj_name, weap_t in weapon_tokens_per_obj.items():
+                obj = scene.objects.get(obj_name)
+                if obj:
+                    ExportHelpers._reattach_weapon_authoring_rig(obj, weap_t)
             # Restore any skinned armatures' bind-pose bones back down.
             for _arm, _factor in restore_armature_scales:
                 try:

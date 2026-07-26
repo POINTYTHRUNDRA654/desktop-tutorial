@@ -541,6 +541,17 @@ def collect_diagnostics():
             # Mirror _kb_root() fallback: bundled knowledge_base/ folder
             _kb = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_base")
         if _kb_on:
+            if _kb_is_default and not os.path.isdir(_kb):
+                # Auto-create the bundled default directory -- some fresh
+                # extension installs don't ship an empty knowledge_base/
+                # folder, so without this a user who simply enables the
+                # feature sees a permanent WARN instead of it self-healing.
+                # Only for the default path: a genuinely missing *custom*
+                # path is a real misconfiguration and should still WARN.
+                try:
+                    os.makedirs(_kb, exist_ok=True)
+                except Exception:
+                    pass
             if os.path.isdir(_kb):
                 results.append(("OK",   "Assets", f"Knowledge base: {_kb}"))
             else:

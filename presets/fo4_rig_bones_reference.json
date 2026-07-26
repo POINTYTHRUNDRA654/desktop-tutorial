@@ -11,18 +11,20 @@
     "NPC R Strap"
   ],
   "weapon_bones": [
-    "WeaponRoot",
-    "Weapon",
-    "Magazine",
-    "Slide",
-    "Bolt",
-    "Trigger",
+    "WEAPON",
+    "WeaponMagazine",
+    "WeaponBolt",
+    "WeaponTrigger",
+    "ProjectileNode",
+    "WeaponOptics1",
+    "WeaponOptics2",
     "Grip",
-    "Scope"
+    "Barrel",
+    "Hammer"
   ],
   "notes": {
     "cloth": "Weight cloth/strap geo to these bones. Add Havok XML in CK for physics.",
-    "weapon": "WeaponRoot is parent of all weapon bones. Animate Slide/Bolt/Trigger for reload.",
+    "weapon": "WEAPON is the root node (verified against real vanilla weapon NIFs via PyNifly -- not 'WeaponRoot'). Animate WeaponBolt/WeaponTrigger for reload; ProjectileNode is the muzzle/projectile-origin node. Grip/Barrel/Hammer have no confirmed real NIF node equivalent and exist only as Blender-side animation-authoring aids.",
     "creature": "Use creature-specific skeleton NIF. Convert animations to HKX via hkxcmd."
   }
 }
