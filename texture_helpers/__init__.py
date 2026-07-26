@@ -132,10 +132,20 @@ class TextureHelpers:
         links.new(bsdf.outputs['BSDF'], output_node.inputs['Surface'])
         links.new(diffuse_tex.outputs['Color'], bsdf.inputs['Base Color'])
 
-        # Wire diffuse alpha to BSDF Alpha (passes through as 1.0 for opaque textures)
-        alpha_input = bsdf.inputs.get('Alpha')
-        if alpha_input:
-            links.new(diffuse_tex.outputs['Alpha'], alpha_input)
+        # Do NOT wire diffuse alpha -> BSDF Alpha here. This "Diffuse" node
+        # is freshly created with no image loaded yet (this branch only
+        # runs for untextured meshes -- see the docstring), and an Image
+        # Texture node with no image outputs Alpha=0. That's harmless while
+        # blend_method stays 'OPAQUE' (the default, which ignores the Alpha
+        # input entirely) but as soon as ANYTHING switches this material to
+        # 'CLIP'/'BLEND'/'HASHED' (e.g. Setup Vegetation Material, which the
+        # Retopologize & Bake pipeline's own docstring recommends running
+        # right after this) with no diffuse texture ever installed (e.g.
+        # bake_diffuse=False), the whole mesh silently renders fully
+        # invisible -- verified by reproducing it directly. install_texture
+        # (via _wire_texture_slot_node) wires this link correctly once a
+        # real diffuse image actually exists; until then, leave BSDF Alpha
+        # at its own default (1.0, opaque).
 
         links.new(normal_tex.outputs['Color'], normal_map.inputs['Color'])
         links.new(normal_map.outputs['Normal'], bsdf.inputs['Normal'])

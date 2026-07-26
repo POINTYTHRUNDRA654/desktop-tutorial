@@ -10,6 +10,7 @@ Knowledge helpers for the advisor.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from . import preferences
@@ -91,31 +92,70 @@ def _read_video_sidecar(path: Path, max_chars: int) -> str | None:
     return None
 
 
-def load_snippets(max_files: int = 12, max_chars: int = 4000) -> list[str]:
+def _read_any(path: Path, max_chars: int) -> str | None:
+    """Dispatch to the right reader for *path*'s extension."""
+    ext = path.suffix.lower()
+    if ext in _TEXT_EXT:
+        return _read_text_file(path, max_chars)
+    if ext == ".pdf":
+        return _read_pdf(path, max_chars)
+    if ext in _VIDEO_EXT:
+        return _read_video_sidecar(path, max_chars)
+    return None
+
+
+_WORD_RE = re.compile(r"[a-z0-9]+")
+
+
+def _keywords(text: str) -> set[str]:
+    return {w for w in _WORD_RE.findall(text.lower()) if len(w) > 2}
+
+
+def load_snippets(max_files: int = 20, max_chars: int = 6000, query: str | None = None) -> list[str]:
+    """Load up to *max_files* knowledge-base snippets, each truncated to *max_chars*.
+
+    Without *query*, files are picked alphabetically (previous behaviour) —
+    fine when the caller has no specific question in mind.  With *query*,
+    every candidate file is scored by keyword overlap against it and the
+    highest-scoring files win, so a growing knowledge base keeps surfacing
+    the most relevant snippet for a given question instead of always
+    returning whichever files happen to sort first alphabetically (which
+    silently starved every file past the first few once the knowledge base
+    grew past max_files).
+    """
     kb_dir = _kb_root()
-    snippets: list[str] = []
     if not kb_dir.exists() or not kb_dir.is_dir():
+        return []
+
+    candidates = [
+        p for p in sorted(kb_dir.glob("**/*"))
+        if p.is_file() and p.suffix.lower() in (_TEXT_EXT | {".pdf"} | _VIDEO_EXT)
+    ]
+
+    if not query or not query.strip():
+        snippets: list[str] = []
+        for path in candidates:
+            if len(snippets) >= max_files:
+                break
+            text = _read_any(path, max_chars)
+            if text:
+                snippets.append(text)
         return snippets
 
-    for path in sorted(kb_dir.glob("**/*")):
-        if len(snippets) >= max_files:
-            break
-        if path.is_dir():
+    # Relevance-ranked path: read each candidate once (generously, so short
+    # files aren't unfairly scored against a truncated slice of a long one),
+    # score by keyword overlap, then truncate only the winners to max_chars.
+    query_words = _keywords(query)
+    scored: list[tuple[int, str]] = []
+    for path in candidates:
+        full_text = _read_any(path, max_chars=50_000)
+        if not full_text:
             continue
-        ext = path.suffix.lower()
+        score = len(query_words & _keywords(full_text))
+        scored.append((score, full_text))
 
-        text = None
-        if ext in _TEXT_EXT:
-            text = _read_text_file(path, max_chars)
-        elif ext == ".pdf":
-            text = _read_pdf(path, max_chars)
-        elif ext in _VIDEO_EXT:
-            text = _read_video_sidecar(path, max_chars)
-
-        if text:
-            snippets.append(text)
-
-    return snippets
+    scored.sort(key=lambda t: t[0], reverse=True)
+    return [text[:max_chars] for _, text in scored[:max_files]]
 
 
 def describe_kb() -> str:

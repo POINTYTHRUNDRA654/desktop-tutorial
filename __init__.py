@@ -271,6 +271,11 @@ fo4_batch_tools          = _try_import("fo4_batch_tools")
 fo4_compatibility_checker = _try_import("fo4_compatibility_checker")
 fo4_esp_generator        = _try_import("fo4_esp_generator")
 fo4_workshop_helper      = _try_import("fo4_workshop_helper")
+fo4_dialogue_editor      = _try_import("fo4_dialogue_editor")
+fo4_navmesh_generator    = _try_import("fo4_navmesh_generator")
+fo4_weather_interior     = _try_import("fo4_weather_interior")
+fo4_glow_effects         = _try_import("fo4_glow_effects")
+fo4_texture_generator    = _try_import("fo4_texture_generator")
 
 
 # core modules that are safe to import and register unconditionally.
@@ -362,6 +367,11 @@ _PHASE2_MODULES = list(filter(_filter, [
     fo4_compatibility_checker,
     fo4_esp_generator,
     fo4_workshop_helper,
+    fo4_dialogue_editor,
+    fo4_navmesh_generator,
+    fo4_weather_interior,
+    fo4_glow_effects,
+    fo4_texture_generator,
     # Animation sub-systems — operators registered in Phase 2 so startup
     # is not delayed; all UI panels that reference them check registration
     # status before drawing.

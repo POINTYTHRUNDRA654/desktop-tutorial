@@ -930,6 +930,39 @@ class AnimationHelpers:
         )
 
     @staticmethod
+    def set_static_wind_weight(mesh_obj, group_name="Wind"):
+        """Mark *mesh_obj* as fully static -- no wind sway anywhere.
+
+        Some FO4 assets (e.g. a vine wrapped tight around a creature/prop)
+        still need the "Wind" vertex group + vertex-alpha channel present --
+        the shader expects it -- but must never actually move, unlike normal
+        vegetation's root-anchored/tip-swaying gradient from
+        :meth:`generate_wind_weights`. Writes a single uniform weight across
+        every vertex instead of a gradient, then pushes it through
+        :meth:`apply_wind_vertex_colors` so 'VERTEX_ALPHA' reads solid
+        "anchored" everywhere.
+
+        **Returns:** ``(success: bool, message: str)``
+        """
+        if mesh_obj.type != 'MESH':
+            return False, "Object is not a mesh"
+
+        if bpy.context.object == mesh_obj and bpy.context.mode == 'EDIT_MESH':
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        mesh = mesh_obj.data
+        vg = mesh_obj.vertex_groups.get(group_name)
+        if vg is None:
+            vg = mesh_obj.vertex_groups.new(name=group_name)
+
+        # Same 0.001 floor used by generate_wind_weights -- pure 0.0 is
+        # treated as "unweighted" by PyNifly's exporter and hard-errors.
+        for i in range(len(mesh.vertices)):
+            vg.add([i], 0.001, 'REPLACE')
+
+        return AnimationHelpers.apply_wind_vertex_colors(mesh_obj, group_name=group_name)
+
+    @staticmethod
     def apply_wind_vertex_colors(mesh_obj, group_name="Wind", attr_name="Col"):
         """Write the Wind vertex-group gradient into vertex color data.
 

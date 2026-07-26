@@ -983,8 +983,11 @@ class FO4_OT_CheckRealESRGANInstallation(Operator):
     bl_label = "Check Real-ESRGAN Installation"
     
     def execute(self, context):
+        if not realesrgan_helpers:
+            self.report({'ERROR'}, "realesrgan_helpers module not available")
+            return {'CANCELLED'}
         success, message = realesrgan_helpers.RealESRGANHelpers.check_realesrgan_installation()
-        
+
         if success:
             self.report({'INFO'}, message)
             print("\n" + "="*70)

@@ -868,6 +868,9 @@ class FO4_OT_CheckAllMotionSystems(Operator):
     bl_label = "Check Motion Systems"
     
     def execute(self, context):
+        if not motion_generation_helpers:
+            self.report({'ERROR'}, "motion_generation_helpers module not available")
+            return {'CANCELLED'}
         # Check all systems
         hy_avail, hy_msg = motion_generation_helpers.MotionGenerationHelpers.check_hymotion_available()
         md_avail, md_msg = motion_generation_helpers.MotionGenerationHelpers.check_motiondiffuse_available()
@@ -896,6 +899,9 @@ class FO4_OT_ShowMotionGenerationInfo(Operator):
     bl_label = "Motion Generation Installation Info"
     
     def execute(self, context):
+        if not motion_generation_helpers:
+            self.report({'ERROR'}, "motion_generation_helpers module not available")
+            return {'CANCELLED'}
         instructions = motion_generation_helpers.MotionGenerationHelpers.get_installation_instructions()
         
         print("\n" + "="*70)
@@ -936,6 +942,9 @@ class FO4_OT_GenerateMotionAuto(Operator):
     )
     
     def execute(self, context):
+        if not motion_generation_helpers:
+            self.report({'ERROR'}, "motion_generation_helpers module not available")
+            return {'CANCELLED'}
         # Generate motion using best available system
         success, message, motion_data = motion_generation_helpers.MotionGenerationHelpers.generate_motion_from_text(
             self.prompt, "auto", self.duration, self.fps
@@ -1143,6 +1152,9 @@ class FO4_OT_UpscaleTexture(Operator):
     )
     
     def execute(self, context):
+        if not realesrgan_helpers:
+            self.report({'ERROR'}, "realesrgan_helpers module not available")
+            return {'CANCELLED'}
         # Check if Real-ESRGAN is available
         if not realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available():
             success, message = realesrgan_helpers.RealESRGANHelpers.check_realesrgan_installation()
@@ -1156,15 +1168,15 @@ class FO4_OT_UpscaleTexture(Operator):
                 "Real-ESRGAN not installed", 'ERROR'
             )
             return {'CANCELLED'}
-        
+
         if not self.filepath:
             self.report({'ERROR'}, "No texture file selected")
             return {'CANCELLED'}
-        
+
         # Upscale texture
         output = self.output_path or None
         scale_int = int(self.scale)
-        
+
         success, message = realesrgan_helpers.RealESRGANHelpers.upscale_texture(
             self.filepath,
             output,
@@ -1211,6 +1223,9 @@ class FO4_OT_UpscaleObjectTextures(Operator):
     )
     
     def execute(self, context):
+        if not realesrgan_helpers:
+            self.report({'ERROR'}, "realesrgan_helpers module not available")
+            return {'CANCELLED'}
         # Check if Real-ESRGAN is available
         if not realesrgan_helpers.RealESRGANHelpers.is_realesrgan_available():
             success, message = realesrgan_helpers.RealESRGANHelpers.check_realesrgan_installation()
@@ -1224,7 +1239,7 @@ class FO4_OT_UpscaleObjectTextures(Operator):
                 "Real-ESRGAN not installed", 'ERROR'
             )
             return {'CANCELLED'}
-        
+
         obj = context.active_object
         if not obj:
             self.report({'ERROR'}, "No object selected")
@@ -1303,6 +1318,9 @@ class FO4_OT_UpscaleKREALegacy(Operator):
     )
 
     def execute(self, context):
+        if not realesrgan_helpers:
+            self.report({'ERROR'}, "realesrgan_helpers module not available")
+            return {'CANCELLED'}
         if not self.filepath:
             self.report({'ERROR'}, "No texture file selected")
             return {'CANCELLED'}
@@ -2757,7 +2775,7 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
         scene_quality = getattr(context.scene, 'fo4_imageto3d_quality', 'BALANCED')
         effective_mode = quality_map.get(scene_quality, self.quality_mode)
 
-        success, msg, output = imageto3d_helpers.ImageTo3DHelpers.generate_3d_light(
+        gen_success, msg, output = imageto3d_helpers.ImageTo3DHelpers.generate_3d_light(
             self.image_path, self.output_path, effective_mode
         )
 
@@ -2767,7 +2785,21 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
         print(msg)
         print("="*70 + "\n")
 
-        self.report({'INFO'}, "See console for instructions")
+        # generate_3d_light does NOT actually run TripoSR -- it only prints
+        # the manual CLI command for the user to run themselves and returns
+        # success=False, output=None. Auto-decimating context.active_object
+        # here regardless of that would silently decimate whatever mesh
+        # happens to be selected, under the false premise that a new mesh
+        # was just generated. Only touch the scene once a real output mesh
+        # actually exists on disk.
+        if not gen_success or not output or not _os.path.exists(output):
+            self.report(
+                {'INFO'},
+                "TripoSR Light does not auto-generate -- see the System Console "
+                "for the command to run manually, then import the resulting mesh.",
+            )
+            return {'FINISHED'}
+
         notification_system.FO4_NotificationSystem.notify(
             f"TripoSR Light {effective_mode} mode (quality: {scene_quality})", 'INFO'
         )
@@ -3809,11 +3841,11 @@ class FO4_OT_CopyFullLODPipeline(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_GenerateLODs(bpy.types.Operator):
+class FO4_OT_GenerateLODsSimple(bpy.types.Operator):
     """Generate FO4 LOD meshes from the active mesh.
     Creates LOD0 (original), LOD1 (60%), LOD2 (30%), LOD3 (10% — collision candidate).
     LOD3 has its materials cleared — ready to mark as collision in pyNIF."""
-    bl_idname  = "fo4.generate_lods"
+    bl_idname  = "fo4.generate_lods_simple"
     bl_label   = "Generate FO4 LODs"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -4557,7 +4589,7 @@ classes = (
     FO4_OT_CopyCreaturePipeline,
     FO4_OT_SavePyNIFCreaturePreset,
     FO4_OT_CopyFullLODPipeline,
-    FO4_OT_GenerateLODs,
+    FO4_OT_GenerateLODsSimple,
     FO4_OT_SetupCollisionMesh,
     FO4_OT_CopyPyNIFLODSettings,
     FO4_OT_AddPhysicsBones,

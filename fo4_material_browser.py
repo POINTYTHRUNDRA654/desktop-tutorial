@@ -595,8 +595,14 @@ class MaterialBrowser:
         diff_tex.label = "Diffuse"
         diff_tex.location = (-400, 300)
         links.new(diff_tex.outputs['Color'], bsdf.inputs['Base Color'])
-        if preset["alpha_mode"] in ("CLIP", "BLEND"):
-            links.new(diff_tex.outputs['Alpha'], bsdf.inputs['Alpha'])
+        # Do NOT wire Alpha here -- diff_tex has no image loaded yet (this
+        # preset material is built fresh, ready for a texture to be
+        # installed afterward). An empty Image Texture node's Alpha output
+        # is 0, and with alpha_mode CLIP/BLEND that renders the mesh fully
+        # invisible until a real diffuse texture is loaded -- the same bug
+        # already fixed this session in setup_fo4_material and the LeafCard
+        # operator. install_texture wires this correctly once a real image
+        # actually exists.
 
         # Normal map (_n)
         norm_tex = nodes.new('ShaderNodeTexImage')

@@ -743,9 +743,12 @@ def ask_mossy_fo4(
     # specific guidance about add-on features, panels, and workflows.
     try:
         from . import knowledge_helpers as _kh
-        snippets = _kh.load_snippets(max_files=3, max_chars=2000)
+        # query is the actual question being asked — use it to rank the
+        # knowledge base by relevance instead of always loading whichever
+        # files happen to sort first alphabetically.
+        snippets = _kh.load_snippets(max_files=4, max_chars=3000, query=query)
         if snippets:
-            context["addon_knowledge"] = snippets[:3]
+            context["addon_knowledge"] = snippets[:4]
     except Exception:
         pass
 

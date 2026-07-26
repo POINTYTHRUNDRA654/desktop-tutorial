@@ -2156,6 +2156,8 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
                          text="", icon='WPAINT_HLT')
         type_col.operator("fo4.fix_wind_vertex_colors",
                           text="Fix Wind Vertex Colors (stops breathing)", icon='VPAINT_HLT')
+        type_col.operator("fo4.set_static_no_wind",
+                          text="No Wind (Static, Solid)", icon='LOCKED')
 
         type_col.separator(factor=0.4)
         type_col.label(text="Creatures / Characters (armature):", icon='ARMATURE_DATA')
@@ -3419,6 +3421,9 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         nav_row = nav_box.row(align=True)
         nav_row.enabled = bool(obj and obj.type == 'MESH')
         nav_row.operator("fo4.validate_navmesh", text="Validate NavMesh", icon='CHECKMARK')
+        fix_row = nav_box.row(align=True)
+        fix_row.enabled = bool(obj and obj.type == 'MESH')
+        fix_row.operator("fo4.decimate_navmesh", text="Fix: Reduce to FO4 Triangle Limit", icon='MOD_DECIM')
 
         # Smart material
         box = layout.box()
@@ -5069,8 +5074,8 @@ class FO4_PT_CKCellPanel(_FO4SubPanel):
         layout = self.layout
         imp = layout.box(); imp.label(text="Import Cell into Blender", icon='IMPORT')
         new_row = imp.row(); new_row.scale_y = 1.3
-        new_row.operator("fo4.import_esp_cell", text="Import from ESP/ESM (No xEdit needed)", icon='FILE_SCRIPT')
-        imp.separator(factor=0.3); imp.label(text="OR via xEdit CSV export:", icon='INFO')
+        new_row.operator("fo4.import_esp_cell", text="Check ESP/ESM File", icon='FILE_SCRIPT')
+        imp.separator(factor=0.3); imp.label(text="Then import via xEdit CSV export:", icon='INFO')
         imp.operator("fo4.import_ck_cell", text="Import from xEdit CSV", icon='FILE_FOLDER')
         edit = layout.box(); edit.label(text="Prepare for Editing", icon='EDITMODE_HLT')
         edit.operator("fo4.prepare_cell_edit", text="Prepare Cell for Editing", icon='MODIFIER')
@@ -5100,7 +5105,11 @@ class FO4_PT_ESPGeneratorPanel(_FO4SubPanel):
         box.prop(scene, "fo4_esp_output",  text="Output Folder")
         box.prop(scene, "fo4_esp_xedit",   text="Also write xEdit script (.pas)")
         go = box.row(); go.scale_y = 1.4; go.enabled = len(selected) > 0
-        go.operator("fo4.generate_esp", text=f"Generate ESP ({len(selected)} objects)", icon='FILE_NEW')
+        go_op = go.operator("fo4.generate_esp", text=f"Generate ESP ({len(selected)} objects)", icon='FILE_NEW')
+        go_op.plugin_name = scene.fo4_plugin_name
+        go_op.author      = scene.fo4_esp_author
+        go_op.output_dir  = scene.fo4_esp_output
+        go_op.also_xedit  = scene.fo4_esp_xedit
 
 
 class FO4_PT_TextureGeneratorPanel(_FO4SubPanel):
@@ -5150,7 +5159,9 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
         exp.prop(scene, "fo4_batch_output",   text="Output Folder")
         exp.prop(scene, "fo4_batch_fo4_prep", text="Apply FO4 Prep")
         go = exp.row(); go.scale_y = 1.3; go.enabled = len(selected) > 0
-        go.operator("fo4.batch_export", text=f"Export {len(selected)} Objects as NIFs", icon='FILE_NEW')
+        go_op = go.operator("fo4.batch_export", text=f"Export {len(selected)} Objects as NIFs", icon='FILE_NEW')
+        go_op.output_dir     = scene.fo4_batch_output
+        go_op.apply_fo4_prep = scene.fo4_batch_fo4_prep
         lod = layout.box(); lod.label(text="Batch LOD Generate + Export", icon='MOD_DECIM')
         lod.operator("fo4.batch_generate_lod", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
         pre = layout.box(); pre.label(text="Workflow Presets", icon='PRESET')
@@ -5185,10 +5196,12 @@ class FO4_PT_WorkshopPanel(_FO4SubPanel):
         for code, label in cats[:5]:
             op = row.operator("fo4.generate_workshop_stubs", text=label)
             op.category = code
+            op.plugin_name = scene.fo4_plugin_name
         row2 = cobj.row(align=True)
         for code, label in cats[5:]:
             op = row2.operator("fo4.generate_workshop_stubs", text=label)
             op.category = code
+            op.plugin_name = scene.fo4_plugin_name
 
 
 class FO4_PT_CompatibilityPanel(_FO4SubPanel):

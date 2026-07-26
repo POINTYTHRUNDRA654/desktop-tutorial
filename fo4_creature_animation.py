@@ -624,14 +624,14 @@ def export_animations_hkx(arm_obj, actions: List[bpy.types.Action],
 # Blender Operators
 # ---------------------------------------------------------------------------
 
-class FO4_OT_AutoRigMesh(bpy.types.Operator):
+class FO4_OT_AutoRigOrganicMesh(bpy.types.Operator):
     """Analyze the active mesh and automatically place a FO4-compatible armature.
 
     Works for plants, creatures, tentacles, vines — any organic mesh.
     The bone chain follows the detected trunk and branch geometry.
     Heat-weighted auto-skinning is applied automatically.
     """
-    bl_idname  = "fo4.auto_rig_mesh"
+    bl_idname  = "fo4.auto_rig_organic_mesh"
     bl_label   = "Auto-Rig Mesh for FO4"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -881,7 +881,7 @@ class FO4_OT_SetAnimPreset(bpy.types.Operator):
 
 _CLASSES = [
     FO4_OT_SetAnimPreset,
-    FO4_OT_AutoRigMesh,
+    FO4_OT_AutoRigOrganicMesh,
     FO4_OT_GenerateAnimation,
     FO4_OT_FullAnimPipeline,
 ]

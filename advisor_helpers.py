@@ -165,7 +165,11 @@ class AdvisorHelpers:
         # or texture binaries ever leave Blender).
         kb_snippets = []
         if getattr(prefs, "knowledge_base_enabled", False):
-            kb_snippets = knowledge_helpers.load_snippets(max_files=4, max_chars=800)
+            # Score the knowledge base against the actual issues found (not just
+            # "load whichever files sort first") so the snippets that reach Mossy
+            # are the ones relevant to what's actually wrong with this scene.
+            kb_query = " ".join(meta_report.get("issues", [])[:20])
+            kb_snippets = knowledge_helpers.load_snippets(max_files=5, max_chars=2500, query=kb_query)
 
         context_data = {
             "issues":          meta_report.get("issues",      [])[:20],

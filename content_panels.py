@@ -255,11 +255,44 @@ class FO4_PT_QuestPanel(_FO4SubPanel):
 
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
 
         # Quest template
         box = layout.box()
         box.label(text="Quest Setup", icon='BOOKMARKS')
+        if hasattr(scene, 'fo4_quest_name'):
+            box.prop(scene, "fo4_quest_name", text="Name")
+            box.prop(scene, "fo4_quest_id", text="Editor ID")
         box.operator("fo4.create_quest_template", text="Create Quest Template", icon='ADD')
+
+        # Stages
+        if hasattr(scene, 'fo4_quest_stages'):
+            stage_box = layout.box()
+            stage_box.label(text=f"Stages ({len(scene.fo4_quest_stages)})", icon='PRESET')
+            for i, stage in enumerate(scene.fo4_quest_stages):
+                row = stage_box.row(align=True)
+                row.prop(stage, "stage_index", text="")
+                row.prop(stage, "log_entry", text="")
+                row.prop(stage, "complete_quest", text="", icon='CHECKMARK')
+                row.prop(stage, "fail_quest", text="", icon='X')
+                row.operator("fo4.quest_remove_stage", text="", icon='REMOVE').index = i
+            stage_box.operator("fo4.quest_add_stage", text="Add Stage", icon='ADD')
+
+        # Objectives
+        if hasattr(scene, 'fo4_quest_objectives'):
+            obj_box = layout.box()
+            obj_box.label(text=f"Objectives ({len(scene.fo4_quest_objectives)})", icon='TRACKING')
+            for i, obj in enumerate(scene.fo4_quest_objectives):
+                row = obj_box.row(align=True)
+                row.prop(obj, "index", text="")
+                row.prop(obj, "display_text", text="")
+                row.prop(obj, "target_ref", text="")
+                row.operator("fo4.quest_remove_objective", text="", icon='REMOVE').index = i
+            obj_box.operator("fo4.quest_add_objective", text="Add Objective", icon='ADD')
+
+        # Export
+        box = layout.box()
+        box.label(text="Export", icon='EXPORT')
         box.operator("fo4.export_quest_data", text="Export Quest Data", icon='EXPORT')
 
         # Papyrus script

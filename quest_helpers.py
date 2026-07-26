@@ -210,6 +210,14 @@ def register():
     bpy.types.Scene.fo4_quest_objectives = CollectionProperty(type=FO4_QuestObjective)
     bpy.types.Scene.fo4_dialogue_lines = CollectionProperty(type=FO4_DialogueLine)
     bpy.types.Scene.fo4_npc_data = CollectionProperty(type=FO4_NPCData)
+    bpy.types.Scene.fo4_quest_name = StringProperty(
+        name="Quest Name", default="My First Quest",
+        description="Name shown in the CK / quest log",
+    )
+    bpy.types.Scene.fo4_quest_id = StringProperty(
+        name="Quest ID", default="MyQuest01",
+        description="Editor ID for the Quest record",
+    )
 
 def unregister():
     """Unregister quest-related property groups"""
@@ -221,6 +229,10 @@ def unregister():
         del bpy.types.Scene.fo4_dialogue_lines
     if hasattr(bpy.types.Scene, 'fo4_npc_data'):
         del bpy.types.Scene.fo4_npc_data
+    if hasattr(bpy.types.Scene, 'fo4_quest_name'):
+        del bpy.types.Scene.fo4_quest_name
+    if hasattr(bpy.types.Scene, 'fo4_quest_id'):
+        del bpy.types.Scene.fo4_quest_id
     
     bpy.utils.unregister_class(FO4_NPCData)
     bpy.utils.unregister_class(FO4_DialogueLine)

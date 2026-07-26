@@ -31,6 +31,24 @@ HUNYUAN3D_ERROR = None
 # lazy helper _torch_available() which calls find_spec at invocation time.
 
 
+def _default_hf_cache() -> str:
+    """Return the HuggingFace Hub cache directory to use for the subprocess.
+
+    Respects an existing HF_HOME/HUGGINGFACE_HUB_CACHE the user's own
+    environment may already set (so an existing download location is
+    reused), otherwise falls back to HuggingFace's own real default
+    (``~/.cache/huggingface/hub``) rather than a hardcoded dev-machine
+    path -- a literal ``D:\\.cache\\huggingface\\hub`` only ever existed on
+    the machine this code was originally written on.
+    """
+    existing = os.environ.get("HUGGINGFACE_HUB_CACHE") or (
+        os.path.join(os.environ["HF_HOME"], "hub") if os.environ.get("HF_HOME") else None
+    )
+    if existing:
+        return existing
+    return str(Path.home() / ".cache" / "huggingface" / "hub")
+
+
 def _mossy_provides_torch() -> bool:
     """Return True when the Mossy bridge is online and provides PyTorch.
 
@@ -320,7 +338,7 @@ def generate_mesh_from_text(prompt, output_path=None, resolution=256):
         # output_path) to avoid placing executable code in a world-writable
         # location.
         out_file = os.path.join(output_path, "output.glb")
-        _hf_cache = r"D:\.cache\huggingface\hub"
+        _hf_cache = _default_hf_cache()
         _ipv4_patch = (
             "import socket as _sock_mod\n"
             "_AF_INET = _sock_mod.AF_INET\n"          # capture as int before any loop reuses names
@@ -471,7 +489,7 @@ def generate_mesh_from_image(image_path, output_path=None, resolution=256, targe
             "                except Exception: pass\n"
         )
         # Point HF hub cache at D:\.cache so texgen finds what shapegen already downloaded
-        _hf_cache = r"D:\.cache\huggingface\hub"
+        _hf_cache = _default_hf_cache()
         # IPv4 patch: Windows resolves HuggingFace to an IPv6 CloudFront address whose
         # TLS handshake fails.  Prefer IPv4 by filtering getaddrinfo results.
         _ipv4_patch = (

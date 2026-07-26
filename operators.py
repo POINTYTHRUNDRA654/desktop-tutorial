@@ -1101,7 +1101,7 @@ class FO4_OT_OpenFO4ArmorBlenderGuide(Operator):
 
 
 class FO4_OT_SetArmorOrigin(Operator):
-    """Set selected mesh origin to X=0, Y=0, Z=1.2 (FO4 body origin, per Nexus 17785 guide)."""
+    """Set selected mesh origin to X=0, Y=0, Z=120 (FO4 body origin, per Nexus 17785 guide)."""
     bl_idname  = "fo4.set_armor_origin"
     bl_label   = "Set FO4 Armor Origin (0, 0, 120)"
     bl_options = {'REGISTER', 'UNDO'}
@@ -1177,14 +1177,20 @@ class FO4_OT_SplitUVSeamEdges(Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_TransferArmorWeights(Operator):
+class FO4_OT_TransferArmorWeightsBasic(Operator):
     """Transfer vertex weights from a reference body to the active armor mesh.
 
     Implements the Data Transfer approach from the mod 17785 guide:
     select armor mesh (active), then shift-select the reference body (source),
     and run this operator.
+
+    Superseded by ai_gen_operators.FO4_OT_TransferArmorWeights (which adds
+    auto weight-clean/limit-total) for the "fo4.transfer_armor_weights"
+    bl_idname the UI actually calls -- both operators used to share that
+    same bl_idname, and whichever module's Phase loaded last silently won.
+    Kept under this distinct id as a simpler standalone alternative.
     """
-    bl_idname  = "fo4.transfer_armor_weights"
+    bl_idname  = "fo4.transfer_armor_weights_basic"
     bl_label   = "Transfer Weights from Body Reference"
     bl_options = {'REGISTER', 'UNDO'}
 
@@ -3248,6 +3254,33 @@ class FO4_OT_FixWindVertexColors(Operator):
         return {'FINISHED'} if ok else {'CANCELLED'}
 
 
+class FO4_OT_SetStaticNoWind(Operator):
+    """Mark a mesh as fully static -- no wind sway anywhere, ever.
+
+    Use this for geometry that must NOT animate (e.g. a vine wrapped tight
+    around a creature or prop) but still needs the vertex-alpha channel
+    present because the FO4 shader expects it. Unlike 'Vegetation Wind
+    (Vertex Groups)', which writes a root-anchored/tip-swaying gradient,
+    this writes one uniform 'fully anchored' value across every vertex --
+    solid, no gradient, no movement in-game.
+    """
+    bl_idname  = "fo4.set_static_no_wind"
+    bl_label   = "No Wind (Static, Solid)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object")
+            return {'CANCELLED'}
+        if not animation_helpers:
+            self.report({'ERROR'}, "animation_helpers module failed to load")
+            return {'CANCELLED'}
+        ok, msg = animation_helpers.AnimationHelpers.set_static_wind_weight(obj)
+        self.report({'INFO'} if ok else {'WARNING'}, msg)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+
 class FO4_OT_SmartWindSetup(Operator):
     """Auto-detect object type and apply the correct wind or animation setup.
 
@@ -3427,7 +3460,14 @@ class FO4_OT_SetupLeafCard(Operator):
             steps.append("No texture loaded — assign in Material Properties")
 
         links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
-        links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
+        # Only wire Alpha once a real image is loaded -- an empty Image
+        # Texture node outputs Alpha=0, and blend_method is 'CLIP' above,
+        # so wiring this unconditionally would make the card render fully
+        # invisible (only its selection outline visible) until a texture
+        # is assigned later, since a later manual image assignment in the
+        # Material Properties panel wouldn't re-run this wiring step.
+        if tex.image is not None:
+            links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
         links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
 
         if obj.data.materials:
@@ -5180,6 +5220,13 @@ class FO4_OT_GenerateLODAndCollision(Operator):
     )
 
     def execute(self, context):
+        if not advanced_mesh_helpers:
+            self.report({'ERROR'}, "advanced_mesh_helpers module not available")
+            return {'CANCELLED'}
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
+
         obj = context.active_object
         if not obj or obj.type != 'MESH':
             self.report({'ERROR'}, "No mesh object selected")
@@ -5247,7 +5294,7 @@ class FO4_OT_GenerateLODAndCollision(Operator):
 
     def invoke(self, context, event):
         obj = context.active_object
-        if obj and obj.type == 'MESH':
+        if obj and obj.type == 'MESH' and mesh_helpers:
             inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
             self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
                 getattr(obj, 'fo4_collision_type', inferred), inferred)
@@ -6752,10 +6799,13 @@ class FO4_OT_FoliageUVUnwrap(Operator):
     2. Uses bmesh to find every disconnected component (each leaf or branch).
     3. Unwraps each component flat by projecting from its average face normal,
        which gives clean rectangular islands for flat leaf cards.
-    4. Stacks components whose bounding-box area is within 10 % of each other
-       so similar leaves share the same UV space (drastically reduces the
+    4. Stacks components whose UV bounding-box area is within
+       `stack_tolerance` of each other (default 15%) so similar leaves
+       exactly overlap and share the same UV space (drastically reduces the
        unique texture area needed).
-    5. Packs the surviving unique islands tightly with rotation enabled.
+    5. Packs only the unique (non-stacked) islands tightly with rotation
+       enabled, then re-aligns every stacked duplicate onto its anchor's
+       final packed position.
 
     The result is typically 4-12 unique island shapes instead of hundreds,
     making it straightforward to paint or apply a tileable texture.
@@ -6896,28 +6946,110 @@ class FO4_OT_FoliageUVUnwrap(Operator):
 
                 bpy.ops.object.mode_set(mode='OBJECT')
 
-            # ── Step 4: stack similar-sized islands ───────────────────────
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
+            # ── Step 4: group components by similar REAL (3D) surface area ─
+            # Real area-based stacking (not just a generic rescale). Grouping
+            # must use each component's actual 3D mesh surface area, not its
+            # post-unwrap UV-space area -- Step 3 unwraps each disconnected
+            # component with its own independent call (project_from_view /
+            # ANGLE_BASED), and neither preserves relative scale between
+            # separate components, so two very differently-sized leaves can
+            # land at a similar UV-space size purely as an unwrap artifact.
+            # The UV bbox is still what later actually gets overlapped.
+            bpy.ops.object.mode_set(mode='OBJECT')
+            uv_data = mesh.uv_layers.active.data
+            comp_bbox = []       # (min_u, min_v, max_u, max_v) per component
+            comp_real_area = []  # actual 3D surface area per component
+            for comp_faces in components:
+                us, vs = [], []
+                real_area = 0.0
+                for fi in comp_faces:
+                    poly = mesh.polygons[fi]
+                    real_area += poly.area
+                    for li in poly.loop_indices:
+                        uv = uv_data[li].uv
+                        us.append(uv.x)
+                        vs.append(uv.y)
+                if us:
+                    min_u, max_u = min(us), max(us)
+                    min_v, max_v = min(vs), max(vs)
+                else:
+                    min_u = max_u = min_v = max_v = 0.0
+                comp_bbox.append((min_u, min_v, max_u, max_v))
+                comp_real_area.append(real_area)
 
+            groups = []  # list of lists of component indices
+            duplicate_of = {}  # component index -> anchor component index
             if self.stack_similar:
-                try:
-                    # Average islands of similar UV bounding-box area.
-                    # Blender doesn't expose per-island stacking directly, so we
-                    # use Select Linked Pick + transform to layer them.
-                    # For now, pack with overlap allowed so Blender merges them.
-                    try:
-                        bpy.ops.uv.average_islands_scale()
-                    except Exception:
-                        pass
-                except Exception:
-                    pass
+                order = sorted(range(total_components), key=lambda i: comp_real_area[i])
+                for ci in order:
+                    area = comp_real_area[ci]
+                    placed = False
+                    for group in groups:
+                        anchor_area = comp_real_area[group[0]]
+                        tol = max(anchor_area, area) * self.stack_tolerance
+                        if abs(area - anchor_area) <= tol:
+                            group.append(ci)
+                            duplicate_of[ci] = group[0]
+                            placed = True
+                            break
+                    if not placed:
+                        groups.append([ci])
+            else:
+                groups = [[i] for i in range(total_components)]
 
-            # ── Step 5: pack islands ──────────────────────────────────────
+            anchor_indices = {group[0] for group in groups}
+
+            # ── Step 5: pack only the unique (anchor) islands ─────────────
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.object.mode_set(mode='OBJECT')
+            for ci in anchor_indices:
+                for fi in components[ci]:
+                    mesh.polygons[fi].select = True
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+            bpy.context.tool_settings.uv_select_mode = 'FACE'
+            bpy.ops.uv.select_all(action='SELECT')
             try:
                 bpy.ops.uv.pack_islands(rotate=True, margin=self.island_margin)
             except TypeError:
                 bpy.ops.uv.pack_islands(margin=self.island_margin)
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+            # ── Step 6: overlap every duplicate onto its anchor's final,
+            # post-pack UV position -- this is the actual "stacking" ───────
+            # Re-fetch the UV layer data fresh here rather than reusing the
+            # Step 4 reference: Blender can reallocate a mesh's CustomData
+            # layers across edit/object mode transitions, and holding a
+            # stale Python reference across those transitions triggered a
+            # hard EXCEPTION_ACCESS_VIOLATION crash when read again below.
+            uv_data = mesh.uv_layers.active.data
+            for ci, anchor_ci in duplicate_of.items():
+                min_u, min_v, max_u, max_v = comp_bbox[ci]
+                # Re-read the anchor's CURRENT (post-pack) bbox, since it moved.
+                a_us, a_vs = [], []
+                for fi in components[anchor_ci]:
+                    for li in mesh.polygons[fi].loop_indices:
+                        uv = uv_data[li].uv
+                        a_us.append(uv.x)
+                        a_vs.append(uv.y)
+                cur_a_min_u, cur_a_max_u = min(a_us), max(a_us)
+                cur_a_min_v, cur_a_max_v = min(a_vs), max(a_vs)
+
+                src_w = max(max_u - min_u, 1e-6)
+                src_h = max(max_v - min_v, 1e-6)
+                dst_w = cur_a_max_u - cur_a_min_u
+                dst_h = cur_a_max_v - cur_a_min_v
+
+                for fi in components[ci]:
+                    for li in mesh.polygons[fi].loop_indices:
+                        uv = uv_data[li].uv
+                        t_u = (uv.x - min_u) / src_w
+                        t_v = (uv.y - min_v) / src_h
+                        uv.x = cur_a_min_u + t_u * dst_w
+                        uv.y = cur_a_min_v + t_v * dst_h
+
+            stacked_count = len(duplicate_of)
 
         finally:
             try:
@@ -6926,9 +7058,14 @@ class FO4_OT_FoliageUVUnwrap(Operator):
                 pass
             context.view_layer.objects.active = prev_active
 
+        unique_count = len(anchor_indices) if self.stack_similar else total_components
+        stack_note = (
+            f" ({stacked_count} stacked onto {unique_count} unique island(s))"
+            if self.stack_similar and stacked_count else ""
+        )
         msg = (
             f"Foliage UV Unwrap complete — {total_components} leaf components "
-            f"projected flat and packed. Use 'Edit UV Map' to inspect, "
+            f"projected flat and packed{stack_note}. Use 'Edit UV Map' to inspect, "
             f"then paint or tile your diffuse texture."
         )
         self.report({'INFO'}, msg)
@@ -10037,12 +10174,16 @@ class FO4_OT_CreateQuestTemplate(Operator):
     
     def execute(self, context):
         try:
-            quest_data = quest_helpers.QuestHelpers.create_quest_template()
-            quest_data["quest_name"] = self.quest_name
-            
+            # Persist onto the scene (instead of a throwaway local dict) so
+            # the stages/objectives added afterward in the Quest panel, and
+            # Export Quest Data later, actually see this same quest.
+            context.scene.fo4_quest_name = self.quest_name
+            if not context.scene.fo4_quest_id:
+                context.scene.fo4_quest_id = self.quest_name.replace(" ", "")
+
             self.report({'INFO'}, f"Created quest template: {self.quest_name}")
             self.report({'INFO'}, "Add stages and objectives in the Quest panel")
-            
+
             _notify(
                 f"Quest template created: {self.quest_name}", 'INFO'
             )
@@ -10050,9 +10191,65 @@ class FO4_OT_CreateQuestTemplate(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Failed to create quest: {str(e)}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_QuestAddStage(Operator):
+    """Add a new stage to the current quest"""
+    bl_idname = "fo4.quest_add_stage"
+    bl_label = "Add Quest Stage"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        stages = context.scene.fo4_quest_stages
+        stage = stages.add()
+        stage.stage_index = (max((s.stage_index for s in stages), default=0) + 10) if len(stages) > 1 else 10
+        return {'FINISHED'}
+
+
+class FO4_OT_QuestRemoveStage(Operator):
+    """Remove a stage from the current quest"""
+    bl_idname = "fo4.quest_remove_stage"
+    bl_label = "Remove Quest Stage"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: IntProperty(default=0)
+
+    def execute(self, context):
+        stages = context.scene.fo4_quest_stages
+        if 0 <= self.index < len(stages):
+            stages.remove(self.index)
+        return {'FINISHED'}
+
+
+class FO4_OT_QuestAddObjective(Operator):
+    """Add a new objective to the current quest"""
+    bl_idname = "fo4.quest_add_objective"
+    bl_label = "Add Quest Objective"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        objectives = context.scene.fo4_quest_objectives
+        obj = objectives.add()
+        obj.index = (max((o.index for o in objectives), default=0) + 10) if len(objectives) > 1 else 10
+        return {'FINISHED'}
+
+
+class FO4_OT_QuestRemoveObjective(Operator):
+    """Remove an objective from the current quest"""
+    bl_idname = "fo4.quest_remove_objective"
+    bl_label = "Remove Quest Objective"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    index: IntProperty(default=0)
+
+    def execute(self, context):
+        objectives = context.scene.fo4_quest_objectives
+        if 0 <= self.index < len(objectives):
+            objectives.remove(self.index)
+        return {'FINISHED'}
 
 
 class FO4_OT_ExportQuestData(Operator):
@@ -10065,12 +10262,37 @@ class FO4_OT_ExportQuestData(Operator):
     
     def execute(self, context):
         try:
+            scene = context.scene
+            # Build from the scene's own quest state -- the name set by
+            # Create Quest Template, and every stage/objective actually
+            # added in the Quest panel -- instead of a fresh, always-empty
+            # template. Without this, whatever the user entered never
+            # reached the exported file.
             quest_data = quest_helpers.QuestHelpers.create_quest_template()
-            # Add quest stages and objectives from scene
+            quest_data["quest_name"] = getattr(scene, "fo4_quest_name", quest_data["quest_name"])
+            quest_data["quest_id"]   = getattr(scene, "fo4_quest_id", quest_data["quest_id"])
+            quest_data["stages"] = [
+                {
+                    "stage_index": s.stage_index,
+                    "log_entry": s.log_entry,
+                    "complete_quest": s.complete_quest,
+                    "fail_quest": s.fail_quest,
+                }
+                for s in getattr(scene, "fo4_quest_stages", [])
+            ]
+            quest_data["objectives"] = [
+                {
+                    "index": o.index,
+                    "display_text": o.display_text,
+                    "target_ref": o.target_ref,
+                }
+                for o in getattr(scene, "fo4_quest_objectives", [])
+            ]
+
             success, message = quest_helpers.QuestHelpers.export_quest_data(quest_data, self.filepath)
-            
+
             if success:
-                self.report({'INFO'}, "Quest data exported successfully")
+                self.report({'INFO'}, f"Quest data exported: {len(quest_data['stages'])} stage(s), {len(quest_data['objectives'])} objective(s)")
                 _notify("Quest exported", 'INFO')
                 return {'FINISHED'}
             else:
@@ -10079,7 +10301,7 @@ class FO4_OT_ExportQuestData(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Export failed: {str(e)}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
@@ -10739,14 +10961,15 @@ class FO4_OT_LoadPreset(Operator):
     """Load a preset from the library"""
     bl_idname = "fo4.load_preset"
     bl_label = "Load Preset"
-    bl_options = {'REGISTER'}
-    
+    bl_options = {'REGISTER', 'UNDO'}
+
     filepath: StringProperty(
         name="Preset File",
         description="Path to preset file",
         subtype='FILE_PATH'
     )
-    
+    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})
+
     def execute(self, context):
         if not preset_library:
             self.report({'ERROR'}, "preset_library module unavailable")
@@ -10756,18 +10979,61 @@ class FO4_OT_LoadPreset(Operator):
             return {'CANCELLED'}
 
         preset_data = preset_library.PresetLibrary.load_preset(self.filepath)
-        
+
         if not preset_data:
             self.report({'ERROR'}, "Failed to load preset")
             return {'CANCELLED'}
-        
+
         # Increment use count
         preset_library.PresetLibrary.increment_use_count(self.filepath)
-        
-        self.report({'INFO'}, f"Loaded preset with {len(preset_data.get('objects', []))} objects")
-        _notify("Preset loaded", 'INFO')
-        
+
+        # FO4_OT_SavePreset only ever captures transform + metadata (name,
+        # type, location/rotation/scale, vertex/polygon counts, material
+        # NAMES) -- never mesh geometry or material node graphs. So
+        # "loading" a preset can only mean restoring that transform onto
+        # whichever saved object name(s) are still present in the current
+        # scene, not recreating objects from scratch. Report exactly what
+        # was and wasn't restored instead of claiming a generic success.
+        restored, missing = [], []
+        for obj_data in preset_data.get('objects', []):
+            name = obj_data.get('name')
+            obj = bpy.data.objects.get(name) if name else None
+            if obj is None:
+                missing.append(name or "<unnamed>")
+                continue
+            if 'location' in obj_data:
+                obj.location = obj_data['location']
+            if 'rotation' in obj_data:
+                obj.rotation_euler = obj_data['rotation']
+            if 'scale' in obj_data:
+                obj.scale = obj_data['scale']
+            restored.append(name)
+
+        if restored:
+            msg = f"Restored transform for {len(restored)} object(s): {', '.join(restored)}"
+            if missing:
+                msg += f". Not found in scene (skipped): {', '.join(missing)}"
+            self.report({'INFO'}, msg)
+        else:
+            msg = (
+                f"Preset has {len(preset_data.get('objects', []))} object(s) but none "
+                f"match anything in the current scene by name — nothing restored. "
+                f"Note: presets only store transform + metadata, not mesh geometry."
+            )
+            self.report({'WARNING'}, msg)
+        _notify(msg, 'INFO' if restored else 'WARNING')
+
         return {'FINISHED'}
+
+    def invoke(self, context, event):
+        # The Recent/Popular list rows already set self.filepath before the
+        # click (via op.filepath = ... in their draw() code) -- for those,
+        # run immediately like before. Only pop a file browser when this is
+        # the plain "Load Preset" button with no path pre-filled.
+        if self.filepath:
+            return self.execute(context)
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 class FO4_OT_DeletePreset(Operator):
@@ -11841,6 +12107,9 @@ class FO4_OT_ApplyMaterialPreset(Operator):
     )
 
     def execute(self, context):
+        if not fo4_material_browser:
+            self.report({'ERROR'}, "fo4_material_browser module not available")
+            return {'CANCELLED'}
         if self.apply_all_selected:
             ok, msg = fo4_material_browser.MaterialBrowser.apply_preset_to_selection(
                 context, self.preset
@@ -14400,9 +14669,12 @@ class FO4_OT_ConvertObjectTexturesToDDS(bpy.types.Operator):
 
 
 class FO4_OT_ImportESPCell(bpy.types.Operator):
-    """Import a Fallout 4 cell directly from an ESP/ESM file (requires pynifly + bethesda-structs)"""
+    """Check that a file is a valid ESP/ESM/ESL, then point you to the
+    working import path (xEdit CSV export). Direct binary ESP/ESM parsing
+    isn't implemented -- that would require a full Bethesda record-format
+    parser (e.g. bethesda-structs), which this add-on doesn't bundle."""
     bl_idname  = "fo4.import_esp_cell"
-    bl_label   = "Import Cell from ESP/ESM"
+    bl_label   = "Check ESP/ESM Cell File"
     bl_options = {'REGISTER', 'UNDO'}
 
     filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="")
@@ -14447,7 +14719,7 @@ classes = (
     FO4_OT_OpenFO4ArmorBlenderGuide,
     FO4_OT_SetArmorOrigin,
     FO4_OT_SplitUVSeamEdges,
-    FO4_OT_TransferArmorWeights,
+    FO4_OT_TransferArmorWeightsBasic,
     FO4_OT_CleanImportedArmature,
     FO4_OT_LoadFO4Skeleton,
     FO4_OT_FixNIFScale,
@@ -14478,6 +14750,7 @@ classes = (
     FO4_OT_SetupLeafCard,
     FO4_OT_VegetationWindSetup,
     FO4_OT_FixWindVertexColors,
+    FO4_OT_SetStaticNoWind,
     FO4_OT_SmartWindSetup,
     FO4_OT_BatchGenerateWindWeights,
     FO4_OT_BatchApplyWindAnimation,
@@ -14542,6 +14815,10 @@ classes = (
     FO4_OT_ExportLODChainAsNif,
     # Quest and dialogue operators
     FO4_OT_CreateQuestTemplate,
+    FO4_OT_QuestAddStage,
+    FO4_OT_QuestRemoveStage,
+    FO4_OT_QuestAddObjective,
+    FO4_OT_QuestRemoveObjective,
     FO4_OT_ExportQuestData,
     FO4_OT_QuestGeneratePapyrusScript,
     # NPC and creature operators
