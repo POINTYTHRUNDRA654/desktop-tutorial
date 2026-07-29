@@ -18,6 +18,8 @@ import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
 import AutoUpdateNotifier from './components/AutoUpdateNotifier';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
+import { initClipboardGate } from './utils/clipboardGate';
+import { AppLockProvider } from './AppLock';
 import toast from 'react-hot-toast';
 
 import { Command, Loader2, MessageSquare, Radio, Zap } from 'lucide-react';
@@ -137,7 +139,6 @@ const BA2Manager = React.lazy(() => import('./BA2Manager').then(module => ({ def
 const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module => ({ default: module.ProjectSelector })));
 
 // Mining Infrastructure
-const MiningHub = React.lazy(() => import('./MiningHub'));
 const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
 const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
@@ -165,7 +166,22 @@ const JourneyHub = React.lazy(() => import('./JourneyHub'));
 const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
 const SystemHub = React.lazy(() => import('./SystemHub'));
 const GuidesHub = React.lazy(() => import('./GuidesHub'));
-const CreativeDirectorPanel = React.lazy(() => import('./plugin_creative_director/CreativeDirectorPanel'));
+// Vault-Tec Creative Director is a local-only dev tool (see .gitignore) — its source is not
+// tracked in the public repo. import.meta.glob resolves at build time without requiring the
+// file to exist, so a fresh clone of the public repo still builds; it just shows the fallback
+// below instead of the real panel when the local-only files aren't present.
+const creativeDirectorModules = import.meta.glob('./plugin_creative_director/CreativeDirectorPanel.tsx');
+const CreativeDirectorPanel = React.lazy(() => {
+   const loader = creativeDirectorModules['./plugin_creative_director/CreativeDirectorPanel.tsx'];
+   if (loader) return loader() as Promise<{ default: React.ComponentType<any> }>;
+   return Promise.resolve({
+      default: () => (
+         <div className="p-8 text-center text-slate-400">
+            Vault-Tec Creative Director is a local-only development tool and isn't included in this build.
+         </div>
+      ),
+   });
+});
 const FO4NPCDirector = React.lazy(() => import('./FO4NPCDirector'));
 
 // Test Components
@@ -324,6 +340,12 @@ const AskMossyButton: React.FC = () => {
 
 const App: React.FC = () => {
   const devBuildId = '2026-01-27-1227-debug-probe';
+
+  // Enforce the real "Allow Clipboard Access" privacy toggle at the actual
+  // browser Clipboard API boundary — see utils/clipboardGate.ts.
+  useEffect(() => {
+    initClipboardGate();
+  }, []);
 
   // Debug: log test mode detection and initial URL for E2E troubleshooting
   useEffect(() => {
@@ -821,12 +843,9 @@ const App: React.FC = () => {
         console.log('[App] Workflow automation service initialized');
         console.log('[App] Plugin system service initialized');
 
-        // Attempt crash recovery
-        const recoveredSession = await autoSaveManager.recoverFromCrash();
-        if (recoveredSession) {
-          console.log('[App] Recovered session from crash:', recoveredSession.id);
-          // TODO: Apply recovered session data to app state
-        }
+        // Crash recovery itself (chat history) is handled by ChatInterface.tsx,
+        // which reads the same autoSaveManager session and applies it to its
+        // own message state — nothing further to apply at the App level.
 
       } catch (error) {
         console.error('[App] Failed to initialize systems:', error);
@@ -1181,6 +1200,15 @@ const App: React.FC = () => {
               } catch { /* ignore */ }
 
               setShowFirstRun(false);
+              // showVoiceSetup's initial useState value is computed at MOUNT time, before
+              // onboarding has completed, so it's always false on a genuine first launch —
+              // recompute it here so VoiceSetupWizard actually gets a turn in the render
+              // priority chain (showFirstRun -> showVoiceSetup -> showOnboarding -> app).
+              try {
+                if (localStorage.getItem('mossy_voice_setup_complete') !== 'true') {
+                  setShowVoiceSetup(true);
+                }
+              } catch { /* ignore */ }
               // If the user clicked "Open in Auditor" on the Spriggit digest step,
               // navigate there now that the onboarding overlay has been dismissed.
               try {
@@ -1772,10 +1800,12 @@ const App: React.FC = () => {
               {isPipBoy ? 'PIP-BOY: ON' : 'PIP-BOY: OFF'}
             </button>
             <NotificationProvider>
-              {renderAppContent()}
+              <AppLockProvider>
+                {renderAppContent()}
 
-              {/* Auto-Update Notification */}
-              <AutoUpdateNotifier />
+                {/* Auto-Update Notification */}
+                <AutoUpdateNotifier />
+              </AppLockProvider>
             </NotificationProvider>
           </PipBoyFrame>
         </OpenAIVoiceProvider>
