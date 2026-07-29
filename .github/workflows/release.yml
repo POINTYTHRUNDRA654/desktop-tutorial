@@ -53,7 +53,19 @@ jobs:
         run: |
           PKG_VERSION=$(jq -r '.version' < package.json)
           INPUT_VERSION="${{ steps.get_version.outputs.version }}"
-          if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
+          # Normalize both versions to full semver (e.g. "5.5" -> "5.5.0")
+          normalize_version() {
+            local v="$1"
+            local parts
+            IFS='.' read -ra parts <<< "$v"
+            while [ "${#parts[@]}" -lt 3 ]; do
+              parts+=("0")
+            done
+            echo "${parts[0]}.${parts[1]}.${parts[2]}"
+          }
+          NORM_PKG=$(normalize_version "$PKG_VERSION")
+          NORM_INPUT=$(normalize_version "$INPUT_VERSION")
+          if [ "$NORM_PKG" != "$NORM_INPUT" ]; then
             echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
             echo "Update package.json to version $INPUT_VERSION before creating this release."
             exit 1
