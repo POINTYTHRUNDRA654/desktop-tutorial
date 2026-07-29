@@ -1,5 +1,16 @@
 
+import { vi } from 'vitest';
 import { HardwareAwareMiningEngine } from '../hardware-aware-mining-engine';
+
+vi.mock('../hardwareProfiler', () => ({
+  getRealHardwareProfile: vi.fn().mockResolvedValue({
+    cpu: { model: 'Intel i7', cores: 8, threads: 16, baseClock: 3.8, boostClock: 5.1, cache: 16, architecture: 'x64' },
+    gpu: { model: 'RTX 3070', vram: 8, driverVersion: '516', dxVersion: '12', rayTracing: true },
+    ram: { total: 32, speed: 3200, type: 'DDR4', channels: 2 },
+    storage: { type: 'NVMe', readSpeed: 3500, writeSpeed: 3000, totalSpace: 1000, availableSpace: 700 },
+    os: { name: 'Windows', version: '11', architecture: 'x64', build: '22631' }
+  })
+}));
 
 describe('HardwareAwareMiningEngine', () => {
   let engine: HardwareAwareMiningEngine;
