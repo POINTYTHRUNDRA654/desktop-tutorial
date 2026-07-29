@@ -515,9 +515,9 @@ class FeatureExtractor {
 
   private assessHardwareCompatibility(profile?: HardwareProfile): number {
     if (!profile) return 1; // no hardware context supplied — assume neutral, not fabricated
-    const cpuScore = Math.min(profile.cpu.cores / 8, 1);
-    const gpuScore = Math.min(profile.gpu.vram / 8, 1);
-    const ramScore = Math.min(profile.ram.total / 32, 1);
+    const cpuScore = profile.cpu?.cores != null ? Math.min(profile.cpu.cores / 8, 1) : 0.5;
+    const gpuScore = profile.gpu?.vram != null ? Math.min(profile.gpu.vram / 8, 1) : 0.5;
+    const ramScore = profile.ram?.total != null ? Math.min(profile.ram.total / 32, 1) : 0.5;
     return (cpuScore + gpuScore + ramScore) / 3;
   }
 
