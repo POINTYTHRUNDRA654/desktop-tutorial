@@ -1053,7 +1053,8 @@ export class VoiceService {
   private async speakBrowser(text: string): Promise<void> {
     console.log('[VoiceService] speakBrowser() called');
     if (!('speechSynthesis' in window)) {
-      throw new Error('Speech synthesis not supported');
+      console.warn('[VoiceService] Speech synthesis not available in this environment — skipping TTS');
+      return;
     }
 
     // Reset synthesis state before starting
