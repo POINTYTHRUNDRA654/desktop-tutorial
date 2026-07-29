@@ -53,6 +53,10 @@ jobs:
         run: |
           PKG_VERSION=$(jq -r '.version' < package.json)
           INPUT_VERSION="${{ steps.get_version.outputs.version }}"
+          # Normalize input version to full semver (e.g. "5.5" -> "5.5.0")
+          if [[ "$INPUT_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            INPUT_VERSION="${INPUT_VERSION}.0"
+          fi
           if [ "$PKG_VERSION" != "$INPUT_VERSION" ]; then
             echo "❌ Version mismatch: release version '$INPUT_VERSION' does not match package.json version '$PKG_VERSION'."
             echo "Update package.json to version $INPUT_VERSION before creating this release."
