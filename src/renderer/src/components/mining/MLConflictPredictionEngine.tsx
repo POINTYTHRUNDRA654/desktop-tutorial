@@ -5,7 +5,7 @@
  * that detects and predicts mod conflicts using machine learning
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -21,19 +21,6 @@ import {
   Zap,
   Target
 } from 'lucide-react';
-
-// Mock function for real-time status fetching
-const fetchMiningEngineStatus = async (engine: string) => {
-  // In a real implementation, this would call the backend API
-  return {
-    isRunning: true,
-    modelAccuracy: Math.random() * 0.3 + 0.7, // 70-100%
-    predictionsMade: Math.floor(Math.random() * 1000),
-    conflictsDetected: Math.floor(Math.random() * 100),
-    lastTraining: new Date(),
-    trainingProgress: Math.random()
-  };
-};
 
 interface MLConflictPredictionEngineProps {
   isActive?: boolean;
@@ -77,28 +64,12 @@ export const MLConflictPredictionEngine: React.FC<MLConflictPredictionEngineProp
   results
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [realTimeStatus, setRealTimeStatus] = useState(status);
   const [showConfig, setShowConfig] = useState(false);
 
-  // Real-time status updates
-  useEffect(() => {
-    if (!isActive) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const updatedStatus = await fetchMiningEngineStatus('ml-conflict');
-        if (updatedStatus) {
-          setRealTimeStatus(updatedStatus);
-        }
-      } catch (error) {
-        console.warn('Failed to fetch real-time status:', error);
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isActive]);
-
-  const currentStatus = realTimeStatus || status;
+  // Real status/results are pushed down as props by Phase2MiningPanel, which
+  // already polls window.electronAPI.phase2Mining on a real interval — no
+  // separate fetch/poll needed (and no fabricated data) here.
+  const currentStatus = status;
 
   const handleToggle = async () => {
     setIsLoading(true);

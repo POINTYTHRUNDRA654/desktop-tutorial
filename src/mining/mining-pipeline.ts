@@ -26,6 +26,7 @@ import { AnimationFrameAnalyzer } from './animation-frame-analyzer';
 import { UnusedAssetDetector } from './unused-asset-detector';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 export class MiningPipelineOrchestrator {
   private pipeline: MiningPipeline;
@@ -47,19 +48,21 @@ export class MiningPipelineOrchestrator {
           loadOrder: []
         },
         performanceReport: {
+          // Honest empty state until real benchmark data is supplied — no
+          // fabricated FPS/memory numbers (see analyzePerformance()).
           baselineMetrics: {
             modCombination: [],
-            fps: 60,
-            memoryUsage: 4096,
-            loadTime: 30,
-            stabilityScore: 95,
+            fps: 0,
+            memoryUsage: 0,
+            loadTime: 0,
+            stabilityScore: 0,
             conflictCount: 0,
             timestamp: Date.now(),
             hardwareProfile: {
               cpu: { model: 'Unknown', cores: 1, threads: 1, baseClock: 0, boostClock: 0, cache: 0 },
               gpu: { model: 'Unknown', vram: 0, driverVersion: '', dxVersion: '', rayTracing: false },
-              ram: { total: 16, speed: 0, type: 'DDR4', channels: 2 },
-              storage: { type: 'SSD', readSpeed: 0, writeSpeed: 0, totalSpace: 0, availableSpace: 0 },
+              ram: { total: 0, speed: 0, type: 'Unknown', channels: 0 },
+              storage: { type: 'Unknown', readSpeed: 0, writeSpeed: 0, totalSpace: 0, availableSpace: 0 },
               os: { name: 'Unknown', version: '', architecture: 'x64' }
             }
           },
@@ -281,19 +284,95 @@ export class MiningPipelineOrchestrator {
   }
 
   private async analyzePerformance(): Promise<void> {
-    // For now, create mock performance data
-    // In a real implementation, this would parse log files and benchmark data
-    const mockMetrics = this.generateMockPerformanceMetrics();
+    // Performance impact analysis is a comparative technique: it needs at least
+    // two real benchmark samples (different load-order/mod combinations) to
+    // compute FPS/memory/stability deltas per mod. That data can only come from
+    // the user's own measurements — it is never invented here. Add a
+    // `benchmark` data source (a JSON file — see loadBenchmarkMetrics() below)
+    // to populate this report.
+    const metrics = await this.loadBenchmarkMetrics();
+    if (metrics.length === 0) {
+      // Honest empty state — no fabricated FPS/memory numbers.
+      return;
+    }
 
     const performanceAnalyzer = this.pipeline.analyzers.find(a => a instanceof PerformanceAnalyzer) as PerformanceAnalyzer;
     if (performanceAnalyzer) {
       try {
-        this.pipeline.output.performanceReport = await performanceAnalyzer.analyze(mockMetrics);
+        this.pipeline.output.performanceReport = await performanceAnalyzer.analyze(metrics);
       } catch (error) {
         console.warn('Performance analysis failed:', error);
         this.pipeline.output.errors.push('Performance analysis failed');
       }
     }
+  }
+
+  /**
+   * Load real benchmark samples from any `benchmark`-type data sources.
+   * Expected JSON shape: an array of objects (or a single object) with
+   * `{ modCombination?: string[], fps: number, memoryUsage?: number,
+   *    loadTime?: number, stabilityScore?: number, conflictCount?: number }`
+   * — e.g. exported from CapFrameX/PresentMon/FRAPS runs at different load
+   * orders. Entries missing a numeric `fps` are skipped rather than guessed.
+   */
+  private async loadBenchmarkMetrics(): Promise<PerformanceMetric[]> {
+    const metrics: PerformanceMetric[] = [];
+    const benchmarkSources = this.pipeline.sources.filter(s => s.type === 'benchmark');
+
+    for (const source of benchmarkSources) {
+      try {
+        const raw = JSON.parse(await fs.promises.readFile(source.path, 'utf-8'));
+        const entries = Array.isArray(raw) ? raw : [raw];
+        for (const e of entries) {
+          if (!e || typeof e.fps !== 'number') continue;
+          metrics.push({
+            modCombination: Array.isArray(e.modCombination) ? e.modCombination : [],
+            fps: e.fps,
+            memoryUsage: typeof e.memoryUsage === 'number' ? e.memoryUsage : 0,
+            loadTime: typeof e.loadTime === 'number' ? e.loadTime : 0,
+            stabilityScore: typeof e.stabilityScore === 'number' ? e.stabilityScore : 100,
+            conflictCount: typeof e.conflictCount === 'number' ? e.conflictCount : 0,
+            timestamp: typeof e.timestamp === 'number' ? e.timestamp : Date.now(),
+            hardwareProfile: e.hardwareProfile ?? this.getRealHardwareProfile()
+          });
+        }
+      } catch (error) {
+        console.warn(`Failed to read benchmark source ${source.path}:`, error);
+        this.pipeline.output.errors.push(`Benchmark data unreadable: ${path.basename(source.path)}`);
+      }
+    }
+
+    return metrics;
+  }
+
+  /** Real hardware profile read from the host OS (used as a fallback when a benchmark entry omits one). */
+  private getRealHardwareProfile(): HardwareProfile {
+    const cpus = os.cpus();
+    const totalMemGB = os.totalmem() / (1024 ** 3);
+    return {
+      cpu: {
+        model: cpus[0]?.model?.trim() || 'Unknown',
+        cores: cpus.length,
+        threads: cpus.length,
+        baseClock: cpus[0] ? Math.round((cpus[0].speed / 1000) * 10) / 10 : 0,
+        boostClock: 0,
+        cache: 0
+      },
+      gpu: { model: 'Unknown', vram: 0, driverVersion: '', dxVersion: '', rayTracing: false },
+      ram: { total: Math.round(totalMemGB), speed: 0, type: 'Unknown', channels: 0 },
+      storage: { type: 'Unknown', readSpeed: 0, writeSpeed: 0, totalSpace: 0, availableSpace: 0 },
+      os: {
+        name: os.type(),
+        version: os.release(),
+        architecture: this.mapArch(os.arch())
+      }
+    };
+  }
+
+  private mapArch(arch: string): 'x64' | 'x86' | 'arm64' | 'Unknown' {
+    if (arch === 'x64' || arch === 'arm64') return arch;
+    if (arch === 'ia32') return 'x86';
+    return 'Unknown';
   }
 
   private async discoverAssets(): Promise<void> {
@@ -494,74 +573,4 @@ export class MiningPipelineOrchestrator {
     }
   }
 
-  private generateMockPerformanceMetrics(): PerformanceMetric[] {
-    const mockHardwareProfile: HardwareProfile = {
-      cpu: {
-        model: 'Intel Core i7-8700K',
-        cores: 6,
-        threads: 12,
-        baseClock: 3.7,
-        boostClock: 4.7,
-        cache: 12
-      },
-      gpu: {
-        model: 'NVIDIA GeForce RTX 3080',
-        vram: 10,
-        driverVersion: '516.94',
-        dxVersion: '12.1',
-        rayTracing: true
-      },
-      ram: {
-        total: 32,
-        speed: 3200,
-        type: 'DDR4',
-        channels: 2
-      },
-      storage: {
-        type: 'SSD',
-        totalSpace: 1000,
-        availableSpace: 800,
-        readSpeed: 3500,
-        writeSpeed: 3000
-      },
-      os: {
-        name: 'Windows 11',
-        version: '21H2',
-        architecture: 'x64'
-      }
-    };
-
-    return [
-      {
-        modCombination: [],
-        fps: 60,
-        memoryUsage: 2048,
-        loadTime: 15,
-        stabilityScore: 95,
-        conflictCount: 0,
-        timestamp: Date.now() - 86400000, // 1 day ago
-        hardwareProfile: mockHardwareProfile
-      },
-      {
-        modCombination: ['Unofficial Skyrim Special Edition Patch'],
-        fps: 58,
-        memoryUsage: 2150,
-        loadTime: 18,
-        stabilityScore: 92,
-        conflictCount: 1,
-        timestamp: Date.now() - 43200000, // 12 hours ago
-        hardwareProfile: mockHardwareProfile
-      },
-      {
-        modCombination: ['Unofficial Skyrim Special Edition Patch', 'SSE Engine Fixes'],
-        fps: 55,
-        memoryUsage: 2280,
-        loadTime: 22,
-        stabilityScore: 88,
-        conflictCount: 3,
-        timestamp: Date.now(),
-        hardwareProfile: mockHardwareProfile
-      }
-    ];
-  }
 }

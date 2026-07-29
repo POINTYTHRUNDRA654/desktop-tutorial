@@ -290,8 +290,19 @@ export const ComfyUIExtension: React.FC = () => {
 
   const openOutputFolder = async () => {
     const bridge: any = (window as any).electron?.api;
-    if (bridge?.assetScanner?.browseFolder) await bridge.assetScanner.browseFolder();
-    else setStatusMsg('Navigate to your ComfyUI output folder (default: ComfyUI/output).');
+    if (!installPath) {
+      setStatusMsg('Set your ComfyUI install path first — the output folder lives at <install>/output.');
+      return;
+    }
+    const sep = installPath.includes('/') ? '/' : '\\';
+    const outputDir = installPath.replace(/[/\\]+$/, '') + sep + 'output';
+    if (bridge?.revealInFolder) {
+      const res = await bridge.revealInFolder(outputDir).catch(() => null);
+      if (res?.success === false) setStatusMsg(res.error || `Could not open ${outputDir}`);
+      else setStatusMsg(`Opened output folder: ${outputDir}`);
+    } else {
+      setStatusMsg(`ComfyUI output folder: ${outputDir}`);
+    }
   };
 
   const exportJobs = async () => {
@@ -331,12 +342,8 @@ export const ComfyUIExtension: React.FC = () => {
 
   const browseInstallPath = async () => {
     const bridge: any = (window as any).electron?.api;
-    if (bridge?.browseDirectory) {
-      const picked = await bridge.browseDirectory().catch(() => null);
-      if (picked) { setPathInput(picked); }
-    } else if (bridge?.assetScanner?.browseFolder) {
-      await bridge.assetScanner.browseFolder();
-    }
+    const picked = await bridge?.pickDirectory?.('Select your ComfyUI install folder').catch(() => null);
+    if (picked) { setPathInput(picked); }
   };
 
   const saveInstallPath = async () => {

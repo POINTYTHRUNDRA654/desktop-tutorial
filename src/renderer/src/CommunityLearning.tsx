@@ -27,6 +27,7 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
   const [notes, setNotes] = useState('');
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<string>('');
+  const [repoInput, setRepoInput] = useState('');
 
   useEffect(() => {
     const init = async () => {
@@ -87,6 +88,18 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
     }
     saveCommunityLearningProfile(draftProfile);
     setStatus('Saved locally.');
+  };
+
+  const saveCommunityRepo = async () => {
+    const trimmed = repoInput.trim();
+    if (!trimmed) return;
+    try {
+      await (window.electronAPI as any)?.setSettings?.({ communityRepo: trimmed });
+      setSettings((prev) => (prev ? { ...prev, communityRepo: trimmed } as any : prev));
+      setStatus('Community repo saved.');
+    } catch (err: any) {
+      setStatus(`Failed to save repo: ${err?.message || err}`);
+    }
   };
 
   const openGithubIssue = async () => {
@@ -229,6 +242,24 @@ const CommunityLearning: React.FC<CommunityLearningProps> = ({ embedded = false 
               <p className="text-xs text-slate-500 mt-1">
                 Repo target: <span className="text-slate-300 font-mono">{repo || '(not configured)'}</span>
               </p>
+              {!(settings as any)?.communityRepo && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={repoInput}
+                    onChange={(e) => setRepoInput(e.target.value)}
+                    placeholder="owner/repo"
+                    className="flex-1 min-w-0 px-2 py-1 bg-slate-800 border border-slate-700 rounded text-xs text-slate-100"
+                  />
+                  <button
+                    onClick={saveCommunityRepo}
+                    disabled={!repoInput.trim()}
+                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-xs text-white rounded"
+                  >
+                    Save Repo
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

@@ -19,14 +19,16 @@ Outputs:
   H:\\Mossy Memory\\knowledge-vault.json  — vault entries for perk chains, scripts, recipes
 """
 
-import json, struct, sys, time, zlib, random, string as _string
+import json, os, struct, sys, time, zlib, random, string as _string
 from pathlib import Path
 from collections import defaultdict
 
 # ---------------------------------------------------------------------------
-# Config — same paths as fo4_strings_scan.py
+# Config — same paths as fo4_strings_scan.py. Both overridable by the Electron
+# app via env vars (it resolves the real install location dynamically);
+# hardcoded values are only the fallback for manual/terminal use.
 # ---------------------------------------------------------------------------
-FO4_DATA     = Path(r"E:\Steam\steamapps\common\Fallout 4\Data")
+FO4_DATA     = Path(os.environ.get("MOSSY_FO4_DATA") or r"E:\Steam\steamapps\common\Fallout 4\Data")
 MAIN_ESM     = FO4_DATA / "Fallout4.esm"
 DLC_MAINS    = [
     FO4_DATA / "DLCRobot.esm",
@@ -37,9 +39,10 @@ DLC_MAINS    = [
     FO4_DATA / "DLCworkshop03.esm",
 ]
 
-STRINGS_JSON = Path(r"H:\Mossy Memory\fo4_world_strings.json")
-GRAPH_OUT    = Path(r"H:\Mossy Memory\fo4_form_graph.json")
-VAULT_PATH   = Path(r"H:\Mossy Memory\knowledge-vault.json")
+_OUT_DIR     = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+STRINGS_JSON = _OUT_DIR / "fo4_world_strings.json"
+GRAPH_OUT    = _OUT_DIR / "fo4_form_graph.json"
+VAULT_PATH   = _OUT_DIR / "knowledge-vault.json"
 
 COMPRESSED_FLAG = 0x00040000
 

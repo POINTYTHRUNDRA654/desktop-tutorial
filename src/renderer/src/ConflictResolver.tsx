@@ -67,7 +67,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
     }
     try {
       setStatus('Scanning conflicts...');
-      const result = await api.conflictAnalyze(plugins);
+      const result = await api.conflictAnalyze(plugins, scanDepth);
       setAnalysis(result);
       setResolved(null);
       setPatch(null);
@@ -83,6 +83,28 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
     try {
       const result = await api.conflictApplyRules(analysis.conflicts, rules);
       setResolved(result);
+    } catch (err: any) {
+      setError(String(err?.message || err));
+    }
+  };
+
+  const handleExportReport = async () => {
+    setError('');
+    if (!analysis) { setError('Run a scan before exporting a report.'); return; }
+    if (!api?.saveFile) { setError('File export is not available in this build.'); return; }
+    try {
+      const report = {
+        generatedAt: new Date().toISOString(),
+        plugins,
+        scanDepth,
+        totalConflicts: analysis.totalConflicts,
+        criticalConflicts: analysis.criticalConflicts,
+        summary: analysis.summary,
+        recommendations: analysis.recommendations,
+        conflicts: analysis.conflicts ?? [],
+      };
+      const saved = await api.saveFile(JSON.stringify(report, null, 2), 'conflict-report.json');
+      setStatus(saved ? `Report saved to ${saved}` : 'Export cancelled.');
     } catch (err: any) {
       setError(String(err?.message || err));
     }
@@ -164,7 +186,7 @@ const ConflictResolver: React.FC<ConflictResolverProps> = ({ embedded = false })
               <button className="w-full px-3 py-2 rounded-md bg-emerald-600/80 hover:bg-emerald-600" onClick={handleScan}>
                 Scan Conflicts
               </button>
-              <button className="w-full px-3 py-2 rounded-md bg-slate-700/80 hover:bg-slate-700 flex items-center justify-center gap-2">
+              <button className="w-full px-3 py-2 rounded-md bg-slate-700/80 hover:bg-slate-700 flex items-center justify-center gap-2" onClick={handleExportReport}>
                 <FileDown className="w-4 h-4" /> Export Conflict Report
               </button>
             </div>

@@ -213,9 +213,11 @@ const ModBrowser: React.FC = () => {
   const endorse = async (id: string) => {
     try {
       await bridge?.modBrowser?.endorseMod(id);
+      toast.success('Endorsed on Nexus Mods.');
       doSearch();
     } catch (err) {
       console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to endorse mod');
     }
   };
 

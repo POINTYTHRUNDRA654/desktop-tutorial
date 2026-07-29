@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getRealHardwareProfile, getRealtimeSystemMetrics } from './hardwareProfiler';
 import {
   PerformanceBottleneckEngine,
   MiningStatus,
@@ -35,6 +36,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   private monitoringTimer?: NodeJS.Timeout;
   private performanceHistory: PerformanceMetric[] = [];
   private bottleneckPatterns: BottleneckPattern[] = [];
+  private changePredictionHistory: PerformancePrediction[] = [];
   private systemProfiler: SystemProfiler;
 
   constructor(config: PerformanceBottleneckConfig) {
@@ -203,14 +205,19 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   }
 
   async monitorRealTimePerformance(): Promise<RealtimeMetrics> {
+    // No live FO4 process telemetry hook exists, so FPS falls back to the average of
+    // the most recent recorded sessions rather than a fabricated constant.
+    const recentFpsSamples = this.performanceHistory.slice(-5).map(p => p.fps).filter((v): v is number => typeof v === 'number' && v > 0);
+    const recentFps = recentFpsSamples.length > 0 ? recentFpsSamples.reduce((a, b) => a + b, 0) / recentFpsSamples.length : 0;
+
     // Collect current system metrics
-    const currentMetrics = await this.systemProfiler.getRealtimeMetrics();
+    const currentMetrics = await this.systemProfiler.getRealtimeMetrics(recentFps);
 
     // Analyze for bottlenecks
     const bottleneckIndicators = this.analyzeRealtimeBottlenecks(currentMetrics);
 
     return {
-      currentFPS: currentMetrics.fps || 60,
+      currentFPS: currentMetrics.fps,
       memoryUsage: currentMetrics.memoryUsage || 0,
       cpuUsage: currentMetrics.cpuUsage || 0,
       gpuUsage: currentMetrics.gpuUsage || 0,
@@ -531,19 +538,36 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
     const riskLevel = Math.abs(predictedImpact.fps) > 10 ? 'high' :
       Math.abs(predictedImpact.fps) > 5 ? 'medium' : 'low';
 
-    return {
+    const prediction: PerformancePrediction = {
       modChange: change,
       predictedImpact,
       confidence,
       riskLevel: riskLevel as 'low' | 'medium' | 'high',
       recommendations: this.generateChangeRecommendations(change, predictedImpact)
     };
+
+    // Record this prediction so future predictions for the same mod/change
+    // type have real history to draw from instead of always starting cold.
+    this.changePredictionHistory.push(prediction);
+    if (this.changePredictionHistory.length > 200) {
+      this.changePredictionHistory = this.changePredictionHistory.slice(-200);
+    }
+
+    return prediction;
   }
 
   private findSimilarChanges(change: ModChange): PerformancePrediction[] {
-    // Find historical predictions for similar changes
-    // Placeholder implementation
-    return [];
+    // Real historical lookup: a "similar" change is a past recorded prediction
+    // for the exact same mod undergoing the same kind of operation (add/remove/
+    // update/reorder). Exact-mod matches are the most reliable signal we have;
+    // same-type-different-mod matches are included only as a weaker fallback
+    // when no exact-mod history exists yet.
+    const exactMod = this.changePredictionHistory.filter(p =>
+      p.modChange.modName === change.modName && p.modChange.type === change.type
+    );
+    if (exactMod.length > 0) return exactMod;
+
+    return this.changePredictionHistory.filter(p => p.modChange.type === change.type);
   }
 
   private generateChangeRecommendations(change: ModChange, impact: any): string[] {
@@ -596,11 +620,28 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
   }
 
   private analyzeTrends(): any {
-    // Analyze performance trends over time
+    const recent = this.performanceHistory.slice(-30);
+    if (recent.length < 2) {
+      return { fpsTrend: 'stable', memoryTrend: 'stable', loadTimeTrend: 'stable' };
+    }
+
+    const trendOf = (values: number[]): 'increasing' | 'decreasing' | 'stable' => {
+      const n = values.length;
+      const sumX = values.reduce((s, _, i) => s + i, 0);
+      const sumY = values.reduce((s, v) => s + v, 0);
+      const sumXY = values.reduce((s, v, i) => s + v * i, 0);
+      const sumXX = values.reduce((s, _, i) => s + i * i, 0);
+      const denom = n * sumXX - sumX * sumX;
+      const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+      return slope > 0.1 ? 'increasing' : slope < -0.1 ? 'decreasing' : 'stable';
+    };
+
+    const fpsNumber = (fps: PerformanceMetric['fps']): number => typeof fps === 'number' ? fps : (fps?.average ?? 0);
+
     return {
-      fpsTrend: 'stable',
-      memoryTrend: 'increasing',
-      loadTimeTrend: 'stable'
+      fpsTrend: trendOf(recent.map(r => fpsNumber(r.fps))),
+      memoryTrend: trendOf(recent.map(r => r.memoryUsage || 0)),
+      loadTimeTrend: trendOf(recent.map(r => r.loadTime || 0))
     };
   }
 
@@ -638,13 +679,14 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
           });
         }
 
-        // Store metrics for historical analysis
+        // Store metrics for historical analysis. Stability is derived from how many
+        // real bottleneck indicators fired this tick, not assumed.
         this.performanceHistory.push({
           modCombination: [],
           fps: metrics.currentFPS,
           memoryUsage: metrics.memoryUsage,
           loadTime: 0, // Not available in realtime
-          stabilityScore: 100, // Assume stable
+          stabilityScore: Math.max(0, 100 - metrics.bottleneckIndicators.filter(b => b.isBottleneck).length * 15),
           conflictCount: 0,
           timestamp: Date.now(),
           hardwareProfile: await this.systemProfiler.getCurrentProfile()
@@ -666,6 +708,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
       const data = JSON.parse(fs.readFileSync(this.config.historicalDataPath, 'utf8'));
       this.performanceHistory = data.history || [];
       this.bottleneckPatterns = data.patterns || [];
+      this.changePredictionHistory = data.changePredictions || [];
     }
   }
 
@@ -674,6 +717,7 @@ export class PerformanceBottleneckDetectionEngine extends EventEmitter implement
       const data = {
         history: this.performanceHistory.slice(-500), // Keep last 500 entries
         patterns: this.bottleneckPatterns,
+        changePredictions: this.changePredictionHistory.slice(-200),
         lastSaved: Date.now()
       };
       fs.writeFileSync(this.config.historicalDataPath, JSON.stringify(data, null, 2));
@@ -711,51 +755,21 @@ interface BottleneckPattern {
 
 class SystemProfiler {
   async getCurrentProfile(): Promise<HardwareProfile> {
-    // Placeholder - would use system information libraries
-    return {
-      cpu: {
-        model: 'Unknown CPU',
-        cores: 4,
-        threads: 8,
-        baseClock: 3.0,
-        boostClock: 4.0,
-        cache: 8
-      },
-      gpu: {
-        model: 'Unknown GPU',
-        vram: 4,
-        driverVersion: 'Unknown',
-        dxVersion: '11',
-        rayTracing: false
-      },
-      ram: {
-        total: 16,
-        speed: 3200,
-        type: 'DDR4',
-        channels: 2
-      },
-      storage: {
-        type: 'SSD',
-        readSpeed: 500,
-        writeSpeed: 400,
-        totalSpace: 1000,
-        availableSpace: 500
-      },
-      os: {
-        name: 'Windows',
-        version: '11',
-        architecture: 'x64'
-      }
-    };
+    return getRealHardwareProfile();
   }
 
-  async getRealtimeMetrics(): Promise<any> {
-    // Placeholder - would collect actual system metrics
+  /**
+   * Real live CPU/memory/GPU utilization. FPS has no live in-game telemetry hook, so
+   * the caller supplies the most recent recorded session average (0 if none yet)
+   * rather than this class fabricating a number.
+   */
+  async getRealtimeMetrics(recentFps: number = 0): Promise<any> {
+    const { cpuUsagePercent, memoryUsagePercent, gpuUsagePercent } = await getRealtimeSystemMetrics();
     return {
-      fps: 60,
-      memoryUsage: 8192, // MB
-      cpuUsage: 45,
-      gpuUsage: 60,
+      fps: recentFps,
+      memoryUsage: memoryUsagePercent,
+      cpuUsage: cpuUsagePercent,
+      gpuUsage: gpuUsagePercent,
       timestamp: Date.now()
     };
   }

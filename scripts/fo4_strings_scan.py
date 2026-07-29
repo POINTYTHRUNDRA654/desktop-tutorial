@@ -26,11 +26,15 @@ from pathlib import Path
 # Config
 # ---------------------------------------------------------------------------
 
-FO4_DATA      = Path(r"E:\Steam\steamapps\common\Fallout 4\Data")
+# Both can be overridden by the Electron app (which resolves the real install
+# location dynamically at runtime) via env vars; hardcoded values are only the
+# fallback for manual/terminal use.
+FO4_DATA      = Path(os.environ.get("MOSSY_FO4_DATA") or r"E:\Steam\steamapps\common\Fallout 4\Data")
 INTERFACE_BA2 = FO4_DATA / "Fallout4 - Interface.ba2"
 MAIN_ESM      = FO4_DATA / "Fallout4.esm"
-DEFAULT_OUT   = Path(r"H:\Mossy Memory\fo4_world_strings.json")
-VAULT_PATH    = Path(r"H:\Mossy Memory\knowledge-vault.json")
+_OUT_DIR      = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+DEFAULT_OUT   = _OUT_DIR / "fo4_world_strings.json"
+VAULT_PATH    = _OUT_DIR / "knowledge-vault.json"
 
 DLC_MAINS = [
     FO4_DATA / "DLCRobot.esm",        # Automatron
@@ -100,8 +104,20 @@ RECORD_CATEGORIES = {
     "STAT": "statics",
     # Audio / weather
     "SNDR": "sound_descriptors",
+    "SOUN": "legacy_sounds",
     "MUSC": "music_types",
     "WTHR": "weather_types",
+    "ASPC": "acoustic_spaces",
+    "CLMT": "climates",
+    # Dialogue response text (distinct from DIAL topic names above)
+    "INFO": "dialogue_responses",
+    # Environment / terrain
+    "LTEX": "landscape_textures",
+    "WATR": "water_types",
+    "MATT": "impact_materials",
+    # Visual effects / precombine
+    "EFSH": "effect_shaders",
+    "SCOL": "static_collections",
     # Weapon/armor modifications (paint jobs, barrel mods, etc.)
     "OMOD": "object_mods",
     # Actor values — what perk entry points actually modify (SPECIAL, skills, resistances)
@@ -335,6 +351,36 @@ def parse_esm(esm_path: Path, string_lookup: dict[int, str],
                 name = _resolve_full(subs[b"FULL"], string_lookup) if b"FULL" in subs else None
                 edid = _resolve_edid(subs[b"EDID"])                if b"EDID" in subs else None
 
+                # INFO (dialogue response) records have no FULL/EDID — the actual
+                # response line is a localized NAM1 subrecord, resolved through the
+                # same string_lookup used for FULL (verified against xEdit's
+                # wbLStringKC(NAM1, 'Response Text', ...) definition).
+                if rec_type == "INFO" and b"NAM1" in subs:
+                    name = _resolve_full(subs[b"NAM1"], string_lookup) or name
+
+                # GMST (game setting) records store the real gameplay-tuning value
+                # in DATA, typed by the EDID's first letter — verified against
+                # xEdit's wbGMSTUnionDecider: s=localized string, i=int32,
+                # f=float, b=bool(uint32). This is what actually drives things
+                # like XP curves, carry weight, and damage formulas.
+                if rec_type == "GMST" and edid and b"DATA" in subs:
+                    gdata = subs[b"DATA"]
+                    prefix = edid[0] if edid else ""
+                    value = None
+                    try:
+                        if prefix == "f" and len(gdata) >= 4:
+                            value = round(struct.unpack_from("<f", gdata, 0)[0], 6)
+                        elif prefix == "i" and len(gdata) >= 4:
+                            value = struct.unpack_from("<i", gdata, 0)[0]
+                        elif prefix == "b" and len(gdata) >= 4:
+                            value = bool(struct.unpack_from("<I", gdata, 0)[0])
+                        elif prefix == "s":
+                            value = _resolve_full(gdata, string_lookup)
+                    except struct.error:
+                        value = None
+                    if value is not None:
+                        name = f"{edid} = {value}"
+
                 # For CELL records also capture exterior grid position
                 grid_x = grid_y = None
                 if rec_type == "CELL" and b"XCLC" in subs:
@@ -420,6 +466,12 @@ def _build_cd_context(final: dict[str, list[dict]]) -> str:
         ("chems",          "CHEMS (sample)"),
         ("books_and_notes","BOOKS & NOTES (sample)"),
         ("keywords",       "KEYWORDS (sample)"),
+        ("dialogue_responses", "DIALOGUE RESPONSE LINES (sample — real NPC voice/tone reference)"),
+        ("water_types",    "WATER TYPES"),
+        ("climates",       "CLIMATES"),
+        ("effect_shaders", "EFFECT SHADERS (sample)"),
+        ("landscape_textures", "LANDSCAPE TEXTURES (sample)"),
+        ("game_settings", "GAME SETTINGS (real tuning values — XP, damage, carry weight, etc.)"),
     ]
     for cat, label in priority:
         entries = final.get(cat, [])
@@ -428,7 +480,7 @@ def _build_cd_context(final: dict[str, list[dict]]) -> str:
         names = [e["name"] for e in entries if "name" in e]
         if not names:
             names = [e["edid"] for e in entries if "edid" in e]
-        cap = 60 if cat == "npcs" else 150 if cat in ("cells", "locations") else 80
+        cap = 60 if cat in ("npcs", "dialogue_responses") else 150 if cat in ("cells", "locations") else 80
         if len(names) > cap:
             names = names[:cap]
         lines.append(f"{label}:")

@@ -300,7 +300,7 @@ export class EnhancedLLMService {
   async generateResponse(messages: LLMMessage[], config: LLMConfig): Promise<string> {
     try {
       if (config.provider === 'groq' && this.groqClient) {
-        const model = config.model || 'llama-3.3-70b-versatile';
+        const model = config.model || 'openai/gpt-oss-120b';
         const completion = await this.groqClient.chat.completions.create({
           model,
           messages,

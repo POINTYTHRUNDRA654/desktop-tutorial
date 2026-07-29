@@ -106,36 +106,39 @@ export class UnusedAssetDetector {
   }
 
   /**
-   * Extract asset references from ESP file
+   * Extract asset references from ESP file.
+   *
+   * FO4/Skyrim-family records store asset paths (MODL model paths, ICON/MICO
+   * icon paths, texture-set fields, sound descriptor paths, etc.) as plain
+   * null-terminated ASCII strings inside the record's raw subrecord data.
+   * Scanning that raw field data for path-shaped strings picks up every real
+   * reference actually present in the parsed plugin, without needing a full
+   * per-subrecord-type binary schema.
    */
-  private static extractAssetReferences(espPath: string, esp: ESPFile): string[] {
-    const references: string[] = [];
+  private static extractAssetReferences(_espPath: string, esp: ESPFile): string[] {
+    const references = new Set<string>();
+    const pathPattern = /[\w\-. /\\]+\.(nif|dds|hkx|wav|xwm|txt|xml)/gi;
 
-    // This is a simplified extraction - real implementation would parse ESP structure
-    // ESP files contain references to meshes, textures, sounds, etc.
+    const scanFields = (fields: { data?: Buffer }[] | undefined) => {
+      for (const field of fields || []) {
+        if (!field?.data || field.data.length === 0) continue;
+        const text = Buffer.from(field.data).toString('latin1');
+        let match: RegExpExecArray | null;
+        pathPattern.lastIndex = 0;
+        while ((match = pathPattern.exec(text)) !== null) {
+          references.add(match[0].toLowerCase().replace(/\\/g, '/').trim());
+        }
+      }
+    };
 
-    // Mock extraction based on common patterns
-    // Real implementation would parse the actual ESP record structures
-
-    // For demonstration, we'll create some mock references
-    // In a real implementation, this would parse the ESP binary format
-    const mockReferences = [
-      'meshes/weapons/pistol.nif',
-      'textures/weapons/pistol_d.dds',
-      'sound/fx/weapon/pistol.wav',
-      'meshes/armor/combat.nif',
-      'textures/armor/combat_d.dds'
-    ];
-
-    // Filter mock references based on ESP filename to simulate different mods
-    const espName = path.basename(espPath, '.esp').toLowerCase();
-    if (espName.includes('weapon')) {
-      references.push(...mockReferences.filter(ref => ref.includes('weapon')));
-    } else if (espName.includes('armor')) {
-      references.push(...mockReferences.filter(ref => ref.includes('armor')));
+    for (const record of esp.records) {
+      scanFields(record.fields);
+      for (const sub of record.subrecords || []) {
+        scanFields(sub.fields);
+      }
     }
 
-    return references;
+    return Array.from(references);
   }
 
   /**

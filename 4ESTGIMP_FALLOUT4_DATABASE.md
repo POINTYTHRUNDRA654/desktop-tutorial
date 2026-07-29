@@ -1,26 +1,19 @@
-# 4estGimp's Fallout 4 Patch & Modding Database
+# 4estGimp's Fallout 4 Personal Load Order & Patch Reference
 
-**Creator:** 4estGimp  
-**Nexus Mods Profile:** https://www.nexusmods.com/fallout4/users/30343500  
-**Resource Type:** Community Patch Database & Modding Reference  
-**Format:** Zoho Sheet (Community-Shared) + Donated PDF Files  
-**Access:** [4estGimp's Fallout 4 Database](https://sheet.zoho.com/sheet/open/4gagib312c97873654347b49206d40f80afce)  
-**Focus:** Fallout 4 patches, mod compatibility, and conflict resolution data  
-**Attribution:** All content courtesy of 4estGimp (Community Author & Patch Creator)  
-**Support:** Tortured Minds Discord (4estGimp's primary support hub)  
-**MRC Index:** https://resourcecatalogue.co.uk/4estgimp-user-files
+**Creator:** 4estGimp
+**Nexus Mods Profile:** <https://www.nexusmods.com/fallout4/users/30343500>
+**Resource Type:** Personal Mod Organizer 2 (MO2) load-order spreadsheet, donated as a PDF export
+**Format:** 400-page image export (each page a screenshot of one section — not extractable text)
+**Verification:** Confirmed by direct review of the actual page images, not assumed from a description
+**Attribution:** All content courtesy of 4estGimp (Community Author & Patch Creator)
 
 ---
 
-## ✅ Donated Files — Absorbed Into Mossy's Brain
+## ✅ Donated File — Absorbed Into Mossy's Brain
 
-4estGimp personally donated the following files to Mossy's knowledge base:
-
-| File | Contents | Status |
-|------|----------|--------|
-| `4estGimp frist 400 sheets.pdf` | First 400 entries from the patch database — armor, weapons, settlements, NPCs, crafting, and load order data | ✅ Absorbed |
-
-These files have been fully processed and absorbed into Mossy's Memory Vault as a bundled knowledge pack. Mossy will automatically reference 4estGimp's patch knowledge when answering compatibility questions.
+|File|Contents|Status|
+|-|-|-|
+|`4estGimp frist 400 sheets.pdf`|4estGimp's real, personal MO2 load order — categorized mod list covering baseline cleaning, UI, quests, weapons, armor, power armor, factions, settlements, audio, and visuals, each entry paired with 4estGimp's own real compatibility patches where applicable|✅ Verified & absorbed|
 
 **See also:** [4estGimp Donated PDF Files — Full Detail](./4ESTGIMP_DONATED_PDF_FILES.md)
 
@@ -28,261 +21,86 @@ These files have been fully processed and absorbed into Mossy's Memory Vault as 
 
 ## About 4estGimp
 
-**4estGimp** is one of the most prolific Fallout 4 patch and compatibility authors on Nexus Mods. With over **100+ patches, tweaks, updates, and fixes**, their work is essential for anyone running a large or complex mod list. 4estGimp has personally donated their comprehensive patch and modding database to Mossy's knowledge system as a **gift to the community**.
-
-Key highlights:
-- Creates compatibility patches that bridge gaps between major mod projects
-- Patches cover armors, weapons, factions, locations, gameplay systems, and more
-- Known mods include patches for **Raider Overhaul**, **ECO (Equipment and Crafting Overhaul)**, **Munitions**, **Diamond City Outskirts**, **The Fens Empire**, and dozens more
-- Community-trusted for greatly simplifying complicated load orders
-- Maintains an active presence on the Tortured Minds Discord for support and custom patch requests
-- Full catalogue browsable on the Modding Resource Catalogue (MRC) under "4estGimp User Files", sortable by category
+**4estGimp** is a Fallout 4 patch and compatibility author on Nexus Mods. This donation demonstrates real, hands-on patch-authoring work across weapons, power armor, and armor mods — specifically ESL-compaction and Complex Item Sorter (Complex Sorter) integration, applied consistently across dozens of popular third-party mods.
 
 ---
 
-## What's Included in the Database
+## Real Patch-Authoring Pattern (The Key Teaching Value)
 
-4estGimp's Zoho Sheet database contains:
+Confirmed by repetition across dozens of real rows in the donated spreadsheet: for nearly every popular mod 4estGimp uses, they maintain **their own pair of compatibility files**:
 
-### Patch Information
-- Detailed patch records for Fallout 4 mods
-- Conflict resolution data for known mod combinations
-- Load order recommendations
-- Compatibility notes and testing results
+1. An **ESL-compacted / cleaned "Edit" or "Compacted"** version of the mod's plugin.
+2. A **"CIS INNR ini"** file — a Complex Item Sorter injector-ini patch hooking the mod's new items into 4estGimp's own crafting/inventory sort categories.
 
-### Mod References
-- Fallout 4 mod compatibility charts
-- Mod interaction data
-- Author information
-- Mod features and functionality notes
+### Real examples confirmed by direct image review
 
-### Coverage by Category
-- **Armors & Clothing** – Patches for armor mods to resolve mesh, material, and keyword conflicts
-- **Weapons** – Compatibility patches including Munitions integration and keyword fixes
-- **Locations & Settlements** – Patches for cell and precombine conflicts (e.g., Diamond City Outskirts, The Fens Empire)
-- **Factions & NPCs** – Raider Overhaul and NPC overhaul patches
-- **Crafting & Economy** – ECO (Equipment and Crafting Overhaul) compatibility fixes
-- **Gameplay Systems** – General bug fixes and feature integration patches
+**Power Armor** (the largest section, essentially full coverage of the popular PA mod ecosystem):
 
-### Community Data
-- Crowdsourced mod compatibility reports
-- User experiences and recommendations
-- Bug reports and solutions
-- Testing documentation
+- T-51C Power Armor → `4estGimp - T-51C Power Armor Compacted` + `4estGimp - T51C AirForce PA CIS INNR ini`
+- Vault Tec Power Armor (v1.1) → `4estGimp - Vault Tec Power Armor Compacted` + `4estGimp - Vault Tec PA CIS INNR ini`
+- Midwest Power Armor Evolution (v1.2) → `4estGimp - Midwest Power Armor Evolution Edit` + a BoS Knight Replacer edit + `Midwest PA Evolution CIS INNR ini`
+- Excavator Power Armor (v A-v3.3) → `4estGimp - Excavator Power Armor Compacted` + `CIS INNR ini`
+- Ultracite Power Armor (v1.3) → `4estGimp - Ultracite PA Crafting FIX - ESL` + `CIS INNR ini`
+- Red Shift PA, T65 Power Armor, HellCat Power Armor, Enclave Power Armor, Bastion - Soviet Power Armor, MidWest Power Armor Revolution — each with its own matching `CIS INNR ini` patch (all versioned 0.95)
+
+**Weapons** (built on AnotherOne's WWII/Soviet-era replacer mods):
+
+- AnotherOne Soviet Assault Pack → `4estGimp - A1 SovietAssaultPack Edit`
+- AnotherOne PPS-43 → `4estGimp - A1 PPS-43 Edit`
+- AnotherOne Suomi KP-31 → `4estGimp - Suomi KP-31 Edit` (v0.94)
+- AnotherOne PPSh-41 → `4estGimp - A1_PPSh-41 Edit`
+- AnotherOne Sten MkII Redux → `4estGimp - A1_Sten MkII Redux Edit`
+- V52 Assault Rifle / Vargo 52 → `4estGimp - Vargo52 Edit`
+- Wattz Laser Gun → `4estGimp - WattzLaserGun_ComplexSorter_ini` + a dedicated Power Armor footsteps fix
+
+**Armor** (the CROSS_ series):
+
+- CROSS Institute Tech Mask → `4estGimp - CROSS_TechMask_INNR_ini_CS1.9`
+- CROSS_BrotherhoodRecon → `4estGimp - CROSS_BrotherhoodRecon_INNR_ini_CS1.9`
+- CROSS_VertibirdFlightsuit, CROSS_Chosen_Of_Atom, CROSS_Courser Strigidae, CROSS_InstituteExpeditionarySuit, CROSS_MojaveManhunter, TheKite's Handmaiden — each with its own matching `INNR_ini_CS1.9` patch
+
+### Why this matters for modders
+
+This is a real demonstration of how a prolific patch author scales compatibility maintenance: instead of writing a bespoke one-off fix per mod, 4estGimp applies a **repeatable per-mod template** (ESL-compact the plugin, then inject it into a shared sorter/category scheme). Anyone building FOMOD-based compatibility patches, or maintaining Complex Sorter categories across a personal mod collection, can follow the same repeatable-template approach rather than treating every patch as a one-off.
+
+Also notable: many entries appear in parallel **FOOG/FONG** pairs — Old-Gen and Next-Gen console-update variants maintained side by side, a real pattern worth knowing for anyone managing a modlist across the FO4 Next-Gen update split.
 
 ---
 
-## How to Access
+## Other Real Sections Confirmed
 
-👉 **[Open 4estGimp's Fallout 4 Database](https://sheet.zoho.com/sheet/open/4gagib312c97873654347b49206d40f80afce)**
-
-The sheet is publicly shared and regularly updated by 4estGimp and the community.
-
-For help with specific patches: join the **Tortured Minds Discord**.  
-For a full browsable catalogue: visit the **[MRC – 4estGimp User Files](https://resourcecatalogue.co.uk/4estgimp-user-files)**.
-
----
-
-## How to Use This Resource
-
-### For Patch Research
-1. Search the sheet for specific mods
-2. Check compatibility columns
-3. Review patch notes and solutions
-4. Reference load order recommendations
-
-### For Compatibility Checking
-1. Look up mods in your load order
-2. Check for known conflicts
-3. Find existing patches
-4. Review user experiences
-
-### For Modding Planning
-1. Use as a reference during mod organization
-2. Check load order best practices
-3. Research conflict resolutions
-4. Plan patch creation if needed
+- **Baseline/Work** — cleaned ESM masters, Unofficial Fallout 4 Patch (+ GOG variant, + Vish's UFO4P Patches), SavrenX HD performance texture BA2 sets
+- **UI** — HUDFramework, the FallUI suite, Perchik71's In-Game Mod Explorer, Complex Item Sorter enhancements, Immersive HUD
+- **Quests** — The Fens Sheriff's Department (with its own patch family), Tales from the Commonwealth, Subversion, Main Quest Choices Extended
+- **Factions/NPCs** — Militarized Minutemen, Synth Overhaul, Railroad Expansion
+- **Settlements** — Better Settlers, Uncapped Settlement Surplus, Transfer Settlements (FOOG/FONG), CWSS Redux, Better Stores/Vendor Stalls, Manufacturing Extended
+- **Audio/Visuals** — a large merged music section, plus True Storms, Darker Nights, Clarity, WET
 
 ---
 
 ## Credit & Attribution
 
-This resource is a **personal donation from 4estGimp** to the Mossy community to help modders organize and understand Fallout 4 mod compatibility.
+This resource is a **personal donation from 4estGimp** to the Mossy community — their own real, working load order, shared as a reference and verified by direct review.
 
 **Show Your Appreciation:**
+
 - Check out 4estGimp's mods and patches on [Nexus Mods](https://www.nexusmods.com/fallout4/users/30343500)
-- Download and use their patches
-- Leave kudos and endorsements on their mod pages
-- Join the [Tortured Minds Discord](https://discord.gg) for support and to thank them directly
-- Support patch creators who contribute to the community
-
----
-
-## Integration Notes for Mossy
-
-- **Reference:** Mossy references 4estGimp's database when answering load order and patch compatibility questions
-- **Community Contribution:** This database represents years of community testing and mod compatibility work
-- **Regularly Updated:** 4estGimp maintains and updates this database based on community feedback
-- **Free Access:** The sheet is publicly shared with no subscription or authentication required
-- **Reliability:** Data comes from a trusted, highly active mod author with extensive Fallout 4 modding experience
-- **Gift to Mossy:** 4estGimp explicitly donated this resource as a gift to Mossy and its users
+- Download and use their patches, leave kudos and endorsements
 
 ---
 
 ## Related Resources in Mossy
 
+- [4estGimp Donated PDF Files — Full Detail](./4ESTGIMP_DONATED_PDF_FILES.md)
 - [Creation Kit Resources Index](./CREATION_KIT_RESOURCES_INDEX.md)
-- [Sheldon Seddon's CK Knowledge](./SHELDON_SEDDON_CK_KNOWLEDGE.md)
-- [Darkfox127's CK Tutorials](./DARKFOX127_CK_TUTORIALS.md)
 - [XEDIT Comprehensive Guide](./XEDIT_COMPREHENSIVE_GUIDE.md)
-- [Fallout 4 Modding Guide](./FALLOUT4_MODDING_GUIDE.md)
 - [Fallout 4 Merging Guide](./FALLOUT4_MERGING_GUIDE.md)
+- [Load Order Best Practices](./FALLOUT4_MODDING_GUIDE.md)
 
 ---
 
-## What Makes This Resource Valuable
+**Last Updated:** July 2026
+**Credit:** 4estGimp (Mod Author & Patch Creator)
+**Nexus Mods:** <https://www.nexusmods.com/fallout4/users/30343500>
 
-- **Expert Knowledge:** Created by one of Fallout 4's most prolific patch authors
-- **Scale:** 100+ patches covering virtually every major mod category
-- **Community Feedback:** Incorporates user reports and real-world testing
-- **Practical Application:** Directly applicable to mod organization and conflict resolution
-- **Active Maintenance:** Regularly updated with new mod releases and compatibility data
-- **Generously Shared:** Donated freely as a gift to help the Mossy community
-
----
-
-**Last Updated:** April 2026  
-**Credit:** 4estGimp (Mod Author & Patch Creator)  
-**Nexus Mods:** https://www.nexusmods.com/fallout4/users/30343500  
-**Database:** https://sheet.zoho.com/sheet/open/4gagib312c97873654347b49206d40f80afce  
-**MRC Catalogue:** https://resourcecatalogue.co.uk/4estgimp-user-files  
-
-**Thank you, 4estGimp, for generously sharing your knowledge and patch database with the Mossy community — this is a true gift!** 🙏🌿
-
-
----
-
-## About 4estGimp's Contribution
-
-**4estGimp** is one of the most prolific Fallout 4 patch and compatibility authors on Nexus Mods, with over 100+ patches covering armors, weapons, factions, locations, and gameplay systems. They have personally donated their comprehensive patch and modding database to Mossy's knowledge system. This resource represents years of community testing and mod compatibility work for Fallout 4.
-
-Notable patches include compatibility fixes for **Raider Overhaul**, **ECO (Equipment and Crafting Overhaul)**, **Munitions**, **Diamond City Outskirts**, **The Fens Empire**, and many more. 4estGimp's work is trusted throughout the Fallout 4 modding community for simplifying complex load orders.
-
----
-
-## What's Included
-
-4estGimp's Zoho Sheet database contains:
-
-### Patch Information
-- Detailed patch records for Fallout 4 mods
-- Conflict resolution data
-- Load order recommendations
-- Compatibility notes
-
-### Mod References
-- Fallout 4 mod compatibility charts
-- Mod interaction data
-- Author information
-- Mod features and functionality
-
-### Modding Knowledge
-- Community-contributed modding tips
-- Best practices for load order organization
-- Conflict resolution strategies
-- Patch creation guidelines
-
-### Community Data
-- Crowdsourced mod compatibility reports
-- User experiences and recommendations
-- Bug reports and solutions
-- Testing documentation
-
----
-
-## How to Access
-
-👉 **[Open 4estGimp's Fallout 4 Database](https://sheet.zohopublic.com/sheet/open/4gagib312c97873654347b49206d40f80afce?sheetid=0&range=B1565)**
-
-The sheet is publicly shared and regularly updated by 4estGimp and the community.
-
----
-
-## How to Use This Resource
-
-### For Patch Research
-1. Search the sheet for specific mods
-2. Check compatibility columns
-3. Review patch notes and solutions
-4. Reference load order recommendations
-
-### For Compatibility Checking
-1. Look up mods in your load order
-2. Check for known conflicts
-3. Find existing patches
-4. Review user experiences
-
-### For Modding Planning
-1. Use as a reference during mod organization
-2. Check load order best practices
-3. Research conflict resolutions
-4. Plan patch creation if needed
-
----
-
-## Credit & Attribution
-
-This resource is a **personal donation from 4estGimp** to the Mossy community to help modders organize and understand Fallout 4 mod compatibility.
-
-**Show Your Appreciation:**
-- Check out 4estGimp's mods on Nexus Mods
-- Download and use their patches
-- Leave kudos and feedback on their mod pages
-- Support patch creators who contribute to the community
-
----
-
-## Integration Notes for Mossy Users
-
-- **Reference:** Mossy will reference 4estGimp's database when answering load order and patch compatibility questions
-- **Community Contribution:** This represents the collaborative spirit of the Fallout modding community
-- **Regularly Updated:** 4estGimp maintains and updates this database based on community feedback
-- **Free Access:** The sheet is publicly shared with no subscription or authentication required
-- **Reliability:** Data comes from a trusted mod author with extensive Fallout 4 modding experience
-
----
-
-## Related Resources in Mossy
-
-- [Creation Kit Resources Index](./CREATION_KIT_RESOURCES_INDEX.md)
-- [Sheldon Seddon's CK Knowledge](./SHELDON_SEDDON_CK_KNOWLEDGE.md)
-- [Darkfox127's CK Tutorials](./DARKFOX127_CK_TUTORIALS.md)
-- [XEDIT Comprehensive Guide](./XEDIT_COMPREHENSIVE_GUIDE.md)
-- [Conflict Resolution & Load Order Guide](./RESOLVING_MOD_CONFLICTS_GUIDE.md)
-
----
-
-## What Makes This Resource Valuable
-
-- **Expert Knowledge:** Created by an experienced mod author with deep Fallout 4 understanding
-- **Community Feedback:** Incorporates user reports and experiences
-- **Practical Application:** Directly applicable to mod organization and conflict resolution
-- **Active Maintenance:** Regularly updated with new mod releases and compatibility data
-- **Generously Shared:** Donated freely to help the community
-
----
-
-## Contact & Support
-
-For questions about specific patches or mods in 4estGimp's database:
-- Visit their mod pages on Nexus Mods
-- Check the sheet comments and notes
-- Review community discussions on mod pages
-
----
-
-**Last Updated:** March 2026  
-**Credit:** 4estGimp (Mod Author & Patch Creator)  
-**Database:** https://sheet.zohopublic.com/sheet/open/4gagib312c97873654347b49206d40f80afce?sheetid=0&range=B1565  
-
-**Thank you, 4estGimp, for generously sharing your knowledge and patch database with the Mossy community!** 🙏
+**Thank you, 4estGimp, for sharing your real load order and patch work with the Mossy community!**

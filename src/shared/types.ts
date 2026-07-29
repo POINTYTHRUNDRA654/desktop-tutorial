@@ -520,6 +520,7 @@ export interface Settings {
   localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
   ollamaBaseUrl?: string;
   ollamaModel?: string;
+  cdSpecialistOllamaModel?: string;
   openaiCompatBaseUrl?: string;
   openaiCompatModel?: string;
   cosmosBaseUrl?: string;
@@ -612,6 +613,8 @@ export interface Settings {
   communityContributorName?: string;
   communityContributorLink?: string;
   githubToken?: string; // encrypted in main process
+  /** When each API key field was last set (ms epoch) — backs "Enable API Key Rotation". */
+  apiKeySetAt?: Record<string, number>;
   listSyncEnabled?: boolean;
   listSyncRepo?: string;
   listSyncBranch?: string;
@@ -659,6 +662,13 @@ export interface Settings {
     encryptLocalData: boolean;
     autoLockAfterInactivity: boolean;
     inactivityTimeoutMinutes: number;
+    // Salted hash of the app-lock password (never the plaintext) — set via
+    // security:set-password, verified via security:verify-password. Never
+    // sent to the renderer (see redactSettingsForRenderer in main.ts), which
+    // instead sees the synthetic `hasSettingsPassword` boolean below.
+    settingsPasswordHash?: string;
+    settingsPasswordSalt?: string;
+    hasSettingsPassword?: boolean;
 
     // Mod Content Whitelist — protected mod names/IDs that Mossy will not reference, use as examples, or touch in any way
     modContentWhitelist: string[];
@@ -987,6 +997,7 @@ export const DEFAULT_SETTINGS: Settings = {
   localAiPreferredProvider: 'auto',
   ollamaBaseUrl: 'http://127.0.0.1:11434',
   ollamaModel: 'llama3',
+  cdSpecialistOllamaModel: 'qwen3.5:9b',
   openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
   openaiCompatModel: '',
   cosmosBaseUrl: '',
@@ -4340,6 +4351,7 @@ export interface ElectronAPI {
     mem: number;
     freeMemGB?: number;
     totalMemGB?: number;
+    gpu?: { available: boolean; utilizationPercent?: number; vramUsedGB?: number; vramTotalGB?: number; gpuCount?: number };
   }>;
   // Process metrics helper (exposed by preload)
   getProcessMetrics?: (pid: number) => Promise<{ cpu: number; memory: number; handles?: number }>;
@@ -4529,6 +4541,7 @@ export interface ElectronAPI {
   generateAOMap: (imageBase64: string) => Promise<string>;
   convertImageFormat: (sourceBase64: string, targetFormat: string, options: any) => Promise<string>;
   getImageInfo: (filePath: string) => Promise<{ width: number; height: number; format: string; colorSpace: string } | null>;
+  resizeImageTo?: (args: { inputPath: string; outputPath: string; width: number; height: number }) => Promise<{ ok: boolean; outputPath?: string; error?: string }>;
 
   // Asset Validation helpers
   assetValidateMod?: (modPath: string, depth?: 'quick' | 'standard' | 'deep', progressCallback?: (progress: number) => void) => Promise<{ success: boolean; issues?: any[]; error?: string }>;
@@ -4584,6 +4597,7 @@ export interface ElectronAPI {
   // Project Management
   listProjects: () => Promise<ModProject[]>;
   createProject: (project: Omit<ModProject, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ModProject>;
+  createDirectories?: (paths: string[]) => Promise<{ success: boolean; created?: number; error?: string }>;
   updateProject: (id: string, updates: Partial<ModProject>) => Promise<ModProject>;
   deleteProject: (id: string) => Promise<boolean>;
   switchProject: (id: string) => Promise<void>;
@@ -4865,6 +4879,29 @@ export interface ElectronAPI {
 
   /** Show a native confirm dialog — resolves true if user confirms, false/undefined otherwise */
   showConfirm?: (message: string, detail?: string) => Promise<boolean | undefined>;
+
+  // Phase 2 Mining Engines (Contextual, ML Conflict Prediction, Performance
+  // Bottleneck Detection, Hardware-Aware, Longitudinal) — used by Phase2MiningDashboard.tsx
+  phase2Mining?: {
+    getAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+    startEngine: (name: string) => Promise<{ success: boolean; data?: { isActive: boolean; status: any; results: any }; error?: string }>;
+    stopEngine: (name: string) => Promise<{ success: boolean; data?: { isActive: boolean; status: any; results: any }; error?: string }>;
+    startAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+    stopAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+  };
+
+  // ESP Mining API — FormID relationships, cell/worldspace conflicts, quest
+  // dependencies, backed by real ESP subrecord parsing (espRecordParser.ts).
+  espMining?: {
+    getLoadOrder: () => Promise<{ success: boolean; data?: Array<{ name: string; path: string }>; error?: string }>;
+    analyze: (pluginPaths: string[]) => Promise<{ success: boolean; data?: any; error?: string }>;
+  };
+
+  // Mossy Brain API — every active knowledge module (real game scans) as one
+  // text block, for any AI surface that wants Mossy's full scanned game knowledge.
+  brain?: {
+    getFullBrain: () => Promise<{ success: boolean; block?: string; neuronCount?: number; error?: string }>;
+  };
 }
 
 export interface VoiceChatPayload {
@@ -5723,7 +5760,7 @@ export interface RAMInfo {
 }
 
 export interface StorageInfo {
-  type: 'HDD' | 'SSD' | 'NVMe';
+  type: 'HDD' | 'SSD' | 'NVMe' | 'Unknown';
   readSpeed: number;
   writeSpeed: number;
   totalSpace: number;
@@ -5733,7 +5770,7 @@ export interface StorageInfo {
 export interface OSInfo {
   name: string;
   version: string;
-  architecture: 'x64' | 'x86' | 'arm64';
+  architecture: 'x64' | 'x86' | 'arm64' | 'Unknown';
   build?: string;
 }
 

@@ -206,15 +206,19 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
     const fetchTelemetry = async () => {
         if (window.electronAPI?.getPerformance) {
             const perf = await window.electronAPI.getPerformance();
+            const gpu = perf.gpu?.available ? perf.gpu : null;
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
-                    cpu: perf.cpu ?? Math.floor(Math.random() * 20) + 10,
-                    neural: perf.mem ?? Math.floor(Math.random() * 10) + 5,
+                    cpu: perf.cpu ?? 0,
+                    // "Neural Engine %" = real GPU compute utilization (nvidia-smi) —
+                    // this is what actually runs local LLM/image-gen inference.
+                    neural: gpu?.utilizationPercent ?? 0,
                     memory: (perf.totalMemGB != null && perf.freeMemGB != null)
                       ? perf.totalMemGB - perf.freeMemGB
-                      : Math.floor(Math.random() * 8) + 4,
-                    vram: Math.floor(Math.random() * 4) + 2,
+                      : 0,
+                    vram: gpu?.vramUsedGB ?? 0,
+                    gpuAvailable: !!gpu,
                 }].slice(-20);
                 return newData;
             });
@@ -222,10 +226,11 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             setData(prev => {
                 const newData = [...prev, {
                     name: new Date().toLocaleTimeString(),
-                    cpu: Math.floor(Math.random() * 20) + 10,
-                    neural: Math.floor(Math.random() * 10) + 5,
+                    cpu: 0,
+                    neural: 0,
                     memory: 0,
                     vram: 0,
+                    gpuAvailable: false,
                 }].slice(-20);
                 return newData;
             });
@@ -887,7 +892,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                     <YAxis stroke="#94a3b8" />
                     <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} itemStyle={{ color: '#e2e8f0' }} />
                     <Area type="monotone" dataKey="cpu" stackId="1" stroke="#38bdf8" fill="url(#colorCpu)" name="CPU %" />
-                    <Area type="monotone" dataKey="neural" stackId="1" stroke="#a855f7" fill="url(#colorNeural)" name="Neural Engine %" />
+                    <Area type="monotone" dataKey="neural" stackId="1" stroke="#a855f7" fill="url(#colorNeural)" name="GPU Utilization % (Neural Inference)" />
                     </AreaChart>
                 </ResponsiveContainer>
                 </div>

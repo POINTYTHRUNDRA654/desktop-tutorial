@@ -21,6 +21,50 @@ type Connection = {
 
 const gridSize = 50;
 
+type StringListEditorProps = {
+  label: string;
+  values: string[];
+  placeholder: string;
+  onChange: (next: string[]) => void;
+};
+
+const StringListEditor: React.FC<StringListEditorProps> = ({ label, values, placeholder, onChange }) => (
+  <div>
+    <div className="flex items-center justify-between mb-1">
+      <label className="text-xs text-slate-400">{label}</label>
+      <button
+        onClick={() => onChange([...values, placeholder])}
+        className="text-xs px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded"
+      >
+        + Add
+      </button>
+    </div>
+    <div className="space-y-2">
+      {values.map((value, idx) => (
+        <div key={idx} className="flex gap-2">
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => {
+              const next = [...values];
+              next[idx] = e.target.value;
+              onChange(next);
+            }}
+            className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs"
+          />
+          <button
+            onClick={() => onChange(values.filter((_, i) => i !== idx))}
+            className="px-2 py-1 bg-red-900 hover:bg-red-800 text-xs rounded"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      {values.length === 0 && <p className="text-xs text-slate-500">None yet.</p>}
+    </div>
+  </div>
+);
+
 const QuestEditor: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [questName, setQuestName] = useState('MyQuest');
@@ -263,7 +307,44 @@ const QuestEditor: React.FC = () => {
   };
 
   const testQuest = () => {
-    toast.success(`Quest Test. Stages: ${stages.length}. Connections: ${connections.length}`);
+    // Real structural validation of the quest graph — the old version just showed a
+    // node/connection count with no actual checking, so "Test" never caught anything.
+    const issues: string[] = [];
+
+    if (stages.length === 0) {
+      issues.push('No stages defined.');
+    }
+
+    const stageIds = new Set(stages.map((s) => s.id));
+    const indexCounts = new Map<number, number>();
+    for (const stage of stages) {
+      indexCounts.set(stage.index, (indexCounts.get(stage.index) || 0) + 1);
+      if (stage.objectives.length === 0) {
+        issues.push(`Stage ${stage.index} ("${stage.description || 'untitled'}") has no objectives.`);
+      }
+    }
+    for (const [index, count] of indexCounts) {
+      if (count > 1) issues.push(`Stage index ${index} is used by ${count} stages — Papyrus SetStage() requires unique indices.`);
+    }
+
+    for (const conn of connections) {
+      if (!stageIds.has(conn.from)) issues.push(`Connection references missing source stage "${conn.from}".`);
+      if (!stageIds.has(conn.to)) issues.push(`Connection references missing target stage "${conn.to}".`);
+    }
+
+    const hasIncoming = new Set(connections.map((c) => c.to));
+    const hasOutgoing = new Set(connections.map((c) => c.from));
+    for (const stage of stages) {
+      if (stages.length > 1 && !hasIncoming.has(stage.id) && !hasOutgoing.has(stage.id)) {
+        issues.push(`Stage ${stage.index} ("${stage.description || 'untitled'}") is not connected to any other stage.`);
+      }
+    }
+
+    if (issues.length === 0) {
+      toast.success(`Quest structure OK — ${stages.length} stage(s), ${connections.length} connection(s).`);
+    } else {
+      toast.error(`${issues.length} issue(s) found:\n${issues.slice(0, 5).join('\n')}${issues.length > 5 ? `\n…and ${issues.length - 5} more` : ''}`);
+    }
   };
 
   return (
@@ -354,66 +435,30 @@ const QuestEditor: React.FC = () => {
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-slate-400">Objectives</label>
-                  <button
-                    onClick={() =>
-                      setStages((prev) =>
-                        prev.map((s) =>
-                          s.id === selectedStage.id ? { ...s, objectives: [...s.objectives, 'New Objective'] } : s
-                        )
-                      )
-                    }
-                    className="text-xs px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded"
-                  >
-                    + Add
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {selectedStage.objectives.map((obj, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={obj}
-                        onChange={(e) =>
-                          setStages((prev) =>
-                            prev.map((s) => {
-                              if (s.id !== selectedStage.id) return s;
-                              const next = [...s.objectives];
-                              next[idx] = e.target.value;
-                              return { ...s, objectives: next };
-                            })
-                          )
-                        }
-                        className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs"
-                      />
-                      <button
-                        onClick={() =>
-                          setStages((prev) =>
-                            prev.map((s) => {
-                              if (s.id !== selectedStage.id) return s;
-                              const next = s.objectives.filter((_, i) => i !== idx);
-                              return { ...s, objectives: next };
-                            })
-                          )
-                        }
-                        className="px-2 py-1 bg-red-900 hover:bg-red-800 text-xs rounded"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Conditions</label>
-                <p className="text-xs text-slate-500">{selectedStage.conditions.length} condition(s)</p>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Actions</label>
-                <p className="text-xs text-slate-500">{selectedStage.actions.length} action(s)</p>
-              </div>
+              <StringListEditor
+                label="Objectives"
+                values={selectedStage.objectives}
+                placeholder="New Objective"
+                onChange={(next) =>
+                  setStages((prev) => prev.map((s) => (s.id === selectedStage.id ? { ...s, objectives: next } : s)))
+                }
+              />
+              <StringListEditor
+                label="Conditions"
+                values={selectedStage.conditions}
+                placeholder="GetStageDone(...) == 1"
+                onChange={(next) =>
+                  setStages((prev) => prev.map((s) => (s.id === selectedStage.id ? { ...s, conditions: next } : s)))
+                }
+              />
+              <StringListEditor
+                label="Actions"
+                values={selectedStage.actions}
+                placeholder="SetObjectiveDisplayed(...)"
+                onChange={(next) =>
+                  setStages((prev) => prev.map((s) => (s.id === selectedStage.id ? { ...s, actions: next } : s)))
+                }
+              />
             </div>
           ) : (
             <div className="text-sm text-slate-400">Select a stage to edit properties.</div>

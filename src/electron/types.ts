@@ -74,6 +74,7 @@ export const IPC_CHANNELS = {
   AUDITOR_READ_BINARY_FILE: 'auditor-read-binary-file',
   AUDITOR_PICK_ESP_FILE: 'auditor-pick-esp-file',
   AUDITOR_PICK_NIF_FILE: 'auditor-pick-nif-file',
+  AUDITOR_PICK_GLTF_FILE: 'auditor-pick-gltf-file',
   AUDITOR_PICK_DDS_FILE: 'auditor-pick-dds-file',
   AUDITOR_PICK_BGSM_FILE: 'auditor-pick-bgsm-file',
   AUDITOR_SCAN_MOD_DIRECTORY: 'auditor-scan-mod-directory',
@@ -766,6 +767,7 @@ export interface ElectronAPI {
   generateHeightMap: (imageBase64: string) => Promise<string>;
   generateMetallicMap: (imageBase64: string) => Promise<string>;
   getImageInfo: (filePath: string) => Promise<{ width: number; height: number; format: string; colorSpace: string } | null>;
+  resizeImageTo: (args: { inputPath: string; outputPath: string; width: number; height: number }) => Promise<{ ok: boolean; outputPath?: string; error?: string }>;
   convertImageFormat: (sourceBase64: string, targetFormat: string, options: any) => Promise<string>;
   generateAOMap: (imageBase64: string) => Promise<string>;
   // FOMOD Assembler
@@ -779,7 +781,10 @@ export interface ElectronAPI {
   readBinaryFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   pickEspFile: () => Promise<string>;
   pickNifFile: () => Promise<string[]>;
+  pickGltfFile: () => Promise<string[]>;
   pickDdsFile: () => Promise<string[]>;
+  /** Launch an external tool (xEdit, NifSkope, CK, Blender) with a file as its argument */
+  launchToolWithFile: (toolPath: string, filePath: string) => Promise<{ success: boolean; error?: string }>;
   pickBgsmFile: () => Promise<string[]>;
   /** Scan a mod directory for mod files (opens OS folder dialog) */
   scanModDirectory: () => Promise<Array<{ path: string; type: string }>>;
@@ -1010,13 +1015,6 @@ export interface ElectronAPI {
   clipboardWatchStop: () => Promise<{ ok: boolean; error?: string }>;
   onClipboardDetected: (callback: (detection: ClipboardDetection) => void) => (() => void);
 
-  // 7. Background Task Queue
-  taskEnqueue: (req: TaskEnqueueRequest) => Promise<TaskEnqueueResponse>;
-  taskList: (filter?: { status?: string }) => Promise<{ ok: boolean; tasks?: BackgroundTask[]; error?: string }>;
-  taskGetStatus: (taskId: string) => Promise<TaskStatusResponse>;
-  taskCancel: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
-  onTaskCompletion: (callback: (task: BackgroundTask) => void) => (() => void);
-
   // 8. Hardware Sensor Feed
   systemMetricsPoll: () => Promise<SystemMetricsResponse>;
   systemMetricsGet: () => Promise<SystemMetricsResponse>;
@@ -1051,6 +1049,16 @@ export interface ElectronAPI {
 
   /** Show a native confirm dialog — resolves true if user confirms, false/undefined otherwise */
   showConfirm?: (message: string, detail?: string) => Promise<boolean | undefined>;
+
+  // Phase 2 Mining Engines (Contextual, ML Conflict Prediction, Performance
+  // Bottleneck Detection, Hardware-Aware, Longitudinal) — used by Phase2MiningDashboard.tsx
+  phase2Mining?: {
+    getAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+    startEngine: (name: string) => Promise<{ success: boolean; data?: { isActive: boolean; status: any; results: any }; error?: string }>;
+    stopEngine: (name: string) => Promise<{ success: boolean; data?: { isActive: boolean; status: any; results: any }; error?: string }>;
+    startAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+    stopAll: () => Promise<{ success: boolean; data?: Record<string, { isActive: boolean; status: any; results: any }>; error?: string }>;
+  };
 }
 
 export interface VoiceChatPayload {

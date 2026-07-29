@@ -594,8 +594,8 @@ export default function TextureEnhancer() {
 
   async function pickFile() {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    if (api?.openFile) {
-      const result = await api.openFile({ filters: [{ name: 'Textures', extensions: ['dds','png','tga','jpg','jpeg','bmp','tiff'] }] });
+    if (api?.invoke) {
+      const result = await api.invoke('texture-enhancer:pick-input-texture');
       if (result) setInputFile({ path: result, name: result.split(/[\\/]/).pop() ?? result });
     } else {
       fileInputRef.current?.click();
@@ -605,17 +605,20 @@ export default function TextureEnhancer() {
   function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    // Electron exposes the real absolute path on File objects from a native
+    // <input type=file> picker — f.name alone is not a usable filesystem path.
+    const realPath = (f as any).path || f.name;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setInputFile({ path: f.name, name: f.name, preview: ev.target?.result as string });
+      setInputFile({ path: realPath, name: f.name, preview: ev.target?.result as string });
     };
     reader.readAsDataURL(f);
   }
 
   async function pickFolder(setter: (p: string) => void) {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    if (api?.openFolder) {
-      const result = await api.openFolder();
+    if (api?.pickDirectory) {
+      const result = await api.pickDirectory();
       if (result) setter(result);
     }
   }
@@ -648,30 +651,39 @@ export default function TextureEnhancer() {
 
     try {
       const api = (window as any).electron?.api ?? (window as any).electronAPI;
-      if (api?.invoke) {
-        const result = await api.invoke('texture-enhancer:enhance', {
-          inputPath: target,
-          outputFolder: outputFolder || undefined,
-          mode,
-          surface,
-          quality,
-          outputFormat,
-          pipeline,
-        });
-
-        setJobs(prev => prev.map(j => j.id === jobId ? {
-          ...j,
-          status: 'complete',
-          progress: 100,
-          currentOp: 'Done',
-          outputs: result?.outputs ?? {},
-          stages: j.stages.map(s => ({ ...s, done: true, active: false })),
-        } : j));
-        toast.success('Enhancement complete!');
-      } else {
-        // Demo mode — simulate progress
-        await simulateProgress(jobId, enabledStageNames);
+      if (!api?.invoke) {
+        throw new Error('Desktop Bridge not available — this feature requires the Electron app, not a browser preview.');
       }
+
+      const result = await api.invoke('texture-enhancer:enhance', {
+        inputPath: target,
+        outputFolder: outputFolder || undefined,
+        mode,
+        surface,
+        quality,
+        outputFormat,
+        pipeline,
+      });
+
+      if (!result?.success) {
+        throw new Error(result?.error || 'No maps were generated.');
+      }
+
+      setJobs(prev => prev.map(j => j.id === jobId ? {
+        ...j,
+        status: 'complete',
+        progress: 100,
+        currentOp: 'Done',
+        outputs: result?.outputs ?? {},
+        stages: j.stages.map(s => ({ ...s, done: true, active: false })),
+      } : j));
+
+      if (result.errors?.length) {
+        toast(`Completed with ${result.errors.length} issue(s): ${result.errors[0]}`, { icon: '⚠️' });
+      } else {
+        toast.success('Enhancement complete!');
+      }
+      if (result.note) toast(result.note, { icon: 'ℹ️' });
     } catch (err: any) {
       setJobs(prev => prev.map(j => j.id === jobId ? {
         ...j, status: 'error', error: err?.message ?? String(err),
@@ -680,26 +692,6 @@ export default function TextureEnhancer() {
     } finally {
       setRunning(false);
     }
-  }
-
-  async function simulateProgress(jobId: string, stageNames: string[]) {
-    const statusSeq: EnhancementJob['status'][] = ['analyzing','enhancing','extracting','generating'];
-    for (let si = 0; si < stageNames.length; si++) {
-      const name = stageNames[si];
-      const status = statusSeq[Math.min(si, statusSeq.length - 1)];
-      setJobs(prev => prev.map(j => j.id === jobId ? {
-        ...j, status, currentOp: name, progress: Math.round((si / stageNames.length) * 95),
-        stages: j.stages.map((s, i) => ({ ...s, done: i < si, active: i === si })),
-      } : j));
-      await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
-    }
-    setJobs(prev => prev.map(j => j.id === jobId ? {
-      ...j, status: 'complete', progress: 100, currentOp: 'Done',
-      stages: j.stages.map(s => ({ ...s, done: true, active: false })),
-      outputs: Object.fromEntries(stageNames.map(n => [n, `output_${n.toLowerCase()}.dds`])),
-    } : j));
-    toast.success('Enhancement complete!');
-    setRunning(false);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -151,7 +151,7 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
       const fpsValues = sessions.map(s => s.averageFPS ?? 0);
       const memoryValues = sessions.map(s => s.peakRAM ?? 0);
       const loadTimeValues = sessions.map(s => s.endTime - s.startTime); // Approximate load time
-      const stabilityValues = sessions.map(s => 1.0); // Placeholder for stability
+      const stabilityValues = sessions.map(s => this.sessionEventStability(s));
 
       const timestamps = sessions.map(s => s.startTime);
 
@@ -291,6 +291,9 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
     const avgFPS = similarSessions.reduce((sum, s) => sum + (s.fps || 0), 0) / similarSessions.length;
     const avgMemory = similarSessions.reduce((sum, s) => sum + (s.memoryUsage || 0), 0) / similarSessions.length;
     const avgLoadTime = similarSessions.reduce((sum, s) => sum + (s.loadTime || 0), 0) / similarSessions.length;
+    const avgStability = similarSessions.reduce((sum, s) => sum + this.historicalStabilityScore(s), 0) / similarSessions.length;
+    const avgConflictCount = similarSessions.reduce((sum, s) => sum + (s.conflictCount ?? s.conflicts?.length ?? 0), 0) / similarSessions.length;
+    const mostRecentProfile = [...similarSessions].reverse().find(s => s.metrics?.hardwareProfile)?.metrics?.hardwareProfile;
 
     // Calculate confidence based on data quality and quantity
     const confidence = Math.min(similarSessions.length / 10, 0.9);
@@ -314,10 +317,10 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
         fps: avgFPS,
         memoryUsage: avgMemory,
         loadTime: avgLoadTime,
-        stabilityScore: 80, // Placeholder
-        conflictCount: 0, // Placeholder
+        stabilityScore: avgStability,
+        conflictCount: avgConflictCount,
         timestamp: Date.now() + (30 * 24 * 60 * 60 * 1000),
-        hardwareProfile: {} as any // Placeholder
+        hardwareProfile: (mostRecentProfile ?? {}) as any
       },
       confidence,
       riskFactors,
@@ -469,7 +472,8 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
       const fpsTrend = this.calculateSimpleTrend(fpsValues);
       const memoryTrend = this.calculateSimpleTrend(memoryValues);
       const loadTimeTrend = this.calculateSimpleTrend(loadTimeValues);
-      const stabilityTrend = { trend: 'stable' as const, slope: 0, average: 80 };
+      const stabilityValues = data.map(d => this.historicalStabilityScore(d));
+      const stabilityTrend = this.calculateSimpleTrend(stabilityValues);
 
       trends.push({
         modCombination,
@@ -506,12 +510,12 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
             slope: loadTimeTrend.slope
           },
           stability: {
-            values: [80], // Placeholder
-            timestamps: [Date.now()],
-            average: 80,
-            min: 80,
-            max: 80,
-            standardDeviation: 0,
+            values: stabilityValues,
+            timestamps: data.map(d => d.timestamp),
+            average: stabilityValues.reduce((a, b) => a + b, 0) / stabilityValues.length,
+            min: Math.min(...stabilityValues),
+            max: Math.max(...stabilityValues),
+            standardDeviation: this.calculateStdDev(stabilityValues),
             trend: stabilityTrend.trend,
             slope: stabilityTrend.slope
           }
@@ -670,6 +674,22 @@ export class LongitudinalMiningEngineImpl extends EventEmitter implements Longit
     }
 
     return changes;
+  }
+
+  /** Real per-session stability (0-1) derived from actual recorded crash events. */
+  private sessionEventStability(session: SessionData): number {
+    const crashes = (session.events || []).filter(e => e.type === 'crash').length;
+    return Math.max(0, 1 - crashes * 0.25);
+  }
+
+  /** Real per-entry stability (0-100) derived from actual recorded outcome/conflict data. */
+  private historicalStabilityScore(entry: HistoricalData): number {
+    let score = 100;
+    if (entry.outcome === 'failure') score -= 60;
+    else if (entry.outcome === 'warning') score -= 20;
+    const conflictCount = entry.conflictCount ?? entry.conflicts?.length ?? 0;
+    score -= Math.min(40, conflictCount * 5);
+    return Math.max(0, score);
   }
 
   private similarityScore(mods1: string[], mods2: string[]): number {

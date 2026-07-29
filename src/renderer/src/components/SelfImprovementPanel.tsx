@@ -38,9 +38,16 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
     loadData(); // Refresh data
   };
 
-  const generateScript = () => {
+  const [generatingScript, setGeneratingScript] = useState(false);
+
+  const generateScript = async () => {
+    if (!scriptRequest.description.trim()) {
+      toast.error('Describe what the script should do first.');
+      return;
+    }
+    setGeneratingScript(true);
     try {
-      const generatedScript = selfImprovementEngine.generateScript(scriptRequest);
+      const generatedScript = await selfImprovementEngine.generateScript(scriptRequest);
       setGeneratedScripts(selfImprovementEngine.getGeneratedScripts());
       setScriptRequest({
         type: 'papyrus',
@@ -51,6 +58,8 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
       toast.success(`Script "${generatedScript.name}" generated successfully!`);
     } catch (error) {
       toast.error(`Error generating script: ${error}`);
+    } finally {
+      setGeneratingScript(false);
     }
   };
 
@@ -295,11 +304,11 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
 
               <button
                 onClick={generateScript}
-                disabled={!scriptRequest.description.trim()}
+                disabled={!scriptRequest.description.trim() || generatingScript}
                 className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded transition-colors flex items-center justify-center gap-2"
               >
                 <FileText className="w-4 h-4" />
-                Generate Script
+                {generatingScript ? 'Generating…' : 'Generate Script'}
               </button>
             </div>
           )}
@@ -314,7 +323,7 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
                     <div className="text-white font-medium">{script.name}</div>
                     <div className="text-gray-300 text-sm">{script.description}</div>
                     <div className="text-gray-400 text-xs">
-                      {script.type} • Confidence: {(script.confidence * 100).toFixed(0)}% • {new Date(script.generatedAt).toLocaleDateString()}
+                      {script.type} • {new Date(script.generatedAt).toLocaleDateString()} • AI-generated — review before use
                     </div>
                   </div>
                   <div className="flex gap-2">

@@ -961,7 +961,7 @@ export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded =
         const result = await api.aiChatGroq(
           `Generate a Papyrus script for: ${desc}`,
           AI_SYSTEM_PROMPT,
-          'llama-3.1-8b-instant',
+          'qwen/qwen3.6-27b',
         );
         if (result?.success && result.content) {
           const raw = String(result.content)
