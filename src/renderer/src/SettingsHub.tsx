@@ -8,6 +8,7 @@ import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
 import { useI18n } from './i18n';
 import PrivacySettings from './PrivacySettings';
+import { RequireUnlock } from './AppLock';
 import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
@@ -390,7 +391,7 @@ const SettingsHub: React.FC = () => {
       title: t('settings.hub.step1.title', 'Step 1: Privacy & Security'),
       description: t('settings.hub.step1.desc', 'Control data collection, sharing, security rules, and memory storage.'),
       icon: Lock,
-      content: <PrivacySettings embedded />,
+      content: <RequireUnlock><PrivacySettings embedded /></RequireUnlock>,
     },
     {
       id: 'language',

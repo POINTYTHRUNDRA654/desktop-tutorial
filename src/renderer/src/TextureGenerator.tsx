@@ -132,7 +132,14 @@ export const TextureGenerator: React.FC = () => {
   const [seamlessRadius, setSeamlessRadius] = useState(64);
 
   // Gallery State
-  const [savedMaterials, setSavedMaterials] = useState<MaterialSet[]>([]);
+  const [savedMaterials, setSavedMaterials] = useState<MaterialSet[]>(() => {
+    try {
+      const stored = localStorage.getItem('mossy_texture_generator_gallery');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [selectedGalleryItem, setSelectedGalleryItem] = useState<MaterialSet | null>(null);
 
   // ============================================================================
@@ -180,7 +187,8 @@ export const TextureGenerator: React.FC = () => {
         style: materialStyle,
         generateMaps: selectedMaps,
         seamless: false,
-        upscale: undefined
+        upscale: undefined,
+        mapSettings,
       };
 
       const result = await a.textureGenerateMaterialSet(input);
@@ -206,22 +214,41 @@ export const TextureGenerator: React.FC = () => {
   };
 
   const handleDownloadMap = async (map: GeneratedMap) => {
-    if (map.success && map.path) {
+    if (!map.success || !map.path) return;
+    const a = getElectronApi();
+    if (a?.revealInFolder) {
+      const res = await a.revealInFolder(map.path);
+      if (res?.success === false) toast.error(res.error || `Could not open ${map.path}`);
+      else toast.success(`Opened folder for ${map.path.split(/[\\/]/).pop()}`);
+    } else {
       toast.success(`Map saved to: ${map.path}`);
     }
   };
 
-  const handleDownloadAllMaps = () => {
+  const handleDownloadAllMaps = async () => {
     if (!generatedMaterial) return;
 
-    const successfulMaps = Object.values(generatedMaterial.maps).filter(m => m?.success);
-    toast.success(`All ${successfulMaps.length} maps have been saved to the output directory`);
+    const successfulMaps = Object.values(generatedMaterial.maps).filter((m): m is GeneratedMap => !!m?.success);
+    const a = getElectronApi();
+    if (a?.revealInFolder && successfulMaps[0]?.path) {
+      const res = await a.revealInFolder(successfulMaps[0].path);
+      if (res?.success === false) toast.error(res.error || 'Could not open output folder');
+      else toast.success(`Opened output folder — ${successfulMaps.length} map(s) generated`);
+    } else {
+      toast.success(`All ${successfulMaps.length} maps have been saved to the output directory`);
+    }
   };
 
   const handleSaveMaterial = () => {
     if (!generatedMaterial) return;
 
-    setSavedMaterials(prev => [...prev, generatedMaterial]);
+    setSavedMaterials(prev => {
+      const next = [...prev, generatedMaterial];
+      try {
+        localStorage.setItem('mossy_texture_generator_gallery', JSON.stringify(next));
+      } catch { /* non-fatal — gallery still works for this session */ }
+      return next;
+    });
     toast.success('Material saved to gallery!');
   };
 
@@ -867,7 +894,16 @@ export const TextureGenerator: React.FC = () => {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-400">{proceduralPreview.split('\\').pop()}</span>
                 <button
-                  onClick={() => toast.success(`Saved to: ${proceduralPreview}`)}
+                  onClick={async () => {
+                    const a = getElectronApi();
+                    if (a?.revealInFolder) {
+                      const res = await a.revealInFolder(proceduralPreview);
+                      if (res?.success === false) toast.error(res.error || `Could not open ${proceduralPreview}`);
+                      else toast.success(`Opened folder for ${proceduralPreview.split(/[\\/]/).pop()}`);
+                    } else {
+                      toast.success(`Saved to: ${proceduralPreview}`);
+                    }
+                  }}
                   className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 rounded text-sm flex items-center gap-2"
                 >
                   <Download size={14} />

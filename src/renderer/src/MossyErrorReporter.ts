@@ -20,14 +20,20 @@ type PrivacySettings = {
   shareBugReports: boolean;
 };
 
-function loadPrivacySettings(): PrivacySettings {
+// Reads the REAL, live Privacy Settings (Settings.privacySettings, edited in
+// PrivacySettings.tsx and persisted via getSettings/setSettings) rather than
+// the one-time onboarding snapshot previously stashed under the
+// 'mossy_privacy_settings' localStorage key — that snapshot was written once
+// during first-run setup and never updated again, so toggling "Allow Crash
+// Reporting" afterward had no effect on whether reports were actually sent.
+async function loadPrivacySettings(): Promise<PrivacySettings> {
   try {
-    const raw = localStorage.getItem('mossy_privacy_settings');
-    if (!raw) return { keepLocalOnly: true, shareBugReports: false };
-    const parsed = JSON.parse(raw) as Partial<PrivacySettings>;
+    const settings = await (window as any).electronAPI?.getSettings?.();
+    const p = settings?.privacySettings;
+    if (!p) return { keepLocalOnly: true, shareBugReports: false };
     return {
-      keepLocalOnly: parsed.keepLocalOnly !== false,
-      shareBugReports: parsed.shareBugReports === true,
+      keepLocalOnly: p.keepLocalOnly !== false,
+      shareBugReports: p.allowCrashReporting === true,
     };
   } catch {
     return { keepLocalOnly: true, shareBugReports: false };
@@ -54,7 +60,7 @@ export const logMossyError = async (
       suggestedFix,
     };
 
-    const privacy = loadPrivacySettings();
+    const privacy = await loadPrivacySettings();
     const allowSend = !privacy.keepLocalOnly && privacy.shareBugReports && !!API_ENDPOINT;
 
     if (allowSend) {

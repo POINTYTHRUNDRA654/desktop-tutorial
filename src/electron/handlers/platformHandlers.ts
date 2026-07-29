@@ -118,7 +118,7 @@ async function callGroqAI(systemPrompt: string, userMessage: string): Promise<st
 
   const client = new Groq({ apiKey });
   const response = await client.chat.completions.create({
-    model: 'llama-3.1-8b-instant',
+    model: 'qwen/qwen3.6-27b',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userMessage }
@@ -548,9 +548,9 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
   // =========================================================================
   // conflict-resolution:* (delegates to ConflictResolutionEngine)
   // =========================================================================
-  safeHandle('conflict-resolution:analyze', async (_event, plugins: string[]) => {
+  safeHandle('conflict-resolution:analyze', async (_event, plugins: string[], scanDepth?: 'quick' | 'standard' | 'deep') => {
     const cr = await getConflictResolution();
-    return cr.analyzeConflicts(plugins || []);
+    return cr.analyzeConflicts(plugins || [], scanDepth || 'standard');
   });
 
   safeHandle('conflict-resolution:compare-records', async (_event, pluginA: string, pluginB: string, recordIdentifier: string) => {
@@ -575,7 +575,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('conflict-resolution:apply-rules', async (_event, conflicts: any[], rules: any[]) => {
     const cr = await getConflictResolution();
-    return cr.applyRules?.(conflicts || [], rules || []) ?? { applied: [] };
+    return cr.applyResolutionRules(conflicts || [], rules || []);
   });
 
   safeHandle('conflict-resolution:save-patch', async (_event, patch: any, outputPath: string) => {
@@ -595,7 +595,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('load-order:apply-rules', async (_event, plugins: string[], rules: any[]) => {
     const lo = await getLoadOrder();
-    return lo.applyCustomRules?.(plugins || [], rules || []) ?? { optimized: plugins };
+    return lo.applyRules(plugins || [], rules || []);
   });
 
   safeHandle('load-order:detect-conflicts', async (_event, plugins: string[]) => {
@@ -610,7 +610,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('load-order:predict-performance', async (_event, plugins: string[]) => {
     const lo = await getLoadOrder();
-    return lo.predictPerformanceImpact?.(plugins || []) ?? { score: 0 };
+    return lo.predictPerformance(plugins || []);
   });
 
   safeHandle('load-order:resolve-dependencies', async (_event, plugins: string[]) => {
@@ -623,6 +623,25 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
     if (!fs.existsSync(saveDir)) fs.mkdirSync(saveDir, { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(optimization, null, 2), 'utf-8');
     return { success: true, path: filePath };
+  });
+
+  // NOTE: channel names use a distinct 'load-order-optimizer:' prefix — the plain 'load-order:*'
+  // namespace is already used by the separate, unrelated ID-keyed Load Order Manager in main.ts
+  // (loadOrderStorage-backed profiles), which has its own 'load-order:optimize'/'import'/'export'
+  // handlers with incompatible signatures.
+  safeHandle('load-order-optimizer:optimize', async (_event, plugins: any[], rules: any) => {
+    const lo = await getLoadOrder();
+    return lo.optimizeLoadOrder(plugins || [], rules);
+  });
+
+  safeHandle('load-order-optimizer:import', async (_event, source: 'mo2' | 'vortex', sourcePath?: string) => {
+    const lo = await getLoadOrder();
+    return lo.importLoadOrder(source, sourcePath);
+  });
+
+  safeHandle('load-order-optimizer:export', async (_event, plugins: any[], destination: 'mo2' | 'vortex', destPath?: string) => {
+    const lo = await getLoadOrder();
+    return lo.exportLoadOrder(plugins || [], destination, destPath);
   });
 
   // =========================================================================

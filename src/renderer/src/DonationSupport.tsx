@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Coffee, Heart, DollarSign, ExternalLink, GitBranch } from 'lucide-react';
+import { Coffee, Heart, DollarSign, ExternalLink } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 
 export const DonationSupport: React.FC = () => {
@@ -83,9 +83,9 @@ export const DonationSupport: React.FC = () => {
               Ways to Support
             </h2>
 
-            {/* Buy Me a Coffee */}
+            {/* Buy Me a Coffee — real account, matches SettingsHub.tsx */}
             <a
-              href="https://buymeacoffee.com/mossy"
+              href="https://buymeacoffee.com/tundra654"
               target="_blank"
               rel="noopener noreferrer"
               className="block bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-xl p-6 transition-all duration-200 transform hover:scale-[1.02] border border-amber-500/30"
@@ -102,57 +102,19 @@ export const DonationSupport: React.FC = () => {
               </div>
             </a>
 
-            {/* Ko-fi */}
+            {/* Patreon — real account, matches SettingsHub.tsx */}
             <a
-              href="https://ko-fi.com/mossy"
+              href="https://www.patreon.com/c/Pointytundra654"
               target="_blank"
               rel="noopener noreferrer"
-              className="block bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 rounded-xl p-6 transition-all duration-200 transform hover:scale-[1.02] border border-blue-500/30"
+              className="block bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl p-6 transition-all duration-200 transform hover:scale-[1.02] border border-red-500/30"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Heart className="w-12 h-12 text-white" />
                   <div>
-                    <h3 className="text-xl font-bold text-white">Ko-fi</h3>
-                    <p className="text-blue-100">Support via Ko-fi</p>
-                  </div>
-                </div>
-                <ExternalLink className="w-6 h-6 text-white/70" />
-              </div>
-            </a>
-
-            {/* GitHub Sponsors */}
-            <a
-              href="https://github.com/sponsors/mossy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl p-6 transition-all duration-200 transform hover:scale-[1.02] border border-purple-500/30"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <GitBranch className="w-12 h-12 text-white" />
-                  <div>
-                    <h3 className="text-xl font-bold text-white">GitHub Sponsors</h3>
-                    <p className="text-purple-100">Monthly or one-time support</p>
-                  </div>
-                </div>
-                <ExternalLink className="w-6 h-6 text-white/70" />
-              </div>
-            </a>
-
-            {/* PayPal */}
-            <a
-              href="https://paypal.me/mossy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl p-6 transition-all duration-200 transform hover:scale-[1.02] border border-indigo-500/30"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <DollarSign className="w-12 h-12 text-white" />
-                  <div>
-                    <h3 className="text-xl font-bold text-white">PayPal</h3>
-                    <p className="text-indigo-100">Direct donation via PayPal</p>
+                    <h3 className="text-xl font-bold text-white">Patreon</h3>
+                    <p className="text-red-100">Monthly support</p>
                   </div>
                 </div>
                 <ExternalLink className="w-6 h-6 text-white/70" />

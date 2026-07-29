@@ -3,15 +3,20 @@ import toast from 'react-hot-toast';
 import { Activity, Cpu, Zap, Eye, RefreshCw, Play, Square, AlertTriangle, TrendingUp } from 'lucide-react';
 
 interface GameMetrics {
-  fps: number;
-  frameTime: number;
-  vram: { used: number; total: number };
-  ram: { used: number; total: number };
-  scriptTime: number;
-  scriptCount: number;
+  // Real, process/driver-level data — always populated while the game is running.
+  ram: { used: number; total: number | null };
+  vram: { used: number; total: number } | null;
+  // Engine-internal data — requires an F4SE plugin that isn't installed yet, so these
+  // stay null/empty rather than showing fabricated numbers. See `unavailable`.
+  fps: number | null;
+  frameTime: number | null;
+  scriptTime: number | null;
+  scriptCount: number | null;
   activeScripts: ScriptMetric[];
   consoleLog: ConsoleEntry[];
   variables: VariableWatch[];
+  unavailable?: string[];
+  unavailableReason?: string;
 }
 
 interface ScriptMetric {
@@ -105,10 +110,15 @@ export const LiveGameMonitor: React.FC = () => {
 
   const hotReload = async () => {
     try {
-      await fetch('http://localhost:21337/game/hotreload', { method: 'POST' });
-      toast.success('Scripts hot-reloaded!');
+      const resp = await fetch('http://localhost:21337/game/hotreload', { method: 'POST' });
+      const data = await resp.json();
+      if (data.success) {
+        toast.success(data.message || 'Scripts recompiled!');
+      } else {
+        toast.error(data.message || 'Hot reload failed.');
+      }
     } catch (error) {
-      toast.success('Hot reload triggered (demo mode - requires Desktop Bridge)');
+      toast.error('Desktop Bridge not reachable.');
     }
   };
 
@@ -126,16 +136,18 @@ export const LiveGameMonitor: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {connected && (
-              <button
-                onClick={hotReload}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded flex items-center gap-2 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Hot Reload
-              </button>
-            )}
-            
+            {/* Hot Reload only needs the Papyrus Compiler + changed .psc files on disk — it
+                doesn't need a live telemetry connection, so it must not be gated by `connected`
+                (which requires an F4SE plugin that doesn't exist and can never become true). */}
+            <button
+              onClick={hotReload}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded flex items-center gap-2 transition-colors"
+              title="Recompile changed Papyrus scripts (applies on next game/save load)"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Hot Reload
+            </button>
+
             <button
               onClick={connected ? disconnect : connectToGame}
               className={`px-4 py-2 ${connected ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'} text-white font-bold rounded flex items-center gap-2 transition-colors`}
@@ -176,66 +188,59 @@ export const LiveGameMonitor: React.FC = () => {
         <div className="flex-1 overflow-hidden p-6 grid grid-cols-3 gap-4">
           {/* Left Column - Performance */}
           <div className="space-y-4 overflow-y-auto">
-            {/* FPS */}
+            {/* FPS — engine-internal, not available without an F4SE plugin */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-bold text-white">FPS</h3>
-                <TrendingUp className={`w-4 h-4 ${metrics && metrics.fps >= 55 ? 'text-green-400' : 'text-red-400'}`} />
+                <TrendingUp className="w-4 h-4 text-slate-600" />
               </div>
-              <div className={`text-5xl font-bold ${metrics && metrics.fps >= 55 ? 'text-green-400' : metrics && metrics.fps >= 45 ? 'text-amber-400' : 'text-red-400'}`}>
-                {metrics?.fps}
-              </div>
-              <div className="text-xs text-slate-400 mt-1">
-                {metrics?.frameTime.toFixed(2)}ms frame time
+              <div className="text-2xl font-bold text-slate-500">Unavailable</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Requires an F4SE plugin that hooks the render loop — not yet installed.
               </div>
             </div>
 
-            {/* Memory */}
+            {/* Memory — real, process/driver-level data */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-              <h3 className="font-bold text-white mb-3">Memory Usage</h3>
-              
+              <h3 className="font-bold text-white mb-3">Memory Usage <span className="text-[10px] text-emerald-400 font-normal">(real)</span></h3>
+
               <div className="mb-3">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-slate-400">VRAM</span>
-                  <span className="text-white">{metrics?.vram.used.toFixed(0)} / {metrics?.vram.total} MB</span>
+                  {metrics?.vram ? (
+                    <span className="text-white">{metrics.vram.used.toFixed(0)} / {metrics.vram.total} MB</span>
+                  ) : (
+                    <span className="text-slate-500">Unavailable (needs nvidia-smi on PATH)</span>
+                  )}
                 </div>
                 <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-purple-500"
-                    style={{ width: `${metrics ? (metrics.vram.used / metrics.vram.total) * 100 : 0}%` }}
+                    style={{ width: `${metrics?.vram ? (metrics.vram.used / metrics.vram.total) * 100 : 0}%` }}
                   ></div>
                 </div>
               </div>
 
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">RAM</span>
-                  <span className="text-white">{metrics?.ram.used.toFixed(0)} / {metrics?.ram.total} MB</span>
-                </div>
-                <div className="h-2 bg-slate-950 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500"
-                    style={{ width: `${metrics ? (metrics.ram.used / metrics.ram.total) * 100 : 0}%` }}
-                  ></div>
+                  <span className="text-slate-400">RAM (process)</span>
+                  <span className="text-white">{metrics?.ram.used.toFixed(0)} MB</span>
                 </div>
               </div>
             </div>
 
-            {/* Script Performance */}
+            {/* Script Performance — engine-internal, not available without an F4SE plugin */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
               <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-yellow-400" />
+                <Zap className="w-4 h-4 text-slate-600" />
                 Script Load
               </h3>
-              <div className={`text-3xl font-bold mb-1 ${metrics && metrics.scriptTime < 10 ? 'text-green-400' : metrics && metrics.scriptTime < 16 ? 'text-amber-400' : 'text-red-400'}`}>
-                {metrics?.scriptTime.toFixed(1)}ms
-              </div>
-              <div className="text-xs text-slate-400">
-                {metrics?.scriptCount} scripts loaded
+              <div className="text-sm font-bold text-slate-500">Unavailable</div>
+              <div className="text-xs text-slate-500 mt-1">
+                Requires an F4SE plugin that hooks the Papyrus VM — not yet installed.
               </div>
 
               <div className="mt-4 space-y-2">
-                <div className="text-xs font-bold text-slate-400 mb-2">Top Scripts:</div>
                 {metrics?.activeScripts.slice(0, 5).map((script, idx) => (
                   <div key={idx} className="bg-slate-950 rounded p-2">
                     <div className="flex justify-between text-xs mb-1">
@@ -256,9 +261,10 @@ export const LiveGameMonitor: React.FC = () => {
             {/* Variable Watch */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
               <h3 className="font-bold text-white mb-3 flex items-center gap-2">
-                <Eye className="w-4 h-4 text-cyan-400" />
+                <Eye className="w-4 h-4 text-slate-600" />
                 Variables
               </h3>
+              <p className="text-xs text-slate-500 mb-2">Requires an F4SE plugin that hooks the Papyrus VM — not yet installed.</p>
 
               {metrics?.variables.map((v, idx) => (
                 <div key={idx} className="mb-2 bg-slate-950 rounded p-2">
@@ -309,7 +315,7 @@ export const LiveGameMonitor: React.FC = () => {
             >
               {metrics?.consoleLog.length === 0 && (
                 <div className="text-slate-500 text-center py-8">
-                  Waiting for console output...
+                  Console output requires an F4SE plugin that hooks the engine — not yet installed.
                 </div>
               )}
               

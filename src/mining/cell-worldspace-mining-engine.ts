@@ -106,9 +106,15 @@ export class CellWorldspaceMiningEngineImpl implements CellWorldspaceMiningEngin
   }
 
   private findWorldspaceForCell(cellId: string, worldspaceData: any[]): string {
-    // Mock implementation - find worldspace containing this cell
-    // In real implementation, check worldspace boundaries
-    return 'Tamriel'; // Default worldspace
+    // Look up the real worldspace containing this cell from supplied worldspace data
+    // (record.cellIds is expected to be a real list of FormIDs belonging to that worldspace).
+    for (const ws of worldspaceData || []) {
+      if (Array.isArray(ws?.cellIds) && ws.cellIds.includes(cellId)) {
+        return ws.editorId || ws.name || 'Unknown';
+      }
+    }
+    // FO4's default exterior worldspace is "Commonwealth", not Skyrim's "Tamriel".
+    return 'Commonwealth';
   }
 
   private async analyzeModInteraction(cellId: string, espFile: ESPFile): Promise<CellModInteraction | null> {

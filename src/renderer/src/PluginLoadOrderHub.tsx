@@ -17,13 +17,15 @@ import {
 const XEditTools = React.lazy(() => import('./XEditTools'));
 const PrecombineGenerator = React.lazy(() => import('./PrecombineGenerator'));
 const LoadOrderHub = React.lazy(() => import('./LoadOrderHub'));
+const EspMiningPanel = React.lazy(() => import('./EspMiningPanel'));
 
-type HubTab = 'xedit' | 'prp' | 'loadorder' | 'guide' | 'merge-scanner';
+type HubTab = 'xedit' | 'prp' | 'loadorder' | 'guide' | 'merge-scanner' | 'esp-mining';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'xedit', icon: Database, label: 'xEdit Tools', sublabel: 'Clean · Script · Analyse' },
   { id: 'prp', icon: Zap, label: 'PRP Patch Tools', sublabel: 'Precombine · Previs' },
   { id: 'loadorder', icon: List, label: 'Load Order', sublabel: 'Analyze · Optimize · LOOT' },
+  { id: 'esp-mining', icon: GitMerge, label: 'ESP Mining', sublabel: 'FormID · Cells · Quests' },
   { id: 'guide', icon: BookOpen, label: 'FO4 Plugin Guide', sublabel: 'ESL · Conflicts · SEQ · LOOT' },
   { id: 'merge-scanner', icon: GitMerge, label: 'Merge Scanner', sublabel: 'zMerge candidates' },
 ];
@@ -857,6 +859,7 @@ const PluginLoadOrderHub: React.FC = () => {
         {activeTab === 'xedit'          && <PanelLoader><XEditTools /></PanelLoader>}
         {activeTab === 'prp'            && <PanelLoader><PrecombineGenerator /></PanelLoader>}
         {activeTab === 'loadorder'      && <PanelLoader><LoadOrderHub /></PanelLoader>}
+        {activeTab === 'esp-mining'     && <PanelLoader><EspMiningPanel /></PanelLoader>}
         {activeTab === 'guide'          && <FO4PluginGuide />}
         {activeTab === 'merge-scanner'  && <MergeCandidateScanner />}
       </div>

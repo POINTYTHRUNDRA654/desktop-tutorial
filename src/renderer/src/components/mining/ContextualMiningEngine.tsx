@@ -5,7 +5,7 @@
  * user-centric mining with adaptive learning and personalized recommendations
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -21,19 +21,6 @@ import {
   Eye,
   MessageSquare
 } from 'lucide-react';
-
-// Mock function for real-time status fetching
-const fetchMiningEngineStatus = async (engine: string) => {
-  // In a real implementation, this would call the backend API
-  // For now, simulate real-time updates
-  return {
-    isRunning: true,
-    interactionsProcessed: Math.floor(Math.random() * 1000),
-    recommendationsGenerated: Math.floor(Math.random() * 500),
-    learningProgress: Math.random(),
-    lastUpdate: new Date()
-  };
-};
 
 interface ContextualMiningEngineProps {
   isActive?: boolean;
@@ -62,29 +49,12 @@ export const ContextualMiningEngine: React.FC<ContextualMiningEngineProps> = ({
   results
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [realTimeStatus, setRealTimeStatus] = useState(status);
   const [showConfig, setShowConfig] = useState(false);
 
-  // Real-time status updates
-  useEffect(() => {
-    if (!isActive || import.meta.env.MODE === 'test') return;
-
-    const interval = setInterval(async () => {
-      try {
-        // Poll for real-time status updates
-        const updatedStatus = await fetchMiningEngineStatus('contextual');
-        if (updatedStatus) {
-          setRealTimeStatus(updatedStatus);
-        }
-      } catch (error) {
-        console.warn('Failed to fetch real-time status:', error);
-      }
-    }, 5000); // Update every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [isActive]);
-
-  const currentStatus = realTimeStatus || status;
+  // Real status/results are pushed down as props by Phase2MiningPanel, which
+  // already polls window.electronAPI.phase2Mining on a real interval — no
+  // separate fetch/poll needed (and no fabricated data) here.
+  const currentStatus = status;
 
   const handleToggle = async () => {
     if (import.meta.env.MODE === 'test') {

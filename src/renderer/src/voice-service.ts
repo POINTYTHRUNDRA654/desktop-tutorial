@@ -1112,7 +1112,7 @@ export class VoiceService {
     for (const chunk of chunks) {
       if (this.shouldStop) break;
       try {
-        await this.speakChunk(chunk, browserSettings, selectedVoice, voiceLang);
+        await this.speakChunk(chunk, browserSettings, selectedVoice ?? null, voiceLang);
       } catch (err: any) {
         if (/canceled|interrupted/i.test(err?.message ?? '')) break;
         throw err;

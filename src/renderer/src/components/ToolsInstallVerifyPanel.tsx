@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { openExternal } from '../utils/openExternal';
+
+const CHAT_PREFILL_KEY = 'mossy_chat_prefill_v1';
 
 export type ExternalToolLink = {
   label: string;
@@ -64,9 +66,41 @@ export const ToolsInstallVerifyPanel: React.FC<ToolsInstallVerifyPanelProps> = (
   className,
 }) => {
   const navigate = useNavigate();
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
 
   const hasTools = (tools ?? []).length > 0;
   const hasShortcuts = (shortcuts ?? []).length > 0;
+  const hasChecklist = (verify ?? []).length > 0 || (firstTestLoop ?? []).length > 0 || (troubleshooting ?? []).length > 0;
+
+  // The "Send to Chat"/"Copy checklist summary" instructions in several wizards' verify
+  // panels referenced buttons that were never built — this is the real, shared
+  // implementation for all of them, reusing the existing Install Wizard → Chat handoff
+  // prefill mechanism already implemented in ChatInterface.tsx.
+  const buildChecklistSummary = (): string => {
+    const sections: string[] = [`# ${title}`];
+    if (description) sections.push(description);
+    if ((verify ?? []).length) sections.push(`## Verify (quick)\n${(verify ?? []).map(s => `- ${s}`).join('\n')}`);
+    if ((firstTestLoop ?? []).length) sections.push(`## First test loop\n${(firstTestLoop ?? []).map(s => `- ${s}`).join('\n')}`);
+    if ((troubleshooting ?? []).length) sections.push(`## Troubleshooting\n${(troubleshooting ?? []).map(s => `- ${s}`).join('\n')}`);
+    return sections.join('\n\n');
+  };
+
+  const copyChecklistSummary = async () => {
+    try {
+      await navigator.clipboard.writeText(buildChecklistSummary());
+      setCopyState('copied');
+    } catch {
+      setCopyState('error');
+    } finally {
+      setTimeout(() => setCopyState('idle'), 2000);
+    }
+  };
+
+  const sendChecklistToChat = () => {
+    const summary = buildChecklistSummary();
+    try { localStorage.setItem(CHAT_PREFILL_KEY, summary); } catch { /* non-fatal */ }
+    navigate('/chat', { state: { prefill: summary } });
+  };
 
   return (
     <div className={`bg-slate-900/60 border border-slate-700 rounded-lg p-4 mb-6 ${className ?? ''}`}>
@@ -112,7 +146,27 @@ export const ToolsInstallVerifyPanel: React.FC<ToolsInstallVerifyPanelProps> = (
         </div>
 
         <div>
-          <div className="text-xs font-bold text-slate-200 mb-2">Verify (quick)</div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-bold text-slate-200">Verify (quick)</div>
+            {hasChecklist && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyChecklistSummary()}
+                  className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100"
+                >
+                  {copyState === 'copied' ? 'Copied!' : copyState === 'error' ? 'Copy failed' : 'Copy checklist summary'}
+                </button>
+                <button
+                  type="button"
+                  onClick={sendChecklistToChat}
+                  className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100"
+                >
+                  Send to Chat
+                </button>
+              </div>
+            )}
+          </div>
           {(verify ?? []).length ? (
             <ul className="list-disc ml-5 text-sm text-slate-300 space-y-1">
               {(verify ?? []).map((s) => (

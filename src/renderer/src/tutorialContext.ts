@@ -134,7 +134,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     commonMistakes: [
       'Ignoring the health badges — a yellow Wizard badge means Setup Wizards has not been run yet',
       'Using old "/tools/..." URLs — all tools are now consolidated inside hub pages',
-      'Missing the Ctrl+K command palette for fast navigation across all 22 platforms',
+      'Missing the Ctrl+K command palette for fast navigation across all 23 platforms',
       'Clicking "Help" and expecting it to open external docs — it opens the in-app FO4 Knowledge Hub',
       'Not checking the UPLINK badge before expecting local tool integrations to work',
       'Starting the Stability step (Step 5) without knowing your game version — OG (1.10.163), NG (1.10.980-984), and AE/1.11.x all require different F4SE, Address Library, and crash tool builds',
@@ -155,7 +155,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Use the Quick Hub Access 4×3 grid for the 12 most common destinations',
           'Or press Ctrl+K to open the command palette and search by name',
-          'Or use the sidebar on the left — all 22 platforms are listed there',
+          'Or use the sidebar on the left — all 23 platforms are listed there',
         ],
       },
     ],
@@ -359,7 +359,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'live-voice': {
     pageId: 'live-voice',
     pageName: 'Live Synapse',
-    route: '/runtime-hub',
+    route: '/live',
     purpose: 'Real-time, voice-driven interaction with Mossy — live transcription, mic monitoring and embedded audio tools.',
     features: [
       'Real-time voice conversation with live transcription preview',
@@ -804,70 +804,66 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'holodeck': {
     pageId: 'holodeck',
     pageName: 'The Holodeck',
-    route: '/runtime-hub',
-    purpose: 'Test mods in a virtual environment before in-game testing',
+    route: '/test/holo',
+    purpose: 'A real pre-flight readiness checklist — runs checkable diagnostics (Desktop Bridge status, game process detection, load order integrity, navmesh CTD risk, and more) so you catch setup problems before you ever launch the game.',
     features: [
-      'Virtual game world simulation',
-      'Mod compatibility testing',
-      'Performance benchmarking',
-      'Error detection',
-      'Screenshot automation',
-      'Test scenario creation',
+      'A library of real test scenarios grouped by category (load order, combat, quest, settlement, NPC)',
+      'Each scenario has real, checkable steps with an expected outcome and known risk areas',
+      '"Run All" executes every scenario in sequence',
+      '"Export Report" copies all test run results to your clipboard',
     ],
     controls: [
       {
-        name: 'Launch Test Button',
+        name: 'Run All',
         type: 'button',
-        description: 'Starts the virtual testing environment',
-        whenToUse: 'When ready to test your mod virtually',
+        description: 'Runs every test scenario in sequence and records pass/fail/partial results for each.',
+        whenToUse: 'Before a play session, to catch setup problems (missing tools, bad load order, misconfigured paths) early.',
       },
       {
-        name: 'Create Scenario Button',
+        name: 'Scenario list (left panel)',
         type: 'button',
-        description: 'Sets up specific test conditions',
-        whenToUse: 'When you need to test specific situations',
+        description: 'Click a scenario to select it and see its individual steps, expected outcome, and severity.',
+        whenToUse: 'When you want to run or inspect just one specific check instead of the whole suite.',
       },
       {
-        name: 'Run Benchmarks Button',
+        name: 'Run (per-scenario)',
         type: 'button',
-        description: 'Tests performance impact of your mod',
-        whenToUse: 'When checking if your mod affects game performance',
+        description: 'Runs only the currently selected scenario.',
+        whenToUse: 'To re-check a single item after fixing something, without rerunning the whole suite.',
       },
       {
-        name: 'Capture Screenshots Button',
+        name: 'Export Report',
         type: 'button',
-        description: 'Automatically takes test screenshots',
-        whenToUse: 'When documenting test results or showing changes',
+        description: 'Copies all completed test run results to your clipboard as text, ready to paste into a bug report or chat with Mossy.',
+        whenToUse: 'After running tests, when you want to share results or ask Mossy for help interpreting a failure.',
       },
     ],
     commonMistakes: [
-      'Not testing in Holodeck before in-game testing',
-      'Using wrong test scenarios',
-      'Not checking performance benchmarks',
-      'Forgetting to test on different hardware configs',
+      'Skipping Holodeck and troubleshooting blind in-game instead of checking these real, fast diagnostics first',
+      'Ignoring "major"/"critical" severity failures and launching the game anyway',
+      'Not re-running a scenario after fixing the underlying issue, so the report goes stale',
     ],
     guides: [
       {
-        title: 'Testing a Weapon Mod',
+        title: 'Running a full readiness check',
         steps: [
-          'Click "Create Scenario" and choose "Combat Test"',
-          'Select your weapon mod files',
-          'Click "Launch Test"',
-          'Observe weapon behavior in virtual environment',
-          'Check performance benchmarks',
-          'Capture screenshots of results',
+          'Open the Holodeck and click "Run All"',
+          'Watch the pass/fail/partial status update for each scenario as it completes',
+          'Expand any failed scenario to see which step failed and its listed risk areas',
+          'Fix the underlying issue (e.g. configure a missing tool path in Settings), then re-run that scenario',
+          'Click "Export Report" to copy results if you want to share them or ask Mossy for help',
         ],
       },
     ],
     tutorialSections: [
-      'Holodeck - Virtual Testing',
-      'Creating Test Scenarios',
+      'Holodeck - Readiness Checklist',
+      'Running and Exporting Test Results',
     ],
     suggestedQuestions: [
-      'How accurate is Holodeck testing?',
-      'What scenarios should I test?',
-      'How do I benchmark performance?',
-      'Can I test multiplayer mods?',
+      'What does a "critical" severity failure mean?',
+      'Why did the load order integrity check fail?',
+      'How do I fix a navmesh CTD risk warning?',
+      'Can I add my own test scenario?',
     ],
   },
 
@@ -957,13 +953,15 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Knowledge Hub',
     visualGuidePage: 6,
     route: '/knowledge-hub',
-    purpose: 'Unified FO4 knowledge workspace for quick references, semantic search, and community learning notes.',
+    purpose: 'Unified FO4 knowledge workspace for quick references, semantic search, community learning notes, vanilla asset browsing, and RAG-backed vector search.',
     features: [
-      'Three-tab layout: Quick Reference, Knowledge Search, and Community Learning',
-      'Tab selection persists for the session via sessionStorage key `knowledge_hub_tab`',
+      'Five-tab layout: Quick Reference, Knowledge Search, Community Learning, Vanilla Assets, and RAG Search',
+      'Tab selection persists for the session via sessionStorage key `knowledge_hub_tab`, and number keys 1-5 jump directly between tabs',
       'Quick Reference for Papyrus, FormIDs, CK hotkeys, xEdit shortcuts, and practical FO4 cheatsheets — now includes Deprecated Frameworks (AWKCR/DEF_UI/Armorsmith) and NG/AE version guidance',
-      'Knowledge Search for semantic retrieval and indexed in-app docs',
+      'Knowledge Search for semantic retrieval and indexed in-app docs (Ollama-backed)',
       'Community Learning for shared tips and curated knowledge',
+      'Vanilla Assets browses your own unpacked base-game Data folder (all 44 FO4 BA2 archives extracted) as a searchable file tree, letting you copy any vanilla mesh/texture/material/audio into your mod project for reference or replacement',
+      'RAG Search queries an AnythingLLM workspace over a vector database for grounded, source-cited answers pulled from whatever documents you have indexed there',
     ],
     controls: [
       {
@@ -985,6 +983,18 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         whenToUse: 'Use when looking for practical patterns from other modders',
       },
       {
+        name: 'Vanilla Assets Tab',
+        type: 'tab',
+        description: 'Browse, search, and copy unpacked vanilla FO4 meshes/textures/materials/audio/scripts from your Data folder directly into your mod project',
+        whenToUse: 'Use when you need to reference or reuse a base-game asset as a starting point instead of building one from scratch',
+      },
+      {
+        name: 'RAG Search Tab',
+        type: 'tab',
+        description: 'Connects to an AnythingLLM workspace and runs vector-database queries against your indexed documents, returning cited source snippets alongside the answer',
+        whenToUse: 'Use for grounded answers backed by your own indexed documentation set, rather than general knowledge search',
+      },
+      {
         name: 'Tab Memory Handler',
         type: 'indicator',
         description: 'Restores your last selected Knowledge Hub tab for continuity',
@@ -997,6 +1007,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Assuming search is external-only instead of using in-app FO4 indexed knowledge first',
       'Forgetting that tab state restores from session storage between visits',
       'Installing AWKCR, Armorsmith Extended, or DEF_UI on NG/AE — check the Deprecated Frameworks section of Quick Reference for safe replacements',
+      'Trying to use Vanilla Assets without first unpacking the FO4 BA2 archives to a Data folder on disk',
+      'Trying to use RAG Search without an AnythingLLM workspace connected or configured',
     ],
     guides: [
       {
@@ -1006,6 +1018,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
           'Start in Quick Reference for immediate command/record lookups',
           'Switch to Knowledge Search for deeper indexed documentation queries',
           'Use Community Learning for implementation tips and workflow ideas',
+          'Browse Vanilla Assets to pull a base-game mesh or texture into your project',
+          'Use RAG Search for grounded, source-cited answers from your own indexed documents',
           'Return later and confirm your previous tab restores automatically',
         ],
       },
@@ -1013,6 +1027,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     tutorialSections: [
       'FO4 Knowledge Hub Overview',
       'Quick Reference + Search + Community Tabs',
+      'Vanilla Assets Browser',
+      'RAG Search (AnythingLLM)',
       'Tab Persistence Behavior',
     ],
     suggestedQuestions: [
@@ -1022,6 +1038,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I search indexed knowledge from this hub?',
       'Where can I look up which frameworks are deprecated on NG/AE?',
       'What is the ESL FormID limit and why does it matter?',
+      'How do I browse and copy vanilla FO4 assets into my mod?',
+      'What is RAG Search and how is it different from Knowledge Search?',
     ],
   },
 
@@ -1065,8 +1083,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Groq primary model selector',
         type: 'dropdown',
-        description: 'Choices include llama-3.1-8b-instant (fastest), llama-3.2-11b-vision-preview (fast vision), llama-3.3-70b-versatile (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact), llama3-70b-8192 (70B proven)',
-        whenToUse: 'Switch to llama-3.3-70b-versatile for complex Creation Kit scripting or asset pipeline questions; stay on 8b-instant for real-time voice and quick lookups',
+        description: 'Choices include qwen/qwen3.6-27b (fastest), llama-3.2-11b-vision-preview (fast vision), openai/gpt-oss-120b (best reasoning), deepseek-r1-distill-llama-70b (chain-of-thought), llama-3.2-90b-vision-preview (smartest + vision), gemma2-9b-it (Google compact)',
+        whenToUse: 'Switch to openai/gpt-oss-120b for complex Creation Kit scripting or asset pipeline questions; stay on qwen/qwen3.6-27b for real-time voice and quick lookups',
       },
       {
         name: 'Self-critique loop toggle',
@@ -1151,7 +1169,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'First-time FO4 modder setup (recommended order)',
         steps: [
           'Open Settings → Step 1: Privacy & Security; review and confirm your data-sharing preferences',
-          'Open Step 3: AI Engine; select llama-3.3-70b-versatile for the best FO4 scripting and build guidance',
+          'Open Step 3: AI Engine; select openai/gpt-oss-120b for the best FO4 scripting and build guidance',
           'Open Step 4: External Tools; click Auto-Detect All and wait for the scan to complete',
           'For any tool shown in red (not found), click Browse to manually locate the executable',
           'Set Fallout 4 path to the game root folder containing Fallout4.exe (e.g., C:\\Program Files (x86)\\Steam\\steamapps\\common\\Fallout 4)',
@@ -1169,8 +1187,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Tune AI responses for FO4 mod work',
         steps: [
           'Open Step 3: AI Engine',
-          'Select llama-3.3-70b-versatile for complex Papyrus scripting, asset pipeline analysis, or conflict resolution questions',
-          'Select llama-3.1-8b-instant for quick lookups, real-time voice, or simple how-to questions',
+          'Select openai/gpt-oss-120b for complex Papyrus scripting, asset pipeline analysis, or conflict resolution questions',
+          'Select qwen/qwen3.6-27b for quick lookups, real-time voice, or simple how-to questions',
           'Set Max Response Tokens to 2048 or 4096 when requesting complete Papyrus script examples',
           'Enable Self-Critique Loop when generating scripts or detailed step-by-step guides where correctness matters more than speed',
           'Save settings and test a question to confirm response quality meets your needs',
@@ -1355,7 +1373,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'diagnostics': {
     pageId: 'diagnostics',
     pageName: 'Diagnostic Tools',
-    route: '/system-hub',
+    route: '/diagnostics',
     purpose: 'All-in-one system checks: verify the desktop bridge, tool paths, API/secret visibility, permissions, and collect exportable diagnostic snapshots for triage.',
     features: [
       'System health & telemetry checks (bridge, storage, permissions)',
@@ -1668,15 +1686,18 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Creation Kit Hub',
     visualGuidePage: 9,
     route: '/ck-tools',
-    purpose: 'Unified Creation Kit workspace with 8 tabs: CK Safety, CK Extension, FO4 CK Guide, Quest Editor, Animation, Save Parser, Live Monitor, and Game Link.',
+    purpose: 'Unified Creation Kit workspace with 11 tabs: CK Safety, CK Extension, FO4 CK Guide, Plugin Inspector, Pre-Publish, INI Validator, Quest Editor, Animation, Save Parser, Live Monitor, and Game Link.',
     features: [
-      'Eight-tab consolidated workflow: CK Safety · CK Extension · FO4 CK Guide · Quest Editor · Animation · Save Parser · Live Monitor · Game Link',
+      'Eleven-tab consolidated workflow: CK Safety · CK Extension · FO4 CK Guide · Plugin Inspector · Pre-Publish · INI Validator · Quest Editor · Animation · Save Parser · Live Monitor · Game Link',
       'Session tab persistence via sessionStorage (restores last active tab)',
-      'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide|quests|anim|saves|livemon|gameint)',
+      'Deep-link support with query param routing (/ck-tools?tab=safety|extension|guide|inspector|checklist|inifix|quests|anim|saves|livemon|gameint)',
       'Embedded FO4 CK reference: crash causes, best practices, Papyrus tips, ESL/FormID rules, NG/AE version guidance, and deprecated framework warnings (AWKCR/DEF_UI/Armorsmith Extended)',
       'Integrated tool references for CK Platform Extended, Addictol (all-in-one stability, Nexus #84214), CLASSIC, xEdit, and related utilities',
       'CK Safety tab: plugin validation, Spriggit serialization (ESP → YAML for Git version control), and live CK process monitor',
       'CK Extension tab: auto-save timer (timestamp only — CK IPC save bridge not yet wired), script compiler log, connection status',
+      'Plugin Inspector tab: a full "Plugin Repair Platform" with its own 3 sub-tabs — Inspect & Fix (binary deep-scan with real auto-fix: NAVM undelete, rename, xEdit launch, CK rebuild), Patch Creator (compatibility patch generation), and Previsbines & PRP (precombine/previs repair workflow)',
+      'Pre-Publish tab: a real 22-item release checklist across categories, with critical-vs-total progress tracking saved to localStorage',
+      'INI Validator tab: paste your Fallout4.ini/Fallout4Custom.ini content and it parses real sections/keys, checking them against known-good settings (missing/wrong/ok status per setting)',
       'Quest Editor tab: quest stage and alias authoring helpers',
       'Animation tab: Havok/HKX workflow guidance — covers behavior graph editing, HKX export pipelines, community rig setup (Shiagur Blender rigs #81279/#82537, MaikCG F4Biped #16691), and animation framework integration (IAF #50555 keyword patching, NAF #73889 ESP-less XML packs, AWF #100946 world-object interactions)',
       'Save Parser tab: save game data inspection and script residue analysis',
@@ -1701,6 +1722,24 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'button',
         description: 'In-app CK reference: crash pitfalls, NG/AE version matrix (OG CK vs NG CK, CKPE 0.3.x vs 0.5+), deprecated framework warnings, Papyrus tips, ESL/FormID rules, essential tool list',
         whenToUse: 'Use before any release, when checking NG/AE compatibility, or looking up ESL limits and deprecated mods',
+      },
+      {
+        name: 'Plugin Inspector Tab',
+        type: 'button',
+        description: 'A full Plugin Repair Platform with 3 internal sub-tabs: Inspect & Fix (binary deep-scan with real auto-fix), Patch Creator (compatibility patches), and Previsbines & PRP (precombine/previs repair)',
+        whenToUse: 'Use when diagnosing plugin errors, generating a compatibility patch, or repairing broken precombine/previs data',
+      },
+      {
+        name: 'Pre-Publish Tab',
+        type: 'button',
+        description: 'A real 22-item release checklist with critical-vs-total progress tracking, saved across sessions',
+        whenToUse: 'Use right before uploading a mod, to make sure you haven\'t missed a standard release step',
+      },
+      {
+        name: 'INI Validator Tab',
+        type: 'button',
+        description: 'Paste your Fallout4.ini or Fallout4Custom.ini content to check real settings against known-good values',
+        whenToUse: 'Use when troubleshooting performance or stability settings, or verifying an INI tweak actually took effect',
       },
       {
         name: 'Quest Editor Tab',
@@ -1775,6 +1814,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'CK Safety (Plugin Validation + Spriggit + Live Monitor)',
       'CK Extension (Auto-save timer & Script Compile — timestamp logging only)',
       'FO4 CK Guide (Crash Causes, Best Practices, NG/AE Compatibility, Deprecated Frameworks)',
+      'Plugin Inspector (Inspect & Fix, Patch Creator, Previsbines & PRP)',
+      'Pre-Publish (22-Item Release Checklist)',
+      'INI Validator (Fallout4.ini / Fallout4Custom.ini Checks)',
       'Quest Editor (Stages & Aliases)',
       'Animation (Havok/HKX Workflow — Shiagur Blender rigs, MaikCG F4Biped, IAF/NAF/AWF framework integration)',
       'Save Parser (Save Game Data Inspection)',
@@ -1789,6 +1831,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'What is the ESL FormID limit and what happens if I exceed 0xFFF?',
       'How do I use Spriggit to serialize my plugin to YAML for Git?',
       'Why are BA2 archives from the NG CK incompatible with OG users?',
+      'What does the Pre-Publish checklist actually check?',
+      'How does the Plugin Inspector\'s auto-fix work?',
+      'Can the INI Validator tell me if my shadow settings are safe for my GPU?',
     ],
   },
   'blueprint': {
@@ -2287,12 +2332,15 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Mod Builder Hub',
     visualGuidePage: 14,
     route: '/mod-builder',
-    purpose: 'FO4 Mod Builder Hub unifies the authoring workflow for planning a mod, working with project files, generating scripts, and producing documentation inside one four-tab workspace.',
+    purpose: 'FO4 Mod Builder Hub unifies the authoring workflow for scaffolding a new mod project, planning a mod, working with project files, generating scripts, and producing documentation inside one five-tab workspace.',
     features: [
-      'Four-tab workflow: Blueprint, Workshop, Devtools, and Scribe',
+      'Five-tab workflow: Blueprint, Workshop, Devtools, Scribe, and Project Creator',
       'Session tab persistence via `builder_hub_tab` so the last active tab restores automatically',
+      'Keyboard shortcuts 1-5 switch tabs directly when the hub has focus',
+      'Tabs can be drag-reordered into any arrangement; the custom order persists in `builder_hub_tab_order`',
       'Lazy-loaded panels keep heavyweight builder tools responsive inside the unified hub',
-      'Combines planning, file/compile workflows, script tooling, and documentation authoring in one route',
+      'Project Creator scaffolds a brand-new mod project folder structure so you have somewhere real to build into before touching Blueprint, Workshop, or Devtools',
+      'Combines project scaffolding, planning, file/compile workflows, script tooling, and documentation authoring in one route',
     ],
     controls: [
       {
@@ -2310,7 +2358,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Devtools tab',
         type: 'tab',
-        description: 'Opens the Papyrus/script tooling workspace',
+        description: 'Opens the Papyrus/script tooling workspace (Papyrus, xEdit, snippets)',
         whenToUse: 'Switch here for script generation, analysis, or iteration on developer-focused tooling',
       },
       {
@@ -2319,17 +2367,26 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         description: 'Loads the documentation authoring workspace',
         whenToUse: 'Use after planning/building to write guides, notes, changelogs, or release-facing documentation',
       },
+      {
+        name: 'Project Creator tab',
+        type: 'tab',
+        description: 'Scaffolds a new mod project\'s folder structure (a "new mod scaffold") so subsequent Blueprint/Workshop/Devtools/Scribe work has a real project to operate on',
+        whenToUse: 'Use first, before starting any other tab, when beginning a brand-new mod from scratch',
+      },
     ],
     commonMistakes: [
       'Treating the hub as a single page instead of switching to the tab that matches your current task',
+      'Jumping into Blueprint/Workshop before scaffolding the project in Project Creator',
       'Skipping Blueprint and jumping straight into implementation without defining structure first',
       'Forgetting that the active tab is persisted in session storage under `builder_hub_tab`',
+      'Not realizing tabs can be drag-reordered — expecting the default 1-5 order after customizing it',
       'Packaging directly from builder steps without reviewing Packaging & Release afterward',
     ],
     guides: [
       {
         title: 'Plan to implementation workflow',
         steps: [
+          'Open Project Creator and scaffold the new mod\'s folder structure',
           'Open Blueprint and outline the mod architecture or feature breakdown',
           'Switch to Workshop to inspect project files and carry out build-focused tasks',
           'Move to Devtools for Papyrus/script generation or analysis as needed',
@@ -2340,19 +2397,23 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Resume a previous builder session',
         steps: [
           'Return to `/mod-builder` and confirm the expected tab restores from `builder_hub_tab`',
-          'If the wrong tab opens, switch to the correct workspace manually',
+          'If the wrong tab opens, switch to the correct workspace manually (or use shortcut keys 1-5)',
           'Continue the workflow from the appropriate stage rather than duplicating work in the wrong tab',
         ],
       },
     ],
     tutorialSections: [
-      'FO4 Mod Builder Hub - Four Tab Workflow',
-      'Blueprint, Workshop, Devtools & Scribe',
+      'FO4 Mod Builder Hub - Five Tab Workflow',
+      'Project Creator, Blueprint, Workshop, Devtools & Scribe',
+      'Tab Shortcuts & Drag-to-Reorder',
     ],
     suggestedQuestions: [
       'Which Mod Builder tab should I use first for a new Fallout 4 mod?',
-      'What is the difference between Blueprint, Workshop, Devtools, and Scribe?',
+      'What is the difference between Blueprint, Workshop, Devtools, Scribe, and Project Creator?',
+      'What does Project Creator actually scaffold for me?',
       'Why did Mod Builder reopen on the same tab as last time?',
+      'How do I reorder the Mod Builder tabs, and does it stick?',
+      'What are the keyboard shortcuts for switching Mod Builder tabs?',
       'When should I move from Mod Builder to Packaging & Release?',
     ],
   },
@@ -2362,12 +2423,14 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Asset Analysis Hub',
     visualGuidePage: 15,
     route: '/asset-analysis',
-    purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, duplicate reduction, and in-app optimization guidance.',
+    purpose: 'FO4 Asset Analysis Hub centralizes quality workflows for Fallout 4 assets: mining dependency data, conflict/performance analysis, ML-driven prediction, crash-log triage, duplicate reduction, and in-app optimization guidance.',
     features: [
-      'Five-tab workflow: Mining Dashboard, Advanced Analysis, Asset Deduplicator, FO4 Asset Guide, and 3D Viewer',
+      'Seven-tab workflow: Mining Dashboard, Advanced Analysis, Phase 2 Mining, Asset Deduplicator, Crash Analyzer, FO4 Asset Guide, and 3D Viewer',
+      'Phase 2 Mining runs and polls five real background mining engines over IPC (Contextual, ML Conflict Prediction, Performance Bottleneck, Hardware-Aware, Longitudinal) with per-engine start/stop and start-all/stop-all controls',
+      'Crash Analyzer parses real Buffout 4 / Buffout 4 NG / CLASSIC-style crash logs, extracting FormIDs, offending plugins, module names, and callstack frames, then matches them against known crash-signature patterns with severity and a suggested fix',
       'Session tab persistence via `asset_hub_tab` so the last active tab restores automatically',
       'Lazy-loaded analysis panels for heavy workflows while keeping the hub responsive',
-      'Unified QA flow from scan/mining insights to dedupe cleanup, optimization reference, and NIF preview',
+      'Unified QA flow from scan/mining insights to ML conflict prediction, crash-log root-causing, dedupe cleanup, optimization reference, and NIF preview',
     ],
     controls: [
       {
@@ -2383,10 +2446,22 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         whenToUse: 'Use when diagnosing stability/performance issues or validating high-risk asset sets',
       },
       {
+        name: 'Phase 2 Mining tab',
+        type: 'tab',
+        description: 'Dashboard for five real background mining engines (Contextual, ML Conflict Prediction, Performance Bottleneck, Hardware-Aware, Longitudinal) with per-engine start/stop toggles and a start-all/stop-all control, auto-refreshing every 15 seconds',
+        whenToUse: 'Use for longer-running, deeper background analysis of your load order beyond the on-demand Advanced Analysis pass',
+      },
+      {
         name: 'Asset Deduplicator tab',
         type: 'tab',
         description: 'Opens duplicate detection and consolidation workflow',
         whenToUse: 'Switch here when reducing repeated assets and trimming VRAM/storage waste',
+      },
+      {
+        name: 'Crash Analyzer tab',
+        type: 'tab',
+        description: 'Paste or load a Buffout 4 / Buffout 4 NG / CLASSIC crash log to extract the exception, callstack, involved plugins and FormIDs, and get probable-cause matches with severity and fix suggestions',
+        whenToUse: 'Use right after a crash to identify which plugin or FormID most likely caused it before digging through the raw log by hand',
       },
       {
         name: 'FO4 Asset Guide tab',
@@ -2406,6 +2481,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Skipping deduplication after analysis, leaving avoidable VRAM and archive bloat',
       'Forgetting that active tab state persists in session storage under `asset_hub_tab`',
       'Treating guide recommendations as optional when troubleshooting severe performance conflicts',
+      'Leaving Phase 2 Mining engines running indefinitely instead of stopping them when not actively investigating',
+      'Pasting a partial or truncated crash log into Crash Analyzer, which weakens FormID/plugin extraction accuracy',
     ],
     guides: [
       {
@@ -2413,9 +2490,19 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Open Mining Dashboard to map plugin/assets and identify suspicious hotspots',
           'Switch to Advanced Analysis to inspect conflicts, memory pressure, and performance warnings',
+          'Start relevant Phase 2 Mining engines for deeper background ML conflict/performance/hardware analysis',
           'Use Asset Deduplicator to consolidate repeated files and reduce runtime overhead',
           'Review FO4 Asset Guide thresholds before final packaging and release checks',
           'Open the 3D Viewer to spot-check optimized NIF meshes — confirm poly counts and collision are within budget',
+        ],
+      },
+      {
+        title: 'Diagnose a crash with Crash Analyzer',
+        steps: [
+          'Copy the full Buffout 4 / Buffout 4 NG / CLASSIC crash log text from your Documents\\My Games\\Fallout4\\F4SE folder',
+          'Open the Crash Analyzer tab and load or paste the full log',
+          'Review the extracted exception, callstack, and matched probable causes with their severity and fix suggestions',
+          'Cross-check any flagged FormIDs/plugins against your load order before uninstalling or patching',
         ],
       },
       {
@@ -2429,15 +2516,18 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
     tutorialSections: [
       'FO4 Asset Analysis Hub - Quality Workflow',
-      'Mining, Analysis, Deduplication, FO4 Guide & 3D Viewer',
+      'Mining, Advanced Analysis, Phase 2 Mining & Crash Analyzer',
+      'Deduplication, FO4 Guide & 3D Viewer',
     ],
     suggestedQuestions: [
       'Which tab should I start with in FO4 Asset Analysis Hub?',
       'When do I use Mining Dashboard versus Advanced Analysis?',
+      'What do the five Phase 2 Mining engines each analyze?',
       'How does Asset Deduplicator help with VRAM and archive size?',
       'Why does FO4 Asset Analysis Hub reopen on the previous tab?',
       'How do I preview a NIF mesh in the 3D Viewer?',
       'What does the 3D Viewer show about my mesh?',
+      'How does Crash Analyzer identify which plugin caused my crash?',
     ],
   },
 
@@ -2621,12 +2711,11 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'desktop-bridge': {
     pageId: 'desktop-bridge',
     pageName: 'Desktop Bridge',
-    route: '/runtime-hub',
-    purpose: 'Local system bridge that connects Mossy (renderer) to OS tools, editors, and runtime services — exposes drivers, hardware info, file/clipboard access, and special integrations (Blender, CK, xEdit).',
+    route: '/test/bridge',
+    purpose: 'Local system bridge that connects Mossy (renderer) to OS tools, editors, and runtime services — exposes hardware info, file/clipboard access, and special integrations (Blender, CK, xEdit).',
     features: [
       'Bridge heartbeat & connection status (online/offline)',
-      'Driver detection with versions, permissions and latency',
-      'System & hardware scanning (GPU/CPU/drivers)',
+      'System & hardware scanning (GPU/CPU)',
       'Blender / Creation Kit tool integrations and scene export/scan',
       'Clipboard preview, file browser and directory scanning',
       'Persistent settings, Papyrus template library & tool path checks',
@@ -2638,12 +2727,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'indicator',
         description: 'Shows whether the Desktop Bridge is active and its reported version',
         whenToUse: 'Check before running desktop-only commands or integrations',
-      },
-      {
-        name: 'Drivers Panel',
-        type: 'list',
-        description: "View detected drivers (Windows Shell, FS watcher, xEdit, CK, etc.) with status, version and permissions",
-        whenToUse: 'Confirm required tool drivers are active before running workflows',
       },
       {
         name: 'System / Hardware Scan',
@@ -2842,21 +2925,23 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Plugin & Load Order Hub',
     visualGuidePage: 20,
     route: '/plugin-tools',
-    purpose: 'Four-tab plugin workflow hub for xEdit operations, PRP compatibility patching, load-order verification, and FO4 plugin reference guidance.',
+    purpose: 'Six-tab plugin workflow hub covering xEdit operations, PRP compatibility patching, load-order management, ESP data mining, ESL merge-candidate scanning, and FO4 plugin reference guidance.',
     features: [
-      'Four-tab consolidated layout: xEdit Tools, PRP Patch Tools, Load Order, FO4 Plugin Guide',
+      'Six-tab layout: xEdit Tools, PRP Patch Tools, Load Order, ESP Mining, FO4 Plugin Guide, Merge Scanner',
       'Session-persistent tab selection via sessionStorage key `plugin_hub_tab`',
       'xEdit Tools surface for cleaning, conflict inspection, and workflow execution',
       'PRP Patch Tools workflow for precombine/previs-safe patch generation',
-      'Load Order analysis and optimization workflow with LOOT-aware checks',
+      'Load Order tab is itself a 3-step flow: Analyzer (fast conflict/missing-master checks), Lab (MO2 + LOOT import, xEdit script prep), and Optimizer (real MO2/Vortex import-export, drag-and-drop reordering, real FormID-overlap conflict detection, rule-based sorting)',
+      'ESP Mining: extracts FormID/cell/quest data directly from real plugin files',
+      'Merge Scanner: scans your load order for real ESL/ESP merge candidates, flagging each as ESL-ready, ESP-merge-safe, needs-review, or blocked based on real structural checks (scripts, precombines, shared masters, navmesh)',
       'In-hub FO4 plugin reference covering ESL limits, conflict strategy, and release-safe practices',
     ],
     controls: [
       {
         name: 'Hub tab strip',
         type: 'tabs',
-        description: 'Switch between xEdit Tools, PRP Patch Tools, Load Order, and FO4 Plugin Guide in one workspace',
-        whenToUse: 'Move between cleaning, patching, ordering, and reference tasks without leaving the hub',
+        description: 'Switch between xEdit Tools, PRP Patch Tools, Load Order, ESP Mining, FO4 Plugin Guide, and Merge Scanner in one workspace',
+        whenToUse: 'Move between cleaning, patching, ordering, mining, and reference tasks without leaving the hub',
       },
       {
         name: 'xEdit Tools tab',
@@ -2871,10 +2956,28 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         whenToUse: 'When preparing exterior-edit mods for PRP-safe load-order integration',
       },
       {
-        name: 'Load Order tab',
+        name: 'Load Order tab — Analyzer step',
         type: 'panel',
-        description: 'Open load-order scanning, conflict checks, and optimization workflows',
-        whenToUse: 'When stabilizing a profile after adding/removing mods or patches',
+        description: 'Fast, real conflict and missing-master scan of your current load order',
+        whenToUse: 'For a quick first pass before deeper work',
+      },
+      {
+        name: 'Load Order tab — Optimizer step',
+        type: 'panel',
+        description: 'Import from MO2 or Vortex, drag-and-drop to reorder, run real FormID-overlap conflict detection across your actual plugin files, apply rule-based sorting (ESL-first, priority plugins, custom rules), and export the result back to MO2 or Vortex',
+        whenToUse: 'When you need to actually fix and export a stable load order, not just check it',
+      },
+      {
+        name: 'ESP Mining tab',
+        type: 'panel',
+        description: 'Extracts real FormID, cell, and quest data straight from your plugin files for inspection',
+        whenToUse: 'When you need to look inside a plugin\'s actual record data',
+      },
+      {
+        name: 'Merge Scanner tab',
+        type: 'panel',
+        description: 'Scans your active plugins and categorizes each as a real zMerge candidate (ESL Ready, ESP Merge, Needs Review, or Blocked) based on real structural checks',
+        whenToUse: 'When trying to free up plugin/ESL slots by consolidating simple mods',
       },
       {
         name: 'FO4 Plugin Guide tab',
@@ -2888,6 +2991,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Applying ESL flags before FormID compaction validation',
       'Generating PRP-related patches without confirming final load-order placement',
       'Assuming conflict-free scan output means release-ready without final in-game verification',
+      'Merging a plugin flagged "Needs Review" or "Blocked" by the Merge Scanner without actually reviewing why it was flagged',
     ],
     guides: [
       {
@@ -2895,21 +2999,35 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Open FO4 Plugin & Load Order Hub',
           'Use xEdit Tools to clean and inspect conflicts for your target plugin(s)',
-          'Switch to Load Order and run analysis/sort checks for profile stability',
+          'Switch to Load Order → Analyzer for a quick conflict/missing-master pass',
+          'Use Load Order → Optimizer to import your real profile, reorder, and resolve real FormID conflicts, then export back to MO2/Vortex',
           'If exterior edits are involved, complete PRP Patch Tools workflow',
           'Review FO4 Plugin Guide limits/rules before packaging and release',
+        ],
+      },
+      {
+        title: 'Find merge candidates to free up plugin slots',
+        steps: [
+          'Open the Merge Scanner tab',
+          'Let it scan your active plugins',
+          'Start with anything flagged "ESL Ready" — those give the biggest slot savings',
+          'Review anything flagged "Needs Review" before merging it (scripts or precombines involved)',
+          'Never merge anything flagged "Blocked" (ESM, shared master, or navmesh records)',
         ],
       },
     ],
     tutorialSections: [
       'FO4 Plugin & Load Order Hub - Unified Plugin Workflow',
       'xEdit, PRP Patch, and Load Order Validation',
+      'ESP Mining and Merge Candidate Scanning',
     ],
     suggestedQuestions: [
       'When should I run xEdit cleaning versus load-order analysis first?',
       'How does FO4 Plugin & Load Order Hub handle PRP-related plugin patching?',
       'What are the key ESL/FormID limits I should validate before release?',
       'Which tab should I use when tracking down a plugin conflict chain?',
+      'Why did the Merge Scanner flag my plugin as "Blocked"?',
+      'What\'s the difference between the Load Order Analyzer and the Optimizer?',
     ],
   },
 
@@ -3029,13 +3147,20 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Guides Hub',
     visualGuidePage: 12,
     route: '/guides-hub',
-    purpose: 'Three-tab consolidated guide hub covering the three deepest FO4 mod authoring disciplines: Animation & Rigging, Quest Authoring, and LOD & Precombine.',
+    purpose: 'Seven-tab consolidated guide hub covering every major FO4 mod authoring discipline: Animation & Rigging, Quest Authoring, LOD & Precombine, Textures & Materials, Papyrus & Scripting, Sim Settlements 2, and BodySlide & Outfits — plus a direct link to the Fallout Wiki.',
     features: [
-      'Three-tab layout: Animation & Rigging, Quest Authoring, LOD & Precombine',
+      'Seven-tab layout: Animation & Rigging, Quest Authoring, LOD & Precombine, Textures & Materials, Papyrus & Scripting, Sim Settlements 2, BodySlide & Outfits',
       'Tab selection persists for the session via sessionStorage key `guides_hub_tab`',
+      'Live search/filter across tab metadata, plus keyboard shortcuts 1-7 for instant tab switching',
+      'Per-tab visited/completion tracking so you can see your progress through each guide',
+      'A real "Fallout Wiki" button in the header opens fallout.fandom.com in your browser',
       'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion) + Shiagur rig suite, MaikCG F4Biped, IAF/NAF/AWF framework integration',
       'Quest Authoring — CK + Papyrus + F4SE workflow from smoke test to release',
       'LOD & Precombine — xLODGen + DynDOLOD + PRP end-to-end generation and validation',
+      'Textures & Materials — DDS formats, BGSM editing, PBR pipeline, and batch optimization (mirrors the FO4 Textures & Materials platform\'s own guide tab)',
+      'Papyrus & Scripting — F4SE, event-driven scripting patterns, and PaperScript reference',
+      'Sim Settlements 2 — addon pack structure, city plan authoring, and unit/plot design',
+      'BodySlide & Outfits — Outfit Studio workflow, morphs, and CBBE-family body compatibility',
     ],
     controls: [
       {
@@ -3055,6 +3180,42 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'button',
         description: 'Opens the LOD generation and precombine rebuild guide for exterior mods',
         whenToUse: 'Use when generating LODs or rebuilding precombines after exterior edits',
+      },
+      {
+        name: 'Textures & Materials Tab',
+        type: 'button',
+        description: 'Opens the DDS/BGSM/PBR texture and material reference guide',
+        whenToUse: 'Use when you need format/channel/pipeline reference rather than the full Textures & Materials tool itself',
+      },
+      {
+        name: 'Papyrus & Scripting Tab',
+        type: 'button',
+        description: 'Opens the F4SE and Papyrus event-driven scripting reference',
+        whenToUse: 'Use when writing or debugging Papyrus scripts and F4SE-dependent functions',
+      },
+      {
+        name: 'Sim Settlements 2 Tab',
+        type: 'button',
+        description: 'Opens the SS2 addon pack, city plan, and unit authoring guide',
+        whenToUse: 'Use when building content for the Sim Settlements 2 framework',
+      },
+      {
+        name: 'BodySlide & Outfits Tab',
+        type: 'button',
+        description: 'Opens the Outfit Studio and BodySlide morph/conversion guide',
+        whenToUse: 'Use when converting or building outfits for BodySlide-compatible bodies',
+      },
+      {
+        name: 'Fallout Wiki button',
+        type: 'button',
+        description: 'Opens fallout.fandom.com in your default browser for looking up vanilla game data (items, NPCs, quests, locations)',
+        whenToUse: 'When you need to check vanilla game facts while authoring a mod',
+      },
+      {
+        name: 'Keyboard shortcuts (1-7, /)',
+        type: 'indicator',
+        description: 'Press 1-7 to jump directly to a tab, or / to focus the search box',
+        whenToUse: 'For fast tab switching without reaching for the mouse',
       },
       {
         name: 'Tab Memory Handler',
@@ -3087,12 +3248,16 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Animation & Rigging (Blender + Havok)',
       'Quest Authoring (CK + Papyrus + F4SE)',
       'LOD & Precombine (xLODGen + DynDOLOD + PRP)',
+      'Textures & Materials (DDS + BGSM + PBR + Optimize)',
+      'Papyrus & Scripting (F4SE + Events + PaperScript)',
+      'Sim Settlements 2 (Addon Packs + City Plans + Units)',
+      'BodySlide & Outfits (Outfit Studio + Morphs + CBBE)',
     ],
     suggestedQuestions: [
       'Which Guides Hub tab covers Blender FBX to HKX conversion?',
       'How do I start a quest smoke test in the CK?',
       'What is the correct order for LOD generation and PRP precombine rebuilds?',
-      'How do I switch between Animation, Quest, and LOD guides without losing my place?',
+      'How do I switch between guide tabs without losing my place?',
       'What version of CKPE do I need for NG (1.10.980+) vs OG (1.10.163)?',
       'Why should I avoid RegisterForUpdate() in Papyrus scripts?',
       'Do I need Addictol or standalone Buffout 4 for NG/AE?',
@@ -3100,13 +3265,16 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Which Blender rig should I use for FO4 animations — Shiagur or MaikCG F4Biped?',
       'What is the difference between IAF, NAF, and AWF for animation modding?',
       'How do I use the Animated World Framework to add animations to world-object interactions?',
+      'How do I build a Sim Settlements 2 addon pack?',
+      'What\'s the difference between BodySlide and Outfit Studio?',
+      'Can I jump straight to a tab with a keyboard shortcut?',
     ],
   },
 
   'blender-animation-guide': {
     pageId: 'blender-animation-guide',
     pageName: 'Animation Guide',
-    route: '/guides-hub',
+    route: '/guides/blender/animation',
     purpose: 'End-to-end Fallout 4 animation pipeline: skeleton import, rigging, authoring, FBX export and HKX conversion, validation, in-game testing, and community rig/framework integration.',
     features: [
       'Reference & skeleton import (preserve vanilla bone names)',
@@ -3231,7 +3399,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'quest-authoring-guide': {
     pageId: 'quest-authoring-guide',
     pageName: 'Quest Authoring Guide (Quest Mod Authorizing)', // VISUAL_GUIDE title: Quest Mod Authorizing
-    route: '/guides-hub',
+    route: '/guides/creation-kit/quest-authoring',
     purpose: 'Authoritative Creation Kit hub: install/verify CK toolchain, author quests & dialogue, manage leveled lists, precombine exteriors, validate, and publish.',
     features: [
       'Tools & install verification (CK, FO4Edit, mod manager, Archive2)',
@@ -3563,7 +3731,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'support': {
     pageId: 'support',
     pageName: 'Support Mossy',
-    route: '/system-hub',
+    route: '/support',
     purpose: 'Support the development of Mossy and access premium features',
     features: [
       'Donation options',
@@ -3803,7 +3971,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'roadmap-panel': {
     pageId: 'roadmap-panel',
     pageName: 'Modding Roadmaps',
-    route: '/journey-hub',
+    route: '/roadmap',
     purpose: 'Turn a mod idea into a step‑by‑step plan with tool hints and progress tracking',
     features: [
       'AI‑generated step lists from a short goal',
@@ -3989,8 +4157,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'first-success': {
     pageId: 'first-success',
     pageName: 'First Success Wizard',
-    // Not a standalone tutorial page — it lives inside Journey Hub (page 4). No visualGuidePage.
-    route: '/journey-hub',
+    // Not part of the main 23-page guided tour (no visualGuidePage) — reachable both from
+    // inside Journey Hub and directly at its own route.
+    route: '/first-success',
     purpose: 'Guide you through the core onboarding checklist so Mossy can personalize help',
     features: [
       'System scan checklist',
@@ -4196,7 +4365,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'advanced-analysis': {
     pageId: 'advanced-analysis',
     pageName: 'Advanced Analysis',
-    route: '/tools/analysis',
+    route: '/tools/advanced-analysis',
     purpose: 'Deep asset and plugin analysis with AI-suggested fixes and batch scanning.',
     features: [
       'Batch scans',
@@ -4223,7 +4392,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'local-capabilities': {
     pageId: 'local-capabilities',
     pageName: 'Local Capabilities',
-    route: '/local',
+    route: '/capabilities',
     purpose: 'Detect and list local system capabilities and available native integrations.',
     features: [
       'Detected tools',
@@ -4277,8 +4446,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'tool-verify': {
     pageId: 'tool-verify',
     pageName: 'Tool Verify',
-    route: '/tools/verify',
-    purpose: 'Verify configured tool paths and versions (Creation Kit, Blender, MO2, xEdit).',
+    // Merged into Diagnostics — /tool-verify and /devtools/tool-verify both redirect to /diagnostics now.
+    route: '/diagnostics',
+    purpose: 'Verify configured tool paths and versions (Creation Kit, Blender, MO2, xEdit) — now part of the Diagnostic Tools page.',
     features: [
       'Path checks',
       'Version detection',
@@ -4304,72 +4474,92 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'guided-tours': {
     pageId: 'guided-tours',
     pageName: 'Guided Tours',
-    route: '/tours',
-    purpose: 'Curated guided tours through common workflows and multi-step tutorials.',
+    visualGuidePage: 23,
+    // Not a dedicated page — the "Guided Tours" panel lives in the Sidebar and launches
+    // real react-joyride spotlight overlays. Anchored to home for lack of a single URL.
+    route: '/',
+    purpose: 'A "Guided Tours" panel in the sidebar that re-launches real, spotlight-based walkthroughs any time you want — this full 23-page tour, a Feature Spotlight highlighting a specific tool, or the entire first-run install experience from scratch.',
     features: [
-      'Step-by-step tours',
-      'Progress saved',
+      'Welcome Tour — replays this same 23-page interactive tour you\'re on right now',
+      'Feature Spotlight — a react-joyride overlay that highlights specific UI elements on the current page with narrated call-outs',
+      'Initial Install — fully replays the system scan and first-run onboarding flow (with a confirmation prompt, since it resets onboarding progress). Your settings, API keys, and data are all preserved',
+      'Spoken narration via Mossy\'s text-to-speech on each spotlighted step',
+      'Screenshot fallbacks — if a step\'s reference image is missing, it shows a "Screenshot unavailable" placeholder instead of a broken image',
     ],
     controls: [
-      { name: 'Start Tour', type: 'button', description: 'Begin a guided tour', whenToUse: 'When learning a new workflow' },
+      {
+        name: 'Welcome Tour',
+        type: 'button',
+        description: 'Restarts this interactive page-by-page tour from page 1',
+        whenToUse: 'When you want a full refresher on every platform in the app',
+      },
+      {
+        name: 'Feature Spotlight',
+        type: 'button',
+        description: 'Launches a react-joyride overlay that highlights specific controls on your current page with narrated explanations',
+        whenToUse: 'When you want a focused walkthrough of the page you\'re already on, rather than the whole app',
+      },
+      {
+        name: 'Initial Install',
+        type: 'button',
+        description: 'Replays the full first-run system scan and onboarding flow from the very beginning, after a confirmation prompt',
+        whenToUse: 'If you want to re-run setup (e.g. after adding new modding tools) without losing your existing settings or data',
+      },
     ],
     commonMistakes: [
-      'Skipping steps in a tour',
+      'Clicking "Initial Install" without realizing it replays the full scan/onboarding sequence — read the confirmation prompt first',
+      'Expecting Feature Spotlight to cover every page — it highlights whatever\'s relevant to the page you\'re currently on',
     ],
     guides: [
-      { title: 'Start a guided tour', steps: ['Open Guided Tours', 'Pick a tour and click Start'] },
+      {
+        title: 'Replay the full tour',
+        steps: ['Open the Guided Tours panel in the sidebar', 'Click "Welcome Tour"', 'Follow along page by page, same as your first run'],
+      },
+      {
+        title: 'Get a focused walkthrough of your current page',
+        steps: ['Navigate to the page you want help with', 'Open the Guided Tours panel in the sidebar', 'Click "Feature Spotlight" to highlight that page\'s key controls'],
+      },
     ],
     tutorialSections: [
-      'Tours & Walkthroughs',
+      'Guided Tours - Replaying Walkthroughs',
+      'Welcome Tour vs Feature Spotlight vs Initial Install',
     ],
     suggestedQuestions: [
-      'How long does a guided tour take?',
-    ],
-  },
-
-  'fallout4-wiki': {
-    pageId: 'fallout4-wiki',
-    pageName: 'Fallout 4 Wiki (Reference)',
-    route: '/reference/wiki',
-    purpose: 'Quick links and reference to community and official Fallout 4 resources.',
-    features: [
-      'External links',
-      'Search shortcuts',
-    ],
-    controls: [
-      { name: 'Open Wiki', type: 'button', description: 'Open the Fallout 4 Wiki link', whenToUse: 'When looking up game data' },
-    ],
-    commonMistakes: [
-      'Relying on outdated wiki pages',
-    ],
-    guides: [
-      { title: 'Open wiki reference', steps: ['Open Fallout 4 Wiki page', 'Use search to find the entry you need'] },
-    ],
-    tutorialSections: [
-      'External Reference Links',
-    ],
-    suggestedQuestions: [
-      'Where can I find physics/animation references?',
+      'How do I replay this tutorial later?',
+      'What\'s the difference between Feature Spotlight and the Welcome Tour?',
+      'Will replaying Initial Install erase my settings?',
+      'Can I get a guided tour of just one specific tool?',
     ],
   },
 
   'pip-boy-mode': {
     pageId: 'pip-boy-mode',
     pageName: 'Pip‑Boy Mode',
-    route: '/pip-boy',
-    purpose: 'Toggle the Pip‑Boy UI mode for an immersive, game-like view of Mossy.',
+    // Not a dedicated page — it's a small icon button (Radio icon) in the app header, present
+    // on every screen. Anchored to home since there's no single "correct" route.
+    route: '/',
+    purpose: 'A real, full app-wide theme change — not just a button lighting up. One click (or Ctrl+Shift+P) recolors the entire interface to look like a Fallout Pip-Boy screen: black background, monochrome green text and borders, a monospace font, a green text glow, and a faint CRT-style screen reflection overlay. Every button, panel, and input across the whole app changes, not just the toggle itself.',
     features: [
-      'Pip‑Boy theme',
-      'Compact HUD',
+      'Header toggle button (Radio icon) — turns amber/highlighted when Pip-Boy mode is active',
+      'Keyboard shortcut: Ctrl+Shift+P',
+      'Applies instantly app-wide: black background, classic Pip-Boy green (#16f342) text/borders/glow, monospace font',
+      'Buttons glow green on hover in Pip-Boy mode',
+      'A subtle CRT screen-reflection overlay for the retro-terminal look',
+      'Purely cosmetic — no features are hidden or disabled while it\'s active',
     ],
     controls: [
-      { name: 'Toggle Pip‑Boy', type: 'toggle', description: 'Enable or disable pip‑boy mode', whenToUse: 'When you want the compact, themed UI' },
+      {
+        name: 'Pip-Boy toggle (header)',
+        type: 'toggle',
+        description: 'Click the Radio icon button in the top header to switch the whole app between normal and Pip-Boy green-monochrome theme',
+        whenToUse: 'Whenever you want the immersive, in-universe look — purely a visual preference, doesn\'t change any functionality',
+      },
     ],
     commonMistakes: [
-      'Expecting full feature parity with standard UI in Pip‑Boy mode',
+      'Not realizing it\'s a full-app theme change (some text can be harder to read in Pip-Boy mode on certain screens due to the monochrome override)',
     ],
     guides: [
-      { title: 'Enable Pip‑Boy mode', steps: ['Open Settings → Appearance', 'Enable Pip‑Boy Mode', 'Restart UI if required'] },
+      { title: 'Toggle Pip-Boy mode', steps: ['Look for the small Radio icon button in the top header (or press Ctrl+Shift+P)', 'Click it to switch the whole app to the green Pip-Boy theme', 'Click again (or press the shortcut again) to switch back to normal'] },
     ],
     tutorialSections: [
       'Appearance & Themes',
@@ -4412,7 +4602,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'the-lorekeeper': {
     pageId: 'the-lorekeeper',
     pageName: 'LOD & Precombine Guide',
-    route: '/guides-hub',
+    // This content was merged into the Quest Authoring Guide (precombine-prp and
+    // precombine-checker both redirect there now) — route matches where it actually lives.
+    route: '/guides/creation-kit/quest-authoring',
     purpose: 'End-to-end LOD generation and precombine rebuild workflow for FO4 exterior mods: xLODGen terrain/object LODs, DynDOLOD tree/dynamic LODs, and PRP precombine rebuild and validation.',
     features: ['xLODGen terrain and object LOD generation', 'DynDOLOD tree and dynamic LOD setup', 'PRP precombine rebuild steps', 'Exterior cell edit validation', 'Precombine conflict detection'],
     controls: [
@@ -4457,7 +4649,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'creative-director': {
     pageId: 'creative-director',
     pageName: 'Vault-Tec Creative Director',
-    visualGuidePage: 23,
+    // Not part of the main 23-page guided tour — Creative Director is a local-only dev tool
+    // and shouldn't be presented as a normal user-facing feature. Page 23 is now Guided Tours,
+    // matching the real screenshot set (see 'guided-tours' entry).
     route: '/creative-director',
     purpose: 'AI team pipeline for designing small, accurate Fallout 4 mods. The team works through a strict gated pipeline — Plan → Review → Analyze → YOUR APPROVAL → Build (section by section) → Verify — before producing a complete BUILD_GUIDE.md you can follow in Creation Kit. Every FormID, EditorID, and NIF path is cross-checked against real FO4 game data. The team never invents records.',
     features: [
@@ -4662,15 +4856,20 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Textures & Materials',
     visualGuidePage: 10,
     route: '/textures',
-    purpose: 'Unified platform for all texture and material work in Fallout 4 modding — DDS conversion, procedural generation, image processing, and an embedded FO4 texture reference guide.',
+    purpose: 'Unified platform for every texture and material task in Fallout 4 modding — 11 tabs covering DDS conversion, procedural and AI texture generation, PBR material authoring, real .bgsm binary editing, mesh/script optimization, and reference documentation.',
     features: [
-      'Four-tab consolidated workflow: DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide',
-      'Session tab persistence via sessionStorage (restores last active tab)',
-      'Embedded FO4 Texture Guide: format picker, channel conventions (BC1/BC3/BC5/BC7), mipmap rules, PBR pipeline notes, and common mistakes',
-      'Lazy-loaded tool panels for fast startup',
-      'DDS Converter: batch BC1/BC3/BC5/BC7 conversion with mipmap control',
+      '11-tab consolidated workflow: DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide, BGSM Editor, Mat Editor, Mat Definitions, Optimizer, Enhancer, Krita AI Paint, AI Image Studio',
+      'Session tab persistence via sessionStorage (restores your last active tab)',
+      'DDS Converter: batch BC1/BC3/BC4/BC5/BC7 conversion with mipmap control',
       'Texture Generator: PBR and procedural texture generation',
       'Image Studio: PBR map prep, format conversion, preview',
+      'FO4 Texture Guide: embedded format picker, channel conventions, mipmap rules, PBR pipeline notes, and common mistakes',
+      'BGSM Editor: writes a real binary .bgsm file (SF1/SF2 shader flags, PBR toggle) — not a JSON stand-in',
+      'Mat Editor: node-based shader graph with a real 3D preview, real preset library, and real binary .bgsm export',
+      'Mat Definitions: browse and edit a mod\'s .mossy_material.json RMAOS manifest (click "Browse Mod Folder" to load one)',
+      'Optimizer: batch texture recompression (texconv), plus real mesh cleanup and Papyrus script recompilation when the right tools are configured',
+      'Enhancer: detail-extraction and full PBR map generation (albedo, normal, roughness, metallic, AO, height) from a single source photo — not an upscaler',
+      'Krita AI Paint / AI Image Studio: AI-assisted painting and image generation workflows',
     ],
     controls: [
       {
@@ -4698,6 +4897,36 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         whenToUse: 'When verifying format choices, channel packing, or PBR/ENB pipeline compatibility before release',
       },
       {
+        name: 'BGSM Editor Tab',
+        type: 'button',
+        description: 'Full FO4 material flag editor — edit every SF1/SF2 shader flag, specular/emissive/wetness values, and save a real binary .bgsm (Fallout 4 version 2 only; other versions honestly fall back to a labeled JSON export)',
+        whenToUse: 'When you need precise control over a material\'s shader flags rather than the node-graph workflow',
+      },
+      {
+        name: 'Mat Editor Tab',
+        type: 'button',
+        description: 'Node-based shader graph editor with a live Three.js preview. Drag node headers to move them, click a node\'s output dot then a target node\'s input dot to wire a connection, and use Validate to check the graph is fully connected before saving',
+        whenToUse: 'When building or tuning a material visually rather than editing raw flags',
+      },
+      {
+        name: 'Mat Definitions Tab',
+        type: 'button',
+        description: 'Click "Browse Mod Folder" to load a .mossy_material.json manifest and browse/edit its material entries',
+        whenToUse: 'When working with a mod that already has a Mossy material manifest',
+      },
+      {
+        name: 'Optimizer Tab',
+        type: 'button',
+        description: 'Batch-optimize a mod folder: texture recompression always works if texconv.exe is configured in Settings; mesh cleanup and script recompilation need Blender+Mossy Link and the Papyrus Compiler configured respectively',
+        whenToUse: 'Before packaging a mod, to shrink textures and clean up meshes/scripts in one pass',
+      },
+      {
+        name: 'Enhancer Tab',
+        type: 'button',
+        description: 'Pick a single source texture (or a folder in batch mode) and run the full detail-extraction pipeline: de-lit albedo, normal map, roughness, metallic, AO, cavity, height, and a generated .bgsm referencing the outputs',
+        whenToUse: 'When you have one good photo/texture and need a complete PBR material set from it',
+      },
+      {
         name: 'Tab Memory Restore',
         type: 'button',
         description: 'Remembers and restores your last active texture hub tab in-session',
@@ -4711,6 +4940,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Shipping uncompressed 32-bit DDS in a BA2 archive',
       'OpenGL normal handedness instead of DX (flip G channel for FO4)',
       'Ignoring the FO4 Texture Guide tab when choosing PBR vs vanilla format paths',
+      'Expecting the Optimizer\'s mesh/script optimization to work without Blender+Mossy Link (mesh) or a configured Papyrus Compiler (scripts) — texture recompression works standalone, the other two need those tools connected',
+      'Expecting the Enhancer to "upscale" a low-res texture — it extracts real PBR detail from what\'s already in the source image, it does not add resolution or invent detail that isn\'t there',
     ],
     guides: [
       {
@@ -4732,6 +4963,25 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         ],
       },
       {
+        title: 'Build a real material with the Mat Editor',
+        steps: [
+          'Switch to the Mat Editor tab and pick a preset close to what you need, or start from a blank graph',
+          'Add nodes from the palette and drag their headers to arrange them',
+          'Click an output dot then an input dot to wire connections between nodes',
+          'Click Validate to confirm every node is connected and the graph reaches an output',
+          'Click Save — this writes a real binary .bgsm (version 2) via the same writer used by the BGSM Editor',
+        ],
+      },
+      {
+        title: 'Extract a full PBR set from one photo',
+        steps: [
+          'Switch to the Enhancer tab and pick Single Texture or Batch Folder mode',
+          'Choose your source image (or folder) and a material surface preset (metal, wood, concrete, etc.)',
+          'Run the pipeline — it produces albedo, normal, roughness, metallic, AO, cavity, height maps and a .bgsm',
+          'Review outputs in Image Studio or the Mat Editor before packaging',
+        ],
+      },
+      {
         title: 'Check format and channel rules before release',
         steps: [
           'Open the FO4 Texture Guide tab',
@@ -4742,16 +4992,24 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       },
     ],
     tutorialSections: [
-      'DDS Converter (BC1/BC3/BC5/BC7)',
+      'DDS Converter (BC1/BC3/BC4/BC5/BC7)',
       'Texture Generator (PBR & Procedural)',
       'Image Studio (PBR Map Prep)',
       'FO4 Texture Guide (Formats, Channels, Mipmaps)',
+      'BGSM Editor (Real Binary Material Flags)',
+      'Mat Editor (Node-Based Shader Graph)',
+      'Mat Definitions (RMAOS Manifest)',
+      'Optimizer (Batch Texture/Mesh/Script Cleanup)',
+      'Enhancer (Photo-to-PBR Detail Extraction)',
     ],
     suggestedQuestions: [
       'What DDS format should I use for diffuse vs normal textures?',
       'How do I set up PBR textures for Community Shaders?',
       'Why does my normal map look inverted in FO4?',
       'When should I use BC7 vs DXT5 for specular maps?',
+      'What\'s the difference between the BGSM Editor and the Mat Editor?',
+      'Why isn\'t the Optimizer cleaning up my meshes?',
+      'Does the Enhancer work without Blender installed?',
     ],
   },
 

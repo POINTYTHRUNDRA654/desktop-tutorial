@@ -52,7 +52,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
         return { provider: 'openai', apiKey: process.env.OPENAI_API_KEY, model: 'gpt-4-turbo' };
       }
       if (process.env.GROQ_API_KEY) {
-        return { provider: 'groq', apiKey: process.env.GROQ_API_KEY, model: 'llama-3.3-70b-versatile' };
+        return { provider: 'groq', apiKey: process.env.GROQ_API_KEY, model: 'openai/gpt-oss-120b' };
       }
       // Check for local Ollama
       if (process.env.OLLAMA_ENABLED === 'true') {
@@ -116,7 +116,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
     if (!this.llmConfig.apiKey) return null;
     const url = 'https://api.groq.com/openai/v1/chat/completions';
     const body = {
-      model: this.llmConfig.model || 'llama-3.3-70b-versatile',
+      model: this.llmConfig.model || 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }
@@ -210,22 +210,25 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
     const systemPrompt = `You are an expert ${languageName} code generator for Fallout 4 modding. Generate clean, production-ready ${languageName} code. Only output the code, no explanations.`;
     
     let code = await this.callLLM(systemPrompt, prompt);
-    
+    let usedFallbackStub = false;
+
     if (!code) {
-      // Fallback stub
+      // No LLM configured/reachable — this is an empty template, not real
+      // generated code. Flagged via `warnings` below so callers can tell.
+      usedFallbackStub = true;
       code = language === 'papyrus'
-        ? `Scriptname GeneratedScript\n; Generated from: ${prompt}\nEvent OnInit()\n\t; Implementation needed\nEndEvent` 
+        ? `Scriptname GeneratedScript\n; Generated from: ${prompt}\nEvent OnInit()\n\t; Implementation needed\nEndEvent`
         : `// Generated from: ${prompt}\nexport function generated() { return 'implementation'; }`;
     }
 
     const ext = language === 'papyrus' ? 'psc' : 'ts';
-    return { 
-      code, 
-      language, 
-      explanation: `Generated ${languageName} code from prompt: ${prompt}`, 
-      warnings: [], 
-      alternatives: [], 
-      files: [{ name: `generated.${ext}`, content: code }] 
+    return {
+      code,
+      language,
+      explanation: `Generated ${languageName} code from prompt: ${prompt}`,
+      warnings: usedFallbackStub ? ['No LLM available — this is an empty template, not real generated code.'] : [],
+      alternatives: [],
+      files: [{ name: `generated.${ext}`, content: code }]
     };
   }
 
@@ -352,14 +355,14 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   // Multi-modal
   // ----------------------
   async analyzeImage(imagePath: string, question: string): Promise<ImageAnalysis> {
-    // Note: Real image analysis would require vision API (GPT-4V, Claude Vision, etc.)
-    // For now, return structural analysis
+    // No vision API (GPT-4V, Claude Vision, etc.) is wired up here, so this
+    // honestly reports that no analysis happened rather than fabricating
+    // tags/objects/a bounding box for content it never actually looked at.
     return {
-      description: `Image at ${imagePath}`,
-      tags: ['screenshot', 'ui'],
-      objects: [{ label: 'content', name: 'main content area', confidence: 0.95, boundingBox: { x: 0, y: 0, width: 100, height: 100 } }],
+      description: `Image at ${imagePath} — not analyzed`,
+      objects: [],
       answer: `Unable to analyze image. ${question} (Vision API not configured)`,
-      confidence: 0.4
+      confidence: 0
     };
   }
 

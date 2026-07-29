@@ -9,16 +9,6 @@ import { openExternal } from './utils/openExternal';
 import { BridgeRegistry } from './bridges/BridgeRegistry';
 import type { BridgeInfo } from './bridges/BridgeBase';
 
-interface Driver {
-    id: string;
-    name: string;
-    icon: React.ElementType;
-    status: 'active' | 'inactive' | 'mounting' | 'error';
-    version: string;
-    latency: number;
-    permissions: string[];
-}
-
 interface LogEntry {
     id: string;
     timestamp: string;
@@ -26,15 +16,6 @@ interface LogEntry {
     event: string;
     status: 'ok' | 'warn' | 'err' | 'success';
 }
-
-// Initial drivers
-const initialDrivers: Driver[] = [
-    { id: 'os_shell', name: 'Windows Shell', icon: Terminal, status: 'active', version: '10.0.19045', latency: 12, permissions: ['fs.read', 'fs.write', 'exec'] },
-    { id: 'fs_watcher', name: 'File System Watcher', icon: Eye, status: 'active', version: '2.1.0', latency: 5, permissions: ['fs.watch', 'read.recursive'] },
-    { id: 'xedit', name: 'xEdit Data Link', icon: Database, status: 'active', version: '4.0.4', latency: 45, permissions: ['plugin.read', 'record.edit'] },
-    { id: 'ck', name: 'Creation Kit Telemetry', icon: Wrench, status: 'active', version: '1.10', latency: 80, permissions: ['cell.view'] },
-    { id: 'vscode', name: 'VS Code Host', icon: Code, status: 'inactive', version: '1.85.1', latency: 0, permissions: ['editor.action', 'workspace'] },
-];
 
 // helper that returns raw ArrayBuffer for the ZIP. exported for tests.
 export const fetchBlenderAddon = async (): Promise<ArrayBuffer> => {
@@ -73,22 +54,6 @@ export const fetchBlenderAddon = async (): Promise<ArrayBuffer> => {
 };
 
 const DesktopBridge: React.FC = () => {
-    const [drivers, setDrivers] = useState<Driver[]>(() => {
-        try {
-            const saved = localStorage.getItem('mossy_bridge_drivers');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                return initialDrivers.map(d => {
-                    const s = parsed.find((p: any) => p.id === d.id);
-                    return s ? { ...d, status: s.status } : d;
-                });
-            }
-        } catch (e) {
-            console.error('Failed to load saved drivers:', e);
-        }
-        return initialDrivers;
-    });
-
     const [logs, setLogs] = useState<LogEntry[]>(() => {
         try {
             const saved = localStorage.getItem('mossy_bridge_logs');
@@ -1338,13 +1303,6 @@ pause
             localStorage.setItem('mossy_bridge_logs', JSON.stringify(next));
             return next;
         });
-    };
-
-    const toggleDriver = (id: string) => {
-        setDrivers(prev => prev.map(d => {
-            if (d.id !== id) return d;
-            return { ...d, status: d.status === 'active' ? 'inactive' : 'active' };
-        }));
     };
 
     // === REAL BRIDGE API TESTING FUNCTIONS ===

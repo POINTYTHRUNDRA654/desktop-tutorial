@@ -38,6 +38,42 @@
   font-style: italic;
 }
 
+.btn-browse-mod {
+  margin-left: auto;
+  background: rgba(52, 152, 219, 0.2);
+  border: 1px solid rgba(52, 152, 219, 0.4);
+  color: #5dade2;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.btn-browse-mod:hover {
+  background: rgba(52, 152, 219, 0.3);
+}
+
+.mod-path-display {
+  padding: 6px 20px;
+  font-size: 11px;
+  color: #7f8c8d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 13px;
+}
+
 /* Layout */
 .editor-layout {
   display: flex;

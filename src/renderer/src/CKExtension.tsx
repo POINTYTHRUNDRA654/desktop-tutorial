@@ -262,6 +262,33 @@ export const CKExtension: React.FC = () => {
     }, 50);
   };
 
+  const persistRecentScripts = async (scripts: CKScript[]) => {
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
+    if (api?.setSettings) {
+      try { await api.setSettings({ ckRecentScripts: scripts }); } catch { /* non-fatal */ }
+    }
+  };
+
+  const addScripts = async () => {
+    const api: any = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.ckPickPscFiles) {
+      setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Script picker not available in this build.`]);
+      return;
+    }
+    const picked = await api.ckPickPscFiles();
+    if (!picked?.length) return;
+    setRecentScripts(prev => {
+      const existingPaths = new Set(prev.map((s: CKScript) => s.path));
+      const newOnes: CKScript[] = picked
+        .filter((p: any) => !existingPaths.has(p.path))
+        .map((p: any) => ({ name: p.name, path: p.path, lastModified: new Date(p.lastModified), compiled: false }));
+      const next = [...prev, ...newOnes];
+      void persistRecentScripts(next);
+      return next;
+    });
+    setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Added ${picked.length} script(s) to the queue`]);
+  };
+
   const compileScript = async (scriptName: string) => {
     const api: any = (window as any).electron?.api || (window as any).electronAPI;
     const job: CompilationJob = {
@@ -272,6 +299,14 @@ export const CKExtension: React.FC = () => {
 
     setCompilationQueue(prev => [...prev, job]);
     setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Queued: ${scriptName}`]);
+
+    const markCompiled = (success: boolean) => {
+      setRecentScripts(prev => {
+        const next = prev.map(s => s.name === scriptName ? { ...s, compiled: success } : s);
+        void persistRecentScripts(next);
+        return next;
+      });
+    };
 
     // Use real Papyrus compiler IPC when available
     if (api?.papyrusCompiler?.compileScript) {
@@ -288,6 +323,7 @@ export const CKExtension: React.FC = () => {
         setCompilationQueue(prev =>
           prev.map(j => j.id === job.id ? { ...j, status: success ? 'success' : 'error', endTime: new Date(), errors } : j)
         );
+        markCompiled(success);
         setCkLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${success ? 'Success' : 'Failed'}: ${scriptName}`]);
       } catch (err: any) {
         setCompilationQueue(prev =>
@@ -472,17 +508,31 @@ export const CKExtension: React.FC = () => {
                   <Code className="w-6 h-6 text-orange-400" />
                   <h3 className="text-lg font-bold text-white">Script Compilation</h3>
                 </div>
-                <button
-                  onClick={compileAllQueued}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-                >
-                  <Play className="w-4 h-4" />
-                  Compile All Uncompiled
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={addScripts}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    Add Script(s)
+                  </button>
+                  <button
+                    onClick={compileAllQueued}
+                    disabled={recentScripts.every(s => s.compiled)}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Compile All Uncompiled
+                  </button>
+                </div>
               </div>
 
               {/* Recent Scripts */}
               <div className="space-y-2">
+                {recentScripts.length === 0 && (
+                  <div className="text-sm text-slate-500 text-center py-4">
+                    No scripts queued yet — click "Add Script(s)" to pick .psc files to compile.
+                  </div>
+                )}
                 {recentScripts.map((script, index) => (
                   <div
                     key={index}

@@ -1,10 +1,17 @@
 /**
- * UpscaylExtension — Upscayl AI upscaler integration for MOSSY.SPACE
+ * UpscaylExtension — AI texture Detail Enhancer for MOSSY.SPACE, powered by Upscayl.
+ *
+ * Default mode ("Enhance") boosts detail/realism at the SAME resolution — it
+ * does not resize the texture. Since upscayl-bin only supports real scale
+ * factors of 2/3/4, Enhance mode runs the real AI pass at 2x into a temp
+ * file, then uses a real sharp-based resize back down to the source image's
+ * own resolution. Resolution Upscale (2x/3x/4x) is also available as an
+ * explicit opt-in mode for anyone who wants both effects at once.
  *
  * Detects Upscayl installation and its bundled CLI binary (upscayl-bin).
- * Queues upscale jobs and executes them via the electron WORKFLOW_RUNNER_RUN_TOOL
+ * Queues jobs and executes them via the electron WORKFLOW_RUNNER_RUN_TOOL
  * IPC channel, which spawns upscayl-bin with the correct arguments.
- * Falls back to simulation if upscayl-bin is not found.
+ * Falls back to a clearly-labeled simulation if upscayl-bin is not found.
  *
  * Upscayl-bin CLI: upscayl-bin -i <input> -o <output> -s <scale> -n <model>
  */
@@ -26,12 +33,15 @@ interface UpscaleJob {
   outputPath: string;
   originalW: number;
   originalH: number;
-  targetScale: 2 | 3 | 4;
+  targetScale: 1 | 2 | 3 | 4;
   model: string;
   outputFormat: 'png' | 'jpg' | 'webp';
   status: 'queued' | 'processing' | 'complete' | 'error';
   progress: number;
   errorMsg?: string;
+  /** True when no real upscayl-bin ran and this job's "complete" state is a
+   * simulated preview of the queue, not an actual upscaled file. */
+  simulated?: boolean;
 }
 
 interface UpscaleModel {
@@ -71,7 +81,7 @@ const UPSCALE_MODELS: UpscaleModel[] = [
     name: 'Ultramix Balanced',
     type: 'general',
     description: 'Balanced sharpness across all content types.',
-    fo4Use: 'General-purpose upscaling when unsure which model to use.',
+    fo4Use: 'General-purpose enhancement/upscaling when unsure which model to use.',
   },
 ];
 
@@ -126,7 +136,9 @@ export const UpscaylExtension: React.FC = () => {
   const [checking,       setChecking]       = useState(false);
   const [selectedFiles,  setSelectedFiles]  = useState<Array<{ name: string; path: string; w: number; h: number }>>([]);
   const [selectedModel,  setSelectedModel]  = useState(UPSCALE_MODELS[0].id);
-  const [selectedScale,  setSelectedScale]  = useState<2 | 3 | 4>(4);
+  // Defaults to 1x — "Enhance Only" (boost detail/realism at the source
+  // resolution). Resolution upscaling (2x/3x/4x) is available but opt-in.
+  const [selectedScale,  setSelectedScale]  = useState<1 | 2 | 3 | 4>(1);
   const [outputFormat,   setOutputFormat]   = useState<'png' | 'jpg' | 'webp'>('png');
   const [outputDir,      setOutputDir]      = useState('');
   const [jobs,           setJobs]           = useState<UpscaleJob[]>([]);
@@ -202,9 +214,11 @@ export const UpscaylExtension: React.FC = () => {
 
   const startUpscale = async () => {
     const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
-    const filesToProcess = selectedFiles.length > 0
-      ? selectedFiles
-      : [{ name: 'demo_texture.png', path: '', w: 512, h: 512 }]; // demo fallback
+    if (selectedFiles.length === 0) {
+      setStatusMsg('Select an image folder first — nothing queued.');
+      return;
+    }
+    const filesToProcess = selectedFiles;
 
     for (let i = 0; i < filesToProcess.length; i++) {
       const file = filesToProcess[i];
@@ -217,8 +231,8 @@ export const UpscaylExtension: React.FC = () => {
         fileName: file.name,
         inputPath: file.path,
         outputPath: outPath,
-        originalW: file.w || 512,
-        originalH: file.h || 512,
+        originalW: file.w,
+        originalH: file.h,
         targetScale: selectedScale,
         model: selectedModel,
         outputFormat,
@@ -235,6 +249,35 @@ export const UpscaylExtension: React.FC = () => {
       if (upscaylBinPath && file.path && bridge?.workflowRunnerRunTool) {
         setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'processing', progress: 10 } : j));
         try {
+          if (selectedScale === 1) {
+            // "Enhance Only" — upscayl-bin's real CLI only supports integer
+            // scales of 2/3/4, so there is no real "-s 1" mode to call. To
+            // genuinely deliver a same-resolution, detail-enhanced result
+            // (not a fabricated one) we run the real AI pass at 2x into a
+            // temp file, then use a real sharp-based resize back down to
+            // the source image's own real dimensions (read via getImageInfo,
+            // not guessed) as the final output.
+            const sourceInfo = await bridge.getImageInfo?.(file.path).catch(() => null);
+            const origW = sourceInfo?.width || file.w;
+            const origH = sourceInfo?.height || file.h;
+            if (!origW || !origH) {
+              throw new Error('Could not read source image dimensions for Enhance Only mode');
+            }
+            const tempPath = outPath.replace(/(\.[^.]+)$/, '_2x_pass$1');
+            const args = ['-i', file.path, '-o', tempPath, '-s', '2', '-n', selectedModel, '-f', outputFormat];
+            const result = await bridge.workflowRunnerRunTool({ cmd: upscaylBinPath, args });
+            if (result?.exitCode !== 0) {
+              throw new Error(result?.stderr || `Exit code ${result?.exitCode}`);
+            }
+            setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, progress: 60 } : j));
+            const resized = await bridge.resizeImageTo?.({ inputPath: tempPath, outputPath: outPath, width: origW, height: origH });
+            if (!resized?.ok) {
+              throw new Error(resized?.error || 'Resize back to source resolution failed');
+            }
+            setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'complete', progress: 100 } : j));
+            continue;
+          }
+
           const args = [
             '-i', file.path,
             '-o', outPath,
@@ -250,12 +293,16 @@ export const UpscaylExtension: React.FC = () => {
             throw new Error(result?.stderr || `Exit code ${result?.exitCode}`);
           }
         } catch (err: any) {
-          setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'error', errorMsg: err?.message || 'Upscayl failed' } : j));
+          setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'error', errorMsg: err?.message || 'Enhancement failed' } : j));
           continue;
         }
       }
 
-      // Simulation fallback
+      // No real upscayl-bin path/connection available — run a simulated
+      // progress preview instead of pretending real upscaling happened.
+      // Every job that goes through this path is flagged `simulated: true`
+      // so the UI never shows a fake "complete" the same way as a real one.
+      setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, simulated: true } : j));
       runSimulation(jobId);
     }
   };
@@ -318,9 +365,6 @@ export const UpscaylExtension: React.FC = () => {
     !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const previewW = 512 * selectedScale;
-  const previewH = 512 * selectedScale;
-
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -332,9 +376,9 @@ export const UpscaylExtension: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-                <Maximize2 className="w-6 h-6 text-emerald-400" /> Upscayl Integration
+                <Maximize2 className="w-6 h-6 text-emerald-400" /> Texture Detail Enhancer
               </h1>
-              <p className="text-slate-400 mt-1 text-sm">AI texture upscaling · batch processing · DDS-ready output</p>
+              <p className="text-slate-400 mt-1 text-sm">AI detail/realism enhancement (powered by Upscayl) · optional resolution upscale · batch processing · DDS-ready output</p>
             </div>
             <div className="flex items-center gap-2">
               <div className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs ${isConnected ? 'bg-green-900/30 border border-green-500/30 text-green-300' : 'bg-slate-800/50 border border-slate-700/50 text-slate-400'}`}>
@@ -357,7 +401,7 @@ export const UpscaylExtension: React.FC = () => {
                 <h3 className="font-bold text-amber-300 mb-1 text-sm">Upscayl Not Found</h3>
                 <p className="text-sm text-slate-300 mb-2">
                   Upscayl was not detected on this system. Install it, then set the path in Settings → External Tools.
-                  Upscaling will run in simulation mode until <code className="bg-slate-800 px-1 rounded text-xs">upscayl-bin.exe</code> is found.
+                  Enhancement will run in simulation mode (no real files produced) until <code className="bg-slate-800 px-1 rounded text-xs">upscayl-bin.exe</code> is found.
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => void checkConnection()} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
@@ -383,7 +427,7 @@ export const UpscaylExtension: React.FC = () => {
 
           {/* Configuration */}
           <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700/50 p-5">
-            <h3 className="text-sm font-bold text-white mb-4">Upscale Configuration</h3>
+            <h3 className="text-sm font-bold text-white mb-4">Enhancement Configuration</h3>
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* Left column */}
@@ -407,15 +451,20 @@ export const UpscaylExtension: React.FC = () => {
 
                 {/* Scale */}
                 <div>
-                  <label className="text-xs font-medium text-slate-300 mb-1.5 block">Scale Factor</label>
+                  <label className="text-xs font-medium text-slate-300 mb-1.5 block">Mode</label>
                   <div className="flex gap-2">
-                    {([2, 3, 4] as const).map((scale) => (
+                    {([1, 2, 3, 4] as const).map((scale) => (
                       <button key={scale} onClick={() => setSelectedScale(scale)}
                         className={`flex-1 px-3 py-2.5 rounded-lg font-semibold text-sm transition-colors ${selectedScale === scale ? 'bg-emerald-600 text-white' : 'bg-slate-900/50 border border-slate-700 text-slate-300 hover:bg-slate-800'}`}>
-                        {scale}x
+                        {scale === 1 ? 'Enhance' : `${scale}x`}
                       </button>
                     ))}
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {selectedScale === 1
+                      ? 'Enhance: boosts detail/realism at the same resolution — does not resize the image.'
+                      : `Upscale: also increases resolution ${selectedScale}× in addition to detail enhancement.`}
+                  </p>
                 </div>
 
                 {/* Output format */}
@@ -462,12 +511,14 @@ export const UpscaylExtension: React.FC = () => {
                   <h4 className="text-xs font-bold text-emerald-300 mb-2">Output Preview</h4>
                   <div className="text-xs text-slate-300 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Input (est.):</span>
-                      <span className="font-mono">512 × 512</span>
+                      <span className="text-slate-400">Input:</span>
+                      <span className="font-mono">Varies per image</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Upscaled:</span>
-                      <span className="font-mono text-emerald-400">{previewW} × {previewH}</span>
+                      <span className="text-slate-400">Output:</span>
+                      <span className="font-mono text-emerald-400">
+                        {selectedScale === 1 ? 'Same resolution (enhanced)' : `${selectedScale}× original`}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Format:</span>
@@ -475,7 +526,11 @@ export const UpscaylExtension: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">CLI:</span>
-                      <span className="font-mono text-slate-500 text-[10px]">upscayl-bin -{selectedScale}x -{selectedModel}</span>
+                      <span className="font-mono text-slate-500 text-[10px]">
+                        {selectedScale === 1
+                          ? `upscayl-bin -s 2 -n ${selectedModel} → resize back to source`
+                          : `upscayl-bin -s ${selectedScale} -n ${selectedModel}`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -510,7 +565,9 @@ export const UpscaylExtension: React.FC = () => {
             <button onClick={() => void startUpscale()}
               className={`w-full mt-5 px-4 py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm ${isConnected ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-900/30 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/50'}`}>
               <Play className="w-4 h-4" />
-              {isConnected ? 'Start Upscaling' : 'Start Upscaling (Simulation)'}
+              {selectedScale === 1
+                ? (isConnected ? 'Start Enhancing' : 'Start Enhancing (Simulation)')
+                : (isConnected ? 'Start Upscaling' : 'Start Upscaling (Simulation)')}
               {selectedFiles.length > 0 && <span className="text-xs opacity-70">· {selectedFiles.length} file(s)</span>}
             </button>
           </div>
@@ -538,8 +595,9 @@ export const UpscaylExtension: React.FC = () => {
                           <span className="text-sm font-medium text-white truncate">{job.fileName}</span>
                         </div>
                         <div className="text-xs text-slate-400 mb-1.5">
-                          {job.targetScale}x · {job.model} · {job.outputFormat.toUpperCase()}
-                          {job.outputPath && <span className="ml-2 text-slate-500">→ {basename(job.outputPath)}</span>}
+                          {job.targetScale === 1 ? 'Enhance' : `${job.targetScale}x`} · {job.model} · {job.outputFormat.toUpperCase()}
+                          {job.outputPath && !job.simulated && <span className="ml-2 text-slate-500">→ {basename(job.outputPath)}</span>}
+                          {job.simulated && <span className="ml-2 text-amber-400/80">no file written — simulated only</span>}
                         </div>
                         {job.status === 'processing' && (
                           <div className="w-full bg-slate-900/50 rounded-full h-1.5">
@@ -550,7 +608,7 @@ export const UpscaylExtension: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${job.status === 'complete' ? 'bg-green-500/20 text-green-300' : job.status === 'processing' ? 'bg-yellow-500/20 text-yellow-300' : job.status === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                          {job.status}
+                          {job.status}{job.simulated && job.status !== 'error' ? ' (simulated)' : ''}
                         </span>
                         {job.status === 'complete' && <CheckCircle2 className="w-4 h-4 text-green-400" />}
                         {job.status === 'processing' && <RefreshCw className="w-4 h-4 text-yellow-400 animate-spin" />}
@@ -596,15 +654,16 @@ export const UpscaylExtension: React.FC = () => {
           <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-4 text-xs text-slate-400">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-4 h-4 text-emerald-400" />
-              <span className="font-semibold text-slate-300">Upscayl for FO4 Modding — Texture Pipeline</span>
+              <span className="font-semibold text-slate-300">Enhancer for FO4 Modding — Texture Pipeline</span>
             </div>
             <div className="space-y-1">
               {[
-                'Use RealESRGAN-x4plus for diffuse (albedo) textures. Max recommended output: 4x the original (512→2048, 1024→4096).',
+                'Default to Enhance mode (1x) when you just want more realistic detail on an existing texture set without changing its resolution or breaking existing UV/mip assumptions.',
+                'Use RealESRGAN-x4plus for diffuse (albedo) textures. If you do want more resolution too, Upscale mode caps out at 4x the original (512→2048, 1024→4096).',
                 'For face/NPC textures, use Remacri to preserve skin-pore and fine-detail fidelity before FaceGen import.',
-                'After upscaling, convert PNG to DDS using the Textures & Materials hub — BC1 for no-alpha, BC3 for alpha, BC5 for normals.',
-                'Normal maps should NOT be upscaled with AI — bake new normals from the high-res source mesh instead (xNormal/Substance).',
-                'Batch upscale a folder of vanilla 512x textures overnight, then run the batch DDS converter to get game-ready assets.',
+                'After enhancing, convert PNG to DDS using the Textures & Materials hub — BC1 for no-alpha, BC3 for alpha, BC5 for normals.',
+                'Normal maps should NOT be run through AI enhancement — bake new normals from the high-res source mesh instead (xNormal/Substance).',
+                'Batch-enhance a folder of vanilla textures overnight, then run the batch DDS converter to get game-ready assets — same resolution, just more detail.',
               ].map((tip, i) => (
                 <div key={i} className="flex gap-2">
                   <ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 flex-shrink-0" />

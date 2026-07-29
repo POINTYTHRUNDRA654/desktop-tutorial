@@ -621,24 +621,43 @@ export const BGSMEditor: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      const json = bgsmToJson(data);
       const api = (window as any).electron?.api ?? (window as any).electronAPI;
-      if (api?.saveFile) {
-        const result = await api.saveFile({ fileName, content: json, defaultExtension: 'bgsm' });
+
+      // Real binary .bgsm (version 2 / Fallout 4 only) — see bgsmWriter.ts.
+      if (data.version === 2 && api?.material?.writeBgsmBinary) {
+        const result = await api.material.writeBgsmBinary({ data, defaultFileName: fileName });
         if (result?.success) {
           setIsDirty(false);
-          toast.success(`Saved ${result.filePath ?? fileName}`);
+          toast.success(`Saved real binary .bgsm — ${result.filePath ?? fileName} (${result.fileSize} bytes)`);
           return;
         }
+        if (result?.error && result.error !== 'Save cancelled.') {
+          toast.error(result.error);
+          return;
+        }
+        if (result?.error === 'Save cancelled.') return;
       }
-      // Fallback: browser download
+
+      // Fallback (FO76 v20+, or no Desktop Bridge): JSON descriptor, not a
+      // real binary file — labelled honestly rather than saved as .bgsm.
+      const json = bgsmToJson(data);
+      const jsonFileName = fileName.replace(/\.bgsm$/i, '') + '.json';
+      if (api?.saveFile) {
+        const savedPath = await api.saveFile(json, jsonFileName);
+        if (savedPath) {
+          setIsDirty(false);
+          toast.success(`Saved material data as JSON (not a binary .bgsm): ${savedPath}`);
+          return;
+        }
+        return; // user cancelled the native save dialog
+      }
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = fileName; a.click();
+      a.href = url; a.download = jsonFileName; a.click();
       URL.revokeObjectURL(url);
       setIsDirty(false);
-      toast.success(`Exported ${fileName}`);
+      toast.success(`Exported ${jsonFileName} (JSON — not a binary .bgsm)`);
     } catch (e: any) {
       toast.error('Save failed: ' + e.message);
     }

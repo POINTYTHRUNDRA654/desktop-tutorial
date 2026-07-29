@@ -5,10 +5,14 @@ import { Groq, RateLimitError as GroqRateLimitError } from 'groq-sdk';
 import type { ChatCompletion } from 'groq-sdk/resources/chat/completions';
 
 // Primary model: best quality, moderate free-tier quota (6 k tokens/min, 500 req/day)
-const GROQ_PRIMARY_MODEL = 'llama-3.3-70b-versatile';
+// llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; openai/gpt-oss-120b
+// is Groq's own recommended migration target.
+const GROQ_PRIMARY_MODEL = 'openai/gpt-oss-120b';
 // Fallback model: much higher free-tier quota (20 k tokens/min, 14 400 req/day)
 // Used automatically when the primary model hits a 429 rate-limit.
-const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
+// llama-3.1-8b-instant was deprecated by Groq on 2026-06-17; qwen/qwen3.6-27b is
+// Groq's own recommended migration target.
+const GROQ_FALLBACK_MODEL = 'qwen/qwen3.6-27b';
 
 const ChatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),

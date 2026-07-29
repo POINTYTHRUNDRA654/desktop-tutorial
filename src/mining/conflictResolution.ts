@@ -30,13 +30,13 @@ export class ConflictResolutionEngine {
   /**
    * Deep conflict analysis across plugins
    */
-  async analyzeConflicts(plugins: string[]): Promise<ConflictAnalysis> {
+  async analyzeConflicts(plugins: string[], scanDepth: 'quick' | 'standard' | 'deep' = 'standard'): Promise<ConflictAnalysis> {
     const parsed = await Promise.all(plugins.map(p => this.parsePlugin(p)));
     const conflicts: Conflict[] = [];
 
     for (let i = 0; i < parsed.length; i++) {
       for (let j = i + 1; j < parsed.length; j++) {
-        const pluginConflicts = this.comparePluginPair(parsed[i], parsed[j]);
+        const pluginConflicts = this.comparePluginPair(parsed[i], parsed[j], scanDepth);
         conflicts.push(...pluginConflicts);
       }
     }
@@ -94,12 +94,30 @@ export class ConflictResolutionEngine {
     const criticalConflicts = conflicts.filter(c => c.severity === 'critical').length;
     const recommendations = this.generateRecommendations(conflicts);
 
+    const summary = {
+      total: conflicts.length,
+      bySeverity: {
+        critical: criticalConflicts,
+        major: conflicts.filter(c => c.severity === 'major').length,
+        minor: conflicts.filter(c => c.severity === 'minor').length,
+      },
+      byType: {
+        override: conflicts.filter(c => c.conflictType === 'override').length,
+        navmesh: conflicts.filter(c => c.conflictType === 'navmesh').length,
+        script: conflicts.filter(c => c.conflictType === 'script').length,
+        asset: conflicts.filter(c => c.conflictType === 'asset').length,
+        delete: conflicts.filter(c => c.conflictType === 'delete').length,
+      },
+    };
+
     return {
       totalConflicts: conflicts.length,
       criticalConflicts,
       plugins: pluginInfo,
       conflictMatrix,
       recommendations,
+      conflicts,
+      summary,
     };
   }
 
@@ -293,7 +311,7 @@ export class ConflictResolutionEngine {
     return parsed;
   }
 
-  private comparePluginPair(pluginA: any, pluginB: any): Conflict[] {
+  private comparePluginPair(pluginA: any, pluginB: any, scanDepth: 'quick' | 'standard' | 'deep' = 'standard'): Conflict[] {
     const conflicts: Conflict[] = [];
     const mapA = new Map<number, any>();
     const mapB = new Map<number, any>();
@@ -310,23 +328,37 @@ export class ConflictResolutionEngine {
       const recordB = mapB.get(formId);
 
       const conflictType = this.mapConflictType(recordA.type);
-      const severity = this.mapSeverity(recordA.type);
+      const severity = scanDepth === 'quick' ? 'minor' : this.mapSeverity(recordA.type);
+      const formIdHex = `0x${Number(formId).toString(16)}`;
 
       // Determine winning/losing plugins (simplified: assume pluginA wins for now)
       const winningPlugin = pluginA.fileName;
       const losingPlugins = [pluginB.fileName];
+      const affectedPlugins = [pluginA.fileName, pluginB.fileName];
 
-      conflicts.push({
-        formId: `0x${Number(formId).toString(16)}`,
+      const conflict: Conflict = {
+        id: `${pluginA.fileName}|${pluginB.fileName}|${formIdHex}`,
+        type: conflictType,
+        plugins: affectedPlugins,
+        description: `${recordA.type} record ${formIdHex} is defined in both ${pluginA.fileName} and ${pluginB.fileName} — ${winningPlugin} wins by load order.`,
+        formId: formIdHex,
         recordType: recordA.type,
         editorId: recordA.editorId,
-        affectedPlugins: [pluginA.fileName, pluginB.fileName],
+        affectedPlugins,
         winningPlugin,
         losingPlugins,
         severity,
         conflictType,
         resolutionSuggestion: this.generateResolutionSuggestion(recordA.type, severity),
-      });
+      };
+
+      if (scanDepth === 'deep') {
+        conflict.resolutionDetails = {
+          fieldDifferences: this.compareFields(recordA.fields || {}, recordB.fields || {}),
+        };
+      }
+
+      conflicts.push(conflict);
     }
 
     return conflicts;

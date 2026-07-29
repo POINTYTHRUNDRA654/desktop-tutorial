@@ -47,6 +47,7 @@ export const AssetOptimizer: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          jobId,
           input: inputPath,
           output: outputPath || `${inputPath}_optimized`,
           type,
@@ -129,24 +130,48 @@ export const AssetOptimizer: React.FC = () => {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-2">Input Path</label>
-                <input
-                  type="text"
-                  value={inputPath}
-                  onChange={(e) => setInputPath(e.target.value)}
-                  placeholder="C:\ModOrganizer2\mods\MyMod"
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-200 placeholder-slate-500 focus:border-yellow-500 focus:outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inputPath}
+                    onChange={(e) => setInputPath(e.target.value)}
+                    placeholder="C:\ModOrganizer2\mods\MyMod"
+                    className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-200 placeholder-slate-500 focus:border-yellow-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={async () => {
+                      const api = (window as any).electron?.api ?? (window as any).electronAPI;
+                      const picked = await api?.pickDirectory?.('Choose the mod folder to optimize');
+                      if (picked) setInputPath(picked);
+                    }}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-slate-200 flex-shrink-0"
+                  >
+                    Browse
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm text-slate-400 mb-2">Output Path (optional)</label>
-                <input
-                  type="text"
-                  value={outputPath}
-                  onChange={(e) => setOutputPath(e.target.value)}
-                  placeholder="Auto-generates if empty"
-                  className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-200 placeholder-slate-500 focus:border-yellow-500 focus:outline-none"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={outputPath}
+                    onChange={(e) => setOutputPath(e.target.value)}
+                    placeholder="Auto-generates if empty"
+                    className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-slate-200 placeholder-slate-500 focus:border-yellow-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={async () => {
+                      const api = (window as any).electron?.api ?? (window as any).electronAPI;
+                      const picked = await api?.pickDirectory?.('Choose the output folder');
+                      if (picked) setOutputPath(picked);
+                    }}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm text-slate-200 flex-shrink-0"
+                  >
+                    Browse
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -318,20 +343,17 @@ export const AssetOptimizer: React.FC = () => {
               <div>
                 <strong className="block mb-1">Meshes (.nif)</strong>
                 <ul className="space-y-1 text-blue-300">
-                  <li>• Remove unused vertices</li>
-                  <li>• Strip editor markers</li>
-                  <li>• Optimize collision</li>
-                  <li>• Compress vertex data</li>
+                  <li>• Merge duplicate vertices</li>
+                  <li>• Recalculate normals</li>
                 </ul>
+                <p className="mt-1 text-blue-400/80">Via Blender + PyNifly — requires Blender open with Mossy Link v6 connected.</p>
               </div>
               <div>
-                <strong className="block mb-1">Scripts (.pex)</strong>
+                <strong className="block mb-1">Scripts (.psc → .pex)</strong>
                 <ul className="space-y-1 text-blue-300">
-                  <li>• Remove debug symbols</li>
-                  <li>• Strip comments</li>
-                  <li>• Optimize bytecode</li>
-                  <li>• Compress data</li>
+                  <li>• Clean recompile from source</li>
                 </ul>
+                <p className="mt-1 text-blue-400/80">Needs .psc source files and a configured Papyrus Compiler (Settings). Stripping debug data from already-compiled .pex bytecode alone isn't supported.</p>
               </div>
             </div>
           </div>

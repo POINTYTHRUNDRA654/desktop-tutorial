@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { getRealHardwareProfile } from './hardwareProfiler';
 import {
   HardwareAwareMiningEngine,
   HardwareProfile,
@@ -93,8 +94,11 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
         textureSettings: [],
         meshSettings: [],
         expectedPerformance: {
-          baselinePerformance: this.createMockPerformanceMetric(),
-          predictedPerformance: this.createMockPerformanceMetric(),
+          baselinePerformance: this.buildPerformanceMetric(profile, this.calculateBaselineFPS(profile)),
+          predictedPerformance: this.buildPerformanceMetric(
+            profile,
+            this.calculateBaselineFPS({ ...profile, cpu: { ...profile.cpu, cores: 4, threads: Math.max(profile.cpu.threads, 8) } })
+          ),
           confidence: 0.8,
           limitingFactors: ['CPU cores'],
           optimizationSuggestions: []
@@ -116,8 +120,11 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
         textureSettings: [],
         meshSettings: [],
         expectedPerformance: {
-          baselinePerformance: this.createMockPerformanceMetric(),
-          predictedPerformance: this.createMockPerformanceMetric(),
+          baselinePerformance: this.buildPerformanceMetric(profile, this.calculateBaselineFPS(profile)),
+          predictedPerformance: this.buildPerformanceMetric(
+            profile,
+            this.calculateBaselineFPS({ ...profile, gpu: { ...profile.gpu, vram: 4 } })
+          ),
           confidence: 0.8,
           limitingFactors: ['GPU VRAM'],
           optimizationSuggestions: []
@@ -139,8 +146,11 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
         textureSettings: [],
         meshSettings: [],
         expectedPerformance: {
-          baselinePerformance: this.createMockPerformanceMetric(),
-          predictedPerformance: this.createMockPerformanceMetric(),
+          baselinePerformance: this.buildPerformanceMetric(profile, this.calculateBaselineFPS(profile)),
+          predictedPerformance: this.buildPerformanceMetric(
+            profile,
+            this.calculateBaselineFPS({ ...profile, ram: { ...profile.ram, total: 16 } })
+          ),
           confidence: 0.8,
           limitingFactors: ['System RAM'],
           optimizationSuggestions: []
@@ -152,13 +162,14 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
   }
 
   async predictPerformanceForHardware(mods: string[], targetHardware: HardwareProfile): Promise<HardwarePerformancePrediction> {
-    // Mock performance prediction based on hardware specs
+    // Estimate derived from real hardware tiering (see calculateBaselineFPS); mod count
+    // is a rough linear proxy for script/render load since we don't profile each mod individually.
     const baselineFPS = this.calculateBaselineFPS(targetHardware);
     const modImpact = mods.length * 2; // Rough estimate: 2 FPS drop per mod
 
     return {
-      baselinePerformance: this.createMockPerformanceMetric(baselineFPS, targetHardware.ram.total * 0.7),
-      predictedPerformance: this.createMockPerformanceMetric(Math.max(baselineFPS - modImpact, 20), targetHardware.ram.total * 0.8),
+      baselinePerformance: this.buildPerformanceMetric(targetHardware, baselineFPS, targetHardware.ram.total * 0.7),
+      predictedPerformance: this.buildPerformanceMetric(targetHardware, Math.max(baselineFPS - modImpact, 20), targetHardware.ram.total * 0.8),
       confidence: 0.75,
       limitingFactors: this.identifyBottlenecks(targetHardware, mods),
       optimizationSuggestions: await this.generateOptimizations(targetHardware, mods)
@@ -193,68 +204,45 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
   }
 
   // Helper methods
+
+  /** Real hardware detection, shared with performance-bottleneck-engine.ts's SystemProfiler. */
   private async getHardwareProfile(): Promise<HardwareProfile> {
-    // Mock hardware profile - in real implementation, this would query system info
-    return {
-      cpu: {
-        model: 'Intel Core i7-10700K',
-        cores: 8,
-        threads: 16,
-        baseClock: 3.8,
-        boostClock: 5.1,
-        cache: 16
-      },
-      gpu: {
-        model: 'NVIDIA RTX 3070',
-        vram: 8,
-        driverVersion: '516.94',
-        dxVersion: '12.1',
-        rayTracing: true
-      },
-      ram: {
-        total: 32,
-        speed: 3200,
-        type: 'DDR4',
-        channels: 2
-      },
-      storage: {
-        type: 'NVMe',
-        readSpeed: 3500,
-        writeSpeed: 3000,
-        totalSpace: 1000,
-        availableSpace: 700
-      },
-      os: {
-        name: 'Windows',
-        version: '11',
-        architecture: 'x64'
-      }
-    };
+    return getRealHardwareProfile();
   }
 
   private async calculateCompatibilityScore(mod: string, hardware: HardwareProfile): Promise<HardwareCompatibility['compatibility']> {
-    // Mock compatibility calculation
+    // Ratio of the real detected hardware against the baseline tier used across this engine
+    // (8 cores / 8GB VRAM / 32GB RAM / 500GB free storage) so recommendations stay consistent.
+    const lower = mod.toLowerCase();
+    const isTextureHeavy = /texture|4k|8k|hd|retexture/.test(lower);
+    const isScriptHeavy = /script|papyrus|framework|sim settlement/.test(lower);
+
     return {
-      cpu: Math.min(hardware.cpu.cores / 8, 1),
-      gpu: Math.min(hardware.gpu.vram / 8, 1),
+      cpu: Math.min(hardware.cpu.cores / (isScriptHeavy ? 10 : 8), 1),
+      gpu: Math.min(hardware.gpu.vram / (isTextureHeavy ? 10 : 8), 1),
       ram: Math.min(hardware.ram.total / 32, 1),
       storage: Math.min(hardware.storage.availableSpace / 500, 1)
     };
   }
 
   private async estimateRequirements(mod: string): Promise<HardwareRequirements> {
-    // Mock requirements estimation
+    // Baseline community-standard tiers for modded FO4, nudged by mod-name keywords
+    // (texture/script-heavy mods raise their respective bottleneck requirement).
+    const lower = mod.toLowerCase();
+    const isTextureHeavy = /texture|4k|8k|hd|retexture/.test(lower);
+    const isScriptHeavy = /script|papyrus|framework|sim settlement/.test(lower);
+
     return {
       minimum: {
-        cpu: { model: 'Intel i5', cores: 4, threads: 8, baseClock: 3.0, boostClock: 4.0, cache: 8 },
-        gpu: { model: 'GTX 1060', vram: 4, driverVersion: '400', dxVersion: '11', rayTracing: false },
+        cpu: { model: 'Intel i5', cores: isScriptHeavy ? 6 : 4, threads: isScriptHeavy ? 12 : 8, baseClock: 3.0, boostClock: 4.0, cache: 8 },
+        gpu: { model: isTextureHeavy ? 'GTX 1070' : 'GTX 1060', vram: isTextureHeavy ? 8 : 4, driverVersion: '400', dxVersion: '11', rayTracing: false },
         ram: { total: 8, speed: 2133, type: 'DDR4', channels: 2 },
-        storage: { type: 'SSD', readSpeed: 500, writeSpeed: 400, totalSpace: 500, availableSpace: 200 },
+        storage: { type: 'SSD', readSpeed: 500, writeSpeed: 400, totalSpace: isTextureHeavy ? 1000 : 500, availableSpace: isTextureHeavy ? 400 : 200 },
         os: { name: 'Windows', version: '10', architecture: 'x64' }
       },
       recommended: {
-        cpu: { model: 'Intel i7', cores: 6, threads: 12, baseClock: 3.5, boostClock: 4.5, cache: 12 },
-        gpu: { model: 'RTX 2060', vram: 6, driverVersion: '450', dxVersion: '12', rayTracing: false },
+        cpu: { model: 'Intel i7', cores: isScriptHeavy ? 8 : 6, threads: isScriptHeavy ? 16 : 12, baseClock: 3.5, boostClock: 4.5, cache: 12 },
+        gpu: { model: isTextureHeavy ? 'RTX 3070' : 'RTX 2060', vram: isTextureHeavy ? 8 : 6, driverVersion: '450', dxVersion: '12', rayTracing: isTextureHeavy },
         ram: { total: 16, speed: 3200, type: 'DDR4', channels: 2 },
         storage: { type: 'NVMe', readSpeed: 2000, writeSpeed: 1800, totalSpace: 1000, availableSpace: 500 },
         os: { name: 'Windows', version: '11', architecture: 'x64' }
@@ -350,18 +338,12 @@ export class HardwareAwareMiningEngineImpl extends EventEmitter implements Hardw
     return optimizations;
   }
 
-  private createMockPerformanceMetric(fps: number = 60, memoryUsage: number = 8): PerformanceMetric {
+  private buildPerformanceMetric(hardware: HardwareProfile, fps: number = 60, memoryUsage: number = 8): PerformanceMetric {
     return {
       modCombination: [],
       conflictCount: 0,
       timestamp: Date.now(),
-      hardwareProfile: {
-        cpu: { model: 'Mock CPU', cores: 4, threads: 8, baseClock: 3.0, boostClock: 4.0, cache: 8 },
-        gpu: { model: 'Mock GPU', vram: 4, driverVersion: '400', dxVersion: '11', rayTracing: false },
-        ram: { total: 16, speed: 2133, type: 'DDR4', channels: 2 },
-        storage: { type: 'SSD', readSpeed: 500, writeSpeed: 400, totalSpace: 500, availableSpace: 300 },
-        os: { name: 'Windows', version: '11', architecture: 'x64' }
-      },
+      hardwareProfile: hardware,
       fps,
       memoryUsage,
       loadTime: 30,

@@ -42,6 +42,8 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
     const [modVersion, setModVersion] = useState('1.0.0');
     const [modWebsite, setModWebsite] = useState('');
     const [toolSettings, setToolSettings] = useState<AppSettings | null>(null);
+    const [sourceModFolder, setSourceModFolder] = useState('');
+    const [isExporting, setIsExporting] = useState(false);
     const openUrl = (url: string) => {
         void openExternal(url);
     };
@@ -134,6 +136,46 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
         };
         input.click();
     };
+
+    // Pick a real source mod folder (native dialog — gives an absolute path
+    // the main process can actually read files from, unlike the browser file
+    // input above). Required for a real package export with real file paths.
+    const handlePickSourceFolder = async () => {
+        const api = (window as any).electron?.api ?? (window as any).electronAPI;
+        const dir = await api?.pickDirectory?.('Select the mod folder to package (containing Meshes/, Textures/, etc.)');
+        if (!dir) return;
+        setSourceModFolder(dir);
+        try {
+            const scanned: Array<{ path: string; isDir: boolean }> = await api.invoke('fomod-scan-mod-folder', dir);
+            const relPaths = (scanned || [])
+                .filter(f => !f.isDir)
+                .map(f => f.path.slice(dir.length + 1).replace(/\\/g, '/'));
+            setModFiles(relPaths);
+            toast.success(`Found ${relPaths.length} file(s) in ${dir.split(/[\\/]/).pop()}`);
+        } catch (e: any) {
+            toast.error(`Folder scan failed: ${e?.message || e}`);
+        }
+    };
+
+    /** Flatten the page/group/option tree into the shape main.ts's real fomod:export expects. */
+    const flattenToFomodSteps = () => structure.map(page => ({
+        id: page.id,
+        name: page.name,
+        description: page.description || '',
+        groups: (page.children || []).map(group => ({
+            id: group.id,
+            name: group.name,
+            type: group.groupType || 'SelectAny',
+            options: (group.children || []).map(option => ({
+                id: option.id,
+                name: option.name,
+                description: option.description || '',
+                type: 'Optional',
+                files: (option.files || []).map(f => ({ source: f.source, destination: f.dest })),
+            })),
+        })),
+        conditions: [],
+    }));
 
     // Assign files to selected option
     const handleAssignFiles = () => {
@@ -278,11 +320,53 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
         return xml;
     };
 
-    const handleExportFOMOD = () => {
-        // Create a zip-like structure (for now, just download the XMLs)
+    const handleExportFOMOD = async () => {
+        const api = (window as any).electron?.api ?? (window as any).electronAPI;
+
+        // Real path: source folder is set and we're in the Electron app — build
+        // a genuine FOMOD package (fomod/ModuleConfig.xml + info.xml + every
+        // referenced file actually copied into place), not just two loose
+        // downloaded XML files the user would have to assemble by hand.
+        if (sourceModFolder && api?.pickDirectory && structure.length > 0) {
+            const outputDir = await api.pickDirectory('Choose where to save the FOMOD package');
+            if (!outputDir) return;
+
+            setIsExporting(true);
+            try {
+                const fomod = {
+                    id: `fomod-${Date.now()}`,
+                    name: modName,
+                    author: modAuthor,
+                    version: modVersion,
+                    website: modWebsite,
+                    description: '',
+                    steps: flattenToFomodSteps(),
+                    requiredFiles: [],
+                    metadata: { modPath: sourceModFolder },
+                };
+                const result = await api.invoke('fomod:export', fomod, outputDir, sourceModFolder);
+                if (result?.success) {
+                    toast.success(`Exported real FOMOD package to ${result.outputPath} (${result.filesIncluded} files)`);
+                } else {
+                    toast.error(result?.error || 'Export failed.');
+                }
+            } catch (e: any) {
+                toast.error(`Export failed: ${e?.message || e}`);
+            } finally {
+                setIsExporting(false);
+            }
+            return;
+        }
+
+        // Fallback (no source folder picked, or running outside Electron):
+        // download the loose XML files so the feature still does *something*
+        // useful, but this is not a complete installable package.
+        if (!sourceModFolder) {
+            toast('No source mod folder selected — downloading loose XML files only. Pick a folder above for a real, complete FOMOD package.', { icon: 'ℹ️' });
+        }
         const moduleConfig = generateModuleConfigXML();
         const info = generateInfoXML();
-        
+
         // Download ModuleConfig.xml
         const moduleBlob = new Blob([moduleConfig], { type: 'text/xml' });
         const moduleUrl = URL.createObjectURL(moduleBlob);
@@ -291,7 +375,7 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
         moduleLink.download = 'ModuleConfig.xml';
         moduleLink.click();
         URL.revokeObjectURL(moduleUrl);
-        
+
         // Download Info.xml
         setTimeout(() => {
             const infoBlob = new Blob([info], { type: 'text/xml' });
@@ -442,11 +526,14 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
                             <ExternalLink className="w-4 h-4" /> Launch Tool
                             <Info className="w-3 h-3 text-blue-300 opacity-50 group-hover:opacity-100 transition-opacity" />
                         </button>
-                        <button 
+                        <button
                             onClick={handleExportFOMOD}
-                            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all"
+                            disabled={isExporting}
+                            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-xs font-bold flex items-center gap-2 transition-all disabled:opacity-50"
+                            title={sourceModFolder ? 'Export a complete, real FOMOD package' : 'Pick a source mod folder first for a complete package — otherwise only loose XML files are downloaded'}
                         >
-                            <ArrowDownToLine className="w-4 h-4" /> Export FOMOD
+                            {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowDownToLine className="w-4 h-4" />}
+                            {isExporting ? 'Exporting…' : 'Export FOMOD'}
                         </button>
                         <button 
                             onClick={() => setViewMode('editor')}
@@ -535,10 +622,17 @@ const TheAssembler: React.FC<TheAssemblerProps> = ({ embedded = false }) => {
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
                             <Wand2 className="w-3 h-3" /> Auto-Assemble
                         </h4>
+                        <button
+                            onClick={handlePickSourceFolder}
+                            className="w-full py-2 mb-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-[10px] font-bold rounded flex items-center justify-center gap-2 transition-all"
+                            title="Pick the real mod folder to package — required for a complete FOMOD export with actual files copied in"
+                        >
+                            <FileText className="w-3 h-3" /> {sourceModFolder ? sourceModFolder.split(/[\\/]/).pop() : 'Pick Source Mod Folder'}
+                        </button>
                         <div className="text-[10px] text-slate-500 mb-2">
-                            Detected {modFiles.length} files in workspace.
+                            Detected {modFiles.length} files{sourceModFolder ? ' in ' + sourceModFolder.split(/[\\/]/).pop() : ' in workspace'}.
                         </div>
-                        <button 
+                        <button
                             onClick={handleAutoGenerate}
                             disabled={isGenerating}
                             className="w-full py-2 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-300 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50"

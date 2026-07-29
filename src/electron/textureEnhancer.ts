@@ -449,39 +449,12 @@ export function registerTextureEnhancerHandlers(
     }
   );
 
-  /**
-   * Start enhancement job
-   */
-  ipcMain.handle(
-    'texture-enhancer:enhance',
-    async (
-      event,
-      request: EnhancementRequest
-    ) => {
-      try {
-        // Get mainWindow from event if not provided
-        const window = mainWindow || BrowserWindow.fromWebContents(event.sender);
-
-        // First, analyze textures
-        const analysis = await analyzeModTextures(request.modPath);
-        
-        // Then enhance
-        const result = await enhanceTexturesViaBlender(
-          request,
-          bridgeServer,
-          analysis,
-          window || undefined
-        );
-        return result;
-      } catch (err: any) {
-        return {
-          success: false,
-          message: err.message,
-          jobId: request.jobId,
-        };
-      }
-    }
-  );
+  // NOTE: 'texture-enhancer:enhance' is intentionally NOT registered here.
+  // The real, current handler lives in main.ts (registerHandler('texture-enhancer:enhance', ...))
+  // and is registered earlier during startup. Since ipcMain.handle() throws on a duplicate
+  // channel registration, registering it again here used to abort this function midway —
+  // silently skipping the 'texture-enhancer:status' registration below AND the
+  // registerCloudSyncHandlers() call made right after this function returns.
 
   /**
    * Get enhancement job status

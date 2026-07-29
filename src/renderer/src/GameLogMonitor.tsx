@@ -363,7 +363,9 @@ function computeCrashPrediction(entries: LogEntry[]): CrashPrediction | null {
 
 // ─── AI helper ────────────────────────────────────────────────────────────────
 
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; openai/gpt-oss-120b
+// is Groq's own recommended migration target.
+const GROQ_MODEL = 'openai/gpt-oss-120b';
 const MOSSY_SYSTEM =
   'You are Mossy, an expert Fallout 4 modding assistant specialised in debugging Papyrus scripts, crash logs, and plugin conflicts. Give concise, actionable advice in 2-3 sentences.';
 

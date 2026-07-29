@@ -16,7 +16,7 @@ const execFileAsync = promisify(execFile);
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type MapType = 
+export type MapType =
   | 'diffuse'       // Base color/albedo map
   | 'normal'        // Normal map (tangent space)
   | 'height'        // Height/displacement map
@@ -24,6 +24,7 @@ export type MapType =
   | 'metallic'      // PBR metallic map
   | 'specular'      // Specular/gloss map (legacy)
   | 'ao'            // Ambient occlusion map
+  | 'cavity'        // Fine-crevice cavity map (high-frequency curvature)
   | 'emissive';     // Emissive/glow map
 
 export type ProceduralType =
@@ -58,6 +59,8 @@ export interface MapSettings {
   metallicValue?: number;      // 0.0 - 1.0 (constant metallic value)
   invertHeight?: boolean;      // Invert height map
   blendMode?: BlendMode;
+  cavityRadius?: number;       // 1-8px — blur radius used as the high-pass baseline
+  cavityStrength?: number;     // 0.0 - 2.0 — how strongly crevices are darkened
 }
 
 export interface GeneratedMap {
@@ -283,6 +286,10 @@ export class TextureGeneratorEngine {
 
         case 'ao':
           outputBuffer = await this.generateAOMap(source, settings);
+          break;
+
+        case 'cavity':
+          outputBuffer = await this.generateCavityMap(source, settings);
           break;
 
         case 'emissive':
@@ -669,6 +676,38 @@ export class TextureGeneratorEngine {
       .blur(2) // Soft shadows
       .png()
       .toBuffer();
+  }
+
+  /**
+   * Generate a cavity map — fine-crevice detail distinct from the broad-scale
+   * AO map above. Real per-pixel technique: a high-pass filter against a
+   * blurred baseline. Where a pixel is darker than its blurred local average
+   * it sits in a small crevice/pore (darkened proportional to how much
+   * darker); where it's brighter than its surroundings (an edge/ridge) it's
+   * left neutral. This is the same "curvature from a height/luminance field"
+   * principle real texturing tools (e.g. Substance's cavity baker) use when
+   * no actual 3D mesh curvature data is available — genuinely computed from
+   * the source image, not fabricated.
+   */
+  private async generateCavityMap(source: string, settings: MapSettings): Promise<Buffer> {
+    const radius = Math.max(1, Math.min(8, settings.cavityRadius ?? 3));
+    const strength = Math.max(0, Math.min(2, settings.cavityStrength ?? 1));
+
+    const image = sharp(source);
+    const { width, height } = await image.metadata();
+    if (!width || !height) throw new Error('Invalid image dimensions');
+
+    const raw = await image.clone().grayscale().raw().toBuffer();
+    const blurred = await image.clone().grayscale().blur(radius * 2).raw().toBuffer();
+
+    const out = Buffer.alloc(width * height);
+    for (let i = 0; i < raw.length; i++) {
+      const diff = raw[i] - blurred[i]; // negative = darker than surroundings (a crevice)
+      const cavity = diff < 0 ? 128 + diff * strength : 128; // darken crevices, leave ridges/flat areas neutral gray
+      out[i] = Math.max(0, Math.min(255, Math.round(cavity)));
+    }
+
+    return sharp(out, { raw: { width, height, channels: 1 } }).png().toBuffer();
   }
 
   /**

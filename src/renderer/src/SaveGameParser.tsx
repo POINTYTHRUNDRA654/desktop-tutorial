@@ -12,6 +12,7 @@ interface SaveData {
   questCount: number;
   inventoryWeight: number;
   caps: number;
+  note?: string;
 }
 
 export const SaveGameParser: React.FC = () => {
@@ -38,37 +39,19 @@ export const SaveGameParser: React.FC = () => {
         const data = await response.json();
         setSaveData(data);
       } else {
-        throw new Error('Failed to parse save');
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to parse save');
       }
     } catch (err) {
-      // Demo mode: show example data
-      const exampleData: SaveData = {
-        playerName: 'Sole Survivor',
-        playerLevel: 47,
-        location: 'Diamond City',
-        playTime: '45h 32m',
-        health: 285,
-        activeMods: [
-          'Fallout4.esm',
-          'DLCRobot.esm',
-          'DLCCoast.esm',
-          'DLCNukaWorld.esm',
-          'Unofficial Fallout 4 Patch.esp',
-          'ArmorKeywords.esm',
-          'WeaponModifications.esp',
-          'BetterSettlements.esp',
-          'EnhancedLighting.esp'
-        ],
-        missingMasters: [
-          'OldModRemoved.esp'
-        ],
-        questCount: 23,
-        inventoryWeight: 287.5,
-        caps: 15234
-      };
-
-      setSaveData(exampleData);
-      setError('Bridge offline - showing example data. Install resaver library: pip install resaver');
+      // Never substitute fabricated save data for a real parse failure — show
+      // the actual error and leave the empty state in place instead.
+      setSaveData(null);
+      const message = err instanceof Error ? err.message : String(err);
+      setError(
+        message.includes('fetch')
+          ? 'Bridge Offline: Save Game Parsing requires a running Desktop Bridge server.'
+          : `Failed to parse save: ${message}`
+      );
     } finally {
       setLoading(false);
     }
@@ -77,7 +60,9 @@ export const SaveGameParser: React.FC = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSavePath(file.name);
+      // Electron exposes the real absolute path on File objects from a native
+      // <input type=file> picker — file.name alone is not a usable filesystem path.
+      setSavePath((file as any).path || file.name);
     }
   };
 
@@ -142,6 +127,11 @@ export const SaveGameParser: React.FC = () => {
 
         {saveData && (
           <div className="max-w-6xl mx-auto space-y-4">
+            {saveData.note && (
+              <div className="p-3 bg-slate-800/60 border border-slate-600 rounded-lg text-xs text-slate-400">
+                ℹ️ {saveData.note}
+              </div>
+            )}
             {/* Player Info */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">

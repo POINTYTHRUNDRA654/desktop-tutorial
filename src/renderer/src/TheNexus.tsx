@@ -254,7 +254,7 @@ const TheNexus: React.FC = () => {
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
-          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 22 platforms are accessible from the sidebar on the left."
+          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 23 platforms are accessible from the sidebar on the left."
           tools={[]}
           verify={[
             'Confirm health badges render and reflect your environment.',

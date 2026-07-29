@@ -224,7 +224,7 @@ export const LocalAIEngine = {
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -700,6 +700,7 @@ export const LocalAIEngine = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'tinyllama', messages, max_tokens: 512, temperature: 0.7 }),
+            signal,
           });
           if (!resp.ok) throw new Error(`KoboldCPP HTTP ${resp.status}`);
           const data = await resp.json();
@@ -717,6 +718,7 @@ export const LocalAIEngine = {
               system: enhancedSystemInstruction + injectedContext,
               max_tokens: 512,
             }),
+            signal,
           });
           if (!resp.ok) throw new Error(`FO4 Bridge HTTP ${resp.status}`);
           const data = await resp.json();
@@ -799,6 +801,20 @@ export const LocalAIEngine = {
         return { content: '' };
       }
 
+      // "Require Key Confirmation" (Privacy Settings) — ask once per session
+      // before the first call that uses a cloud API key, rather than the
+      // toggle existing with nothing ever actually prompting.
+      try {
+        const settings = await api?.getSettings?.();
+        if (settings?.securitySettings?.requireApiKeyConfirmation && !sessionStorage.getItem('mossy_api_key_confirmed_session')) {
+          const confirmed = window.confirm(
+            'Mossy is about to use a cloud AI provider (your configured API key) to answer this. Continue?'
+          );
+          if (!confirmed) return { content: '' };
+          sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
+        }
+      } catch { /* if the settings check fails, don't block the response over it */ }
+
       // === MANDATORY INTERNET ACCESS INSTRUCTION ===
       // This is injected into EVERY Groq call to ensure Mossy never claims she can't access the internet
       const mandatoryInternetInstruction = `\n\n### ⚠️ MANDATORY SYSTEM INSTRUCTION (DO NOT VIOLATE) ###
@@ -872,7 +888,7 @@ ANSWER THE USER NOW:`;
 
               const guardSystemPrompt = systemInstruction + enrichedContext + mandatoryInternetInstruction;
               console.log('[LocalAIEngine] Retrying with system prompt override');
-              const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'llama-3.3-70b-versatile', conversationHistory);
+              const retryResp = await api.aiChatGroq(query, guardSystemPrompt, 'openai/gpt-oss-120b', conversationHistory);
               if (retryResp?.success && retryResp.content) {
                 responseContent = String(retryResp.content);
                 console.log('[LocalAIEngine] ✅ Guard retry successful');
@@ -910,7 +926,7 @@ ANSWER THE USER NOW:`;
               const critiqueResp = await critiqueApi.aiChatGroq(
                 critiquePrompt,
                 'You are a Fallout 4 modding expert reviewer. Be brief and technical.',
-                'llama-3.1-8b-instant',
+                'qwen/qwen3.6-27b',
                 []
               );
               const critiqueText = critiqueResp?.success ? String(critiqueResp.content || '').trim() : '';

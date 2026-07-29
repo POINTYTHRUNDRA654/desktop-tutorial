@@ -695,12 +695,10 @@ export const CustomRiggingChecklist: React.FC<CustomRiggingChecklistProps> = ({ 
           <p>✅ All phases complete! Your custom character is rigged and ready for Fallout 4.</p>
         ) : (
           <p>
-            📋 {phaseIdx + 1} phases total. Complete each step before moving to the next. Save frequently!
+            📋 {phases.length} phases total. Complete each step before moving to the next. Save frequently!
           </p>
         )}
       </div>
     </div>
   );
 };
-
-const phaseIdx = 0; // Placeholder

@@ -15,6 +15,7 @@ import { app, ipcMain, clipboard } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { JournalEntry, ContextBusState, IngestedFile, SearchResult, ClipboardDetection, BackgroundTask, SystemMetrics } from './types';
+import { getRealHardwareProfile, getRealtimeSystemMetrics, getRealtimeGpuMemory } from '../mining/hardwareProfiler';
 import { querySemanticIndex } from './ml/semanticIndex';
 
 // ============================================================================
@@ -437,109 +438,6 @@ function detectClipboardType(content: string): ClipboardDetection {
     return detection;
 }
 
-// ============================================================================
-// FEATURE 7: BACKGROUND TASK QUEUE
-// ============================================================================
-
-const taskQueue: Map<string, BackgroundTask> = new Map();
-let taskWorkerInterval: NodeJS.Timeout | null = null;
-
-export function taskEnqueue(req: {
-    type: string;
-    priority?: number;
-    payload?: any;
-}): { ok: boolean; taskId?: string; error?: string } {
-    try {
-        const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-        const task: BackgroundTask = {
-            id: taskId,
-            type: req.type,
-            status: 'queued',
-            priority: req.priority || 0,
-            createdAt: new Date().toISOString(),
-            progress: { current: 0, total: 100 },
-        };
-
-        taskQueue.set(taskId, task);
-        console.log(`[TaskQueue] Enqueued: ${req.type} (${taskId})`);
-
-        // Start worker if not running
-        if (!taskWorkerInterval) {
-            startTaskWorker();
-        }
-
-        return { ok: true, taskId };
-    } catch (err: any) {
-        return { ok: false, error: String(err?.message || err) };
-    }
-}
-
-export function taskList(filter?: { status?: string }): { ok: boolean; tasks?: BackgroundTask[]; error?: string } {
-    try {
-        let tasks = Array.from(taskQueue.values());
-        if (filter?.status) {
-            tasks = tasks.filter((t) => t.status === filter.status);
-        }
-        return { ok: true, tasks };
-    } catch (err: any) {
-        return { ok: false, error: String(err?.message || err) };
-    }
-}
-
-export function taskGetStatus(taskId: string): { ok: boolean; task?: BackgroundTask; error?: string } {
-    try {
-        const task = taskQueue.get(taskId);
-        if (!task) return { ok: false, error: 'Task not found' };
-        return { ok: true, task };
-    } catch (err: any) {
-        return { ok: false, error: String(err?.message || err) };
-    }
-}
-
-export function taskCancel(taskId: string): { ok: boolean; error?: string } {
-    try {
-        const task = taskQueue.get(taskId);
-        if (!task) return { ok: false, error: 'Task not found' };
-        task.status = 'canceled';
-        console.log(`[TaskQueue] Canceled: ${taskId}`);
-        return { ok: true };
-    } catch (err: any) {
-        return { ok: false, error: String(err?.message || err) };
-    }
-}
-
-function startTaskWorker() {
-    taskWorkerInterval = setInterval(() => {
-        taskQueue.forEach((task) => {
-            if (task.status === 'queued') {
-                task.status = 'running';
-                task.startedAt = new Date().toISOString();
-                task.progress = { current: 25, total: 100 };
-            } else if (task.status === 'running') {
-                // Simulate progress
-                if (task.progress && task.progress.current < 90) {
-                    task.progress.current += Math.random() * 30;
-                } else if (task.progress && task.progress.current >= 90) {
-                    task.status = 'completed';
-                    task.completedAt = new Date().toISOString();
-                    task.result = { success: true };
-                    console.log(`[TaskQueue] Completed: ${task.id}`);
-                }
-            }
-        });
-
-        // Clean up old completed tasks (keep last 50)
-        const allTasks = Array.from(taskQueue.entries());
-        if (allTasks.length > 50) {
-            const toRemove = allTasks
-                .filter(([, t]) => t.status === 'completed')
-                .sort((a, b) => new Date(a[1].completedAt!).getTime() - new Date(b[1].completedAt!).getTime())
-                .slice(0, allTasks.length - 50);
-
-            toRemove.forEach(([id]) => taskQueue.delete(id));
-        }
-    }, 1000);
-}
 
 // ============================================================================
 // FEATURE 8: HARDWARE SENSOR FEED
@@ -553,9 +451,9 @@ let lastMetrics: SystemMetrics = {
 
 let metricsInterval: NodeJS.Timeout | null = null;
 
-export function systemMetricsPoll(): { ok: boolean; metrics?: SystemMetrics; error?: string } {
+export async function systemMetricsPoll(): Promise<{ ok: boolean; metrics?: SystemMetrics; error?: string }> {
     try {
-        const metrics = collectSystemMetrics();
+        const metrics = await collectSystemMetrics();
         lastMetrics = metrics;
         return { ok: true, metrics };
     } catch (err: any) {
@@ -574,42 +472,61 @@ export function systemMetricsGet(): { ok: boolean; metrics?: SystemMetrics; erro
 export function startSystemMetricsPoller() {
     if (metricsInterval) return; // Already running
 
-    metricsInterval = setInterval(() => {
-        lastMetrics = collectSystemMetrics();
-        console.log(`[SystemMetrics] CPU: ${lastMetrics.cpu.usage}%, Memory: ${lastMetrics.memory.percentage}%`);
+    metricsInterval = setInterval(async () => {
+        try {
+            lastMetrics = await collectSystemMetrics();
+            console.log(`[SystemMetrics] CPU: ${lastMetrics.cpu.usage}%, Memory: ${lastMetrics.memory.percentage}%`);
+        } catch (err) {
+            console.error('[SystemMetrics] Poll failed:', err);
+        }
     }, 5000);
 }
 
-function collectSystemMetrics(): SystemMetrics {
-    // Simulate metrics (production: use os module and systeminformation package)
-    const used = Math.random() * 8192; // 0-8GB
-    const total = 16384; // 16GB
-    const percentage = Math.round((used / total) * 100);
+/** Real system metrics — CPU/memory from os.cpus()/os.totalmem() deltas, GPU/disk
+ * from nvidia-smi/wmic via hardwareProfiler.ts. No random/simulated values: gpu
+ * and disk are omitted entirely (both are optional on SystemMetrics) when no
+ * real reading is available, rather than fabricating one. */
+async function collectSystemMetrics(): Promise<SystemMetrics> {
+    const [profile, live, gpuMem] = await Promise.all([
+        getRealHardwareProfile(),
+        getRealtimeSystemMetrics(),
+        getRealtimeGpuMemory(),
+    ]);
 
-    return {
+    const memTotalMB = Math.round(profile.ram.total * 1024);
+    const memUsedMB = Math.round(memTotalMB * (live.memoryUsagePercent / 100));
+
+    const metrics: SystemMetrics = {
         cpu: {
-            usage: Math.random() * 100,
-            cores: 8,
-            temperature: 45 + Math.random() * 25, // 45-70°C
-        },
-        gpu: {
-            usage: Math.random() * 100,
-            temperature: 50 + Math.random() * 30, // 50-80°C (if NVIDIA)
-            vramUsed: Math.random() * 6000,
-            vramTotal: 6144,
+            usage: live.cpuUsagePercent,
+            cores: profile.cpu.threads,
         },
         memory: {
-            used: Math.round(used),
-            total: total,
-            percentage,
-        },
-        disk: {
-            used: Math.random() * 500,
-            total: 1000,
-            percentage: Math.round((Math.random() * 500 / 1000) * 100),
+            used: memUsedMB,
+            total: memTotalMB,
+            percentage: live.memoryUsagePercent,
         },
         timestamp: Date.now(),
     };
+
+    if (gpuMem) {
+        metrics.gpu = {
+            usage: live.gpuUsagePercent,
+            vramUsed: gpuMem.usedMB,
+            vramTotal: gpuMem.totalMB,
+        };
+    }
+
+    if (profile.storage.totalSpace > 0) {
+        const usedGB = profile.storage.totalSpace - profile.storage.availableSpace;
+        metrics.disk = {
+            used: usedGB,
+            total: profile.storage.totalSpace,
+            percentage: Math.round((usedGB / profile.storage.totalSpace) * 100),
+        };
+    }
+
+    return metrics;
 }
 
 // Initialize all services on startup

@@ -537,28 +537,21 @@ export const MiningPanel: React.FC = () => {
       return;
     }
     setIsMining(true);
-    setProgress({ percent: 2, task: 'Initialising pipeline…' });
-    const STAGES = [
-      'Parsing ESP/ESM headers…',
-      'Correlating asset references…',
-      'Building dependency graph…',
-      'Analysing performance metrics…',
-      'Detecting unused assets…',
-      'Running LOD analysis…',
-      'Checking texture resolutions…',
-      'Finalising report…',
-    ];
-    const ticker = setInterval(() => {
-      setProgress(p => {
-        if (!p || p.percent >= 88) return p;
-        const newPct = Math.min(p.percent + 4 + Math.random() * 6, 88);
-        const stageIdx = Math.min(Math.floor((newPct / 88) * STAGES.length), STAGES.length - 1);
-        return { percent: newPct, task: STAGES[stageIdx] };
-      });
-    }, 700);
+    setProgress({ percent: 0, task: 'Initialising pipeline…' });
+    // Poll the real pipeline status (miningState, updated live by the
+    // orchestrator's progress callback in main.ts) instead of faking a timer.
+    const poller = setInterval(async () => {
+      try {
+        const status = await (window as any).electronAPI?.getMiningStatus?.();
+        const s = status?.data ?? status;
+        if (s && typeof s.progress === 'number') {
+          setProgress({ percent: s.progress, task: s.currentTask || 'Working…' });
+        }
+      } catch { /* status poll is best-effort */ }
+    }, 400);
     try {
       const raw = await miningApi.executePipeline(sources);
-      clearInterval(ticker);
+      clearInterval(poller);
       setProgress({ percent: 100, task: 'Pipeline complete.' });
       const data: MiningResultView = raw?.data ?? raw ?? {
         espData: new Map(), correlations: [], errors: [],
@@ -569,7 +562,7 @@ export const MiningPanel: React.FC = () => {
       if (data.dependencyGraph?.nodes && !(data.dependencyGraph.nodes instanceof Map)) data.dependencyGraph.nodes = new Map(Object.entries(data.dependencyGraph.nodes));
       setResult(data);
     } catch (err) {
-      clearInterval(ticker);
+      clearInterval(poller);
       console.error('[MiningPanel] Pipeline error:', err);
       setProgress({ percent: 0, task: 'Pipeline failed — see DevTools console for details.' });
     } finally {

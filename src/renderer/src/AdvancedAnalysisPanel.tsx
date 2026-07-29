@@ -2,10 +2,13 @@
  * Advanced Analysis Panel Component
  * Provides UI for the Advanced Analysis Engine capabilities:
  * - Pattern Recognition Engine
- * - Mod Conflict Prediction (ML-based)
  * - Performance Bottleneck Mining
- * - Memory Usage Analysis
  * - Compatibility Matrix Mining
+ *
+ * Hardware-awareness, ML conflict prediction, and memory-bottleneck analysis now live
+ * in the Phase 2 Mining Dashboard (the "Phase 2 Mining" tab in this same hub) with real
+ * detected hardware and real FormID-conflict data — the versions that used to be here
+ * were rule-based demos and have been retired in favor of that.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -27,15 +30,12 @@ import {
   X,
 } from 'lucide-react';
 import {
-  ConflictPrediction,
   BottleneckAnalysis,
-  MemoryAnalysis,
   CompatibilityMatrix,
   AnalysisData,
   PatternRecognitionResult,
   HardwareProfile,
-  PerformanceData,
-  MemoryData
+  PerformanceData
 } from '../../shared/types';
 import { AdvancedAnalysisEngineImpl } from '../../mining/advanced-analysis-engine';
 
@@ -61,14 +61,12 @@ function getAuditorMods(): string[] {
 }
 
 export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<'patterns' | 'conflicts' | 'bottlenecks' | 'memory' | 'compatibility'>('patterns');
+  const [activeTab, setActiveTab] = useState<'patterns' | 'bottlenecks' | 'compatibility'>('patterns');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [engineReady, setEngineReady] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<{
     patterns?: PatternRecognitionResult;
-    conflicts?: ConflictPrediction[];
     bottlenecks?: BottleneckAnalysis;
-    memory?: MemoryAnalysis;
     compatibility?: CompatibilityMatrix;
   }>({});
 
@@ -108,36 +106,6 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
     }
   };
 
-  // Run conflict prediction
-  const runConflictPrediction = async () => {
-    setIsAnalyzing(true);
-    try {
-      const mods = getAuditorMods();
-      // Build mod pairs from scanned plugins (first 10 pairs max)
-      const pairs: Array<{ modA: string; modB: string }> = [];
-      for (let i = 0; i < Math.min(mods.length, 5); i++) {
-        for (let j = i + 1; j < Math.min(mods.length, 5); j++) {
-          pairs.push({ modA: mods[i], modB: mods[j] });
-        }
-      }
-      // Always include common known pairs so there's something to show
-      if (pairs.length === 0) {
-        pairs.push(
-          { modA: 'Unofficial Fallout 4 Patch', modB: 'F4SE' },
-          { modA: 'Armor and Weapon Keywords Community Resource', modB: 'Valdacils Item Sorting' }
-        );
-      }
-      const predictions: ConflictPrediction[] = await Promise.all(
-        pairs.map(p => analysisEngine.conflictPrediction.predict(p.modA, p.modB))
-      );
-      setAnalysisResults(prev => ({ ...prev, conflicts: predictions }));
-    } catch (error) {
-      console.error('Conflict prediction failed:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   // Run bottleneck analysis
   const runBottleneckAnalysis = async () => {
     setIsAnalyzing(true);
@@ -153,39 +121,6 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
       setAnalysisResults(prev => ({ ...prev, bottlenecks: result }));
     } catch (error) {
       console.error('Bottleneck analysis failed:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Run memory analysis
-  const runMemoryAnalysis = async () => {
-    setIsAnalyzing(true);
-    try {
-      const mods = getAuditorMods();
-      const memoryData: MemoryData = {
-        vramSnapshots: [],
-        ramSnapshots: [],
-        modLoadOrder: mods,
-        sessionInfo: {
-          sessionId: `session_${Date.now()}`,
-          startTime: Date.now() - 3600000,
-          endTime: Date.now(),
-          mods,
-          peakVRAM: 4096,
-          peakRAM: 16384,
-          averageFPS: 45,
-          initialLoadOrder: mods,
-          finalLoadOrder: mods,
-          performanceSnapshots: [],
-          events: [],
-          userActions: []
-        }
-      };
-      const result = await analysisEngine.memoryAnalysis.analyze(memoryData);
-      setAnalysisResults(prev => ({ ...prev, memory: result }));
-    } catch (error) {
-      console.error('Memory analysis failed:', error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -229,9 +164,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
 
   const tabs = [
     { id: 'patterns', label: 'Pattern Recognition', icon: Brain, action: runPatternAnalysis },
-    { id: 'conflicts', label: 'Conflict Prediction', icon: AlertTriangle, action: runConflictPrediction },
     { id: 'bottlenecks', label: 'Bottleneck Mining', icon: TrendingDown, action: runBottleneckAnalysis },
-    { id: 'memory', label: 'Memory Analysis', icon: MemoryStick, action: runMemoryAnalysis },
     { id: 'compatibility', label: 'Compatibility Matrix', icon: Network, action: runCompatibilityAnalysis }
   ];
 
@@ -241,7 +174,7 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
       <div className="mb-3 p-2.5 bg-emerald-900/20 border border-emerald-700/30 text-emerald-200 rounded-lg text-xs flex items-center gap-2">
         <Zap className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
         {engineReady
-          ? 'Analysis engine ready. Scan plugins in The Auditor first for the richest results, or run analysis now using baseline data.'
+          ? 'Analysis engine ready. Scan plugins in The Auditor first for the richest results, or run analysis now using baseline data. For hardware-aware recommendations and ML conflict prediction, see the Phase 2 Mining tab.'
           : 'Initialising analysis engine…'}
       </div>
 
@@ -339,73 +272,6 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
         </div>
       )}
 
-      {/* ── Conflict Prediction ── */}
-      {activeTab === 'conflicts' && (
-        <div className="space-y-4">
-          <p className="text-xs text-slate-400">
-            Rule-based conflict prediction across scanned plugin pairs — surfaces record overlap,
-            leveled list conflicts, and FormID collision risks before you hit them in-game.
-          </p>
-          {analysisResults.conflicts ? (
-            <div className="space-y-3">
-              {analysisResults.conflicts.map((prediction: any, idx: number) => {
-                const pct = Math.round((prediction.probability ?? 0) * 100);
-                const sev = prediction.severity ?? 'minor';
-                const sevStyle = sev === 'critical' ? 'border-red-500/40 bg-red-950/20 text-red-400'
-                  : sev === 'major'    ? 'border-orange-500/40 bg-orange-950/20 text-orange-400'
-                  : 'border-yellow-500/40 bg-yellow-950/20 text-yellow-400';
-                return (
-                  <div key={idx} className={`rounded-xl border p-4 ${sevStyle}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold text-white">
-                        {prediction.modA} ↔ {prediction.modB}
-                      </span>
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border border-current`}>
-                        {sev}
-                      </span>
-                    </div>
-                    {/* Risk bar */}
-                    <div className="relative h-2 w-full rounded-full bg-slate-800 mb-2 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          background: pct > 70 ? '#ef4444' : pct > 40 ? '#f59e0b' : '#10b981',
-                        }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-slate-400 mb-2">{pct}% conflict probability</p>
-                    {prediction.conflictTypes?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {prediction.conflictTypes.map((ct: any, ti: number) => (
-                          <span key={ti} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
-                            {typeof ct === 'string' ? ct : ct.type}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    {prediction.mitigationStrategies?.length > 0 && (
-                      <div className="space-y-0.5">
-                        {prediction.mitigationStrategies.map((s: string, si: number) => (
-                          <div key={si} className="text-[10px] text-slate-400 flex gap-1">
-                            <span className="text-emerald-500">•</span>{s}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-12 text-slate-500">
-              <AlertTriangle className="w-8 h-8 mr-3 opacity-40" />
-              <span className="text-sm">Press Run Analysis to predict conflicts.</span>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Bottleneck Mining ── */}
       {activeTab === 'bottlenecks' && (
         <div className="space-y-4">
@@ -473,59 +339,6 @@ export const AdvancedAnalysisPanel: React.FC<AdvancedAnalysisPanelProps> = ({ on
             <div className="flex items-center justify-center py-12 text-slate-500">
               <TrendingDown className="w-8 h-8 mr-3 opacity-40" />
               <span className="text-sm">Press Run Analysis to mine bottlenecks.</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Memory Analysis ── */}
-      {activeTab === 'memory' && (
-        <div className="space-y-4">
-          <p className="text-xs text-slate-400">
-            VRAM and system RAM usage estimates based on scanned textures and active load order.
-            Peak figures reflect worst-case outdoor cell transitions.
-          </p>
-          {analysisResults.memory ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { label: 'Total VRAM',  value: `${Math.round(analysisResults.memory.vramUsage.total)} MB`,       icon: <HardDrive   className="w-5 h-5 text-purple-400" /> },
-                { label: 'Peak VRAM',   value: `${Math.round(analysisResults.memory.vramUsage.peakUsage)} MB`,   icon: <TrendingDown className="w-5 h-5 text-red-400"    /> },
-                { label: 'Total RAM',   value: `${Math.round(analysisResults.memory.systemRamUsage.total)} MB`,  icon: <MemoryStick  className="w-5 h-5 text-blue-400"   /> },
-                { label: 'Peak RAM',    value: `${Math.round(analysisResults.memory.systemRamUsage.peakUsage)} MB`, icon: <TrendingDown className="w-5 h-5 text-amber-400" /> },
-              ].map(s => (
-                <div key={s.label} className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 flex items-center gap-3">
-                  {s.icon}
-                  <div>
-                    <div className="text-xl font-black text-white">{s.value}</div>
-                    <div className="text-[10px] text-slate-500">{s.label}</div>
-                  </div>
-                </div>
-              ))}
-              <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 md:col-span-3">
-                <h4 className="text-sm font-bold text-white mb-3">Memory Recommendations</h4>
-                {analysisResults.memory.recommendations.length === 0 ? (
-                  <p className="text-xs text-slate-500">Memory usage is within acceptable bounds.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {analysisResults.memory.recommendations.map((rec: any, i: number) => (
-                      <div key={i} className="flex items-start gap-3 rounded-lg bg-slate-800/50 p-3 text-[11px]">
-                        <div className="flex-1">
-                          <div className="font-semibold text-white mb-0.5">{rec.description}</div>
-                          <span className="text-[10px] uppercase text-slate-500">{rec.type}</span>
-                        </div>
-                        {rec.potentialSavings != null && (
-                          <span className="text-emerald-400 font-bold shrink-0">-{rec.potentialSavings} MB</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center py-12 text-slate-500">
-              <MemoryStick className="w-8 h-8 mr-3 opacity-40" />
-              <span className="text-sm">Press Run Analysis to profile memory usage.</span>
             </div>
           )}
         </div>

@@ -129,21 +129,16 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
     try {
       const resp = await api.mlIndexBuild(effectiveRoots.length ? { roots: effectiveRoots } : undefined);
       if (!resp?.ok) {
-        const raw = String(resp?.error || 'Failed to build index');
-        const friendly = raw.toLowerCase().includes('fetch') || raw.toLowerCase().includes('network')
-          ? 'Could not download the AI embedding model (no internet access). The semantic index requires a one-time model download. Keyword search still works without the index.'
-          : raw;
-        setBuildError(friendly);
+        // The embedder (local-fnv1a-tfidf-bigram-trigram-v2) is a purely local hash-based
+        // model — it never downloads anything or makes a network call, so a real failure
+        // here is never actually about internet access. Show the real error instead.
+        setBuildError(String(resp?.error || 'Failed to build index. Keyword search still works without the index.'));
       } else {
         toast.success('Index built successfully!');
       }
       await refreshStatus();
     } catch (e: any) {
-      const raw = String(e?.message || e);
-      const friendly = raw.toLowerCase().includes('fetch') || raw.toLowerCase().includes('network')
-        ? 'Could not download the AI embedding model (no internet access). Keyword search still works without the index.'
-        : raw;
-      setBuildError(friendly);
+      setBuildError(`${String(e?.message || e)} — keyword search still works without the index.`);
     } finally {
       setBuildBusy(false);
     }
@@ -290,7 +285,7 @@ export default function KnowledgeSearch({ embedded = false }: KnowledgeSearchPro
             onClick={onBuildIndex}
             disabled={buildBusy}
             className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold"
-            title="Build semantic index for AI-powered search (requires internet for first-time model download)"
+            title="Build a local semantic search index (runs fully offline — no model download required)"
           >
             {buildBusy ? 'Indexing…' : 'Build / Refresh Index'}
           </button>

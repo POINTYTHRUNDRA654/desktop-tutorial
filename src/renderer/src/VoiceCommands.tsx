@@ -1,23 +1,63 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff } from 'lucide-react';
+import { VoiceService, VoiceServiceConfig } from './voice-service';
 
 export default function VoiceCommands() {
   const [skillLevel, setSkillLevel] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [message, setMessage] = useState('');
+  const voiceServiceRef = useRef<VoiceService | null>(null);
+
+  // Real speech recognition via VoiceService (local Whisper if available,
+  // else browser Web Speech API) — the same service AIModAssistant.tsx uses.
+  // The old window.electron.api.voiceCommands IPC channel never actually ran
+  // speech recognition on the main-process side (it just acknowledged the
+  // call), so it could never produce a real transcript.
+  const getVoiceService = (): VoiceService => {
+    if (!voiceServiceRef.current) {
+      const bridge: any = (window as any).electron?.api;
+      const hasLocalWhisper = typeof bridge?.transcribeAudio === 'function';
+      const hasBrowserStt = !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+      const config: VoiceServiceConfig = {
+        sttProvider: hasLocalWhisper ? 'local' : hasBrowserStt ? 'browser' : 'local',
+        ttsProvider: 'browser',
+      };
+      voiceServiceRef.current = new VoiceService(config);
+      voiceServiceRef.current.initialize().catch(console.error);
+    }
+    return voiceServiceRef.current;
+  };
+
+  useEffect(() => {
+    return () => { voiceServiceRef.current?.stopListening(); };
+  }, []);
 
   const toggleListening = async () => {
+    const service = getVoiceService();
     if (isListening) {
-      await window.electron.api.voiceCommands.stopListening();
+      service.stopListening();
       setIsListening(false);
-    } else {
-      await window.electron.api.voiceCommands.startListening();
-      setIsListening(true);
-      window.electron.api.voiceCommands.onTranscript((text: string) => {
-        setTranscript(text);
-      });
+      return;
     }
+    if (!service.isSupported()) {
+      setMessage('Voice input is not supported in this environment — no microphone access or speech recognition available.');
+      return;
+    }
+    setMessage('');
+    setIsListening(true);
+    service.startListening(
+      (text) => {
+        setTranscript(text);
+        service.stopListening();
+        setIsListening(false);
+      },
+      (err) => {
+        setMessage(`Voice input error: ${err}`);
+        setIsListening(false);
+      },
+      () => { /* mode changes (listening/processing/idle) — no dedicated UI state here */ }
+    );
   };
 
   return (

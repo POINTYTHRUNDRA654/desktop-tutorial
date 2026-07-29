@@ -75,6 +75,25 @@ async function main() {
     console.log('      .env.encrypted refreshed from project root');
   }
 
+  // 5b2. Sync CHANGELOG.md so the What's New feature (main.ts findChangelogPath) can
+  // find it at app.getAppPath()/CHANGELOG.md inside the packaged asar.
+  const srcChangelog = path.join(ROOT, 'CHANGELOG.md');
+  const destChangelog = path.join(TMP, 'CHANGELOG.md');
+  if (fs.existsSync(srcChangelog)) {
+    fs.copyFileSync(srcChangelog, destChangelog);
+    console.log('      CHANGELOG.md refreshed from project root');
+  }
+
+  // 5b3. Sync package.json so `require('../../package.json').version` in main.ts
+  // (used by whats-new-get-current and elsewhere) reports the real deployed version
+  // instead of whatever version the asar happened to be packed at originally.
+  const srcPkg = path.join(ROOT, 'package.json');
+  const destPkg = path.join(TMP, 'package.json');
+  if (fs.existsSync(srcPkg)) {
+    fs.copyFileSync(srcPkg, destPkg);
+    console.log('      package.json refreshed from project root');
+  }
+
   // 5c. Sync runtime node_modules added since the asar's bundled node_modules was last packed
   const REQUIRED_MODULES = [
     'simple-git', '@kwsites/file-exists', '@kwsites/promise-deferred',

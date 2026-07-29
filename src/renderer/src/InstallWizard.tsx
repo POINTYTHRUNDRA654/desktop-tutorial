@@ -239,6 +239,12 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
     try {
       const text = await file.text();
       await importVaultJson(text);
+      // Electron exposes the real absolute path on File objects from a native
+      // <input type=file> picker — remember it so "Open Last Download Location" works.
+      const realPath = (file as any).path;
+      if (realPath) {
+        try { localStorage.setItem('mossy_last_download_path', realPath); } catch { /* non-fatal */ }
+      }
     } finally {
       setVaultImportBusy(false);
       e.target.value = '';
@@ -552,7 +558,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'readme',
               title: 'Open the dedicated SS2 learning path first',
-              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, or <Link className="text-blue-400 hover:underline" to="/guides-hub">Guides Hub</Link> to browse all 22 tutorial platforms, then return here for checklist verification.</>,
+              details: <>Go to <Link className="text-blue-400 hover:underline" to="/guides/mods/sim-settlements">SS2 Learning Path</Link> for the full beginner flow, or <Link className="text-blue-400 hover:underline" to="/guides-hub">Guides Hub</Link> to browse all 23 tutorial platforms, then return here for checklist verification.</>,
             },
             {
               id: 'requirements',

@@ -66,12 +66,12 @@ export const BackupManager: React.FC = () => {
 
   const checkGitStatus = async () => {
     // Only attempt if the Desktop Bridge is active — avoids a guaranteed 404 in DevTools
-    if (localStorage.getItem('mossy_bridge_active') !== 'true') {
+    if (localStorage.getItem('mossy_bridge_active') !== 'true' || !workspacePath) {
       setGitStatus(null);
       return;
     }
     try {
-      const response = await fetch('http://127.0.0.1:21337/git/status');
+      const response = await fetch(`http://127.0.0.1:21337/git/status?path=${encodeURIComponent(workspacePath)}`);
       if (response.ok) {
         const data = await response.json();
         setGitStatus(data);
@@ -86,28 +86,37 @@ export const BackupManager: React.FC = () => {
     }
   };
 
-  const createAutoSnapshot = async () => {
-    // Try to get real file count from Electron API
-    const bridge: any = (window as any).electron?.api;
-    let fileCount = 0;
-    let sizeLabel = '';
-    if (bridge?.getDirectoryStats && workspacePath) {
-      try {
-        const stats = await bridge.getDirectoryStats(workspacePath);
-        fileCount = stats?.fileCount ?? 0;
-        // IPC returns totalBytes — convert to MB for display
-        sizeLabel = stats?.totalBytes ? `${(stats.totalBytes / 1_048_576).toFixed(1)} MB` : '';
-      } catch { /* non-critical */ }
+  // Actually copies workspacePath's real file contents to the Desktop Bridge's backup
+  // store (previously this only ever wrote localStorage metadata — nothing to restore
+  // or export ever existed server-side, so restore/export were guaranteed to fail).
+  const createRealBackup = async (snapshotId: string): Promise<{ fileCount: number; totalBytes: number } | null> => {
+    if (!workspacePath) return null;
+    try {
+      const response = await fetch('http://localhost:21337/backup/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshotId, workspacePath }),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return { fileCount: data.fileCount ?? 0, totalBytes: data.totalBytes ?? 0 };
+    } catch {
+      return null;
     }
+  };
+
+  const createAutoSnapshot = async () => {
+    const id = Date.now().toString();
+    const backup = await createRealBackup(id);
 
     const newSnapshot: Snapshot = {
-      id: Date.now().toString(),
+      id,
       name: 'Auto Snapshot',
       timestamp: new Date(),
       type: 'auto',
-      size: sizeLabel || '',
-      files: fileCount,
-      description: `Auto backup — ${new Date().toLocaleDateString()}`
+      size: backup ? `${(backup.totalBytes / 1_048_576).toFixed(1)} MB` : '',
+      files: backup?.fileCount ?? 0,
+      description: `Auto backup — ${new Date().toLocaleDateString()}${backup ? '' : ' (metadata only — Desktop Bridge offline)'}`
     };
 
     const updated = [newSnapshot, ...snapshots].slice(0, 20); // Keep last 20
@@ -117,15 +126,18 @@ export const BackupManager: React.FC = () => {
 
   const createManualSnapshot = () => setShowSnapshotForm(true);
 
-  const submitManualSnapshot = () => {
+  const submitManualSnapshot = async () => {
     if (!snapshotNameInput.trim()) return;
+    const id = Date.now().toString();
+    const backup = await createRealBackup(id);
+
     const newSnapshot: Snapshot = {
-      id: Date.now().toString(),
+      id,
       name: snapshotNameInput.trim(),
       timestamp: new Date(),
       type: 'manual',
-      size: '',
-      files: 0,
+      size: backup ? `${(backup.totalBytes / 1_048_576).toFixed(1)} MB` : '',
+      files: backup?.fileCount ?? 0,
       description: snapshotDescInput.trim() || undefined
     };
     const updated = [newSnapshot, ...snapshots];
@@ -134,10 +146,14 @@ export const BackupManager: React.FC = () => {
     setSnapshotNameInput('');
     setSnapshotDescInput('');
     setShowSnapshotForm(false);
-    toast.success('Snapshot created!');
+    toast.success(backup ? `Snapshot created! (${backup.fileCount} files backed up)` : 'Snapshot metadata saved, but Desktop Bridge is offline — no files were actually backed up.');
   };
 
   const restoreSnapshot = async (snapshot: Snapshot) => {
+    if (!workspacePath) {
+      toast.error('Set a workspace folder first.');
+      return;
+    }
     const ok = await window.electronAPI?.showConfirm?.(`Restore from "${snapshot.name}"?`, 'Current work will be backed up first.');
     if (!ok) return;
 
@@ -145,7 +161,7 @@ export const BackupManager: React.FC = () => {
       const response = await fetch('http://localhost:21337/backup/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ snapshotId: snapshot.id })
+        body: JSON.stringify({ snapshotId: snapshot.id, workspacePath })
       });
 
       if (response.ok) {
@@ -170,27 +186,35 @@ export const BackupManager: React.FC = () => {
 
   const submitGitCommit = async () => {
     const message = commitMsgInput.trim();
-    if (!message) return;
+    if (!message || !workspacePath) return;
     setShowCommitForm(false);
     setCommitMsgInput('');
 
     try {
-      await fetch('http://localhost:21337/git/commit', {
+      const response = await fetch('http://localhost:21337/git/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ message, path: workspacePath })
       });
-
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || 'Commit failed');
+      }
       toast.success('Committed!');
       checkGitStatus();
-    } catch (error) {
-      toast.error('Git commit requires Desktop Bridge. Configure in Settings → External Tools.');
+    } catch (error: any) {
+      toast.error(error?.message || 'Git commit requires Desktop Bridge. Configure in Settings → External Tools.');
     }
   };
 
   const gitPush = async () => {
+    if (!workspacePath) return;
     try {
-      const response = await fetch('http://localhost:21337/git/push', { method: 'POST' });
+      const response = await fetch('http://localhost:21337/git/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: workspacePath }),
+      });
       if (response.ok) {
         toast.success('Pushed to remote!');
         checkGitStatus();

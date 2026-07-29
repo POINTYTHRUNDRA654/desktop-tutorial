@@ -2,8 +2,40 @@
   "permissions": {
     "allow": [
       "Bash(yarn install *)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:20]\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('exports keys:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:20]\\)\")",
+      "Bash(git commit -m ' *)",
+      "PowerShell($t = Get-Content \"C:\\\\Users\\\\Owner\\\\AppData\\\\Roaming\\\\mossy-desktop\\\\creative-director-projects\\\\cdproj_1784733767778_86ntvt\\\\transcript.md\" -Raw; $t.Length; $t.Substring\\(0, 3000\\))",
+      "PowerShell($t = Get-Content \"C:\\\\Users\\\\Owner\\\\AppData\\\\Roaming\\\\mossy-desktop\\\\creative-director-projects\\\\cdproj_1784733767778_86ntvt\\\\transcript.md\" -Raw; $t.Substring\\(3000, 6000\\))",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(node -e ' *)",
+      "Bash(grep -n '```json' transcript.md)",
+      "Bash(awk 'NR==595,NR==620' transcript.md)",
+      "Bash(node \"C:/Users/Owner/AppData/Local/Temp/claude/d--Projects-desktop-tutorial/0e2cfd45-a541-4f83-8f0c-27238689f688/scratchpad/check_sections.js\" \"C:/Users/Owner/AppData/Roaming/mossy-desktop/creative-director-projects/cdproj_1784821783867_gf0dpy/transcript.md\")",
+      "Bash(tasklist //FI \"IMAGENAME eq Mossy*\" //FO CSV)",
+      "Bash(tasklist //FI \"IMAGENAME eq electron*\" //FO CSV)",
+      "Bash(node \"C:/Users/Owner/AppData/Local/Temp/claude/d--Projects-desktop-tutorial/0e2cfd45-a541-4f83-8f0c-27238689f688/scratchpad/patch_project.js\")",
+      "Bash(gh --version)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(node C:/Users/Owner/AppData/Local/Temp/claude/d--Projects-desktop-tutorial/0e2cfd45-a541-4f83-8f0c-27238689f688/scratchpad/audit_cd_project.js C:/Users/Owner/AppData/Roaming/mossy-desktop/creative-director-projects/cdproj_1784887606411_mygr9s C:/Users/Owner/AppData/Roaming/mossy-desktop/creative-director-projects/cdproj_1784884118760_eofpuy)",
+      "Bash(echo \"ELECTRON_EXIT=$?\")",
+      "Bash(echo \"RENDERER_EXIT=$?\")",
+      "Bash(python3 -c ' *)",
+      "Bash(npm --version)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(echo \"RENDERER-EXIT:$?\")",
+      "Bash(echo \"ELECTRON-EXIT:$?\")",
+      "Bash(echo \"BACKEND-EXIT:$?\")",
+      "WebFetch(domain:falloutck.uesp.net)",
+      "WebFetch(domain:fallout.wiki)",
+      "WebFetch(domain:www.fo4docs.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(grep -viE \"toString\\\\\\(36\\\\\\)|substr|substring|Date\\\\.now\\\\\\(\\\\\\)\\\\}_\\\\$\\\\{\")"
     ]
+  },
+  "enabledPlugins": {
+    "tao-skills@tao-skill-bank": true
   },
   "extraKnownMarketplaces": {
     "tao-skill-bank": {
@@ -13,8 +45,5 @@
       },
       "autoUpdate": false
     }
-  },
-  "enabledPlugins": {
-    "tao-skills@tao-skill-bank": true
   }
 }

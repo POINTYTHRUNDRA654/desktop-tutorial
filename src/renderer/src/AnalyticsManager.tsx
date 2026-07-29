@@ -282,7 +282,7 @@ Be specific, encouraging, and use real FO4 terminology. Keep it under 200 words 
           signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             messages: [{ role: 'user', content: prompt }],
-            model: 'llama-3.3-70b-versatile',
+            model: 'openai/gpt-oss-120b',
             max_tokens: 350,
           }),
         });
