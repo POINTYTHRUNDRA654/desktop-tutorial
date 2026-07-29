@@ -37,7 +37,7 @@ export interface ConflictInfo {
 /**
  * Parse ESP/ESM file header to get basic info
  */
-export function parseESPHeader(filePath: string): { isMaster: boolean; version: number } | null {
+export function parseESPHeader(filePath: string): { isMaster: boolean; isLight: boolean; version: number } | null {
   try {
     const buffer = fs.readFileSync(filePath);
     if (buffer.length < 24) return null;
@@ -49,15 +49,114 @@ export function parseESPHeader(filePath: string): { isMaster: boolean; version: 
     // Read flags (offset 8)
     const flags = buffer.readUInt32LE(8);
     const isMaster = (flags & 0x00000001) !== 0;
+    const isLight = (flags & 0x00000200) !== 0; // ESL flag
 
     // Read version (offset 20)
     const version = buffer.readFloatLE(20);
 
-    return { isMaster, version };
+    return { isMaster, isLight, version };
   } catch (error) {
     console.error(`Failed to parse ESP header: ${filePath}`, error);
     return null;
   }
+}
+
+/**
+ * Read the master file list (MAST subrecords) from a plugin's TES4 header.
+ */
+export function readMasters(filePath: string): string[] {
+  const masters: string[] = [];
+  try {
+    const buffer = fs.readFileSync(filePath);
+    if (buffer.length < 24 || buffer.toString('ascii', 0, 4) !== 'TES4') return masters;
+
+    const recordSize = buffer.readUInt32LE(4);
+    const dataStart = 24;
+    const dataEnd = Math.min(dataStart + recordSize, buffer.length);
+    let offset = dataStart;
+
+    while (offset + 6 <= dataEnd) {
+      const subType = buffer.toString('ascii', offset, offset + 4);
+      const subSize = buffer.readUInt16LE(offset + 4);
+      const dataOffset = offset + 6;
+      if (subType === 'MAST') {
+        let str = buffer.toString('ascii', dataOffset, Math.min(dataOffset + subSize, buffer.length));
+        str = str.replace(/\0+$/, '');
+        if (str) masters.push(str);
+      }
+      offset = dataOffset + subSize;
+    }
+  } catch (error) {
+    console.error(`Failed to read masters: ${filePath}`, error);
+  }
+  return masters;
+}
+
+const ASSET_EXTENSIONS = ['.nif', '.dds', '.wav', '.xwm', '.hkx', '.bgsm', '.bgem', '.swf', '.fuz', '.lip'];
+
+/**
+ * Scan a plugin's raw bytes for embedded asset path strings (textures, meshes, sounds, etc).
+ * FO4 plugins store these as plain ASCII strings inside record subrecords, so a raw scan
+ * for printable-ASCII runs ending in a known asset extension recovers them without needing
+ * full per-record-type subrecord parsing.
+ */
+export function extractAssetPaths(filePath: string): string[] {
+  const paths = new Set<string>();
+  try {
+    const buffer = fs.readFileSync(filePath);
+    let start = -1;
+    for (let i = 0; i <= buffer.length; i++) {
+      const b = i < buffer.length ? buffer[i] : 0;
+      const printable = b >= 0x20 && b < 0x7f;
+      if (printable) {
+        if (start === -1) start = i;
+      } else {
+        if (start !== -1 && i - start >= 8) {
+          const str = buffer.toString('ascii', start, i);
+          const lower = str.toLowerCase();
+          if (/[\\/]/.test(str) && ASSET_EXTENSIONS.some(ext => lower.endsWith(ext))) {
+            paths.add(str.replace(/\\/g, '/'));
+          }
+        }
+        start = -1;
+      }
+    }
+  } catch (error) {
+    console.error(`Failed to extract asset paths: ${filePath}`, error);
+  }
+  return Array.from(paths);
+}
+
+/**
+ * Extract FormID -> record type pairs from a plugin (same offset-walk as extractFormIDs).
+ */
+export function extractRecordTypes(filePath: string): Map<string, string> {
+  const types = new Map<string, string>();
+  try {
+    const buffer = fs.readFileSync(filePath);
+    let offset = 0;
+
+    while (offset < buffer.length - 20) {
+      const type = buffer.toString('ascii', offset, offset + 4);
+      if (!/^[A-Z]{4}$/.test(type)) {
+        offset++;
+        continue;
+      }
+
+      const size = buffer.readUInt32LE(offset + 4);
+      const formId = buffer.readUInt32LE(offset + 12);
+
+      if (formId !== 0 && type !== 'GRUP') {
+        const formIdHex = formId.toString(16).padStart(8, '0').toUpperCase();
+        if (!types.has(formIdHex)) types.set(formIdHex, type);
+      }
+
+      offset += 24 + size;
+    }
+  } catch (error) {
+    console.error(`Failed to extract record types: ${filePath}`, error);
+  }
+  return types;
 }
 
 /**
@@ -265,6 +364,102 @@ export function compareESPs(plugin1Path: string, plugin2Path: string): { differe
   }
 
   return { differences };
+}
+
+export interface DetailedComparisonResult {
+  records: Array<{ formId: string; recordType: string; fieldA: string; fieldB: string; conflict: boolean }>;
+  assets: Array<{ path: string; inA: boolean; inB: boolean; conflict: boolean }>;
+  dependencies: Array<{ master: string; requiredByA: boolean; requiredByB: boolean }>;
+  pluginFlagsA: { esl: boolean; esm: boolean; esp: boolean };
+  pluginFlagsB: { esl: boolean; esm: boolean; esp: boolean };
+  loadOrderImpact: string[];
+  summary: { recordConflicts: number; assetConflicts: number; sharedDependencies: number; compatible: boolean };
+}
+
+const MAX_LISTED_ITEMS = 500;
+
+/**
+ * Real, richer side-by-side comparison of two ESP/ESM plugins for the Mod Comparison Tool.
+ * Built entirely from real parsed data: shared FormIDs (record conflicts), shared embedded
+ * asset paths (asset conflicts), shared master files (dependencies), and real TES4 header flags.
+ * Does not attempt per-field value diffing — that would require full record/subrecord parsing
+ * that this parser doesn't implement.
+ */
+export function compareESPsDetailed(plugin1Path: string, plugin2Path: string): DetailedComparisonResult {
+  const name1 = path.basename(plugin1Path);
+  const name2 = path.basename(plugin2Path);
+
+  const header1 = parseESPHeader(plugin1Path);
+  const header2 = parseESPHeader(plugin2Path);
+
+  const types1 = extractRecordTypes(plugin1Path);
+  const types2 = extractRecordTypes(plugin2Path);
+
+  const sharedFormIds = Array.from(types1.keys()).filter(id => types2.has(id));
+  const records = sharedFormIds.slice(0, MAX_LISTED_ITEMS).map(formId => ({
+    formId,
+    recordType: types1.get(formId) || types2.get(formId) || 'UNKNOWN',
+    fieldA: name1,
+    fieldB: name2,
+    conflict: true,
+  }));
+
+  const assets1 = extractAssetPaths(plugin1Path);
+  const assets2 = extractAssetPaths(plugin2Path);
+  const assetSet2 = new Set(assets2);
+  const allAssetPaths = Array.from(new Set([...assets1, ...assets2]));
+  const assets = allAssetPaths.slice(0, MAX_LISTED_ITEMS).map(p => {
+    const inA = assets1.includes(p);
+    const inB = assetSet2.has(p);
+    return { path: p, inA, inB, conflict: inA && inB };
+  });
+
+  const masters1 = readMasters(plugin1Path);
+  const masters2 = readMasters(plugin2Path);
+  const masterSet1 = new Set(masters1);
+  const masterSet2 = new Set(masters2);
+  const allMasters = Array.from(new Set([...masters1, ...masters2]));
+  const dependencies = allMasters.map(master => ({
+    master,
+    requiredByA: masterSet1.has(master),
+    requiredByB: masterSet2.has(master),
+  }));
+
+  const flags = (header: { isMaster: boolean; isLight: boolean } | null) => ({
+    esl: header?.isLight ?? false,
+    esm: header?.isMaster ?? false,
+    esp: header ? !header.isMaster && !header.isLight : true,
+  });
+
+  const recordConflicts = sharedFormIds.length;
+  const assetConflicts = assets.filter(a => a.conflict).length;
+  const sharedDependencies = dependencies.filter(d => d.requiredByA && d.requiredByB).length;
+
+  const loadOrderImpact: string[] = [];
+  if (sharedDependencies > 0) {
+    loadOrderImpact.push(`${name1} and ${name2} share ${sharedDependencies} master file(s) — both masters must be loaded before either plugin.`);
+  }
+  if (recordConflicts > 0) {
+    loadOrderImpact.push(`${recordConflicts} record(s) are defined by both plugins — whichever loads later will win in-game.`);
+  }
+  if (assetConflicts > 0) {
+    loadOrderImpact.push(`${assetConflicts} asset path(s) are referenced by both plugins — check for unintended visual/audio overrides.`);
+  }
+
+  return {
+    records,
+    assets,
+    dependencies,
+    pluginFlagsA: flags(header1),
+    pluginFlagsB: flags(header2),
+    loadOrderImpact,
+    summary: {
+      recordConflicts,
+      assetConflicts,
+      sharedDependencies,
+      compatible: recordConflicts === 0,
+    },
+  };
 }
 
 /**

@@ -44,7 +44,6 @@ export interface GeneratedScript {
   content: string;
   description: string;
   generatedAt: string;
-  confidence: number;
   requirements: string[];
 }
 
@@ -160,30 +159,50 @@ export class SelfImprovementEngine {
    * Identifies potential improvements based on interactions
    */
   private identifyImprovements(query: string, response: string, outcome: 'success' | 'partial' | 'failure') {
-    // Check for knowledge gaps
+    // Check for knowledge gaps. Dedupe on the query itself (not a fresh id/timestamp) so a
+    // recurring topic (e.g. the same question about an SS2 override coming back with "not sure"
+    // on every turn) bumps one existing entry instead of piling up a new near-identical
+    // opportunity per interaction — that pile-up was showing up as a "stuck" repeating entry
+    // in the Self-Improvement panel since every copy tied for top confidence.
     if (outcome === 'failure' && (response.includes("I don't know") || response.includes("not sure"))) {
-      this.opportunities.push({
-        id: `improvement_${++this.opportunityCounter}`,
-        type: 'knowledge_gap',
-        description: `Knowledge gap identified for query: "${query}"`,
-        confidence: 0.8,
-        proposedSolution: 'Research and add relevant information to knowledge vault',
-        impact: 'medium',
-        createdAt: new Date().toISOString()
-      });
+      const existing = this.opportunities.find(
+        o => o.type === 'knowledge_gap' && !o.implemented && o.description === `Knowledge gap identified for query: "${query}"`
+      );
+      if (existing) {
+        existing.confidence = Math.min(1, existing.confidence + 0.02);
+        existing.createdAt = new Date().toISOString();
+      } else {
+        this.opportunities.push({
+          id: `improvement_${++this.opportunityCounter}`,
+          type: 'knowledge_gap',
+          description: `Knowledge gap identified for query: "${query}"`,
+          confidence: 0.8,
+          proposedSolution: 'Research and add relevant information to knowledge vault',
+          impact: 'medium',
+          createdAt: new Date().toISOString()
+        });
+      }
     }
 
-    // Check for response quality issues
+    // Check for response quality issues — same dedup reasoning as above.
     if (outcome === 'partial' && response.length < 100) {
-      this.opportunities.push({
-        id: `improvement_${++this.opportunityCounter}`,
-        type: 'response_improvement',
-        description: 'Response too brief for complex query',
-        confidence: 0.6,
-        proposedSolution: 'Enhance response detail for similar queries',
-        impact: 'low',
-        createdAt: new Date().toISOString()
-      });
+      const existing = this.opportunities.find(
+        o => o.type === 'response_improvement' && !o.implemented && o.description === 'Response too brief for complex query'
+      );
+      if (existing) {
+        existing.confidence = Math.min(1, existing.confidence + 0.02);
+        existing.createdAt = new Date().toISOString();
+      } else {
+        this.opportunities.push({
+          id: `improvement_${++this.opportunityCounter}`,
+          type: 'response_improvement',
+          description: 'Response too brief for complex query',
+          confidence: 0.6,
+          proposedSolution: 'Enhance response detail for similar queries',
+          impact: 'low',
+          createdAt: new Date().toISOString()
+        });
+      }
     }
 
     // Check for repeated patterns that could be automated
@@ -287,64 +306,40 @@ export class SelfImprovementEngine {
   }
 
   /**
-   * Generates a script based on learned patterns and user requirements
+   * Generates a script for the user's real request via LocalAIEngine.
+   *
+   * This used to be a purely template-based generator: fixed boilerplate strings
+   * keyed only on `request.type`, with a "confidence" score computed from a hardcoded
+   * base value (0.7) plus a static +0.2 bump — `request.description` (what the user
+   * actually asked for) was never read. It was presented in the UI as AI-generated
+   * code, which it was not. This now genuinely calls the AI with a type-specific
+   * system prompt and the user's real description/requirements.
    */
-  generateScript(request: ScriptGenerationRequest): GeneratedScript {
+  async generateScript(request: ScriptGenerationRequest): Promise<GeneratedScript> {
     const scriptId = `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    let scriptContent = '';
-    let scriptName = '';
-    let confidence = 0.7; // Base confidence
 
-    // Analyze patterns to improve generation
-    const relevantPatterns = this.patterns.filter(p =>
-      p.category === 'question' &&
-      p.successRate > 0.8 &&
-      this.isRelevantToScript(p.pattern, request)
-    );
+    const SYSTEM_PROMPTS: Record<ScriptGenerationRequest['type'], string> = {
+      papyrus: `You are a Fallout 4 Papyrus scripting expert. Write a complete, compilable Papyrus script (.psc) for Fallout 4. Follow real FO4 Papyrus syntax: Scriptname declarations with the correct "extends" clause, Properties declared at script scope only (never inside a Function/Event body), never name a Property identically to the script's own Scriptname. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+      xedit: `You are an xEdit (FO4Edit) Pascal scripting expert. Write a complete xEdit script for Fallout 4 record editing, using the real xEdit Pascal script API (functions like GetElement, SetElementEditValues, ElementByPath, etc.) and the standard "function Process(e: IInterface): integer;" entry point structure. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+      blender: `You are a Blender Python scripting expert specializing in Fallout 4 modding workflows (PyNifly NIF export/import, correct FO4 unit scale of 1.0, 30 FPS, applying transforms before export, BSSubIndexTriShape handling). Write a complete Blender Python script using the bpy API. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+      quest: `You are a Fallout 4 Papyrus quest-scripting expert. Write a complete Papyrus quest script (.psc, extends Quest) implementing the requested quest logic with real Fallout 4 Quest/Stage/Alias APIs. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+      automation: `You are a Python automation scripting expert for Fallout 4 modding pipelines (asset processing, batch file operations, build automation). Write a complete, runnable Python script for the requested automation task. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+    };
 
-    if (relevantPatterns.length > 0) {
-      confidence += 0.2; // Boost confidence with relevant experience
+    const systemInstruction = SYSTEM_PROMPTS[request.type];
+    if (!systemInstruction) {
+      throw new Error(`Unsupported script type: ${request.type}`);
     }
 
-    switch (request.type) {
-      case 'papyrus': {
-        const papyrusResult = this.generatePapyrusScript(request);
-        scriptContent = papyrusResult.content;
-        scriptName = papyrusResult.name;
-        break;
-      }
+    const requirementsText = (request.requirements || []).length
+      ? `\n\nRequirements:\n${(request.requirements || []).map(r => `- ${r}`).join('\n')}`
+      : '';
+    const query = `${request.description}${requirementsText}${request.context ? `\n\nContext: ${request.context}` : ''}`;
 
-      case 'xedit': {
-        const xeditResult = this.generateXEditScript(request);
-        scriptContent = xeditResult.content;
-        scriptName = xeditResult.name;
-        break;
-      }
-
-      case 'blender': {
-        const blenderResult = this.generateBlenderScript(request);
-        scriptContent = blenderResult.content;
-        scriptName = blenderResult.name;
-        break;
-      }
-
-      case 'quest': {
-        const questResult = this.generateQuestScript(request);
-        scriptContent = questResult.content;
-        scriptName = questResult.name;
-        break;
-      }
-
-      case 'automation': {
-        const automationResult = this.generateAutomationScript(request);
-        scriptContent = automationResult.content;
-        scriptName = automationResult.name;
-        break;
-      }
-
-      default:
-        throw new Error(`Unsupported script type: ${request.type}`);
-    }
+    const response = await LocalAIEngine.generateResponse(query, systemInstruction);
+    const codeMatch = response.content.match(/```(?:\w+)?\s*\n([\s\S]*?)```/);
+    const scriptContent = (codeMatch ? codeMatch[1] : response.content).trim();
+    const scriptName = (request.name && request.name.trim()) || `${request.type}_${scriptId.slice(-6)}`;
 
     const generatedScript: GeneratedScript = {
       id: scriptId,
@@ -353,7 +348,6 @@ export class SelfImprovementEngine {
       content: scriptContent,
       description: request.description,
       generatedAt: new Date().toISOString(),
-      confidence,
       requirements: request.requirements || []
     };
 
@@ -396,15 +390,15 @@ export class SelfImprovementEngine {
    * Improves script generation based on feedback and patterns
    */
   improveScriptGeneration(): void {
-    // Analyze successful script generations
-    const successfulScripts = this.generatedScripts.filter(s => s.confidence > 0.8);
+    // Analyze recent script generations
+    const recentScripts = this.generatedScripts.slice(-20);
 
-    if (successfulScripts.length > 0) {
-      // Create improvement opportunities based on successful patterns
+    if (recentScripts.length > 0) {
+      // Create improvement opportunities based on recent generation activity
       const scriptImprovement: ImprovementOpportunity = {
         id: `script_improvement_${++this.opportunityCounter}`,
         type: 'efficiency_gain',
-        description: `Improve script generation based on ${successfulScripts.length} successful generations`,
+        description: `Review script generation quality across ${recentScripts.length} recent generations`,
         confidence: 0.85,
         proposedSolution: 'Analyze successful script patterns and update generation algorithms',
         impact: 'high',
@@ -796,6 +790,17 @@ if __name__ == "__main__":
 
   private savePersistedData() {
     try {
+      // Cap unbounded growth: keep all unimplemented opportunities (so nothing pending is lost)
+      // plus the 100 most recent implemented ones, instead of accumulating forever.
+      if (this.opportunities.length > 200) {
+        const pending = this.opportunities.filter(o => !o.implemented);
+        const implemented = this.opportunities
+          .filter(o => o.implemented)
+          .sort((a, b) => new Date(b.implementedAt || b.createdAt).getTime() - new Date(a.implementedAt || a.createdAt).getTime())
+          .slice(0, 100);
+        this.opportunities = [...pending, ...implemented];
+      }
+
       localStorage.setItem('mossy_learning_patterns', JSON.stringify(this.patterns));
       localStorage.setItem('mossy_improvement_opportunities', JSON.stringify(this.opportunities));
       localStorage.setItem('mossy_user_feedback', JSON.stringify(this.feedback));

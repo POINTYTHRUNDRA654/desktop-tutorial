@@ -55,6 +55,40 @@ export class ModBrowserEngine {
   private cacheExpiry = 1000 * 60 * 5;
   private apiBaseUrl = 'api.nexusmods.com';
 
+  constructor() {
+    this.loadReviewsFromDisk();
+  }
+
+  /**
+   * Reviews are persisted to userData/mod-browser-reviews.json so they survive
+   * app restarts — previously this.reviews was an in-memory-only field that got
+   * wiped on every restart despite the UI presenting reviews as persistent.
+   */
+  private reviewsFilePath(): string {
+    // Lazy require: this module is also used outside the Electron main process context.
+    const { app } = require('electron');
+    return path.join(app.getPath('userData'), 'mod-browser-reviews.json');
+  }
+
+  private loadReviewsFromDisk(): void {
+    try {
+      const filePath = this.reviewsFilePath();
+      if (fs.existsSync(filePath)) {
+        this.reviews = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      }
+    } catch (error) {
+      console.error('[ModBrowser] Failed to load reviews from disk:', error);
+    }
+  }
+
+  private saveReviewsToDisk(): void {
+    try {
+      fs.writeFileSync(this.reviewsFilePath(), JSON.stringify(this.reviews, null, 2), 'utf-8');
+    } catch (error) {
+      console.error('[ModBrowser] Failed to save reviews to disk:', error);
+    }
+  }
+
   private ensureAuthenticated() {
     if (!this.nexusApiKey) {
       throw new Error('Nexus Mods API key is required. Authenticate first.');
@@ -74,13 +108,15 @@ export class ModBrowserEngine {
     return parsed;
   }
 
-  private async apiRequest<T>(endpoint: string): Promise<T> {
+  private async apiRequest<T>(endpoint: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
     this.ensureAuthenticated();
 
-    const cacheKey = `${this.nexusApiKey}:${endpoint}`;
-    const cached = this.apiCache.get(cacheKey);
-    if (cached && now() - cached.timestamp < this.cacheExpiry) {
-      return cached.data as T;
+    const cacheKey = `${this.nexusApiKey}:${method}:${endpoint}`;
+    if (method === 'GET') {
+      const cached = this.apiCache.get(cacheKey);
+      if (cached && now() - cached.timestamp < this.cacheExpiry) {
+        return cached.data as T;
+      }
     }
 
     const requestUrl = `https://${this.apiBaseUrl}${endpoint}`;
@@ -92,7 +128,7 @@ export class ModBrowserEngine {
           protocol: parsedUrl.protocol,
           hostname: parsedUrl.hostname,
           path: `${parsedUrl.pathname}${parsedUrl.search}`,
-          method: 'GET',
+          method,
           timeout: 10000,
           headers: {
             apikey: this.nexusApiKey as string,
@@ -124,7 +160,9 @@ export class ModBrowserEngine {
       req.end();
     });
 
-    this.apiCache.set(cacheKey, { data, timestamp: now() });
+    if (method === 'GET') {
+      this.apiCache.set(cacheKey, { data, timestamp: now() });
+    }
     return data;
   }
 
@@ -331,6 +369,7 @@ export class ModBrowserEngine {
     };
     this.reviews[modId] = this.reviews[modId] || [];
     this.reviews[modId].unshift(review);
+    this.saveReviewsToDisk();
   }
 
   async getModReviews(modId: string): Promise<Review[]> {
@@ -420,7 +459,8 @@ export class ModBrowserEngine {
     this.ensureAuthenticated();
     const game = 'fallout4';
     const nexusModId = this.extractNexusModId(modId);
-    await this.apiRequest<any>(`/v1/games/${game}/mods/${nexusModId}/endorse.json`);
+    // Nexus's endorse endpoint requires POST — a GET here gets rejected by their API.
+    await this.apiRequest<any>(`/v1/games/${game}/mods/${nexusModId}/endorse.json`, 'POST');
   }
 
   async trackMod(modId: string): Promise<void> {

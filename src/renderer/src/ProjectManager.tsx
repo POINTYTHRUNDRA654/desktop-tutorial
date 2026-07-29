@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FolderOpen, Plus, Settings, Trash2, GitBranch, Users, BarChart3 } from 'lucide-react';
+import { FolderOpen, Plus, Settings, Trash2, GitBranch, Users, BarChart3, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { ModProject, ProjectSettings } from '../../shared/types';
 
 interface ProjectManagerProps {
@@ -8,6 +9,8 @@ interface ProjectManagerProps {
   onProjectCreate?: () => void;
   onProjectSettings?: (project: ModProject) => void;
 }
+
+const GAME_OPTIONS: ModProject['game'][] = ['fallout4', 'skyrim', 'skyrimse', 'fallout76', 'other'];
 
 export const ProjectManager: React.FC<ProjectManagerProps> = ({
   embedded = false,
@@ -18,6 +21,17 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
   const [projects, setProjects] = useState<ModProject[]>([]);
   const [currentProject, setCurrentProject] = useState<ModProject | null>(null);
   const [loading, setLoading] = useState(true);
+  // ProjectHub.tsx renders this component with no callback props at all, so "New Project"
+  // and "Settings" silently no-op'd. Both now work standalone via real IPC (createProject/
+  // updateProject) when no callback is supplied, while still respecting explicit callbacks
+  // from any parent that does wire them.
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [settingsProject, setSettingsProject] = useState<ModProject | null>(null);
+  const [formName, setFormName] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formPath, setFormPath] = useState('');
+  const [formGame, setFormGame] = useState<ModProject['game']>('fallout4');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -53,6 +67,92 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
     }
   };
 
+  const browseForPath = async () => {
+    const api = window.electronAPI as any;
+    const picked = await api?.pickDirectory?.('Select the project root folder');
+    if (picked) setFormPath(picked);
+  };
+
+  const openCreateForm = () => {
+    if (onProjectCreate) { onProjectCreate(); return; }
+    setFormName(''); setFormDescription(''); setFormPath(''); setFormGame('fallout4');
+    setShowCreateForm(true);
+  };
+
+  const submitCreateForm = async () => {
+    if (!formName.trim() || !formPath.trim()) {
+      toast.error('Name and path are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const now = Date.now();
+      const newProject: ModProject = {
+        id: `project_${now}_${Math.random().toString(36).slice(2, 9)}`,
+        name: formName.trim(),
+        description: formDescription.trim(),
+        path: formPath.trim(),
+        game: formGame,
+        createdAt: now,
+        updatedAt: now,
+        settings: { preferredTools: [], autoBackup: false, backupInterval: 30 },
+        metadata: { modFiles: [], size: 0, tags: [] },
+      };
+      const res = await (window.electronAPI as any)?.createProject?.(newProject);
+      if (res?.success === false) {
+        toast.error(res.error || 'Failed to create project.');
+        return;
+      }
+      toast.success(`Project "${newProject.name}" created.`);
+      setShowCreateForm(false);
+      await loadProjects();
+    } catch (error: any) {
+      toast.error(`Failed to create project: ${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openSettingsForm = (project: ModProject) => {
+    if (onProjectSettings) { onProjectSettings(project); return; }
+    setFormName(project.name);
+    setFormDescription(project.description || '');
+    setFormPath(project.path);
+    setFormGame(project.game);
+    setSettingsProject(project);
+  };
+
+  const submitSettingsForm = async () => {
+    if (!settingsProject) return;
+    if (!formName.trim() || !formPath.trim()) {
+      toast.error('Name and path are required.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated: ModProject = {
+        ...settingsProject,
+        name: formName.trim(),
+        description: formDescription.trim(),
+        path: formPath.trim(),
+        game: formGame,
+        updatedAt: Date.now(),
+      };
+      const res = await (window.electronAPI as any)?.updateProject?.(updated);
+      if (res?.success === false) {
+        toast.error(res.error || 'Failed to save project settings.');
+        return;
+      }
+      toast.success('Project settings saved.');
+      setSettingsProject(null);
+      await loadProjects();
+    } catch (error: any) {
+      toast.error(`Failed to save project settings: ${error?.message || error}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleProjectDelete = async (project: ModProject) => {
     if (!confirm(`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`)) {
       return;
@@ -83,7 +183,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-green-400">Project Manager</h2>
         <button
-          onClick={onProjectCreate}
+          onClick={openCreateForm}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -160,7 +260,7 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
                       </button>
                     )}
                     <button
-                      onClick={() => onProjectSettings?.(project)}
+                      onClick={() => openSettingsForm(project)}
                       className="p-2 text-gray-400 hover:text-white transition-colors"
                       title="Project Settings"
                     >
@@ -180,6 +280,83 @@ export const ProjectManager: React.FC<ProjectManagerProps> = ({
           </div>
         )}
       </div>
+
+      {(showCreateForm || settingsProject) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md bg-gray-800 border border-gray-600 rounded-lg p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">
+                {settingsProject ? `Settings — ${settingsProject.name}` : 'New Project'}
+              </h3>
+              <button
+                onClick={() => { setShowCreateForm(false); setSettingsProject(null); }}
+                className="p-1 text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Name</label>
+                <input
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                  placeholder="My FO4 Mod"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Description</label>
+                <textarea
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  rows={2}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm resize-y"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Project Path</label>
+                <div className="flex gap-2">
+                  <input
+                    value={formPath}
+                    onChange={(e) => setFormPath(e.target.value)}
+                    className="flex-1 min-w-0 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                    placeholder="C:\ModOrganizer2\mods\MyMod"
+                  />
+                  <button onClick={browseForPath} className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded text-sm text-white">Browse</button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Game</label>
+                <select
+                  value={formGame}
+                  onChange={(e) => setFormGame(e.target.value as ModProject['game'])}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                >
+                  {GAME_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => { setShowCreateForm(false); setSettingsProject(null); }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={settingsProject ? submitSettingsForm : submitCreateForm}
+                disabled={saving}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white text-sm rounded"
+              >
+                {saving ? 'Saving…' : settingsProject ? 'Save' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

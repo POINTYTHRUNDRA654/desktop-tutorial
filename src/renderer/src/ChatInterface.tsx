@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
+import { formatFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
@@ -260,13 +261,23 @@ const QuickPromptChips: React.FC<{ onSelect: (prompt: string) => void }> = ({ on
 );
 
 // Memoized Message Item to prevent re-rendering list on typing
-const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => void }) => {
+const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => void; onManualExecute?: (name: string, args: any) => void | Promise<void> }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
     const [rating, setRating] = useState<'good' | 'bad' | null>(null);
     const [showEditBox, setShowEditBox] = useState(false);
     const [editedAnswer, setEditedAnswer] = useState('');
+    const [runningCommand, setRunningCommand] = useState(false);
     const roleLabel = msg.role === 'user' ? 'You' : msg.role === 'assistant' ? 'Mossy' : msg.role;
+
+    // The system prompt tells the AI to say "click Run Command" whenever Blender
+    // Link is active — this extracts the Python it proposed so that promise is real.
+    const proposedScript = useMemo(() => {
+        if (msg.role !== 'assistant' || !msg.content) return null;
+        const match = msg.content.match(/```(?:python|py)\s*\n([\s\S]*?)```/);
+        const code = match?.[1]?.trim();
+        return code && code.length > 0 ? code : null;
+    }, [msg.role, msg.content]);
 
     const savedPath = useMemo(() => {
         const text = msg.content || '';
@@ -326,6 +337,27 @@ const MessageItem = React.memo(({ msg, onRate }: { msg: ChatMessage; onRate?: (m
                     <ReactMarkdown className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
                         {msg.content}
                     </ReactMarkdown>
+                )}
+                {proposedScript && onManualExecute && (
+                    <button
+                        type="button"
+                        disabled={runningCommand}
+                        onClick={async () => {
+                            setRunningCommand(true);
+                            try {
+                                await onManualExecute('execute_blender_script', {
+                                    script: proposedScript,
+                                    description: 'Chat-proposed Blender script',
+                                });
+                            } finally {
+                                setRunningCommand(false);
+                            }
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-orange-900/30 border border-orange-500/50 text-orange-300 text-xs font-bold hover:bg-orange-900/50 disabled:opacity-50 transition-colors"
+                    >
+                        <Box className="w-3.5 h-3.5" />
+                        {runningCommand ? 'Running…' : 'Run Command'}
+                    </button>
                 )}
                 {msg.role === 'assistant' && (msg.citations?.length || 0) > 0 && (
                     <div className="pt-2">
@@ -719,6 +751,9 @@ export const ChatInterface: React.FC = () => {
     const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
     const lastSendTimeRef = useRef<number>(0); // Prevent rapid duplicate sends
     const modTagsRef = useRef<string[]>([]);
+    const activeStreamIdRef = useRef<string | null>(null);
+    const stoppedStreamIdsRef = useRef<Set<string>>(new Set());
+    const generationAbortControllerRef = useRef<AbortController | null>(null);
 
     const getCurrentProjectStepSummary = () => {
         try {
@@ -1735,6 +1770,7 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
     ${getPanelActivityContext()}
       ${learnedCtx}
             ${communityLearningCtx}
+      ${formatFO4KnowledgeBaseForAI()}
       `;
         } catch (e) {
             console.error("Context Error:", e);
@@ -2086,9 +2122,17 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
     };
 
     const handleStopGeneration = () => {
+        const streamId = activeStreamIdRef.current;
+        if (streamId) stoppedStreamIdsRef.current.add(streamId);
+        generationAbortControllerRef.current?.abort();
         setIsLoading(false);
         setIsStreaming(false);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: "**[Generation Stopped by User]**", timestamp: Date.now() }]);
+        setMessages(prev => {
+            // Drop the "..Processing.." placeholder for the stopped stream so the
+            // real (discarded) response can never land in its place later.
+            const withoutPlaceholder = streamId ? prev.filter(m => m.id !== streamId) : prev;
+            return [...withoutPlaceholder, { id: Date.now().toString(), role: 'assistant', content: "**[Generation Stopped by User]**", timestamp: Date.now() }];
+        });
     };
 
     const checkWhitelistGuard = (message: string): { blocked: boolean; match?: string } => {
@@ -2118,6 +2162,30 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             if (name && lower.includes(name.toLowerCase())) return { kind: 'program', name, reason: item?.reason };
         }
         return null;
+    };
+
+    // The paperclip attachment let a user attach a file and even send with no text, but
+    // the file's contents were never read or included in the AI request — LocalAIEngine
+    // had no file parameter at all, so any attached script/image was completely invisible
+    // to the response. Text-like files (scripts, logs, configs) get their real content
+    // read and appended to the query; binary files (meshes, textures, images) get an
+    // honest description instead of silently pretending to "see" them.
+    const TEXT_FILE_EXTENSIONS = ['.psc', '.txt', '.log', '.ini', '.json', '.xml', '.pas', '.md', '.cfg', '.yaml', '.yml'];
+    const MAX_ATTACHED_FILE_CHARS = 12000;
+    const readAttachedFileContent = async (file: File): Promise<string> => {
+        const ext = `.${file.name.split('.').pop()?.toLowerCase() || ''}`;
+        const isText = file.type.startsWith('text/') || TEXT_FILE_EXTENSIONS.includes(ext);
+        if (!isText) {
+            return `[Attached file: ${file.name} (${file.type || ext}, ${(file.size / 1024).toFixed(1)} KB) — this is a binary file; its contents were not read. Describe what you need help with regarding this file.]`;
+        }
+        try {
+            const raw = await file.text();
+            const truncated = raw.length > MAX_ATTACHED_FILE_CHARS;
+            const content = truncated ? raw.slice(0, MAX_ATTACHED_FILE_CHARS) : raw;
+            return `[Attached file: ${file.name}]\n\`\`\`\n${content}${truncated ? '\n... (truncated)' : ''}\n\`\`\``;
+        } catch (err) {
+            return `[Attached file: ${file.name} — could not be read: ${err instanceof Error ? err.message : String(err)}]`;
+        }
     };
 
     const handleSend = async (overrideText?: string) => {
@@ -2231,12 +2299,26 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             setIsStreaming(true);
 
             const streamId = (Date.now() + 1).toString();
+            activeStreamIdRef.current = streamId;
+            const abortController = new AbortController();
+            generationAbortControllerRef.current = abortController;
             setMessages(prev => [...prev, { id: streamId, role: 'assistant', content: "..Processing..", timestamp: Date.now() }]);
 
             // Use local engine only (Google Cloud removed)
             const startTime = Date.now();
-            const localResult = await LocalAIEngine.generateResponse(textToSend, dynamicInstruction, priorHistory);
+            const queryForAi = selectedFile
+                ? `${textToSend}\n\n${await readAttachedFileContent(selectedFile)}`.trim()
+                : textToSend;
+            const localResult = await LocalAIEngine.generateResponse(queryForAi, dynamicInstruction, priorHistory, false, abortController.signal);
             const duration = Date.now() - startTime;
+
+            // The user clicked Stop Generation while this was in flight — discard the
+            // late-arriving result instead of overwriting the "[Generation Stopped]" message.
+            if (stoppedStreamIdsRef.current.has(streamId)) {
+                stoppedStreamIdsRef.current.delete(streamId);
+                return;
+            }
+
             const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
             const citations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
 
@@ -2294,18 +2376,27 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             }
 
         } catch (error) {
-            console.error(error);
-            const errText = error instanceof Error ? error.message : 'Unknown error';
+            const streamId = activeStreamIdRef.current;
+            if (streamId && stoppedStreamIdsRef.current.has(streamId)) {
+                // Expected: aborting the in-flight request throws — the user already
+                // saw "[Generation Stopped by User]", so don't also show a System Error.
+                stoppedStreamIdsRef.current.delete(streamId);
+            } else {
+                console.error(error);
+                const errText = error instanceof Error ? error.message : 'Unknown error';
 
-            // Log failed activity
-            logActivity('ai_query', 'AI Response Generation', `Failed: ${errText}`, {
-                success: false,
-                metadata: { errorMessage: errText },
-                tags: ['ai_chat', 'error'],
-            });
+                // Log failed activity
+                logActivity('ai_query', 'AI Response Generation', `Failed: ${errText}`, {
+                    success: false,
+                    metadata: { errorMessage: errText },
+                    tags: ['ai_chat', 'error'],
+                });
 
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: `**System Error:** ${errText}`, timestamp: Date.now() }]);
+                setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: `**System Error:** ${errText}`, timestamp: Date.now() }]);
+            }
         } finally {
+            activeStreamIdRef.current = null;
+            generationAbortControllerRef.current = null;
             setIsLoading(false);
             setIsStreaming(false);
             setSelectedFile(null);

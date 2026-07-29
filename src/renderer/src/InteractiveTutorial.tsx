@@ -29,7 +29,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { tutorialContexts, type TutorialPageContext } from './tutorialContext';
-import { imageMap } from './generatedImageMap';
 import { speakMossy } from './mossyTts';
 
 // Map a tutorial pageId to its visual guide image asset with alias fallbacks for legacy ids
@@ -66,54 +65,6 @@ const legacyVisualGuideImagesByPage: Partial<Record<number, string>> = {
   21: 'Page 21 FO4 System & Diagnostics Hub.png',
   22: 'Page 22 Settings.png',
   23: 'Page 23 Guided Tours.png',
-};
-
-const getImageForPage = (pageId: keyof typeof imageMap | string): string | undefined => {
-  const alias: Record<string, keyof typeof imageMap> = {
-    nexus: 'mossy-space',
-    'live-voice': 'live-synapse',
-    auditor: 'the-auditor',
-    workshop: 'the-workshop',
-    blueprint: 'the-blueprint',
-    assembler: 'the-assembler',
-    vault: 'the-vault',
-    'learning-hub': 'quick-reference',
-    'roadmap-panel': 'modding-roadmaps',
-    'mining-dashboard': 'mining-and-analysis-hub',
-    'mining-panel': 'mining-and-analysis-hub',
-    'advanced-analysis-panel': 'mining-and-analysis-hub',
-    'advanced-analysis': 'mining-and-analysis-hub',
-    'image-suite': 'image-studio',
-    packaging: 'packaging-release',
-    diagnostics: 'diagnostic-tools',
-    support: 'support-mossy',
-    'fallout4-wiki': 'fallout-4-wiki',
-    'pip-boy-mode': 'pip-boy-on-off',
-    monitor: 'system-monitor',
-    orchestrator: 'the-orchestrator',
-    holodeck: 'the-holodeck',
-    'project-hub': 'mod-projects',
-    scribe: 'the-scribe',
-    'blender-animation-guide': 'animation-guide',
-    'quest-authoring-guide': 'quest-mod-authorizing',
-    'animation-suite': 'animation-guide',
-    'upscayl-extension': 'upscale-extension',
-    // Pages without specific images - use generic fallbacks
-    'load-order': 'the-workshop',
-    'bodyslide-guide': 'tools',
-    'sim-settlements-guide': 'tools',
-    'paperscript-guide': 'tools',
-    'formid-remapper': 'the-workshop',
-  };
-
-  // Explicit fallbacks for images that exist on disk but were omitted from the auto-generated map
-  const missingImages: Record<string, string> = {
-    'guided-tours': 'page-54-guided-tours.png',
-  };
-
-  const resolvedId = (imageMap as Record<string, string>)[pageId] ? (pageId as keyof typeof imageMap) : alias[pageId];
-  const filename = resolvedId ? imageMap[resolvedId] : missingImages[pageId];
-  return filename ? resolveImageUrl(filename) : undefined;
 };
 
 const getLegacyImageForVisualGuidePage = (visualGuidePage?: number): string | undefined => {
@@ -258,10 +209,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Get familiar with The Nexus dashboard — your home base',
       icon: <Home className="w-8 h-8" />,
-        // Prefer legacy "Page X Name.png" images — those are the files that actually
-        // exist in public/visual-guide-images/. The imageMap has auto-generated kebab
-        // filenames (page-1-mossy-space.png) that don't match the real files on disk.
-        image: getLegacyImageForVisualGuidePage(1) ?? getImageForPage('mossy-space'),
+        image: getLegacyImageForVisualGuidePage(1),
     },
     // Dynamically generate steps from tutorial contexts
     ...orderedContexts.map((context, index) => {
@@ -273,8 +221,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
         route: context.route,
         action: `Explore ${context.pageName} and try the main features`,
         icon: getIconForPage(context.pageId),
-        // Try legacy "Page X Name.png" first (real files on disk), fall back to imageMap.
-        image: getLegacyImageForVisualGuidePage(context.visualGuidePage) ?? getImageForPage(context.pageId as keyof typeof imageMap),
+        image: getLegacyImageForVisualGuidePage(context.visualGuidePage),
       };
     }),
     {
@@ -285,7 +232,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
       route: '/',
       action: 'Start exploring — try the Chat or Learning Hub first!',
       icon: <CheckCircle2 className="w-8 h-8" />,
-      image: getLegacyImageForVisualGuidePage(1) ?? getImageForPage('mossy-space'),
+      image: getLegacyImageForVisualGuidePage(1),
     },
   ];
 
@@ -341,7 +288,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
 
   const currentStep = steps[currentStepIndex];
   const progress = ((currentStepIndex + 1) / steps.length) * 100;
-  const stepImage = currentStep.image ?? (currentStep.id === 'welcome' ? getImageForPage('mossy-space') : undefined);
+  const stepImage = currentStep.image ?? (currentStep.id === 'welcome' ? getLegacyImageForVisualGuidePage(1) : undefined);
 
   const bodyHasPip = typeof document !== 'undefined' && document.body.classList.contains('pip-boy-mode');
   const localPipFlag = typeof window !== 'undefined' && localStorage.getItem('mossy_pip_mode') === 'true';

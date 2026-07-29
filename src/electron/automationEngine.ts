@@ -516,11 +516,11 @@ export class AutomationEngine extends EventEmitter {
         break;
       // ── Papyrus / Scripts ────────────────────────────────────────────────
       case 'compile-papyrus':
-        this.emit('action:compile-papyrus', context);
+        this.emit('action:compile-papyrus', { ...context, params: rule.params });
         break;
       // ── BA2 / Assets ─────────────────────────────────────────────────────
       case 'pack-ba2':
-        this.emit('action:pack-ba2', context);
+        this.emit('action:pack-ba2', { ...context, params: rule.params });
         break;
       // ── HKX / Havok ──────────────────────────────────────────────────────
       case 'validate-hkx':

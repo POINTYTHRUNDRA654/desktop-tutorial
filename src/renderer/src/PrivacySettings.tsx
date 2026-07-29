@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, Database, Share2, Shield, Settings as SettingsIcon, AlertCircle, CheckCircle2, Clock, Network, Key, Trash2, ArrowDownToLine, RefreshCw, Plus, X, Ban } from 'lucide-react';
 import { DEFAULT_SETTINGS, Settings, BlacklistEntry } from '../../shared/types';
+import { refreshClipboardGate } from './utils/clipboardGate';
+import { analytics } from './utils/analytics';
+import { useAppLock } from './AppLock';
 
 function getElectronApi(): any {
   return (window as any)?.electron?.api ?? (window as any)?.electronAPI;
@@ -18,12 +21,18 @@ type PrivacySettingsProps = {
 };
 
 function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
+  const { refreshLockConfig } = useAppLock();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [storageInfo, setStorageInfo] = useState<DataStorageInfo>({
     localStorageSize: 'Calculating...',
     encryptionEnabled: true
   });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [hasAppPassword, setHasAppPassword] = useState(false);
+  const [passwordDraft, setPasswordDraft] = useState('');
+  const [passwordConfirmDraft, setPasswordConfirmDraft] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordPromptFor, setPasswordPromptFor] = useState<null | 'requirePasswordForSettings' | 'autoLockAfterInactivity'>(null);
   const [listSyncStatus, setListSyncStatus] = useState<{ lastSyncAt?: number; lastError?: string; pendingPush?: boolean }>({});
   const [listSyncBusy, setListSyncBusy] = useState(false);
 
@@ -64,7 +73,42 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
     loadSettings();
     calculateStorageInfo();
     refreshListSyncStatus();
+    const api = getElectronApi();
+    api?.security?.hasPassword?.().then((r: any) => setHasAppPassword(!!r?.hasPassword)).catch(() => {});
   }, []);
+
+  const handleSetAppPassword = async () => {
+    setPasswordError('');
+    if (passwordDraft.length < 4) { setPasswordError('Password must be at least 4 characters.'); return; }
+    if (passwordDraft !== passwordConfirmDraft) { setPasswordError('Passwords do not match.'); return; }
+    const api = getElectronApi();
+    const result = await api?.security?.setPassword?.(passwordDraft);
+    if (!result?.success) { setPasswordError(result?.error || 'Failed to set password.'); return; }
+    setHasAppPassword(true);
+    setPasswordDraft('');
+    setPasswordConfirmDraft('');
+    const pendingToggle = passwordPromptFor;
+    setPasswordPromptFor(null);
+    if (pendingToggle) {
+      await saveSettings({ privacySettings: { ...settings!.privacySettings, [pendingToggle]: true } });
+    }
+    void refreshLockConfig();
+  };
+
+  const handleRemoveAppPassword = async () => {
+    if (!confirm('Remove your app-lock password? This will also turn off "Require Password for Settings" and "Auto-Lock After Inactivity".')) return;
+    const api = getElectronApi();
+    await api?.security?.clearPassword?.();
+    setHasAppPassword(false);
+    if (settings) {
+      setSettings({
+        ...settings,
+        privacySettings: { ...settings.privacySettings, requirePasswordForSettings: false, autoLockAfterInactivity: false },
+      });
+    }
+    loadSettings();
+    void refreshLockConfig();
+  };
 
   const loadSettings = async () => {
     const api = getElectronApi();
@@ -144,12 +188,26 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   const handlePrivacySettingToggle = (key: keyof Settings['privacySettings']) => {
     if (!settings) return;
     const newValue = !settings.privacySettings[key];
+
+    // These two features are meaningless without a password to check against —
+    // prompt to create one first rather than silently enabling a toggle that
+    // can never actually lock anything.
+    if (newValue && (key === 'requirePasswordForSettings' || key === 'autoLockAfterInactivity') && !hasAppPassword) {
+      setPasswordPromptFor(key);
+      return;
+    }
+
     saveSettings({
       privacySettings: {
         ...settings.privacySettings,
         [key]: newValue
       }
     });
+    // Apply immediately — these toggles gate live enforcement points rather
+    // than only taking effect after a restart.
+    if (key === 'allowClipboardAccess') void refreshClipboardGate();
+    if (key === 'allowAnalytics' || key === 'allowUsageMetrics') void analytics.refreshFromSettings();
+    if (key === 'autoLockAfterInactivity' || key === 'requirePasswordForSettings') void refreshLockConfig();
   };
 
   const handleSecuritySettingToggle = (key: keyof Settings['securitySettings']) => {
@@ -705,6 +763,25 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                             ⚠️ Requires "{settingGroups.find(g => g.settings.some(s => s.id === setting.dependsOn))?.settings.find(s => s.id === setting.dependsOn)?.label}" to be enabled
                           </p>
                         )}
+                        {setting.id === 'autoLockAfterInactivity' && isEnabled && (
+                          <div className="flex items-center gap-2 mt-3">
+                            <label htmlFor="inactivity-timeout" className="text-xs text-slate-400">Lock after</label>
+                            <input
+                              id="inactivity-timeout"
+                              type="number"
+                              min={1}
+                              max={240}
+                              value={settings.privacySettings.inactivityTimeoutMinutes ?? 30}
+                              onChange={(e) => {
+                                const minutes = Math.max(1, Math.min(240, parseInt(e.target.value, 10) || 30));
+                                saveSettings({ privacySettings: { ...settings.privacySettings, inactivityTimeoutMinutes: minutes } });
+                                void refreshLockConfig();
+                              }}
+                              className="w-16 px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-100 text-xs"
+                            />
+                            <span className="text-xs text-slate-400">minutes of inactivity</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -712,6 +789,83 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* App Lock Password — backs Require Password for Settings + Auto-Lock After Inactivity */}
+        <div className="mt-8 bg-slate-800/50 rounded-lg p-6 border border-slate-700/50">
+          <div className="flex items-center gap-3 mb-4">
+            <Lock className="w-5 h-5 text-blue-400" />
+            <div>
+              <h2 className="text-xl font-semibold text-slate-100">App Lock Password</h2>
+              <p className="text-slate-400 text-sm">Required by "Require Password for Settings" and "Auto-Lock After Inactivity" above.</p>
+            </div>
+          </div>
+
+          {passwordPromptFor && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40 text-sm text-amber-200">
+              Set a password to enable {passwordPromptFor === 'requirePasswordForSettings' ? '"Require Password for Settings"' : '"Auto-Lock After Inactivity"'}.
+            </div>
+          )}
+
+          {hasAppPassword && !passwordPromptFor ? (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-400" /> A password is set.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPasswordPromptFor('requirePasswordForSettings')}
+                  className="px-3 py-1.5 text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-md transition-colors"
+                >
+                  Change Password
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveAppPassword}
+                  className="px-3 py-1.5 text-xs font-semibold bg-red-700/80 hover:bg-red-600 text-white rounded-md transition-colors"
+                >
+                  Remove Password
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 max-w-sm">
+              <input
+                type="password"
+                value={passwordDraft}
+                onChange={(e) => setPasswordDraft(e.target.value)}
+                placeholder="New password (min. 4 characters)"
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+              />
+              <input
+                type="password"
+                value={passwordConfirmDraft}
+                onChange={(e) => setPasswordConfirmDraft(e.target.value)}
+                placeholder="Confirm password"
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
+              />
+              {passwordError && <p className="text-sm text-red-400">{passwordError}</p>}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSetAppPassword}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-semibold transition-colors"
+                >
+                  {hasAppPassword ? 'Update Password' : 'Set Password'}
+                </button>
+                {passwordPromptFor && (
+                  <button
+                    type="button"
+                    onClick={() => { setPasswordPromptFor(null); setPasswordDraft(''); setPasswordConfirmDraft(''); setPasswordError(''); }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-md text-sm font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Security Settings */}
@@ -761,6 +915,31 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                     );
                   })}
                 </div>
+
+                {group.title === 'API Key Management' && settings.securitySettings.apiKeyRotationEnabled && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Key Age</p>
+                    {(['groqApiKey', 'openaiApiKey', 'inklingApiKey', 'githubToken'] as const)
+                      .filter((field) => (settings as any)[`${field}Enc`] || (settings as any).apiKeySetAt?.[field])
+                      .map((field) => {
+                        const setAt = (settings as any).apiKeySetAt?.[field];
+                        const ageDays = setAt ? Math.floor((Date.now() - setAt) / 86400000) : null;
+                        const rotationDays = settings.securitySettings.apiKeyRotationDays || 90;
+                        const due = ageDays !== null && ageDays >= rotationDays;
+                        return (
+                          <div key={field} className="flex items-center justify-between text-sm">
+                            <span className="text-slate-300">{field.replace('ApiKey', ' API Key').replace('githubToken', 'GitHub Token')}</span>
+                            <span className={due ? 'text-amber-400 font-semibold' : 'text-slate-500'}>
+                              {ageDays === null ? 'Unknown age' : `${ageDays}d old${due ? ' — rotation due' : ''}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    {!(['groqApiKey', 'openaiApiKey', 'inklingApiKey', 'githubToken'] as const).some((field) => (settings as any)[`${field}Enc`]) && (
+                      <p className="text-xs text-slate-500 italic">No API keys configured yet.</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -14,10 +14,10 @@
     },
     {
       "id": "4estgimp-donated-files-v1",
-      "name": "4estGimp Donated Files — Fallout 4 Patch Database",
-      "version": "1.0.0",
+      "name": "4estGimp Donated Files — Personal MO2 Load Order Reference",
+      "version": "2.0.0",
       "file": "4estgimp-donated-files.json",
-      "description": "Knowledge from 4estGimp's personally donated PDF files — first 400 entries of their Fallout 4 patch and compatibility database. Gifted to Mossy by 4estGimp (https://www.nexusmods.com/fallout4/users/30343500).",
+      "description": "Knowledge from 4estGimp's donated PDF — a real, personal 400-page Mod Organizer 2 load-order spreadsheet (verified by direct image review), covering their own ESL-compaction + Complex-Sorter patch work across weapons, CROSS_ armor, and power armor mods. Gifted to Mossy by 4estGimp (https://www.nexusmods.com/fallout4/users/30343500).",
       "itemCount": 6,
       "auto-import": true,
       "creditName": "4estGimp",

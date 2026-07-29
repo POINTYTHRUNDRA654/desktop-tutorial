@@ -220,6 +220,11 @@ export const VanillaAssetBrowser: React.FC = () => {
     }
   }, []);
 
+  // PowerShell single-quoted strings escape an embedded ' by doubling it — without this,
+  // any file/folder name containing a quote (a legal Windows filename character) breaks
+  // out of the quoted literal, and could inject arbitrary PowerShell commands.
+  const psQuote = (value: string): string => `'${value.replace(/'/g, "''")}'`;
+
   const copyToFolder = useCallback(async () => {
     if (!selectedFile) return;
     const a = getApi();
@@ -232,7 +237,7 @@ export const VanillaAssetBrowser: React.FC = () => {
       const result = await a.runTool({
         cmd: 'powershell',
         args: ['-NoProfile', '-Command',
-          "Copy-Item -Path '" + selectedFile.path + "' -Destination '" + dest + '\\' + selectedFile.name + "' -Force"],
+          `Copy-Item -Path ${psQuote(selectedFile.path)} -Destination ${psQuote(dest + '\\' + selectedFile.name)} -Force`],
       });
       setCopyStatus(result.exitCode === 0 ? 'ok' : 'err');
       if (result.exitCode === 0) setTimeout(() => setCopyStatus('idle'), 3000);
@@ -258,7 +263,7 @@ export const VanillaAssetBrowser: React.FC = () => {
       const result = await a.runTool({
         cmd: 'powershell',
         args: ['-NoProfile', '-Command',
-          "New-Item -ItemType Directory -Force -Path '" + destDir + "' | Out-Null; Copy-Item -Path '" + selectedFile.path + "' -Destination '" + destPath + "' -Force"],
+          `New-Item -ItemType Directory -Force -Path ${psQuote(destDir)} | Out-Null; Copy-Item -Path ${psQuote(selectedFile.path)} -Destination ${psQuote(destPath)} -Force`],
       });
       setCopyStatus(result.exitCode === 0 ? 'ok' : 'err');
       if (result.exitCode === 0) setTimeout(() => setCopyStatus('idle'), 3000);

@@ -21,11 +21,18 @@ export class AnalyticsTracker {
     return AnalyticsTracker.instance;
   }
 
+  private usageMetricsEnabled = false;
+
   private async initialize() {
     try {
       const settings = await window.electronAPI?.getSettings?.();
-      this.enabled = settings?.analytics?.enabled ?? false;
-      this.userId = settings?.analytics?.userId || this.generateUserId();
+      // Bound to the real "Allow Usage Analytics" toggle in Privacy Settings
+      // (settings.privacySettings.allowAnalytics) — this used to read a
+      // disconnected `settings.analytics.enabled` field that no UI ever wrote to,
+      // so the toggle had no effect on whether events were actually tracked.
+      this.enabled = settings?.privacySettings?.allowAnalytics ?? false;
+      this.usageMetricsEnabled = settings?.privacySettings?.allowUsageMetrics ?? false;
+      this.userId = (settings as any)?.analytics?.userId || this.generateUserId();
     } catch (error) {
       console.warn('Analytics initialization failed:', error);
       this.enabled = false;
@@ -66,7 +73,13 @@ export class AnalyticsTracker {
   }
 
   async trackFeatureUsage(feature: string, action: string, properties: Record<string, any> = {}) {
+    if (!this.usageMetricsEnabled) return;
     await this.trackEvent('feature_usage', { feature, action, ...properties });
+  }
+
+  /** Re-read privacy settings immediately (call after the user flips a toggle, rather than waiting for next launch). */
+  async refreshFromSettings() {
+    await this.initialize();
   }
 
   async trackProjectAction(action: string, projectId: string, properties: Record<string, any> = {}) {
@@ -82,6 +95,7 @@ export class AnalyticsTracker {
   }
 
   async trackPerformance(metric: string, value: number, properties: Record<string, any> = {}) {
+    if (!this.usageMetricsEnabled) return;
     await this.trackEvent('performance', { metric, value, ...properties });
   }
 

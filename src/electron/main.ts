@@ -5,7 +5,7 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net, Menu, MenuItem } from 'electron';
 
 // File-based logging to debug main process startup
 const mainProcessLogPath = `${process.env.APPDATA || process.env.HOME}/.mossy-desktop/main-process.log`;
@@ -93,10 +93,6 @@ import {
   searchGlobalIndex,
   clipboardWatchStart,
   clipboardWatchStop,
-  taskEnqueue,
-  taskList,
-  taskGetStatus,
-  taskCancel,
   systemMetricsPoll,
   systemMetricsGet,
 } from './mossyBrainFeatures';
@@ -107,6 +103,12 @@ import { File as NodeFile } from 'node:buffer';
 import { MiningPipelineOrchestrator } from '../mining/mining-pipeline';
 import { ESPParser } from '../mining/esp-parser';
 import { DependencyGraphBuilder } from '../mining/dependency-graph-builder';
+import { TextureGeneratorEngine, MapType as TextureMapType } from '../mining/textureGenerator';
+import { ddsConverter, TextureFormat as DdsTextureFormat } from '../mining/ddsConverter';
+import { Phase2MiningManager, Phase2EngineName } from '../mining/phase2MiningManager';
+import { formatFO4KnowledgeBaseForAI } from '../shared/FO4KnowledgeBase';
+import { writeBgsmFile, BgsmWriteInput } from './bgsmWriter';
+import sharp from 'sharp';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
 
@@ -1381,6 +1383,20 @@ function createWindow() {
       event.preventDefault();
     }
   });
+
+  // Right-click Cut/Copy/Paste/Select All on editable fields — Electron does not show
+  // a native context menu on its own, so without this, right-clicking any textarea/input
+  // (e.g. the Creative Director "send back" notes box) shows nothing and paste looks broken.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    if (!params.isEditable) return;
+    const menu = new Menu();
+    menu.append(new MenuItem({ label: 'Cut', role: 'cut', enabled: params.editFlags.canCut }));
+    menu.append(new MenuItem({ label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }));
+    menu.append(new MenuItem({ label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }));
+    menu.append(new MenuItem({ type: 'separator' }));
+    menu.append(new MenuItem({ label: 'Select All', role: 'selectAll', enabled: params.editFlags.canSelectAll }));
+    menu.popup();
+  });
 }
 
 /**
@@ -1768,6 +1784,13 @@ const redactSettingsForRenderer = (settings: any): any => {
   if (clone.inklingApiKeyEnc) clone.inklingApiKeyEnc = '';
   if (clone.githubToken) clone.githubToken = '';
   if (clone.githubTokenEnc) clone.githubTokenEnc = '';
+  if (clone.privacySettings) {
+    clone.privacySettings = { ...clone.privacySettings };
+    // The renderer only ever needs to know a password IS set, never the hash/salt.
+    clone.privacySettings.hasSettingsPassword = !!clone.privacySettings.settingsPasswordHash;
+    delete clone.privacySettings.settingsPasswordHash;
+    delete clone.privacySettings.settingsPasswordSalt;
+  }
   return clone;
 };
 
@@ -1992,7 +2015,9 @@ const updateListSyncState = (patch: any): void => {
 // Primary Groq model used across IPC handlers and the Blender bridge HTTP server.
 // Defined at module level so it is accessible from both setupIpcHandlers() and
 // the app.whenReady() callback without requiring a re-declaration.
-const GROQ_PRIMARY_MODEL = 'llama-3.1-8b-instant';
+// llama-3.1-8b-instant was deprecated by Groq on 2026-06-17; qwen/qwen3.6-27b is
+// Groq's own recommended migration target (console.groq.com/docs/deprecations).
+const GROQ_PRIMARY_MODEL = 'qwen/qwen3.6-27b';
 let lastIpcRegistrationReport: {
   contractVersion: string;
   totalRegistered: number;
@@ -2955,6 +2980,21 @@ function setupIpcHandlers() {
     }
   });
 
+  // Real folder scaffolding for ProjectCreator.tsx — previously this component
+  // checked for `window.electronAPI.createDirectories`, which never existed,
+  // so "Create & Scaffold Project" created zero real files/folders on disk
+  // despite showing a live folder-tree preview claiming it would.
+  registerHandler('project:create-directories', async (_event, paths: string[]) => {
+    try {
+      for (const p of paths) {
+        fs.mkdirSync(p, { recursive: true });
+      }
+      return { success: true, created: paths.length };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
   // Get running processes handler
   registerHandler(IPC_CHANNELS.GET_RUNNING_PROCESSES, async () => {
     try {
@@ -2965,9 +3005,155 @@ function setupIpcHandlers() {
     }
   });
 
+  // ============================================================================
+  // GAME INTEGRATION (GameIntegration.tsx) — real implementations.
+  // Previously this component imported an unrelated 9-line API stub instead of
+  // the real bridge, AND none of these channels had a main-process handler at
+  // all, so every button either silently no-op'd or threw "is not a function".
+  // detect-game/get-active-mods/analyze-save/screenshot are genuinely real;
+  // console-command/start-monitoring honestly report they need an F4SE plugin
+  // that doesn't exist yet, rather than faking success or throwing a raw
+  // "no handler registered" error.
+  // ============================================================================
+
+  registerHandler('game-integration:detect-game', async () => {
+    try {
+      const util = await import('util');
+      const execAsync = util.promisify(exec);
+      const { stdout } = await execAsync('tasklist /FI "IMAGENAME eq Fallout4.exe" /NH /FO CSV');
+      if (!stdout.includes('Fallout4.exe')) return null;
+      const row = stdout.trim().split(/\r?\n/)[0];
+      const cols = row.split('","').map(c => c.replace(/^"|"$/g, ''));
+      const pid = parseInt(cols[1], 10) || 0;
+      const memUsageStr = (cols[4] || '').replace(/[^\d]/g, '');
+      const memoryUsage = memUsageStr ? parseInt(memUsageStr, 10) * 1024 : undefined; // "Mem Usage" is in KB
+      const fo4Root = resolveFO4Root();
+      const f4seDetected = fo4Root ? fs.existsSync(path.join(fo4Root, 'f4se_loader.exe')) : false;
+      return {
+        pid,
+        name: 'Fallout4.exe',
+        path: fo4Root ? path.join(fo4Root, 'Fallout4.exe') : '',
+        isRunning: true,
+        f4seDetected,
+        skseDetected: false,
+        game: 'fallout4',
+        memoryUsage,
+      };
+    } catch (error: any) {
+      console.error('[GameIntegration] detect-game failed:', error?.message);
+      return null;
+    }
+  });
+
+  registerHandler('game-integration:get-active-mods', async () => {
+    try {
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const pluginsTxt = path.join(localApp, 'Fallout4', 'Plugins.txt');
+      if (!fs.existsSync(pluginsTxt)) return [];
+      const raw = fs.readFileSync(pluginsTxt, 'utf-8');
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+      return lines.map((line, i) => ({
+        pluginName: line.replace(/^\*/, ''),
+        enabled: line.startsWith('*'),
+        isActive: line.startsWith('*'),
+        loadOrder: i,
+        conflicts: [],
+        dependencies: [],
+      }));
+    } catch (error: any) {
+      console.error('[GameIntegration] get-active-mods failed:', error?.message);
+      return [];
+    }
+  });
+
+  registerHandler('game-integration:analyze-save', async (_event, savePath: string) => {
+    try {
+      if (!savePath || !fs.existsSync(savePath)) {
+        return { fileName: path.basename(savePath || ''), characterName: '', level: 0, playTime: 0, location: '', activeMods: [], missingMods: [], issues: [`Save file not found: ${savePath}`] };
+      }
+      // Delegate to the Desktop Bridge's real .fos header parser (already
+      // running — bridge.start() is called unconditionally at app startup)
+      // instead of duplicating that parsing logic here.
+      const stat = fs.statSync(savePath);
+      const bridgeResult: any = await new Promise((resolve, reject) => {
+        const body = JSON.stringify({ path: savePath });
+        const req = http.request({
+          hostname: '127.0.0.1', port: 21337, path: '/savegame/parse', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          timeout: 8000,
+        }, (res) => {
+          let data = '';
+          res.on('data', (c) => data += c);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch (e) { reject(e); } });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('Desktop Bridge timeout')));
+        req.write(body);
+        req.end();
+      });
+      if (bridgeResult?.error) {
+        return { fileName: path.basename(savePath), characterName: '', level: 0, playTime: 0, location: '', activeMods: [], missingMods: [], issues: [bridgeResult.error] };
+      }
+      return {
+        fileName: path.basename(savePath),
+        fileSize: stat.size,
+        characterName: bridgeResult.playerName || '',
+        playerName: bridgeResult.playerName || '',
+        level: bridgeResult.playerLevel || 0,
+        playerLevel: bridgeResult.playerLevel || 0,
+        playTime: bridgeResult.playTime || 0,
+        location: bridgeResult.location || '',
+        activeMods: bridgeResult.activeMods || [],
+        plugins: bridgeResult.activeMods || [],
+        missingMods: bridgeResult.missingMasters || [],
+        missingPlugins: bridgeResult.missingMasters || [],
+        scriptInstances: bridgeResult.scriptInstances || 0,
+        recommendations: bridgeResult.note ? [bridgeResult.note] : [],
+      };
+    } catch (error: any) {
+      return { fileName: path.basename(savePath || ''), characterName: '', level: 0, playTime: 0, location: '', activeMods: [], missingMods: [], issues: [`Desktop Bridge unreachable: ${error?.message || error}`] };
+    }
+  });
+
+  registerHandler('game-integration:screenshot', async () => {
+    try {
+      const { desktopCapturer } = require('electron');
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 } });
+      if (!sources.length) throw new Error('No screen sources available to capture');
+      const png = sources[0].thumbnail.toPNG();
+      const outDir = path.join(app.getPath('pictures'), 'Mossy Screenshots');
+      fs.mkdirSync(outDir, { recursive: true });
+      const outPath = path.join(outDir, `fo4-${Date.now()}.png`);
+      fs.writeFileSync(outPath, png);
+      return outPath;
+    } catch (error: any) {
+      throw new Error(`Screenshot capture failed: ${error?.message || error}`);
+    }
+  });
+
+  registerHandler('game-integration:console-command', async (_event, command: string) => {
+    return {
+      success: false,
+      output: `Cannot send "${command}" to the game — direct console command injection needs a custom F4SE plugin bridge that isn't built yet (this is the same real limitation as the Runtime Hub's Live Monitor tab). Use the in-game console (~) directly for now.`,
+      error: 'F4SE console bridge not implemented',
+      timestamp: Date.now(),
+    };
+  });
+
+  registerHandler('game-integration:start-monitoring', async () => {
+    return {
+      success: false,
+      error: 'Live in-game performance telemetry needs a custom F4SE plugin that is not implemented yet.',
+    };
+  });
+
   // Open program handler
   registerHandler(IPC_CHANNELS.OPEN_PROGRAM, async (event, programPath: string) => {
     try {
+      if (loadSettings()?.privacySettings?.allowExternalTools === false) {
+        return { success: false, error: 'Launching external programs is disabled in Privacy Settings ("Allow External Tools").' };
+      }
+
       // Validate input
       if (!programPath || typeof programPath !== 'string') {
         console.error(`[Main] OPEN_PROGRAM: Invalid programPath - ${programPath}`);
@@ -3061,9 +3247,11 @@ function setupIpcHandlers() {
     }
   });
 
-  // Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific file
-  // as a command-line argument so it opens directly in that tool.
-  registerHandler(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, async (_event, toolPath: string, filePath: string) => {
+  // Launch an external tool (xEdit, NifSkope, CK, Blender) with a specific file as a
+  // command-line argument so it opens directly in that tool. Shared by the renderer
+  // IPC channel below and the Blender-addon HTTP bridge (POST /open-tool) so both
+  // callers get the same path validation instead of duplicating the spawn logic.
+  async function launchExternalToolWithFile(toolPath: string, filePath: string): Promise<{ success: boolean; error?: string }> {
     try {
       if (!toolPath || typeof toolPath !== 'string') {
         return { success: false, error: 'Invalid tool path.' };
@@ -3087,11 +3275,15 @@ function setupIpcHandlers() {
         stdio: 'ignore',
       });
       child.unref();
-      console.log(`[Main] LAUNCH_TOOL_WITH_FILE: launched ${path.basename(resolvedTool)} with ${path.basename(resolvedFile)}`);
+      console.log(`[Main] launchExternalToolWithFile: launched ${path.basename(resolvedTool)} with ${path.basename(resolvedFile)}`);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message || 'Unknown error' };
     }
+  }
+
+  registerHandler(IPC_CHANNELS.LAUNCH_TOOL_WITH_FILE, async (_event, toolPath: string, filePath: string) => {
+    return launchExternalToolWithFile(toolPath, filePath);
   });
 
 
@@ -3294,6 +3486,21 @@ function setupIpcHandlers() {
       }
       next[encKey] = encryptSecretForStorage(plain);
       next[field] = '';
+      // Real timestamp for "Enable API Key Rotation" — lets the UI honestly
+      // warn when a key is older than securitySettings.apiKeyRotationDays,
+      // rather than the toggle existing but nothing ever tracking key age.
+      next.apiKeySetAt = { ...(current?.apiKeySetAt || {}), [field]: Date.now() };
+    }
+
+    // The renderer's copy of privacySettings never contains the password
+    // hash/salt (redacted by redactSettingsForRenderer) — if we naively took
+    // whatever it sends, saving any unrelated toggle would silently erase a
+    // previously-set app-lock password. Only security:set-password /
+    // security:clear-password (below) may change these two fields.
+    if (next.privacySettings) {
+      next.privacySettings.settingsPasswordHash = current?.privacySettings?.settingsPasswordHash;
+      next.privacySettings.settingsPasswordSalt = current?.privacySettings?.settingsPasswordSalt;
+      delete next.privacySettings.hasSettingsPassword; // synthetic renderer-only field — never persisted
     }
 
     migrateMemoryStorageIfNeeded(current, next);
@@ -3317,6 +3524,75 @@ function setupIpcHandlers() {
       }
     }
     return;
+  });
+
+  /**
+   * App-lock password management — backs both "Require Password for
+   * Settings" and "Auto-Lock After Inactivity". Only a salted scrypt hash is
+   * ever persisted (never the plaintext), and these are the only handlers
+   * allowed to touch privacySettings.settingsPasswordHash/-Salt (see the
+   * guard added in set-settings above).
+   */
+  registerHandler('security:has-password', async () => {
+    const s = loadSettings();
+    return { hasPassword: !!s?.privacySettings?.settingsPasswordHash };
+  });
+
+  registerHandler('security:set-password', async (_event, params: { password: string }) => {
+    try {
+      const password = String(params?.password || '');
+      if (password.length < 4) {
+        return { success: false, error: 'Password must be at least 4 characters.' };
+      }
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+      const current = loadSettings();
+      saveSettings({
+        ...current,
+        privacySettings: {
+          ...current.privacySettings,
+          settingsPasswordHash: hash,
+          settingsPasswordSalt: salt,
+        },
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  registerHandler('security:clear-password', async () => {
+    const current = loadSettings();
+    saveSettings({
+      ...current,
+      privacySettings: {
+        ...current.privacySettings,
+        settingsPasswordHash: undefined,
+        settingsPasswordSalt: undefined,
+        // Both features require a password to function — turn them off too
+        // rather than leaving them enabled with nothing to check against.
+        requirePasswordForSettings: false,
+        autoLockAfterInactivity: false,
+      },
+    });
+    return { success: true };
+  });
+
+  registerHandler('security:verify-password', async (_event, params: { password: string }) => {
+    try {
+      const s = loadSettings();
+      const storedHash = s?.privacySettings?.settingsPasswordHash;
+      const salt = s?.privacySettings?.settingsPasswordSalt;
+      if (!storedHash || !salt) return { valid: false, error: 'No password is set.' };
+
+      const attemptHash = crypto.scryptSync(String(params?.password || ''), salt, 64).toString('hex');
+      const a = Buffer.from(attemptHash, 'hex');
+      const b = Buffer.from(storedHash, 'hex');
+      const valid = a.length === b.length && crypto.timingSafeEqual(a, b);
+      return { valid };
+    } catch (error: any) {
+      return { valid: false, error: error?.message || String(error) };
+    }
   });
 
   registerHandler('list-sync:get-status', async () => {
@@ -3435,6 +3711,21 @@ function setupIpcHandlers() {
     return Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
   });
 
+  /**
+   * There is no networking/invite layer behind Collaboration Sessions — everything
+   * lives in this machine's local settings.json. A second real user on a different
+   * machine cannot join. What IS real: the local user is now genuinely added as a
+   * participant on create/join (it used to always leave `participants: []`, so even
+   * the one real user never showed up), and the UI discloses this is local-only.
+   */
+  const localCollaborator = () => ({
+    id: `local_${os.userInfo().username}`,
+    name: os.userInfo().username,
+    role: 'owner' as const,
+    lastActive: Date.now(),
+    permissions: { canEdit: true, canDelete: true, canInvite: false },
+  });
+
   registerHandler('collaboration-create-session', async (_event, payload: { projectId: string; name?: string; description?: string }) => {
     try {
       const settings = loadSettings();
@@ -3442,7 +3733,9 @@ function setupIpcHandlers() {
       const newSession = {
         id: `session_${Date.now()}`,
         projectId: String(payload?.projectId || settings.currentProjectId || ''),
-        participants: [],
+        name: payload?.name || 'Untitled Session',
+        description: payload?.description || '',
+        participants: [localCollaborator()],
         activeFiles: [],
         lastActivity: Date.now(),
         status: 'active' as const,
@@ -3459,11 +3752,20 @@ function setupIpcHandlers() {
     try {
       const settings = loadSettings();
       const sessions = Array.isArray(settings.collaborationSessions) ? settings.collaborationSessions : [];
-      const next = sessions.map((session: any) => (
-        session.id === sessionId
-          ? { ...session, status: 'active', lastActivity: Date.now() }
-          : session
-      ));
+      const me = localCollaborator();
+      const next = sessions.map((session: any) => {
+        if (session.id !== sessionId) return session;
+        const participants = Array.isArray(session.participants) ? session.participants : [];
+        const alreadyIn = participants.some((p: any) => p.id === me.id);
+        return {
+          ...session,
+          status: 'active',
+          lastActivity: Date.now(),
+          participants: alreadyIn
+            ? participants.map((p: any) => (p.id === me.id ? { ...p, lastActive: Date.now() } : p))
+            : [...participants, me],
+        };
+      });
       settings.collaborationSessions = next;
       saveSettings(settings);
       const joined = next.find((session: any) => session.id === sessionId);
@@ -3765,7 +4067,15 @@ function setupIpcHandlers() {
           if (fs.existsSync(pytorchPath)) {
             try {
               console.log('[Blender Bridge] ✅ PyTorch path exists, auto-sending to Blender on first connection...');
-              const pathPayload = { type: 'set_pytorch_path', path: pytorchPath };
+              // mossy_link.py's _handle_connection rejects any command whose
+              // token doesn't match the configured Blender-side token (fail-closed
+              // auth) — this payload was missing that field, so this auto-send
+              // silently got "Unauthorized" from Blender every time a token was
+              // configured (the token IS configured by default — see line ~1750).
+              const pathPayload: any = { type: 'set_pytorch_path', path: pytorchPath };
+              if (s?.blenderLinkToken) {
+                pathPayload.token = s.blenderLinkToken;
+              }
               const pathResult = await _sendToBlenderTCP(pathPayload);
               console.log('[Blender Bridge] PyTorch auto-send result:', pathResult.status, '-', pathResult.message);
               _blenderPytorchPathSent = true;
@@ -3790,6 +4100,11 @@ function setupIpcHandlers() {
           payload.name = commandData.name || 'MOSSY_SCRIPT';
           payload.run = Boolean(commandData.run);
         }
+      } else if (commandType === 'execute_script') {
+        // MossyTools.ts's executeMossyTool() sends { script } under this commandType,
+        // but the Blender add-on's real wire protocol only knows "script" — translate.
+        payload.type = 'script';
+        payload.code = commandData.script || commandData.code || '';
       } else if (commandType === 'query_mossy') {
         payload.query = commandData.query || '';
         payload.context = commandData.context || '';
@@ -3801,6 +4116,13 @@ function setupIpcHandlers() {
         payload.model = commandData.model || '';
         payload.image_path = commandData.imagePath || '';
         payload.output_path = commandData.outputPath || '';
+      } else if (commandType === 'run_automation') {
+        // mossy_link_addon.py's run_automation reads command["preset"]/["params"] — this
+        // branch didn't exist, so the "preset" field DesktopBridge.tsx sends was silently
+        // dropped and every automation preset request (fo4_setup_scene, fo4_check, etc.)
+        // ran with an empty preset name.
+        payload.preset = commandData.preset || '';
+        payload.params = commandData.params || {};
       }
 
       // Add token if provided
@@ -3812,6 +4134,133 @@ function setupIpcHandlers() {
       return await _sendToBlenderTCP(payload);
     } catch (e: any) {
       return { success: false, status: 'error', message: String(e?.message || e) };
+    }
+  });
+
+  /**
+   * AnimationEditor.tsx: real .nif skeleton load/save.
+   *
+   * Rather than hand-rolling a NIF binary parser (Bethesda's NIF header/block layout is
+   * version-conditional in ways that are easy to get subtly wrong, and a wrong byte offset
+   * would silently produce garbage bone data or corrupt a real save), this routes through
+   * the already-real, already-connected Mossy Link Blender bridge and PyNifly — the actual
+   * tool the FO4 modding community uses for NIF I/O — the same way run_automation/execute_script
+   * already do. Requires the user to have Blender open with Mossy Link v6 connected.
+   */
+  registerHandler('animation-editor:load-nif', async (_event, nifPath: string) => {
+    try {
+      if (!nifPath || !fs.existsSync(nifPath)) {
+        return { success: false, error: 'NIF file not found on disk.' };
+      }
+      const escapedPath = nifPath.replace(/\\/g, '\\\\');
+      const code = [
+        'import json',
+        'import math',
+        'result = {"success": False, "bones": [], "error": None}',
+        'try:',
+        "    if not (hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly')):",
+        '        result["error"] = "PyNifly is not installed in this Blender. Install PyNifly 25+ (Nexus #52319) for Blender 4.4+."',
+        '    else:',
+        '        before = set(o.name for o in bpy.data.objects)',
+        `        bpy.ops.import_scene.pynifly(filepath=r"${escapedPath}", game_type='FO4')`,
+        '        after = set(o.name for o in bpy.data.objects)',
+        '        new_objs = [bpy.data.objects[n] for n in (after - before)]',
+        "        armature_obj = next((o for o in new_objs if o.type == 'ARMATURE'), None)",
+        '        if armature_obj is None:',
+        '            result["error"] = "No armature (skeleton) found in this NIF."',
+        '        else:',
+        '            bones = []',
+        '            for b in armature_obj.data.bones:',
+        '                parent_head = b.parent.head_local if b.parent else b.head_local',
+        '                bones.append({',
+        '                    "id": b.name, "name": b.name,',
+        '                    "parentId": b.parent.name if b.parent else None,',
+        '                    "children": [c.name for c in b.children],',
+        '                    "position": [b.head_local.x - parent_head.x, b.head_local.z - parent_head.z, b.head_local.y - parent_head.y],',
+        '                    "rotation": [math.degrees(a) for a in b.matrix_local.to_euler()],',
+        '                    "length": b.length,',
+        '                })',
+        '            result["success"] = True',
+        '            result["bones"] = bones',
+        '            result["armatureName"] = armature_obj.name',
+        'except Exception as e:',
+        '    result["error"] = str(e)',
+        'print(json.dumps(result))',
+      ].join('\n');
+
+      const s = loadSettings();
+      const payload: any = { type: 'script', code };
+      if (s?.blenderLinkToken) payload.token = s.blenderLinkToken;
+      const resp = await _sendToBlenderTCP(payload);
+      if (!resp?.success) return { success: false, error: resp?.message || 'Blender Link is not connected. Open Blender with the Mossy Link v6 add-on running.' };
+
+      const raw = String(resp?.result ?? '');
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return { success: false, error: `Unexpected response from Blender: ${raw.slice(0, 200)}` };
+      const parsed = JSON.parse(jsonMatch[0]);
+      return parsed;
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  registerHandler('animation-editor:save-nif', async (_event, params: { nifPath: string; armatureName: string; bones: Array<{ name: string; position: [number, number, number] }> }) => {
+    try {
+      const { nifPath, armatureName, bones } = params;
+      if (!nifPath) return { success: false, error: 'No output path provided.' };
+      if (!armatureName || !Array.isArray(bones) || bones.length === 0) {
+        return { success: false, error: 'No skeleton loaded to save — load a NIF first.' };
+      }
+      const escapedPath = nifPath.replace(/\\/g, '\\\\');
+      const bonesJson = JSON.stringify(bones).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const code = [
+        'import json',
+        'result = {"success": False, "error": None}',
+        'try:',
+        `    armature_obj = bpy.data.objects.get("${armatureName.replace(/"/g, '')}")`,
+        '    if armature_obj is None:',
+        '        result["error"] = "Armature not found in the current Blender scene — reload the NIF before saving."',
+        '    else:',
+        `        edits = json.loads("${bonesJson}")`,
+        '        edit_by_name = {e["name"]: e for e in edits}',
+        '        bpy.context.view_layer.objects.active = armature_obj',
+        "        bpy.ops.object.mode_set(mode='EDIT')",
+        '        for eb in armature_obj.data.edit_bones:',
+        '            e = edit_by_name.get(eb.name)',
+        '            if not e:',
+        '                continue',
+        '            parent_head = eb.parent.head if eb.parent else eb.head',
+        '            # e["position"] is [uiX, uiY, uiZ] in the editor\'s Y-up space (see load-nif);',
+        '            # Blender is Z-up, so uiY (up) maps to Blender Z and uiZ (depth) maps to Blender Y.',
+        '            ui_x, ui_y, ui_z = e["position"]',
+        '            new_head = (parent_head.x + ui_x, parent_head.y + ui_z, parent_head.z + ui_y)',
+        '            delta = (new_head[0] - eb.head.x, new_head[1] - eb.head.y, new_head[2] - eb.head.z)',
+        '            eb.head = new_head',
+        '            eb.tail = (eb.tail.x + delta[0], eb.tail.y + delta[1], eb.tail.z + delta[2])',
+        "        bpy.ops.object.mode_set(mode='OBJECT')",
+        `        bpy.ops.export_scene.pynifly(filepath=r"${escapedPath}", game_type='FO4')`,
+        '        result["success"] = True',
+        'except Exception as e:',
+        '    result["error"] = str(e)',
+        '    try:',
+        "        bpy.ops.object.mode_set(mode='OBJECT')",
+        '    except Exception:',
+        '        pass',
+        'print(json.dumps(result))',
+      ].join('\n');
+
+      const s = loadSettings();
+      const payload: any = { type: 'script', code };
+      if (s?.blenderLinkToken) payload.token = s.blenderLinkToken;
+      const resp = await _sendToBlenderTCP(payload);
+      if (!resp?.success) return { success: false, error: resp?.message || 'Blender Link is not connected.' };
+
+      const raw = String(resp?.result ?? '');
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return { success: false, error: `Unexpected response from Blender: ${raw.slice(0, 200)}` };
+      return JSON.parse(jsonMatch[0]);
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
     }
   });
 
@@ -3848,9 +4297,15 @@ function setupIpcHandlers() {
         return { success: false, message: 'PyTorch path not configured. Install PyTorch first.' };
       }
 
-      // Send the path to Blender with set_pytorch_path command via the TCP bridge
+      // Send the path to Blender with set_pytorch_path command via the TCP bridge.
+      // Must include the bridge token — mossy_link.py's _handle_connection rejects
+      // any command whose token doesn't match the Blender-side configured token
+      // (fail-closed auth check), and this payload was previously missing it.
       const net = await import('net');
-      const payload = { type: 'set_pytorch_path', path: pytorchPath };
+      const payload: any = { type: 'set_pytorch_path', path: pytorchPath };
+      if (s?.blenderLinkToken) {
+        payload.token = s.blenderLinkToken;
+      }
 
       return await new Promise((resolve) => {
         const socket = new net.Socket();
@@ -3906,7 +4361,7 @@ function setupIpcHandlers() {
         blenderIntegrationVersion: '1.0.0',
         models: {
           openai: openaiKey ? ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'] : [],
-          groq: groqKey ? ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-70b-8192'] : [],
+          groq: groqKey ? ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b'] : [],
           backend: backendCfg ? ['auto'] : [],
           local: [
             { name: 'ollama', baseUrl: s?.ollamaBaseUrl || 'http://127.0.0.1:11434', model: s?.ollamaModel || 'llama3' },
@@ -4225,30 +4680,78 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const usedMem = totalMem - freeMem;
       const memUsage = Math.round((usedMem / totalMem) * 100);
 
-      // Get CPU usage (this is a rough average of the last interval)
-      const cpus = os.cpus();
-      let totalIdle = 0;
-      let totalTick = 0;
-      cpus.forEach((cpu: any) => {
-        for (const type in cpu.times) {
-          totalTick += cpu.times[type];
+      // Real CPU%: a single os.cpus() snapshot only has cumulative tick
+      // counts since boot, not a rate — sample twice ~150ms apart and use
+      // the idle-time delta ratio (the standard technique for this).
+      const sampleCpu = () => {
+        const cpus = os.cpus();
+        let idle = 0, total = 0;
+        for (const cpu of cpus) {
+          for (const type in cpu.times) total += cpu.times[type];
+          idle += cpu.times.idle;
         }
-        totalIdle += cpu.times.idle;
-      });
+        return { idle, total };
+      };
+      const first = sampleCpu();
+      await new Promise(resolve => setTimeout(resolve, 150));
+      const second = sampleCpu();
+      const idleDelta = second.idle - first.idle;
+      const totalDelta = second.total - first.total;
+      const cpuUsage = totalDelta > 0
+        ? Math.max(0, Math.min(100, Math.round(100 * (1 - idleDelta / totalDelta))))
+        : 0;
 
-      // We can't get an instantaneous delta without sampling twice, 
-      // so we'll return a jittered value around a base if we only have one sample,
-      // or we can store the last sample in a global variable.
+      const gpu = await getRealGpuStats();
+
       return {
-        cpu: Math.floor(Math.random() * 10) + 5, // Placeholder for first-run or jitter
+        cpu: cpuUsage,
         mem: memUsage,
         freeMemGB: Math.round(freeMem / (1024 ** 3)),
-        totalMemGB: Math.round(totalMem / (1024 ** 3))
+        totalMemGB: Math.round(totalMem / (1024 ** 3)),
+        gpu
       };
     } catch (e) {
       return { cpu: 0, mem: 0 };
     }
   });
+
+  /**
+   * Real GPU utilization + VRAM via nvidia-smi. Aggregates across all
+   * detected NVIDIA GPUs (this app targets multi-GPU dev boxes). Returns
+   * `{ available: false }` honestly — never a fabricated number — when
+   * nvidia-smi isn't present (no NVIDIA driver, or a non-NVIDIA host).
+   */
+  async function getRealGpuStats(): Promise<{ available: boolean; utilizationPercent?: number; vramUsedGB?: number; vramTotalGB?: number; gpuCount?: number }> {
+    try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execAsync = util.promisify(exec);
+      const { stdout } = await execAsync(
+        'nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits',
+        { timeout: 3000 }
+      );
+      const rows = String(stdout)
+        .split('\n')
+        .map((line: string) => line.trim())
+        .filter(Boolean)
+        .map((line: string) => line.split(',').map((v: string) => parseFloat(v.trim())));
+      if (rows.length === 0) return { available: false };
+
+      const utilizationPercent = Math.round(rows.reduce((sum: number, r: number[]) => sum + (r[0] || 0), 0) / rows.length);
+      const vramUsedMB = rows.reduce((sum: number, r: number[]) => sum + (r[1] || 0), 0);
+      const vramTotalMB = rows.reduce((sum: number, r: number[]) => sum + (r[2] || 0), 0);
+
+      return {
+        available: true,
+        utilizationPercent,
+        vramUsedGB: Math.round((vramUsedMB / 1024) * 10) / 10,
+        vramTotalGB: Math.round((vramTotalMB / 1024) * 10) / 10,
+        gpuCount: rows.length
+      };
+    } catch {
+      return { available: false };
+    }
+  }
 
   registerHandler('get-system-info', async () => {
     console.log('[Main] get-system-info IPC handler called');
@@ -4488,6 +4991,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // user has deliberately configured the commands inside their own workflow.
   registerHandler(IPC_CHANNELS.WORKFLOW_RUNNER_RUN_TOOL, async (_event, payload: { cmd: string; args?: string[]; cwd?: string; timeoutMs?: number }) => {
     try {
+      if (loadSettings()?.privacySettings?.allowExternalTools === false) {
+        return { exitCode: -1, stdout: '', stderr: 'Launching external tools is disabled in Privacy Settings ("Allow External Tools").' };
+      }
       if (!payload || typeof payload.cmd !== 'string' || !payload.cmd.trim()) {
         return { exitCode: -1, stdout: '', stderr: 'Invalid command: cmd must be a non-empty string' };
       }
@@ -4565,11 +5071,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   // This ensures that information fed to Mossy via the Memory Vault survives
   // app reinstalls and localStorage clears (data is stored in userData which
   // persists independently of Electron's browser storage).
+  // "Encrypt Local Data" (Privacy Settings) previously persisted but was never read
+  // anywhere — a pure placebo toggle. Real, local-only fix: when enabled, encrypt this
+  // file at rest with Electron's safeStorage (OS credential store — DPAPI on Windows).
+  // Purely a local file on this machine; has no interaction with any backend/server.
   registerHandler(IPC_CHANNELS.SAVE_KNOWLEDGE_VAULT, async (_event, items: unknown) => {
     try {
       const file = getMemoryFilePath('knowledge-vault.json');
       const data = Array.isArray(items) ? items : [];
-      fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf-8');
+      const json = JSON.stringify(data, null, 2);
+      const encryptLocalData = loadSettings()?.privacySettings?.encryptLocalData === true;
+      if (encryptLocalData && safeStorage.isEncryptionAvailable()) {
+        fs.writeFileSync(file, safeStorage.encryptString(json));
+      } else {
+        fs.writeFileSync(file, json, 'utf-8');
+      }
       return { ok: true };
     } catch (e: any) {
       console.error('[Main] save-knowledge-vault error:', e);
@@ -4581,8 +5097,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     try {
       const file = getMemoryFilePath('knowledge-vault.json');
       if (!fs.existsSync(file)) return [];
-      const raw = fs.readFileSync(file, 'utf-8');
-      const parsed = JSON.parse(raw);
+      const raw = fs.readFileSync(file);
+      let text: string;
+      try {
+        // Plaintext (unencrypted) files are valid UTF-8 JSON — try that first so
+        // existing vaults from before this setting existed keep loading normally.
+        text = raw.toString('utf-8');
+        JSON.parse(text);
+      } catch {
+        if (!safeStorage.isEncryptionAvailable()) {
+          console.error('[Main] load-knowledge-vault: file is encrypted but OS-level decryption is unavailable on this machine.');
+          return [];
+        }
+        text = safeStorage.decryptString(raw);
+      }
+      const parsed = JSON.parse(text);
       return Array.isArray(parsed) ? parsed : [];
     } catch (e: any) {
       console.error('[Main] load-knowledge-vault error:', e);
@@ -6035,6 +6564,25 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     return result.filePaths[0];
   });
 
+  // --- CKExtension: Pick Papyrus source file(s) via native dialog (batch) ---
+  // Populates the "Script Compilation Queue" panel — previously nothing anywhere in the
+  // codebase ever wrote settings.ckRecentScripts, so that panel was permanently empty.
+  registerHandler('ck-pick-psc-files', async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Papyrus Source File(s)',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Papyrus Scripts', extensions: ['psc'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return [];
+    return result.filePaths.map((filePath) => {
+      const stat = fs.statSync(filePath);
+      return { name: path.basename(filePath, '.psc'), path: filePath, lastModified: stat.mtime.toISOString(), compiled: false };
+    });
+  });
+
   // --- Auditor: Pick NIF mesh file(s) via native dialog (batch) ---
   registerHandler(IPC_CHANNELS.AUDITOR_PICK_NIF_FILE, async (_event) => {
     const result = await dialog.showOpenDialog({
@@ -6042,6 +6590,21 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       properties: ['openFile', 'multiSelections'],
       filters: [
         { name: 'NIF Mesh Files', extensions: ['nif'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return [];
+    return result.filePaths;
+  });
+
+  // --- Auditor: Pick glTF/GLB file(s) via native dialog (batch) — used by the 3D
+  // Viewer to load a mesh exported from NifSkope (File > Export > glTF) ---
+  registerHandler(IPC_CHANNELS.AUDITOR_PICK_GLTF_FILE, async (_event) => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select glTF/GLB Mesh File(s)',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'glTF Files', extensions: ['gltf', 'glb'] },
         { name: 'All Files', extensions: ['*'] },
       ],
     });
@@ -6078,42 +6641,44 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
   });
 
   // --- DDS Converter: Convert single texture ---
+  // Real conversion via texconv.exe/nvcompress.exe (src/mining/ddsConverter.ts —
+  // previously implemented but never wired here). The handler that used to
+  // live at this channel never touched the filesystem at all: it returned a
+  // fabricated compressionRatio from a lookup table and an "outputPath" that
+  // was never written to, always claiming success. This honestly fails with
+  // "Install texconv.exe or nvcompress.exe" when neither tool is present,
+  // rather than pretending a conversion happened.
   forceHandle('dds-converter:convert', async (_event, input: any) => {
     try {
-      // Renderer sends `inputPath`; accept both spellings.
       const sourcePath: string = input?.inputPath || input?.source || '';
-      if (!sourcePath) {
-        return { success: false, error: 'No source file provided' };
-      }
+      if (!sourcePath) return { success: false, error: 'No source file provided' };
+      if (!fs.existsSync(sourcePath)) return { success: false, error: `Source file not found: ${sourcePath}` };
 
-      if (!fs.existsSync(sourcePath)) {
-        return { success: false, error: `Source file not found: ${sourcePath}` };
-      }
+      const targetFormat = (input?.format || input?.targetFormat || 'DDS_DXT1') as DdsTextureFormat;
+      const outputPath: string = input?.outputPath || sourcePath.replace(/\.[^.]+$/, '.dds');
 
-      const targetFormat: string = input?.format || input?.targetFormat || 'DDS';
-      // Renderer sends `outputPath`; fall back to auto-naming.
-      const outputPath: string = input?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
-
-      console.log('[DDS Converter] Converting:', sourcePath, 'to format:', targetFormat);
-
-      // Determine a plausible compression ratio based on format.
-      const compressionRatioMap: Record<string, number> = {
-        DDS_DXT1: 8, DDS_BC1: 8,
-        DDS_DXT3: 4, DDS_DXT5: 4, DDS_BC3: 4,
-        DDS_BC5: 4,
-        DDS_BC7: 4,
-        DDS_UNCOMPRESSED: 1,
-        PNG: 1, TGA: 1, BMP: 1, JPG: 1,
-      };
-      const compressionRatio = compressionRatioMap[targetFormat] ?? 4;
+      const result = await ddsConverter.convertTexture({
+        sourcePath,
+        outputPath,
+        format: targetFormat,
+        textureType: input?.textureType,
+        generateMipmaps: input?.generateMipmaps ?? true,
+        quality: input?.quality || 'high',
+        resize: input?.resize,
+        flipY: input?.flipY,
+      });
 
       return {
-        success: true,
-        outputPath,
-        output: outputPath,
-        format: targetFormat,
-        compressionRatio,
-        message: `Texture conversion prepared (${path.basename(sourcePath)})`
+        success: result.success,
+        outputPath: result.outputPath,
+        output: result.outputPath,
+        format: result.format,
+        compressionRatio: result.compressionRatio,
+        width: result.width,
+        height: result.height,
+        mipmapCount: result.mipmapCount,
+        error: result.error,
+        message: result.success ? `Converted ${path.basename(sourcePath)}` : result.error,
       };
     } catch (e: any) {
       console.error('[DDS Converter] Conversion error:', e);
@@ -6128,41 +6693,32 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         return { success: false, error: 'No files provided' };
       }
 
-      const results: any[] = [];
+      const inputs = files.map((file: any) => ({
+        sourcePath: file?.inputPath || file?.path || '',
+        outputPath: file?.outputPath,
+        format: (file?.format || options?.targetFormat || options?.defaultFormat || 'DDS_DXT1') as DdsTextureFormat,
+        generateMipmaps: options?.generateMipmaps ?? true,
+        quality: options?.defaultQuality || 'high',
+      }));
 
-      for (const file of files) {
-        // Renderer sends `inputPath`; accept both spellings.
-        const sourcePath: string = file?.inputPath || file?.path || '';
-        if (!sourcePath || !fs.existsSync(sourcePath)) {
-          results.push({
-            file: sourcePath || 'unknown',
-            success: false,
-            error: 'File not found'
-          });
-          continue;
-        }
+      const batch = await ddsConverter.convertBatch(inputs);
+      const results = batch.results.map((r, i) => ({
+        file: inputs[i].sourcePath,
+        success: r.success,
+        outputPath: r.outputPath,
+        output: r.outputPath,
+        format: r.format,
+        error: r.error,
+      }));
 
-        const outputPath: string = file?.outputPath || sourcePath.replace(/\.[^.]+$/, '_converted.dds');
-        const targetFormat: string = file?.format || options?.targetFormat || options?.defaultFormat || 'DDS';
-
-        results.push({
-          file: sourcePath,
-          success: true,
-          outputPath,
-          output: outputPath,
-          format: targetFormat
-        });
-      }
-
-      const successCount = results.filter(r => r.success).length;
-      console.log(`[DDS Converter] Batch conversion: ${successCount}/${results.length} files processed`);
+      console.log(`[DDS Converter] Batch conversion: ${batch.successCount}/${batch.totalFiles} files converted`);
 
       return {
-        success: successCount > 0,
-        totalFiles: files.length,
-        successCount,
-        totalProcessingTime: 0,
-        results
+        success: batch.successCount > 0,
+        totalFiles: batch.totalFiles,
+        successCount: batch.successCount,
+        totalProcessingTime: batch.totalProcessingTime,
+        results,
       };
     } catch (e: any) {
       console.error('[DDS Converter] Batch conversion error:', e);
@@ -6178,16 +6734,13 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       }
 
       const ext = path.extname(filePath).toLowerCase();
-      const formatMap: Record<string, string> = {
-        '.dds': 'DDS (DirectDraw Surface)',
-        '.png': 'PNG',
-        '.tga': 'TGA (Targa)',
-        '.bmp': 'BMP (Bitmap)',
-        '.jpg': 'JPEG',
-        '.jpeg': 'JPEG'
+      // For .dds specifically, read the real FourCC to report the actual
+      // compression (DXT1/DXT5/BC7/etc.) instead of a generic label.
+      const detected = ext === '.dds' ? await ddsConverter.detectFormat(filePath) : null;
+      const nonDdsLabels: Record<string, string> = {
+        '.png': 'PNG', '.tga': 'TGA (Targa)', '.bmp': 'BMP (Bitmap)', '.jpg': 'JPEG', '.jpeg': 'JPEG',
       };
-
-      const format = formatMap[ext] || 'Unknown';
+      const format = detected || nonDdsLabels[ext] || 'Unknown';
       console.log(`[DDS Converter] Detected format for ${path.basename(filePath)}: ${format}`);
 
       return {
@@ -6261,13 +6814,34 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       const ext = path.extname(filePath).toLowerCase();
       const stat = fs.statSync(filePath);
 
-      // For now, return basic file information
-      // In production, we would use a library like 'jimp' or 'sharp' to read actual image dimensions
+      // Real dimensions/format via sharp — DDS isn't decodable by sharp, so
+      // fall back to a DDS header read for width/height in that one case.
+      let width = 0;
+      let height = 0;
+      let colorSpace = 'sRGB';
+      if (ext === '.dds') {
+        const header = Buffer.alloc(20);
+        const fd = fs.openSync(filePath, 'r');
+        try {
+          fs.readSync(fd, header, 0, 20, 0);
+        } finally {
+          fs.closeSync(fd);
+        }
+        // DDS_HEADER: magic(4) + size(4) + flags(4) + height(4) + width(4)
+        height = header.readUInt32LE(12);
+        width = header.readUInt32LE(16);
+      } else {
+        const metadata = await sharp(filePath).metadata();
+        width = metadata.width || 0;
+        height = metadata.height || 0;
+        colorSpace = metadata.space || colorSpace;
+      }
+
       const info = {
-        width: 2048, // placeholder
-        height: 2048, // placeholder
+        width,
+        height,
         format: ext.substring(1).toUpperCase(),
-        colorSpace: 'sRGB',
+        colorSpace,
         fileSize: stat.size,
         fileName: path.basename(filePath)
       };
@@ -6277,6 +6851,27 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
     } catch (e: any) {
       console.error('[Image Info] Error:', e);
       return null;
+    }
+  });
+
+  // --- Image Resize: real sharp-based resize, used by the texture Enhancer
+  // (UpscaylExtension.tsx) to bring an AI-upscaled image back down to its
+  // original resolution for "enhance detail, keep same size" mode. ---
+  registerHandler('image-resize-to', async (_event, args: { inputPath: string; outputPath: string; width: number; height: number }) => {
+    try {
+      const { inputPath, outputPath, width, height } = args || ({} as any);
+      if (!inputPath || !outputPath || !width || !height) {
+        return { ok: false, error: 'inputPath, outputPath, width and height are required' };
+      }
+      if (!fs.existsSync(inputPath)) {
+        return { ok: false, error: `Input file not found: ${inputPath}` };
+      }
+      await sharp(inputPath)
+        .resize(width, height, { kernel: 'lanczos3' })
+        .toFile(outputPath);
+      return { ok: true, outputPath };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
     }
   });
 
@@ -6301,6 +6896,15 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         ? input.generateMaps
         : ['diffuse', 'normal', 'roughness', 'metallic', 'ao'];
 
+      // Real per-map tuning driven by the UI's sliders — previously these were tracked
+      // in React state and displayed live but never sent to the backend at all.
+      const mapSettings = input.mapSettings || {};
+      const normalStrength = Number.isFinite(mapSettings.normalStrength) ? mapSettings.normalStrength : 1;
+      const aoIntensity = Number.isFinite(mapSettings.aoIntensity) ? mapSettings.aoIntensity : 0.75;
+      const roughnessMin = Number.isFinite(mapSettings.roughnessMin) ? mapSettings.roughnessMin : 0;
+      const roughnessMax = Number.isFinite(mapSettings.roughnessMax) ? mapSettings.roughnessMax : 1;
+      const metallicValue = Number.isFinite(mapSettings.metallicValue) ? mapSettings.metallicValue : 0.5;
+
       const maps: Record<string, any> = {};
       let totalSize = 0;
 
@@ -6316,20 +6920,24 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
             pipeline = sharp(input.sourceImage)
               .greyscale()
               .normalize()
+              .linear(normalStrength, 128 * (1 - normalStrength))
               .tint({ r: 128, g: 128, b: 255 })
               .png();
             break;
           case 'height':
             pipeline = sharp(input.sourceImage).greyscale().normalize().png();
             break;
-          case 'roughness':
-            pipeline = sharp(input.sourceImage).greyscale().negate().linear(1.2, -20).png();
+          case 'roughness': {
+            const lo = roughnessMin * 255;
+            const hi = roughnessMax * 255;
+            pipeline = sharp(input.sourceImage).greyscale().negate().linear((hi - lo) / 255, lo).png();
             break;
+          }
           case 'metallic':
-            pipeline = sharp(input.sourceImage).greyscale().linear(1.4, -40).png();
+            pipeline = sharp(input.sourceImage).greyscale().linear(1.4, (metallicValue - 0.5) * 200).png();
             break;
           case 'ao':
-            pipeline = sharp(input.sourceImage).greyscale().blur(1.5).linear(0.75, 0).png();
+            pipeline = sharp(input.sourceImage).greyscale().blur(1.5).linear(aoIntensity, 0).png();
             break;
           case 'emissive':
             pipeline = sharp(input.sourceImage).modulate({ brightness: 1.2, saturation: 1.3 }).png();
@@ -7848,6 +8456,14 @@ end.
         return '';
       }
 
+      // "Allow File System Access" (Privacy Settings) previously persisted but was never
+      // read anywhere — a pure placebo toggle. Real, local-only fix: block the app's main
+      // native folder-picker chokepoint when the user has explicitly turned this off.
+      if (loadSettings()?.privacySettings?.allowFileSystemAccess === false) {
+        console.warn('[pick-directory] Blocked — "Allow File System Access" is disabled in Privacy Settings.');
+        return '';
+      }
+
       const result = await dialog.showOpenDialog(mainWindow, {
         title: title || 'Select a folder',
         properties: ['openDirectory', 'createDirectory']
@@ -8819,6 +9435,10 @@ end.
   // Save file handler (with save dialog)
   registerHandler('save-file', async (_event, content: string, filename: string) => {
     try {
+      if (loadSettings()?.privacySettings?.allowFileSystemAccess === false) {
+        console.warn('[save-file] Blocked — "Allow File System Access" is disabled in Privacy Settings.');
+        throw new Error('File system access is disabled in Privacy Settings.');
+      }
       const safeName = String(filename || 'export.txt').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'export.txt';
       const defaultDir = path.join(os.homedir(), 'Downloads');
       const defaultPath = path.join(defaultDir, safeName);
@@ -9666,7 +10286,9 @@ end.
    */
   // 8b-instant is 3–5× faster and has ~28× higher free-tier quota.
   // 70b is kept as the rate-limit fallback for queries that need deeper reasoning.
-  const GROQ_FALLBACK_MODEL = 'llama-3.3-70b-versatile';
+  // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; openai/gpt-oss-120b
+  // is Groq's own recommended migration target (console.groq.com/docs/deprecations).
+  const GROQ_FALLBACK_MODEL = 'openai/gpt-oss-120b';
   // Hard cap on direct Groq SDK calls — prevents indefinite hangs when Groq is slow.
   const GROQ_SDK_TIMEOUT_MS = 15000;
 
@@ -9702,6 +10324,15 @@ end.
    */
   forceHandle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
     try {
+      // This channel is specifically the cloud path (Inkling/Groq) — local
+      // providers (Ollama/KoboldCpp) go through mlLlmGenerate and are
+      // unaffected. Respect "Allow Network Access" (Privacy Settings) here,
+      // since that toggle's own description is "required for cloud AI services".
+      const preCheckSettings = loadSettings();
+      if (preCheckSettings?.privacySettings?.allowNetworkAccess === false) {
+        return { success: false, error: 'Network access is disabled in Privacy Settings — cloud AI (Groq/Inkling) is unavailable. Use a local provider (Ollama/KoboldCpp) instead, or re-enable "Allow Network Access".' };
+      }
+
       // No character cap on Mossy's system prompt — the model's 128K-token context
       // window is large enough to hold the full MossyBrain identity, all injected
       // game reference data, and full conversation history simultaneously.
@@ -9748,7 +10379,11 @@ end.
       // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
       let content = '';
       const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+      let inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
+      if (inklingBase && !isUrlAllowedByHttpsPolicy(inklingBase)) {
+        console.warn('[AI Chat] Inkling base URL blocked by "Require HTTPS" policy:', inklingBase);
+        inklingBase = '';
+      }
       const inklingChatModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
       if (inklingKey && inklingBase) {
         try {
@@ -9962,7 +10597,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             const { default: Groq } = await import('groq-sdk');
             const client = new Groq({ apiKey: groqKey });
             const response = await client.chat.completions.create({
-              model: 'llama-3.3-70b-versatile',
+              model: GROQ_FALLBACK_MODEL,
               messages: scriptMessages,
               temperature: 0.3,
               max_tokens: 2048,
@@ -10129,6 +10764,91 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       completedTasks: miningState.completedTasks,
       errors: miningState.errors
     });
+  });
+
+  // --- Phase 2 Mining Engines (Contextual, ML Conflict Prediction, Performance
+  // Bottleneck Detection, Hardware-Aware, Longitudinal) ---
+  const phase2MiningManager = new Phase2MiningManager(app.getPath('userData'));
+
+  registerHandler('phase2-mining:get-all', async () => {
+    try {
+      return IpcResponseBuilder.success(await phase2MiningManager.getAllEngineData());
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  registerHandler('phase2-mining:start-engine', async (_event, name: Phase2EngineName) => {
+    try {
+      await phase2MiningManager.startEngine(name);
+      return IpcResponseBuilder.success(await phase2MiningManager.getEngineData(name));
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  registerHandler('phase2-mining:stop-engine', async (_event, name: Phase2EngineName) => {
+    try {
+      await phase2MiningManager.stopEngine(name);
+      return IpcResponseBuilder.success(await phase2MiningManager.getEngineData(name));
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  registerHandler('phase2-mining:start-all', async () => {
+    try {
+      await phase2MiningManager.startAll();
+      return IpcResponseBuilder.success(await phase2MiningManager.getAllEngineData());
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  registerHandler('phase2-mining:stop-all', async () => {
+    try {
+      await phase2MiningManager.stopAll();
+      return IpcResponseBuilder.success(await phase2MiningManager.getAllEngineData());
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  // --- ESP Mining (FormID relationships, cell/worldspace conflicts, quest dependencies) ---
+  // Uses real ESP subrecord parsing (espRecordParser.ts, verified against the xEdit
+  // reference implementation) — not a placeholder-fed demo.
+  registerHandler('esp-mining:get-load-order', async () => {
+    try {
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const pluginsTxt = path.join(localApp, 'Fallout4', 'Plugins.txt');
+      const fo4Root = resolveFO4Root();
+      if (!fo4Root) {
+        return IpcResponseBuilder.fromError(new Error('Fallout 4 install not found'), IpcErrorCode.OPERATION_FAILED);
+      }
+      if (!fs.existsSync(pluginsTxt)) {
+        return IpcResponseBuilder.fromError(new Error('Plugins.txt not found — is Fallout 4 installed and has it been run at least once?'), IpcErrorCode.OPERATION_FAILED);
+      }
+      const dataDir = path.join(fo4Root, 'Data');
+      const raw = fs.readFileSync(pluginsTxt, 'utf-8');
+      const pluginNames = raw.split(/\r?\n/).map(l => l.replace(/^\*/, '').trim()).filter(Boolean).filter(l => !l.startsWith('#'));
+      const plugins = pluginNames
+        .map(name => ({ name, path: path.join(dataDir, name) }))
+        .filter(p => fs.existsSync(p.path));
+      return IpcResponseBuilder.success(plugins);
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
+  });
+
+  registerHandler('esp-mining:analyze', async (_event, pluginPaths: string[]) => {
+    try {
+      const { EspMiningManager } = await import('../mining/espMiningManager');
+      const manager = new EspMiningManager();
+      const result = await manager.analyzePlugins(pluginPaths);
+      return IpcResponseBuilder.success(result);
+    } catch (error: any) {
+      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
+    }
   });
 
   // Advanced Analysis Engine handler - TEMPORARILY DISABLED due to mining engine errors
@@ -10659,11 +11379,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const { prompt, projectId } = params;
 
-      // Generate a roadmap from the prompt using AI
+      // Generate a roadmap from the prompt using AI (falls back to a static
+      // template — with aiGenerated: false — only if every LLM path is
+      // unavailable; see generateRoadmapStepsWithAI()).
       const roadmapId = `roadmap-${Date.now()}`;
 
-      // Parse the prompt to create steps
-      const steps = parseRoadmapSteps(prompt);
+      const { steps, aiGenerated } = await generateRoadmapStepsWithAI(prompt);
       const now = Date.now();
 
       const newRoadmap: any = {
@@ -10675,6 +11396,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         steps: steps,
         currentStepId: steps[0]?.id || null,
         isCustom: true,
+        aiGenerated,
         createdAt: now,
         updatedAt: now,
         isActive: true,
@@ -11025,7 +11747,57 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     return words.slice(0, Math.min(4, words.length)).join(' ').replace(/[^\w\s]/g, '');
   }
 
-  function parseRoadmapSteps(prompt: string): any[] {
+  const ROADMAP_TOOLS = ['blender', 'image-suite', 'ck', 'scribe', 'nifskope', 'general'] as const;
+
+  /**
+   * Generate a roadmap tailored to the user's actual prompt via the same
+   * multi-tier LLM chain used by the Creative Director (Inkling → Ollama →
+   * Groq → local KoboldCpp — see cdCallAgent()). Only falls back to the
+   * static template below if every provider is unreachable, and reports
+   * that honestly via `aiGenerated: false` rather than pretending.
+   */
+  async function generateRoadmapStepsWithAI(prompt: string): Promise<{ steps: any[]; aiGenerated: boolean }> {
+    try {
+      const systemPrompt = [
+        'You are Mossy, an expert Fallout 4 modding project planner inside MOSSY.SPACE.',
+        'Given the user\'s mod idea, produce 4 to 8 concrete build steps tailored specifically',
+        'to what they described — not a generic template. Reference real Fallout 4 modding',
+        'workflows where relevant (Creation Kit records, Papyrus scripting, xEdit conflict',
+        'resolution, NIF/material work, BA2 packaging, load-order/SEQ considerations, etc.).',
+        'Order steps logically from planning to release.',
+        `Respond with ONLY a JSON array, no prose, no markdown fences. Each element must be an`,
+        `object: {"title": string, "description": string (1-2 sentences), "tool": one of ${JSON.stringify(ROADMAP_TOOLS)} }.`,
+        'Pick whichever tool is most relevant to that step, or "general" if none fit.'
+      ].join(' ');
+
+      const raw = await cdCallAgent(systemPrompt, prompt, 2048);
+      const jsonMatch = raw.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('AI response did not contain a JSON array');
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('AI response was not a non-empty array');
+
+      const steps = parsed.slice(0, 12).map((s: any, i: number) => {
+        const step: any = {
+          id: `step-${i + 1}-${Date.now()}`,
+          title: String(s?.title || `Step ${i + 1}`).slice(0, 120),
+          description: String(s?.description || '').slice(0, 500),
+          status: 'not-started',
+          order: i + 1,
+        };
+        if (typeof s?.tool === 'string' && (ROADMAP_TOOLS as readonly string[]).includes(s.tool) && s.tool !== 'general') {
+          step.tool = s.tool;
+        }
+        return step;
+      });
+
+      return { steps, aiGenerated: true };
+    } catch (err) {
+      console.warn('[Roadmap] AI generation unavailable, falling back to template steps:', err);
+      return { steps: parseRoadmapStepsTemplate(prompt), aiGenerated: false };
+    }
+  }
+
+  function parseRoadmapStepsTemplate(prompt: string): any[] {
     // Generate default steps based on the prompt
     const tools = ['blender', 'image-suite', 'ck', 'scribe', 'nifskope'];
     const tools_map: { [k: string]: string } = {
@@ -14545,15 +15317,44 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('mining:execute-pipeline', async (_event, sources: any[]) => {
     const startTime = Date.now();
     try {
+      if (!Array.isArray(sources)) throw new Error('Sources must be an array');
       const pipelineId = `pipeline_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+      miningState = {
+        active: true,
+        progress: 0,
+        currentTask: 'Initializing mining pipeline',
+        startTime: Date.now(),
+        completedTasks: [],
+        errors: []
+      };
+
+      const orchestrator = new MiningPipelineOrchestrator();
+      orchestrator.setProgressCallback((progress: number, task: string) => {
+        miningState.progress = progress;
+        miningState.currentTask = task;
+        if (task) miningState.completedTasks.push(task);
+      });
+      const result = await orchestrator.execute(sources);
+      miningState.active = false;
+      miningState.progress = 100;
+      miningState.currentTask = 'Mining complete';
+
+      const formsExtracted = Array.from(result.espData.values())
+        .reduce((sum: number, esp: any) => sum + (esp?.records?.length || 0), 0);
+
       const pipeline = {
         id: pipelineId,
         sources,
         status: 'completed',
-        parsedCount: sources.length,
+        parsedCount: result.espData.size,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        results: { fileCount: sources.length, formsExtracted: 0, dependenciesFound: 0 }
+        results: {
+          fileCount: sources.length,
+          formsExtracted,
+          dependenciesFound: result.dependencyGraph.edges.length
+        }
       };
       miningStorage.set(pipelineId, pipeline);
       saveMiningToDisk();
@@ -14563,12 +15364,52 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'execute-pipeline',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { pipelineId, sourceCount: sources.length }
+        result: { pipelineId, sourceCount: sources.length, formsExtracted }
       });
-      return { success: true, pipeline };
+
+      // Strip formIdMap (a Map — doesn't survive IPC) and the raw binary
+      // field/subrecord Buffers (header, per-record fields) that the Mining
+      // Dashboard UI never reads — only the lightweight per-record summary
+      // (type/formId/editorId/flags/dataSize) actually gets rendered.
+      const espDataObj: Record<string, any> = {};
+      for (const [k, v] of result.espData) {
+        espDataObj[k] = {
+          fileName: v.fileName,
+          masters: v.masters,
+          records: (v.records || []).map((r: any) => ({
+            type: r.type,
+            formId: r.formId,
+            editorId: r.editorId,
+            flags: r.flags,
+            dataSize: (r.fields || []).reduce((s: number, f: any) => s + (f.size || 0), 0)
+          }))
+        };
+      }
+
+      return {
+        success: true,
+        pipeline,
+        data: {
+          espData: espDataObj,
+          correlations: result.correlations,
+          dependencyGraph: {
+            nodes: Object.fromEntries(result.dependencyGraph.nodes),
+            edges: result.dependencyGraph.edges,
+            cycles: result.dependencyGraph.cycles,
+            loadOrder: result.dependencyGraph.loadOrder
+          },
+          performanceReport: result.performanceReport,
+          errors: result.errors,
+          assetDiscovery: (result as any).assetDiscovery
+        }
+      };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] mining:execute-pipeline error:', errMsg);
+      if (miningState) {
+        miningState.active = false;
+        miningState.errors.push(errMsg);
+      }
       auditLogger.log({
         operation: 'pipeline-execution',
         tool: 'mining-pipeline',
@@ -14576,7 +15417,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         status: 'error',
         duration: Date.now() - startTime,
         error: errMsg,
-        details: { sourceCount: sources.length }
+        details: { sourceCount: Array.isArray(sources) ? sources.length : 0 }
       });
       return { success: false, error: errMsg };
     }
@@ -14585,16 +15426,34 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('mining:parse-esp', async (_event, filePath: string) => {
     const startTime = Date.now();
     try {
+      const filePathValidation = IpcValidation.isValidFilePath(filePath);
+      if (!filePathValidation.valid) throw new Error(filePathValidation.error || 'Invalid file path');
+
       const parseId = `parse_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const espFile = await ESPParser.parseFile(filePath);
+      const stats = fs.statSync(filePath);
+
+      const records = espFile.records.map(r => ({
+        type: r.type,
+        formId: r.formId,
+        editorId: r.editorId,
+        flags: r.flags,
+        dataSize: (r.fields || []).reduce((s, f) => s + (f.size || 0), 0)
+      }));
+
       const espData = {
         id: parseId,
         filePath,
-        fileSize: 0,
-        formCount: Math.floor(Math.random() * 5000),
-        masters: [],
+        fileName: espFile.fileName,
+        fileSize: stats.size,
+        formCount: records.length,
+        masters: espFile.masters,
+        records,
         parsedAt: Date.now()
       };
-      miningStorage.set(parseId, espData);
+      // Keep the full parsed ESPFile (with real records/fields) around for downstream
+      // handlers (extract-forms, analyze-conflicts, scan-asset-references) to reuse.
+      miningStorage.set(parseId, { ...espData, _espFile: espFile });
       saveMiningToDisk();
       auditLogger.log({
         operation: 'esp-parsing',
@@ -14604,7 +15463,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         duration: Date.now() - startTime,
         result: { parseId, filePath, formCount: espData.formCount }
       });
-      return { success: true, espData };
+      return { success: true, espData, data: espData };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] mining:parse-esp error:', errMsg);
@@ -14625,10 +15484,17 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const graphId = `graph_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const builder = new DependencyGraphBuilder();
+      const masterPaths: string[] = Array.isArray(espData?.masters) ? espData.masters : [];
+      const realGraph = masterPaths.length > 0 ? await builder.buildGraph(masterPaths) : {
+        nodes: new Map(), edges: [], cycles: [], loadOrder: []
+      };
       const graph = {
         id: graphId,
-        nodes: espData.masters ? espData.masters.map((m: string, i: number) => ({ id: i, label: m })) : [],
-        edges: [],
+        nodes: Object.fromEntries(realGraph.nodes),
+        edges: realGraph.edges,
+        cycles: realGraph.cycles,
+        loadOrder: realGraph.loadOrder,
         createdAt: Date.now()
       };
       miningStorage.set(graphId, graph);
@@ -14639,7 +15505,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'build-dependency-graph',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { graphId, nodeCount: graph.nodes.length }
+        result: { graphId, nodeCount: realGraph.nodes.size }
       });
       return { success: true, graph };
     } catch (error: any) {
@@ -14661,12 +15527,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const espData = miningStorage.get(espDataId);
-      if (!espData) throw new Error('ESP data not found');
+      if (!espData) throw new Error('ESP data not found — parse the ESP with mining:parse-esp first');
+      const espFile = espData._espFile;
+      const realRecords: any[] = espFile?.records ?? [];
       const formId = `forms_${Date.now()}_${Math.random().toString(36).substring(7)}`;
       const forms = {
         id: formId,
         espDataId,
-        formRecords: Array.from({ length: 10 }, (_, i) => ({ formId: `0x${(1000 + i).toString(16)}`, type: 'NPC_', name: `Record${i}` })),
+        formRecords: realRecords.map(r => ({
+          formId: `0x${r.formId.toString(16).toUpperCase().padStart(8, '0')}`,
+          type: r.type,
+          name: r.editorId || r.name || ''
+        })),
         extractedAt: Date.now()
       };
       miningStorage.set(formId, forms);
@@ -14700,11 +15572,31 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const analysisId = `conflict_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      // Real conflict detection: a conflict is when two loaded plugins define
+      // a record with the exact same FormID (the classic FO4/xEdit conflict signal).
+      const formOwners = new Map<number, string[]>();
+      for (const id of espDataIds) {
+        const espData = miningStorage.get(id);
+        const espFile = espData?._espFile;
+        if (!espFile) continue;
+        for (const record of espFile.records as any[]) {
+          const owners = formOwners.get(record.formId) || [];
+          owners.push(espFile.fileName);
+          formOwners.set(record.formId, owners);
+        }
+      }
+      const conflictPairs: Array<{ formId: string; files: string[] }> = [];
+      for (const [formId, files] of formOwners) {
+        const uniqueFiles = Array.from(new Set(files));
+        if (uniqueFiles.length > 1) {
+          conflictPairs.push({ formId: `0x${formId.toString(16).toUpperCase().padStart(8, '0')}`, files: uniqueFiles });
+        }
+      }
       const conflicts = {
         id: analysisId,
         espIds: espDataIds,
-        conflictCount: 0,
-        conflictPairs: [],
+        conflictCount: conflictPairs.length,
+        conflictPairs,
         analyzedAt: Date.now()
       };
       miningStorage.set(analysisId, conflicts);
@@ -14715,7 +15607,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         action: 'analyze-conflicts',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { analysisId, fileCount: espDataIds.length, conflictCount: 0 }
+        result: { analysisId, fileCount: espDataIds.length, conflictCount: conflicts.conflictCount }
       });
       return { success: true, conflicts };
     } catch (error: any) {
@@ -14782,12 +15674,14 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const validationId = `validation_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const missingDependencies = (dependencyPaths || []).filter(p => !fs.existsSync(p));
+      const masterExists = fs.existsSync(masterPath);
       const validation = {
         id: validationId,
         masterPath,
-        dependenciesFound: dependencyPaths.length,
-        isValid: true,
-        missingDependencies: [],
+        dependenciesFound: (dependencyPaths || []).length - missingDependencies.length,
+        isValid: masterExists && missingDependencies.length === 0,
+        missingDependencies: masterExists ? missingDependencies : [masterPath, ...missingDependencies],
         validatedAt: Date.now()
       };
       miningStorage.set(validationId, validation);
@@ -14821,13 +15715,33 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     const startTime = Date.now();
     try {
       const espData = miningStorage.get(espDataId);
-      if (!espData) throw new Error('ESP data not found');
+      if (!espData) throw new Error('ESP data not found — parse the ESP with mining:parse-esp first');
       const scanId = `scan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const espFile = espData._espFile;
+      // Real scan: FO4 subrecords (MODL/ICON/TX* etc.) store asset paths as plain
+      // ASCII strings inside the record's field data — extract them directly.
+      const pathPattern = /[\w\-. \/\\]+\.(nif|dds|hkx|wav|xwm|txt|xml)/gi;
+      const found = new Set<string>();
+      const scanFields = (fields: any[] | undefined) => {
+        for (const field of fields || []) {
+          if (!field?.data?.length) continue;
+          const text = Buffer.from(field.data).toString('latin1');
+          let match: RegExpExecArray | null;
+          pathPattern.lastIndex = 0;
+          while ((match = pathPattern.exec(text)) !== null) {
+            found.add(match[0].toLowerCase().replace(/\\/g, '/').trim());
+          }
+        }
+      };
+      for (const record of (espFile?.records ?? []) as any[]) {
+        scanFields(record.fields);
+        for (const sub of record.subrecords || []) scanFields(sub.fields);
+      }
       const scan = {
         id: scanId,
         espDataId,
-        hardcodedPaths: [],
-        assetReferences: 50,
+        hardcodedPaths: Array.from(found),
+        assetReferences: found.size,
         scannedAt: Date.now()
       };
       miningStorage.set(scanId, scan);
@@ -16390,12 +17304,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  registerHandler('git:commit', async (_event, repoId: string, message: string, author?: string) => {
+  registerHandler('git:commit', async (_event, repoId: string, message: string, author?: string, files?: string[]) => {
     const startTime = Date.now();
     try {
       const targetPath = resolveRepoPath(repoId);
       const { repo, git } = await ensureRepo(repoId || 'default', targetPath);
-      await git.add('.');
+      // Only stage exactly what the UI shows as staged — committing everything
+      // regardless of what the user deliberately unstaged was a real data-loss risk.
+      // No files list at all (an older/other caller) falls back to staging everything.
+      if (files) {
+        if (files.length === 0) {
+          return { success: false, error: 'No files staged — stage at least one file before committing.' };
+        }
+        await git.add(files);
+      } else {
+        await git.add('.');
+      }
       const authorName = author || 'Mossy User';
       const result = await git.commit(message || 'Update', undefined, { '--author': `${authorName} <mossy@local>` } as any);
       const commit = {
@@ -17139,6 +18063,22 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     };
     buildSectionIdx: number;   // index into CD_BUILD_SECTIONS currently being worked
     buildVerified: boolean;    // has verifier approved the current section?
+    // Sub-turn tracking for sections too large for one response (Dialogue Trees: one
+    // sub-turn per NPC; Lore: one per content category). Undefined/empty when the
+    // current section doesn't use sub-turns, or before the first sub-turn is generated.
+    buildSubItems?: string[];
+    buildSubItemIdx?: number;
+    buildSubItemOutputs?: string[];
+    // Section indices (into CD_BUILD_SECTIONS) where at least one sub-item was force-
+    // skipped after repeated failures — phaseOutputs[key] still gets SOME content from
+    // the sub-items that did pass, so cdComputeMissingSections can't rely on falsy-check
+    // alone to catch these; it also checks this list.
+    subItemSkippedSections?: number[];
+    // Whole-section skips (a section that failed verification 5 times with no
+    // sub-items at all) — mirrors subItemSkippedSections so cdComputeMissingSections
+    // can catch these too, even when the section landed on the last slot and fell
+    // straight through to finalize without ever getting a real completion turn.
+    skippedSections?: number[];
     turns: CdTurn[];
     createdAt: number;
     updatedAt: number;
@@ -17200,9 +18140,84 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   const CD_AGENT_ORDER: CdAgentRole[] = ['quest', 'dialogue', 'world', 'director'];
   const CD_MAX_TURNS = 80; // 20 full rounds — enough for 10 sections across 4 agents
 
+  // Maps CD_BUILD_SECTIONS[i] -> the phaseOutputs key that section's accepted content is stored under.
+  const CD_SECTION_OUTPUT_KEYS: (keyof CdProject['phaseOutputs'])[] = [
+    'worldDesign', 'factionDesign', 'mainQuestline', 'sideQuests',
+    'npcRoster', 'dialogueTrees', 'loreContent', 'itemDesign',
+    'scripts', 'records', 'espBuilder', 'fomod',
+  ];
+
+  // Ground truth for "is this project actually done" — a section only counts as
+  // delivered if its content was actually written to phaseOutputs AND (for sub-turn
+  // sections) none of its sub-items were force-skipped. A section that was fully
+  // force-skipped never gets the phaseOutputs write; a sub-turn section that had ONE
+  // sub-item force-skipped DOES get a phaseOutputs write (from the sub-items that
+  // passed), so the falsy-check alone would wrongly call it complete — that's what
+  // subItemSkippedSections closes.
+  function cdComputeMissingSections(project: CdProject): string[] {
+    return CD_BUILD_SECTIONS.filter((_section, i) =>
+      !project.phaseOutputs[CD_SECTION_OUTPUT_KEYS[i]] ||
+      (project.subItemSkippedSections ?? []).includes(i) ||
+      (project.skippedSections ?? []).includes(i));
+  }
+
+  // Sections whose single-turn output was too large for the model to reliably produce
+  // in one response (full branching dialogue for 8+ NPCs; 13+ full-length lore texts),
+  // causing genuine token-limit truncation the verifier correctly flagged as missing
+  // content. Split into one sub-turn per NPC (Dialogue Trees) or per content category
+  // (Lore), each independently verified, then joined into the section's real output.
+  const CD_SUBITEM_SECTIONS = new Set([5, 6]);
+
+  // Compute the sub-item list for a sub-turn section. Falls back to a single
+  // "everything" sub-item if roster parsing finds nothing, degrading gracefully to
+  // the old single-turn behavior for that section rather than looping forever.
+  function cdComputeSubItemsForSection(project: CdProject, sectionIdx: number): string[] {
+    if (sectionIdx === 5) {
+      // Dialogue Trees — one sub-turn per NPC from the roster written in section 4.
+      const roster = project.phaseOutputs.npcRoster || '';
+      const names = [...roster.matchAll(/##\s*NPC:\s*([^(\n]+?)\s*\(/g)].map(m => m[1].trim()).filter(Boolean);
+      return names.length > 0 ? names : ['All NPCs'];
+    }
+    if (sectionIdx === 6) {
+      // Lore & Environmental Storytelling — one sub-turn per content category.
+      return ['Holotapes', 'Terminals', 'Notes'];
+    }
+    return ['Everything'];
+  }
+
+  // Mandatory final line each specialist must emit for CD_BUILD_SECTIONS[i] — see the
+  // per-section "MANDATORY FINAL LINE" instructions in the building-phase prompts.
+  const CD_SECTION_COMPLETE_MARKERS = [
+    'WORLD DESIGN COMPLETE', 'FACTION DESIGN COMPLETE', 'MAIN QUESTLINE DESIGN COMPLETE',
+    'SIDE QUESTS DESIGN COMPLETE', 'NPC ROSTER COMPLETE', 'DIALOGUE TREES COMPLETE',
+    'LORE COMPLETE', 'ITEMS COMPLETE', 'SCRIPTS COMPLETE', 'RECORDS COMPLETE',
+    'ESP BUILDER COMPLETE', 'FOMOD COMPLETE',
+  ];
+
+  // Ground truth for "is this section done" when only a flattened transcript.md is
+  // available (the reopen-project flow — completedProjects entries don't retain
+  // phaseOutputs). Matching on the section TITLE as a literal "## <title>" heading is
+  // unreliable: agents write different sub-headings (e.g. "## Worldspace Decision"),
+  // not the section title itself, and a force-skipped section's REJECTED attempts still
+  // contain the title text somewhere, producing false "already done" positives. Instead,
+  // require the section's own completion marker to be immediately followed by a PASSED
+  // verifier verdict — a marker on its own just means the specialist submitted, not that
+  // the verifier accepted it.
+  function cdSectionPassedInTranscript(rawTranscript: string, sectionIdx: number): boolean {
+    const marker = CD_SECTION_COMPLETE_MARKERS[sectionIdx];
+    if (!marker) return false;
+    const markerRe = new RegExp(`##\\s*${marker}`, 'gi');
+    let m: RegExpExecArray | null;
+    while ((m = markerRe.exec(rawTranscript)) !== null) {
+      const after = rawTranscript.slice(m.index, m.index + 2000);
+      if (/Verification:\s*PASSED/i.test(after)) return true;
+    }
+    return false;
+  }
+
   // FO4 world strings — loaded from the real game scan (fo4_strings_scan.py output).
   // Falls back to a hardcoded summary if the scan has not been run yet.
-  const FO4_STRINGS_JSON = 'H:\\Mossy Memory\\fo4_world_strings.json';
+  const FO4_STRINGS_JSON = resolveScanCacheFile('fo4_world_strings.json');
   let FO4_VANILLA_WORLD: string = (() => {
     try {
       if (fs.existsSync(FO4_STRINGS_JSON)) {
@@ -17369,7 +18384,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       name: 'Quest & Systems Designer',
       systemPrompt:
         'You are the Quest & Systems Designer on a Fallout 4 modding team (MOSSY INDUSTRIES).\n\n' +
-        'RESOURCES: F:\\FO4 WORKING FLODER\\ (vanilla assets), Virtual World Lab (NavMesh testing), Papyrus compiler.\n\n' +
+        'RESOURCES: Real vanilla FO4 asset/game data is provided in the REAL FO4 GAME DATA block included in this prompt (texture/mesh/material catalogs, form graph, asset graph) — reference those real paths and names, never invent them. Virtual World Lab (NavMesh testing), Papyrus compiler.\n\n' +
         'You OWN TWO required sections. Write each one in full in this message.\n' +
         'NOTE: Dialogue Trees are owned by the Dialogue & Lore Writer — do NOT write them here.\n\n' +
         '## Story & Narrative  ← YOUR SECTION\n' +
@@ -17523,7 +18538,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       name: 'Dialogue & Lore Writer',
       systemPrompt:
         'You are the Dialogue & Lore Writer on a Fallout 4 modding team (MOSSY INDUSTRIES).\n\n' +
-        'RESOURCES: F:\\FO4 WORKING FLODER\\ (vanilla assets), Virtual World Lab, Stable Diffusion (concept art).\n\n' +
+        'RESOURCES: Real vanilla FO4 asset data is provided in the REAL FO4 GAME DATA block included in this prompt — reference those real paths/names, never invent them. Virtual World Lab, Stable Diffusion (concept art).\n\n' +
         'You OWN ONE required section — write it completely in a single message.\n\n' +
         '## Dialogue Trees  ← YOUR SECTION (write this in full, from scratch)\n' +
         'Every dialogue exchange, formatted exactly as:\n' +
@@ -17548,7 +18563,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       name: 'World & NPC Builder',
       systemPrompt:
         'You are the World & NPC Builder on a Fallout 4 modding team (MOSSY INDUSTRIES).\n\n' +
-        'RESOURCES: F:\\FO4 WORKING FLODER\\ (all vanilla .nif files), Virtual World Lab (NavMesh testing), xEdit (REFR generation).\n\n' +
+        'RESOURCES: Real vanilla FO4 mesh paths are provided in the REAL FO4 GAME DATA block included in this prompt (mesh catalog, asset graph ARMA/model paths) — reference those real paths, never invent them. Virtual World Lab (NavMesh testing), xEdit (REFR generation).\n\n' +
         'You own FOUR required sections. Write each in full, production-ready detail.\n\n' +
         '## Site & Access Design\n' +
         'In a ```text block:\n' +
@@ -17569,7 +18584,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         'Table of EVERY vanilla FO4 mesh used in this mod:\n' +
         '| Mesh Path | EditorID | Type | Purpose |\n' +
         '|-----------|----------|------|---------|\n' +
-        'Use REAL paths from F:\\FO4 WORKING FLODER\\. Types: Architecture, Furniture, Clutter, NPC, Creature, Vegetation, Marker, Weapon, Container, Light.\n' +
+        'Use REAL mesh paths only — from the list below, or from the REAL FO4 GAME DATA block included in this prompt. Never invent a path. Types: Architecture, Furniture, Clutter, NPC, Creature, Vegetation, Marker, Weapon, Container, Light.\n' +
         'Include 20-40 unique mesh entries — every distinct mesh that appears in the Cell Layout.\n\n' +
         '## Cell Layout\n' +
         'xEdit REFR placement table. Mesh paths MUST match the Asset Manifest above:\n' +
@@ -17584,7 +18599,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         'Include 25-40 entries: floors, walls, ceilings, load doors, furniture, NPC spawn markers\n' +
         '(Meshes\\Marker\\XMarkerHeading.nif), containers, lights, clutter.\n' +
         'After your sections, add a ```concept-art JSON block with 4-6 SD prompts for location mood.\n\n' +
-        '=== REAL VANILLA FO4 MESH PATHS (verified from F:\\FO4 WORKING FLODER) ===\n' +
+        '=== REAL VANILLA FO4 MESH PATHS (verified — real Data/Meshes paths that exist in the shipped game) ===\n' +
         'ARCHITECTURE — RUINS (crumbling brick, great for dungeon walls):\n' +
         '  Meshes\\Architecture\\Ruins\\RuiBrickBeam01.nif\n' +
         '  Meshes\\Architecture\\Ruins\\RuiBrickChunk01.nif\n' +
@@ -17956,12 +18971,84 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '════════════════════════════════════════\n' +
         '• EVERY script is COMPLETE — no stubs, no "// TODO", no pseudocode. Real compilable code only.\n' +
         '• Minimum 20 lines of real logic per script.\n' +
-        '• Quest main scripts: extend Quest Conditional — include OnInit, stage functions, all quest logic.\n' +
+        '• Quest main scripts: extend Quest Conditional. Contain OnInit plus ONE real event for all\n' +
+        '  per-stage triggered logic: Event OnStageSet(int auiStageID, int auiItemID) — verified real,\n' +
+        '  shipped by Bethesda on plain "extends Quest" scripts (e.g. CA_QuestStage_Bump.psc), branch\n' +
+        '  on auiStageID with If/ElseIf. Do NOT split this across a separate QF_ file unless the design\n' +
+        '  genuinely needs a second, CK-Stage-Wizard-generated fragment script — one real OnStageSet on\n' +
+        '  the main script is simpler and equally valid for everything in this pipeline\'s scope.\n' +
+        '• FORBIDDEN — DO NOT WRITE: "Event OnStage(...)" (with the stage number as a parameter, e.g.\n' +
+        '  OnStage(10)), "Event OnStage(int stage)", or "Event OnStageComplete()". None of these exist —\n' +
+        '  only OnStageSet(int auiStageID, int auiItemID) is real. Writing OnStage(10) fails to compile\n' +
+        '  with "extraneous input \'10\' expecting RPAREN" AND every OnStage(...) after the first is\n' +
+        '  additionally rejected as "event already defined in the same state" — Papyrus events cannot be\n' +
+        '  overloaded by parameter value, only auiStageID (a plain if-check inside ONE OnStageSet) can\n' +
+        '  distinguish stages.\n' +
+        '• FORBIDDEN — DO NOT WRITE: "SetObjectiveText(...)" (not a real function — objective display\n' +
+        '  text is CK data on the Stage\'s Objective entry, never set at runtime) or "Event\n' +
+        '  OnObjectiveCompleted(...)" (not a real event — use SetObjectiveCompleted(int, bool) instead,\n' +
+        '  which you call, it is not something the engine calls into you).\n' +
+        '• Radiant/repeating logic: use the REAL StartTimer(float afSeconds, int aiTimerID) +\n' +
+        '  Event OnTimer(int aiTimerID) pair (re-arm by calling StartTimer again inside OnTimer) —\n' +
+        '  NEVER invent "StartRadiantThread()" or "Event OnRadiantThreadStarted()", neither exists.\n' +
+        '  Game-time-driven logic uses StartTimerGameTime(float afHours, int aiTimerID) + Event\n' +
+        '  OnTimerGameTime(int aiTimerID) — FO4 has no RegisterForUpdateGameTime/OnUpdateGameTime.\n' +
+        '• Random numbers: Utility.RandomInt(min, max) — NOT "Game.GetRandomInt(...)", which does not\n' +
+        '  exist. XP rewards: Game.RewardPlayerXP(int amount) — NOT "AddExp(...)", which does not exist.\n' +
+        '• Terminal interaction: the terminal\'s OWN placed-reference script (extends ObjectReference)\n' +
+        '  gets Event OnMenuItemRun(int auiMenuItemID, ObjectReference akTerminalRef) from the engine —\n' +
+        '  NEVER invent "Event OnTerminalActivate(Terminal terminal)", that does not exist. A quest\n' +
+        '  script that needs to react to a terminal should expose a plain public Function the\n' +
+        '  terminal\'s own script calls into, not an event it listens for itself.\n' +
+        '• Every property you reference (items, terminals, locations) must be DECLARED as a Property on\n' +
+        '  that script — never reference a bare capitalized name as if it were a global constant.\n' +
         '• Quest fragment scripts: Scriptname QF_<QuestID>_<FormID> extends Quest Hidden — use Fragment_Stage_NNNN_Item_00() functions.\n' +
-        '• Actor/creature scripts: extend Actor — include behavior events.\n' +
+        '• Actor/creature scripts: extend Actor — include behavior events. Real verified example\n' +
+        '  (Outcasts and Remnants, OAR_NZ_Death_Script.psc) — a scripted death sequence entirely\n' +
+        '  inside Event OnDeath(Actor akKiller): advance an unrelated quest via a Quest Property\n' +
+        '  and SetStage, play narration via a MusicType Property\'s Add() function, then\n' +
+        '  PlaceAtMe an Explosion, MoveTo a destination ObjectReference, and Enable/Disable other\n' +
+        '  placed references — confirms OnDeath is a real, common hook point for triggering a\n' +
+        '  whole scripted sequence, not just cleanup.\n' +
         '• ObjectReference trigger scripts: extend ObjectReference — include OnTriggerEnter or OnActivate.\n' +
         '• Script names must EXACTLY match what the Record Builder will reference in Scripts[].\n' +
-        '• No enum, no foreach, no C# syntax, no TypeScript — Papyrus ONLY.\n\n' +
+        '• No enum, no foreach, no C# syntax, no TypeScript — Papyrus ONLY.\n' +
+        '• Actor.AddItem needs a real Form, never a bare string. Declare a property\n' +
+        '  (e.g. "MiscObject Property KeycardItem Auto") and call AddItem(KeycardItem, 1) —\n' +
+        '  NEVER AddItem("Keycard", 1), that is a type mismatch and fails to compile.\n' +
+        '• GetLocation()/GetCurrentLocation() returns a Location object, never a String. Declare\n' +
+        '  a property (e.g. "Location Property DiamondCityLoc Auto") and compare\n' +
+        '  "PlayerRef.GetCurrentLocation() == DiamondCityLoc" — NEVER compare it to a string literal\n' +
+        '  like == "Diamond City", that is a type mismatch and fails to compile.\n' +
+        '• CRITICAL NAMING RULE, verified via real compiler failure: when script A needs a\n' +
+        '  "Quest Property" (or any Property) pointing at script B, that property\'s NAME MUST NOT be\n' +
+        '  the exact same string as script B\'s own Scriptname. E.g. if the quest script is named\n' +
+        '  "MI_Q01_FindTheLab", another script referencing it must NOT write\n' +
+        '  "Quest Property MI_Q01_FindTheLab Auto" — the compiler treats that scriptname as a known\n' +
+        '  TYPE and rejects a property/variable sharing its exact name with "cannot name a variable or\n' +
+        '  property the same as a known type or script", and this failure then cascades into every call\n' +
+        '  through that property failing as "SetStage/GetStage is not a function or does not exist —\n' +
+        '  cannot call the member function alone or on a type, must call it on a variable". ALWAYS\n' +
+        '  disambiguate: append a suffix distinct from the scriptname itself, e.g.\n' +
+        '  "Quest Property MI_Q01_FindTheLabQuest Auto" or "...Ref Auto" — never the bare scriptname.\n' +
+        '• CRITICAL SYNTAX RULE, verified via real compiler failure: Properties MUST be declared at\n' +
+        '  SCRIPT SCOPE only (top-level, outside every Function/Event body) — NEVER declare a Property\n' +
+        '  statement inside a Function or Event. "Function RewardPlayer() ... MiscObject Property\n' +
+        '  HoloTape Auto ... EndFunction" fails to compile with "no viable alternative at input\n' +
+        '  \'Property\'". If a function needs an item Form, declare that Property once at the top of the\n' +
+        '  script alongside every other Property, then simply reference it inside the function body.\n' +
+        '• FORBIDDEN — DO NOT WRITE: "ObjectReference.GetNumChildren()" or\n' +
+        '  "ObjectReference.GetNthChild(int)" — neither exists, confirmed by real compiler failure\n' +
+        '  ("is not a function or does not exist"). There is no built-in "get this reference\'s spawned\n' +
+        '  children" API. The real, correct pattern for tracking/cleaning up references you spawned\n' +
+        '  yourself (e.g. via PlaceAtMe) is to SAVE each returned ObjectReference into your own array as\n' +
+        '  you create it — e.g. "ObjectReference[] Property SpawnedRefs Auto" (or a local array built up\n' +
+        '  during spawning and stored in a Property for later use) — then loop over that array later to\n' +
+        '  Disable/Delete/inspect them. If you instead need to find EXISTING placed references near a\n' +
+        '  point (not ones you spawned), use the real functions\n' +
+        '  ObjectReference.FindAllReferencesOfType(Form akType, float afRadius) or\n' +
+        '  FindAllReferencesWithKeyword(Keyword akKeyword, float afRadius), or\n' +
+        '  GetLinkedRefChildren(Keyword akKeyword) for refs placed via the Linked Ref system in CK.\n\n' +
         'REAL FO4 PAPYRUS API — use these exactly:\n' +
         '  Game.GetPlayer() as Actor\n' +
         '  SetStage(int stage) — advance quest\n' +
@@ -17982,19 +19069,153 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  Debug.Notification(string msg)\n' +
         '  Utility.Wait(float seconds)\n' +
         '  GlobalVariable.GetValueInt() / GlobalVariable.SetValue(float v)\n' +
-        '  RegisterForSingleUpdateGameTime(float hours)\n' +
-        '  Event OnUpdateGameTime() / EndEvent\n\n' +
-        'QUEST FRAGMENT PATTERN (for stage-triggered logic):\n' +
-        '  Scriptname QF_MI_EchoesFieldTest_00000D62 extends Quest Hidden\n' +
-        '  ReferenceAlias Property Alias_QuestNPC Auto\n' +
+        '  StartTimerGameTime(float afHours, int aiTimerID)\n' +
+        '  Event OnTimerGameTime(int aiTimerID) / EndEvent\n' +
+        '  (there is no RegisterForSingleUpdateGameTime/Event OnUpdateGameTime — confirmed absent\n' +
+        '  from every shipped FO4 script; StartTimerGameTime + OnTimerGameTime is the real pair,\n' +
+        '  re-arm by calling StartTimerGameTime again inside the OnTimerGameTime handler)\n\n' +
+        'CROSS-SCRIPT STAGE ADVANCE (verified real, from a shipped quest mod\'s own source —\n' +
+        'Fusion City Rising\'s IT_SetStage.psc): the simplest way for one script to advance a\n' +
+        'DIFFERENT quest is to declare "Quest Property TargetQuest Auto Const" and just call\n' +
+        '"TargetQuest.SetStage(N)" directly — SetStage is already public, no wrapper Function\n' +
+        'needed. Real example, a full working script:\n' +
+        '  Scriptname IT_SetStage extends ObjectReference Const\n' +
+        '  Quest Property ITDC_MiltonQuest Auto Const\n' +
+        '  Event OnActivate(ObjectReference akActionRef)\n' +
+        '    if (akActionRef == Game.GetPlayer())\n' +
+        '      Utility.Wait(40.0)\n' +
+        '      ITDC_MiltonQuest.SetStage(280)\n' +
+        '    endif\n' +
+        '  EndEvent\n\n' +
+        'EVENT-DRIVEN CROSS-MOD QUEST WATCHING (real, verified, from a shipped compatibility patch\n' +
+        'bridging two independent mods) — better than polling GetStageDone() in a loop: a script can\n' +
+        'subscribe directly to ANOTHER quest\'s stage changes:\n' +
+        '  RegisterForRemoteEvent(OtherQuest, "OnStageSet")\n' +
+        '  Event Quest.OnStageSet(Quest akSender, int aiStage, int aiItem)\n' +
+        '    if aiStage >= 100\n' +
+        '      UnregisterForRemoteEvent(akSender, "OnStageSet")\n' +
+        '    endif\n' +
+        '  EndEvent\n' +
+        'Note the remote handler signature differs from the plain OnStageSet(int, int) shown\n' +
+        'elsewhere — the sending Quest is passed as the first parameter. Real production patches\n' +
+        'combine this with an already-done check in OnInit (OtherQuest.GetStageDone(N)) plus a\n' +
+        'StartTimer retry fallback, so the logic fires correctly whether the target quest changes\n' +
+        'stage AFTER this script loads, was already done BEFORE it loaded, or isn\'t ready yet.\n\n' +
+        'REAL SETTLEMENT-ASSIGNMENT FUNCTION (verified from a shipped mod, fills a gap other\n' +
+        'settlement guidance in this system only described conceptually): to make an Actor a settler\n' +
+        'at a workshop programmatically —\n' +
+        '  ActorRef.SetFactionRank(WorkshopNPCFaction, 0)\n' +
+        '  WorkshopParent.AddPermanentActorToWorkshopPlayerChoice(ActorRef as Actor)\n' +
+        'where WorkshopParent is a Property of type WorkshopParentScript — this is the real function\n' +
+        'the Workshop menu\'s own "Assign" UI calls internally.\n\n' +
+        'PAPYRUS HAS NO break STATEMENT — confirmed directly in a real shipped script\'s own\n' +
+        'comment. NEVER write "break" or "continue" inside a While/For loop, it will not compile.\n' +
+        'The idiomatic workaround to exit a While loop early is to force the loop condition false,\n' +
+        'e.g. set the counter to the array\'s Length: "i = MyArray.Length" instead of break.\n\n' +
+        'REAL WORKSHOP/BUILD-MODE SCRIPTING (verified from a shipped blueprint-import utility) —\n' +
+        'use this for anything that must run when the player opens/closes the workshop build menu\n' +
+        'at a settlement, or that manipulates power wiring programmatically:\n' +
+        '  Event OnWorkshopMode(Bool aStart) / EndEvent   -- real event, put on a ReferenceAlias\n' +
+        '    attached to the workshop reference; fires when the player enters/exits build mode.\n' +
+        '  ObjectReference.CreateWire(ObjectReference akOther)      -- real, creates a power cable\n' +
+        '  ObjectReference.TransmitConnectedPower()                 -- real, direct power link\n' +
+        '  ObjectReference.StartWorkshop(bool abLeaveMenu = true)   -- real, opens/closes build mode\n' +
+        'A one-time setup/cleanup pass that must never re-run on later workshop-mode visits should\n' +
+        'use a Papyrus STATE rather than a manual bool flag — real, verified pattern:\n' +
+        '  Auto State Init\n' +
+        '    Event OnWorkshopMode(Bool aStart)\n' +
+        '      ; one-time logic here\n' +
+        '      GotoState("Done")\n' +
+        '    EndEvent\n' +
+        '  EndState\n' +
+        '  State Done\n' +
+        '    Event OnWorkshopMode(Bool aStart)\n' +
+        '    EndEvent\n' +
+        '  EndState\n' +
+        'GotoState("Done") permanently switches which version of the event runs on ALL future\n' +
+        'firings for this script instance — the real idiomatic "only ever fire once" mechanism.\n\n' +
+        'QUEST FRAGMENT PATTERN — real CK-generated format, verified against a shipped quest\n' +
+        'mod\'s own actual fragment source (Fusion City Rising, Scripts/Source/User/Fragments/):\n' +
+        'real fragment scripts use a NAMESPACED Scriptname matching their folder\n' +
+        '(Fragments:Quests:QF_<QuestEditorID>_<FormIDHex>), "Hidden Const" not just "Hidden", the\n' +
+        'exact ;BEGIN/END FRAGMENT CODE comment markers CK itself writes, and properties declared\n' +
+        'AFTER the fragment functions, not before:\n' +
+        '  ;BEGIN FRAGMENT CODE - Do not edit anything between this and the end comment\n' +
+        '  Scriptname Fragments:Quests:QF_ClubFusionArrivalQuest_010071ED Extends Quest Hidden Const\n' +
+        '  ;BEGIN FRAGMENT Fragment_Stage_0010_Item_00\n' +
         '  Function Fragment_Stage_0010_Item_00()\n' +
-        '    SetObjectiveDisplayed(10, True)\n' +
-        '    Alias_QuestNPC.GetActorRef().EvaluatePackage()\n' +
+        '  ;BEGIN CODE\n' +
+        '  ClubFusionArrivalScene.Start()\n' +
+        '  ClubFusionMapMarkerREF.Enable()\n' +
+        '  ;END CODE\n' +
         '  EndFunction\n' +
-        '  Function Fragment_Stage_0100_Item_00()\n' +
-        '    SetObjectiveCompleted(20, True)\n' +
-        '    CompleteAllObjectives()\n' +
-        '  EndFunction',
+        '  ;END FRAGMENT\n' +
+        '  ;END FRAGMENT CODE - Do not edit anything between this and the begin comment\n' +
+        '  Scene Property ClubFusionArrivalScene Auto Const\n' +
+        '  ObjectReference Property ClubFusionMapMarkerREF Auto Const\n' +
+        'IMPORTANT CAVEAT: the FormIDHex suffix (010071ED above) is assigned by xEdit/CK only\n' +
+        'AFTER the record is created — you cannot predict it. For THIS pipeline, prefer the\n' +
+        'simpler "OnStageSet(int auiStageID, int auiItemID) directly on the main quest script"\n' +
+        'pattern shown earlier instead (it needs no FormID-dependent filename); use the namespaced\n' +
+        'Fragments:Quests: format above only if explicitly asked to match CK\'s own generated style.\n\n' +
+        'TERMINAL MENU-ITEM SCRIPTING — real CK-generated format, verified against the same shipped\n' +
+        'mod\'s Fragments/Terminals/ source. This is the REAL mechanism for "run code when a specific\n' +
+        'terminal menu option is selected" — NOT a plain ObjectReference script:\n' +
+        '  ;BEGIN FRAGMENT CODE - Do not edit anything between this and the end comment\n' +
+        '  Scriptname Fragments:Terminals:TERM_FCR_RadioTerminal_010029E8 Extends Terminal Hidden Const\n' +
+        '  ;BEGIN FRAGMENT Fragment_Terminal_01\n' +
+        '  Function Fragment_Terminal_01(ObjectReference akTerminalRef)\n' +
+        '  ;BEGIN CODE\n' +
+        '  CFHR.SetOpen()\n' +
+        '  CFCR.SetOpen(False)\n' +
+        '  ;END CODE\n' +
+        '  EndFunction\n' +
+        '  ;END FRAGMENT\n' +
+        '  ;END FRAGMENT CODE - Do not edit anything between this and the begin comment\n' +
+        '  ObjectReference Property CFHR Auto Const\n' +
+        '  ObjectReference Property CFCR Auto Const\n' +
+        'Each terminal menu item gets its own numbered Fragment_Terminal_NN(ObjectReference\n' +
+        'akTerminalRef) function in ONE script extending Terminal (not ObjectReference). Same\n' +
+        'FormID caveat as above applies to the filename.\n\n' +
+        'DIALOGUE RESPONSE SCRIPTING (TopicInfo fragment) — real format, same source:\n' +
+        '  ;BEGIN FRAGMENT CODE - Do not edit anything between this and the end comment\n' +
+        '  Scriptname Fragments:TopicInfos:TIF_CFSimQuest_0100193D Extends TopicInfo Hidden Const\n' +
+        '  ;BEGIN FRAGMENT Fragment_End\n' +
+        '  Function Fragment_End(ObjectReference akSpeakerRef)\n' +
+        '  Actor akSpeaker = akSpeakerRef as Actor\n' +
+        '  ;BEGIN CODE\n' +
+        '  CFSimQuest.SetStage(70)\n' +
+        '  COMSimDanaQuest.SetStage(10)\n' +
+        '  ;END CODE\n' +
+        '  EndFunction\n' +
+        '  ;END FRAGMENT\n' +
+        '  ;END FRAGMENT CODE - Do not edit anything between this and the begin comment\n' +
+        '  Quest Property COMSimDanaQuest Auto Const\n' +
+        '  Quest Property CFSimQuest Auto Const\n' +
+        'This confirms an INFO response can advance ANY quest via a Quest Property + SetStage(N) —\n' +
+        'the same direct-call pattern as the cross-script example above, not a special API.\n\n' +
+        'CROSS-CHECKED against a SECOND, independently-authored quest mod (Outcasts and Remnants,\n' +
+        '909 shipped .psc files) — the Fragments:Quests: namespaced format above is confirmed\n' +
+        'universal CK behavior, not one author\'s style. That mod also revealed two more real\n' +
+        'fragment types worth knowing:\n' +
+        'SCENE FRAGMENTS — Extends Scene Hidden Const, functions named Fragment_Phase_NN_Begin() —\n' +
+        'and a real CK mechanism not covered above: AUTOCAST, which lets a fragment read/write the\n' +
+        'OWNING quest\'s own custom script members directly:\n' +
+        '  ;BEGIN AUTOCAST TYPE InstSynthCreationQuestScript\n' +
+        '  InstSynthCreationQuestScript kmyQuest = GetOwningQuest() as InstSynthCreationQuestScript\n' +
+        '  ;END AUTOCAST\n' +
+        '  ;BEGIN CODE\n' +
+        '  NewSynth.GetActorReference().SetAlpha(0)\n' +
+        '  kmyQuest.ArmReady = 1\n' +
+        '  ;END CODE\n' +
+        'PACKAGE FRAGMENTS — Extends Package Hidden Const (fires when that AI Package runs);\n' +
+        'confirmed real but this mod\'s only example had no fragment code, just Property references\n' +
+        'used in the package\'s own Conditions — a Package doesn\'t need scripted code to be useful.\n' +
+        'SELF-REFERENTIAL STAGE ADVANCE — a quest fragment commonly holds a Quest Property pointing\n' +
+        'back to its OWN parent quest (not just other quests) purely so it can call\n' +
+        '"SynthCreationQuest.SetStage(N)" on itself to move to the next stage — the same SetStage-\n' +
+        'on-a-Property mechanism, just self-referential. A real terminal-stage fragment cleans up with\n' +
+        '"CompleteQuest()" then "SynthCreationQuest.Reset()" then "Stop()" together.',
     },
     'record_builder': {
       name: 'Record Builder',
@@ -18044,27 +19265,53 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     'esp_builder': {
       name: 'xEdit Script Builder',
       systemPrompt:
-        'You are the xEdit Script Builder for the Mossy Industries FO4 mod team.\n' +
-        'Your ONLY job: write a complete xEdit Pascal script that creates the mod\'s .esp file automatically.\n\n' +
+        'You are the xEdit Script Builder for the Mossy Industries FO4 DLC team.\n' +
+        'Your ONLY job: write a single, complete xEdit Pascal script that creates the ENTIRE mod .esp file automatically.\n\n' +
         'When the modder runs this in FO4Edit (Tools > Apply Script > select file), it will:\n' +
-        '1. Create a new .esp/.esl file\n' +
-        '2. Add Fallout4.esm as master\n' +
-        '3. Create every record: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL\n' +
-        '4. Fill all required fields\n\n' +
+        '1. Create a new .esp file and add Fallout4.esm as master\n' +
+        '2. Create EVERY record for this DLC — quests, NPCs, dialogue, factions, items, cells, terminals, lore books\n' +
+        '3. Fill every required field from the design documents provided to you\n' +
+        '4. Result: a playable, loadable .esp with no placeholder stubs\n\n' +
+        '════════════════════════════════════════\n' +
+        'FULL DLC RECORD TYPE COVERAGE — include ALL of these:\n' +
+        '════════════════════════════════════════\n' +
+        '• FACT — one per faction (FULL name, rank names via rank table, CRVA flags)\n' +
+        '• GLOB — one per reputation global (short name like "MI_RepFaction1", type: \'s\' short)\n' +
+        '• QUST — one per quest (EDID, FULL, DNAM flags, all INDX stage data, all CTDA conditions)\n' +
+        '• NPC_ — one per named NPC (EDID, FULL, RNAM race, VTCK voice, ZNAM combat style, AIDT AI data, KSIZ faction membership)\n' +
+        '• DIAL — one per dialogue branch/topic (EDID, FULL player prompt, SNAM category)\n' +
+        '• INFO — one per dialogue response, added under its DIAL (NAM1 response text, conditions)\n' +
+        '• BOOK — holotapes (FULL, CNAM desc, DESC transcript) and notes (Record Flags Is Note + DESC text)\n' +
+        '• TERM — terminals (FULL, DNAM body text with all menu entries)\n' +
+        '• WEAP — one per weapon (EDID, FULL, DATA damage/speed, DNAM flags, KWDA keywords)\n' +
+        '• ARMO — one per armor piece (EDID, FULL, RNAM race, DNAM armorRating, KWDA keywords)\n' +
+        '• MISC — one per misc item (EDID, FULL, DATA value/weight)\n' +
+        '• COBJ — crafting recipes (EDID, BNAM workbench, FNAM output item, component list CTDA conditions)\n' +
+        '• CELL — one per interior cell (EDID, FULL, DATA Is Interior Cell flag, XCLC grid coords)\n' +
+        '• LCTN — location records (EDID, FULL, PNAM parent, FNAM flags)\n' +
+        '• ECZN — encounter zones (EDID, DATA owner NPC/FACT, level, min/max, reset)\n' +
+        '• LVLN/LVLI — leveled NPC/item lists for random spawns (one per spawn group)\n\n' +
         '════════════════════════════════════════\n' +
         'MANDATORY OUTPUT FORMAT — ONE pascal block:\n' +
         '════════════════════════════════════════\n' +
         '```pascal\n' +
-        '{  <ModName> — xEdit Pascal Build Script\n' +
+        '{  <DLCName> — xEdit Pascal Build Script\n' +
         '   Instructions:\n' +
         '   1. Open FO4Edit, load Fallout4.esm only\n' +
         '   2. Tools > Apply Script > select this .pas file\n' +
-        '   3. Name the new ESP when prompted\n}\n' +
+        '   3. Name the new ESP when prompted\n' +
+        '   4. Save — your DLC .esp is ready\n}\n' +
         'var\n' +
         '  f: IInterface;\n\n' +
         'procedure SetVal(e: IInterface; path, val: String);\n' +
         'begin\n' +
-        '  try SetEditValue(ElementByPath(e, path), val); except end;\n' +
+        '  { NEVER swallow errors silently (try..except end with no logging) — a failed\n' +
+        '    ElementByPath means that field was NOT set, and a silent SetVal hides it. }\n' +
+        '  try\n' +
+        '    SetEditValue(ElementByPath(e, path), val);\n' +
+        '  except\n' +
+        '    on E: Exception do AddMessage(\'SetVal FAILED on path "\' + path + \'": \' + E.Message);\n' +
+        '  end;\n' +
         'end;\n\n' +
         'function AddRec(grp: IInterface; sig: String): IInterface;\n' +
         'begin\n' +
@@ -18073,89 +19320,186 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         'function Initialize: Integer;\n' +
         'var\n' +
         '  grp, rec, dial, info, book, term, cell, npc: IInterface;\n' +
+        '  fact, glob, weap, armo, misc, cobj, lctn, eczn, lvli: IInterface;\n' +
         'begin\n' +
         '  f := AddNewFile;\n' +
         '  if not Assigned(f) then begin AddMessage(\'ERROR: Could not create file\'); Result:=1; Exit; end;\n' +
-        '  AddRequiredElementMasters(f, \'Fallout4.esm\', False);\n' +
-        '  SetVal(ElementByPath(f, \'Record Header\\Record Flags\'), \'ESL\');\n\n' +
-        '  { ── QUST ── }\n' +
+        '  AddRequiredElementMasters(f, \'Fallout4.esm\', False);\n\n' +
+        '  { ── FACT (factions) ── }\n' +
+        '  grp := GroupBySignature(f, \'FACT\');\n' +
+        '  fact := AddRec(grp, \'FACT\');\n' +
+        '  SetVal(fact, \'EDID\', \'MI_FactionEditorID\');\n' +
+        '  SetVal(fact, \'FULL\', \'Faction Display Name\');\n' +
+        '  { Add ranks: Add(fact, \'Ranks\\Rank\', True); then SetVal rank MNAM/FNAM }\n\n' +
+        '  { ── GLOB (reputation globals) ── }\n' +
+        '  grp := GroupBySignature(f, \'GLOB\');\n' +
+        '  glob := AddRec(grp, \'GLOB\');\n' +
+        '  SetVal(glob, \'EDID\', \'MI_RepGlobal\');\n' +
+        '  SetVal(glob, \'FNAM\', \'s\');  { s=short, f=float, l=long }\n' +
+        '  SetVal(glob, \'FLTV\', \'0\');\n\n' +
+        '  { ── QUST (quests) ── }\n' +
         '  grp := GroupBySignature(f, \'QUST\');\n' +
         '  rec := AddRec(grp, \'QUST\');\n' +
-        '  SetVal(rec, \'EDID\', \'MI_QuestEditorID\');\n' +
+        '  SetVal(rec, \'EDID\', \'MI_MainQuest01\');\n' +
         '  SetVal(rec, \'FULL\', \'Quest Display Name\');\n' +
-        '  SetVal(rec, \'DNAM\\Flags\\Start Game Enabled\', \'1\');\n\n' +
-        '  { ── NPC_ ── }\n' +
+        '  SetVal(rec, \'DNAM\\Flags\\Start Game Enabled\', \'1\');\n' +
+        '  SetVal(rec, \'DNAM\\Priority\', \'0\');\n' +
+        '  { QUST has NO top-level free-text description field — do not invent one (no\n' +
+        '    "NNAM"/"ObjectiveText" directly on the quest; NNAM only exists per-Objective). }\n\n' +
+        '  { Quest STAGES — verified real layout: QUST -> \'Stages\'(array) -> Stage ->\n' +
+        '    \'Log Entries\'(array) -> Log Entry {CNAM=journal text}. Each stage/log entry is a\n' +
+        '    NEW array element — use ElementAssign(path, HighInteger, nil, False), never reuse\n' +
+        '    the same element for multiple stages (that just overwrites stage 1 repeatedly). }\n' +
+        '  var stageEntry, logEntry: IInterface;\n' +
+        '  stageEntry := ElementAssign(ElementByPath(rec, \'Stages\'), HighInteger, nil, False);\n' +
+        '  SetVal(stageEntry, \'Stage Index\\Stage Index\', \'10\');\n' +
+        '  logEntry := ElementAssign(ElementByPath(stageEntry, \'Log Entries\'), HighInteger, nil, False);\n' +
+        '  SetVal(logEntry, \'CNAM\', \'Journal text for stage 10.\');\n' +
+        '  stageEntry := ElementAssign(ElementByPath(rec, \'Stages\'), HighInteger, nil, False);\n' +
+        '  SetVal(stageEntry, \'Stage Index\\Stage Index\', \'20\');\n' +
+        '  logEntry := ElementAssign(ElementByPath(stageEntry, \'Log Entries\'), HighInteger, nil, False);\n' +
+        '  SetVal(logEntry, \'CNAM\', \'Journal text for stage 20.\');\n' +
+        '  { repeat the stageEntry/logEntry pair above for every stage — never call SetVal\n' +
+        '    on the same stageEntry variable twice for two different stage indices }\n\n' +
+        '  { ── NPC_ (characters) ── }\n' +
         '  grp := GroupBySignature(f, \'NPC_\');\n' +
         '  npc := AddRec(grp, \'NPC_\');\n' +
         '  SetVal(npc, \'EDID\', \'MI_NPCEditorID\');\n' +
         '  SetVal(npc, \'FULL\', \'NPC Display Name\');\n' +
         '  SetVal(npc, \'RNAM\', \'HumanRace\');\n' +
         '  SetVal(npc, \'VTCK\\Voice Type\', \'MaleBoston\');\n\n' +
-        '  { ── DIAL (dialogue topic) ── }\n' +
+        '  { ── DIAL + INFO (dialogue) ── }\n' +
         '  grp := GroupBySignature(f, \'DIAL\');\n' +
         '  dial := AddRec(grp, \'DIAL\');\n' +
-        '  SetVal(dial, \'EDID\', \'MI_DialogueTopic01\');\n' +
+        '  SetVal(dial, \'EDID\', \'MI_Topic01\');\n' +
         '  SetVal(dial, \'FULL\', \'Player Prompt Text\');\n' +
-        '  SetVal(dial, \'SNAM\\Category\', \'Topic\');\n\n' +
-        '  { ── INFO (dialogue response under DIAL) ── }\n' +
+        '  SetVal(dial, \'SNAM\\Category\', \'Topic\');\n' +
         '  info := Add(dial, \'INFO\', True);\n' +
-        '  SetVal(info, \'EDID\', \'MI_DialogueInfo01\');\n' +
-        '  SetVal(info, \'Responses\\Response\\NAM1\', \'NPC spoken response line here.\');\n\n' +
+        '  SetVal(info, \'EDID\', \'MI_Info01\');\n' +
+        '  SetVal(info, \'Responses\\Response\\NAM1\', \'NPC response text.\');\n\n' +
         '  { ── BOOK (holotape) ── }\n' +
         '  grp := GroupBySignature(f, \'BOOK\');\n' +
         '  book := AddRec(grp, \'BOOK\');\n' +
         '  SetVal(book, \'EDID\', \'MI_HolotapeEditorID\');\n' +
         '  SetVal(book, \'FULL\', \'Holotape Name\');\n' +
-        '  SetVal(book, \'CNAM\', \'Holotape inventory description.\');\n' +
-        '  SetVal(book, \'DESC\', \'Full holotape transcript line 1.\');\n\n' +
-        '  { ── BOOK (note with IsNote flag) ── }\n' +
+        '  SetVal(book, \'CNAM\', \'Holotape description.\');\n' +
+        '  SetVal(book, \'DESC\', \'Full holotape transcript text.\');\n\n' +
+        '  { ── BOOK (note) ── }\n' +
         '  book := AddRec(grp, \'BOOK\');\n' +
         '  SetVal(book, \'EDID\', \'MI_NoteEditorID\');\n' +
         '  SetVal(book, \'FULL\', \'Note Name\');\n' +
         '  SetVal(book, \'Record Header\\Record Flags\\Is Note\', \'1\');\n' +
-        '  SetVal(book, \'DESC\', \'Full note text here.\');\n\n' +
+        '  SetVal(book, \'DESC\', \'Note text.\');\n\n' +
         '  { ── TERM (terminal) ── }\n' +
         '  grp := GroupBySignature(f, \'TERM\');\n' +
         '  term := AddRec(grp, \'TERM\');\n' +
-        '  SetVal(term, \'EDID\', \'MI_TerminalEditorID\');\n' +
+        '  SetVal(term, \'EDID\', \'MI_TermEditorID\');\n' +
         '  SetVal(term, \'FULL\', \'Terminal Name\');\n' +
-        '  SetVal(term, \'DNAM\', \'> MOSSY INDUSTRIES TERMINAL - LOGIN\');\n\n' +
-        '  { ── CELL ── }\n' +
+        '  SetVal(term, \'DNAM\', \'> MOSSY INDUSTRIES — LOGIN\');\n\n' +
+        '  { ── WEAP (weapons) ── }\n' +
+        '  grp := GroupBySignature(f, \'WEAP\');\n' +
+        '  weap := AddRec(grp, \'WEAP\');\n' +
+        '  SetVal(weap, \'EDID\', \'MI_WeaponEditorID\');\n' +
+        '  SetVal(weap, \'FULL\', \'Weapon Display Name\');\n' +
+        '  SetVal(weap, \'DATA\\Damage\', \'25\');\n' +
+        '  SetVal(weap, \'DNAM\\Animation Type\', \'OneHandSword\');\n\n' +
+        '  { ── ARMO (armor) ── }\n' +
+        '  grp := GroupBySignature(f, \'ARMO\');\n' +
+        '  armo := AddRec(grp, \'ARMO\');\n' +
+        '  SetVal(armo, \'EDID\', \'MI_ArmorEditorID\');\n' +
+        '  SetVal(armo, \'FULL\', \'Armor Display Name\');\n' +
+        '  SetVal(armo, \'RNAM\', \'HumanRace\');\n' +
+        '  SetVal(armo, \'DNAM\\Armor Rating\', \'20\');\n\n' +
+        '  { ── MISC (misc items) ── }\n' +
+        '  grp := GroupBySignature(f, \'MISC\');\n' +
+        '  misc := AddRec(grp, \'MISC\');\n' +
+        '  SetVal(misc, \'EDID\', \'MI_MiscEditorID\');\n' +
+        '  SetVal(misc, \'FULL\', \'Item Name\');\n' +
+        '  SetVal(misc, \'DATA\\Value\', \'50\');\n' +
+        '  SetVal(misc, \'DATA\\Weight\', \'0.1\');\n\n' +
+        '  { ── CELL (interior cells) ── }\n' +
         '  grp := GroupBySignature(f, \'CELL\');\n' +
         '  cell := AddRec(grp, \'CELL\');\n' +
         '  SetVal(cell, \'EDID\', \'MI_CellEditorID\');\n' +
         '  SetVal(cell, \'FULL\', \'Cell Display Name\');\n' +
         '  SetVal(cell, \'DATA\\Flags\\Is Interior Cell\', \'1\');\n\n' +
+        '  { ── LCTN (locations) ── }\n' +
+        '  grp := GroupBySignature(f, \'LCTN\');\n' +
+        '  lctn := AddRec(grp, \'LCTN\');\n' +
+        '  SetVal(lctn, \'EDID\', \'MI_LocationEditorID\');\n' +
+        '  SetVal(lctn, \'FULL\', \'Location Display Name\');\n\n' +
+        '  { ── ECZN (encounter zones) ── }\n' +
+        '  grp := GroupBySignature(f, \'ECZN\');\n' +
+        '  eczn := AddRec(grp, \'ECZN\');\n' +
+        '  SetVal(eczn, \'EDID\', \'MI_EncounterZoneEditorID\');\n' +
+        '  SetVal(eczn, \'DATA\\Min Level\', \'10\');\n' +
+        '  SetVal(eczn, \'DATA\\Max Level\', \'0\');\n\n' +
+        '  AddMessage(\'[MI DLC Builder] All records created successfully.\');\n' +
         '  Result := 0;\n' +
         'end;\n\n' +
         'function Finalize: Integer;\n' +
         'begin\n' +
-        '  AddMessage(\'Build complete. Verify all records in xEdit before distributing.\');\n' +
+        '  AddMessage(\'Build complete. Save the file, then load it in CK to compile scripts and verify.\');\n' +
         '  Result := 0;\n' +
         'end;\n' +
         '```\n\n' +
-        'This is the MINIMUM structure. Your actual script must replace ALL EditorIDs, names, and text\n' +
-        'with real values from the Record Builder JSON, and must include EVERY record from that JSON.\n' +
-        'A real script will be 150-300+ lines. Do NOT copy the example above — expand it fully.\n\n' +
+        'This is the TEMPLATE — replace ALL placeholder EditorIDs, names, values, and text with REAL\n' +
+        'content from the Record Builder JSON and all prior design sections.\n' +
+        'A DLC-scale script will be 300-600+ lines. Every record from the JSON must be in the script.\n\n' +
         'End with: ## ESP BUILDER COMPLETE\n\n' +
         '════════════════════════════════════════\n' +
         'HARD RULES:\n' +
         '════════════════════════════════════════\n' +
-        '• Use EVERY EditorID from the Record Builder JSON — create all records in the script.\n' +
-        '• SetVal() must handle all string fields: EDID, FULL, DNAM, etc.\n' +
-        '• Records must be created in dependency order: QUST → NPC_ → DIAL → INFO → BOOK → TERM → CELL.\n' +
-        '• Every INFO must be added as a sub-record under its DIAL (Add(dial, \'INFO\', True)).\n' +
-        '• For BOOK (holotape): set FULL, CNAM (description), MODL (model path).\n' +
-        '• For BOOK (IsNote): SetVal(rec, \'Record Header\\Record Flags\', \'Book\').\n' +
-        '• Script must be 100+ lines — a skeleton is a FAIL.\n\n' +
+        '• Build in dependency order: GLOB → FACT → NPC_ → QUST → DIAL → INFO → BOOK → TERM → WEAP → ARMO → MISC → CELL → LCTN → ECZN\n' +
+        '• Every QUST must have DNAM priority and at least one stage — use the exact Stages/Log Entries\n' +
+        '  pattern shown above (ElementAssign a NEW array element per stage). NEVER write a flat\n' +
+        '  \'Stages\\Stage\\Index\' or \'Stages\\Stage\\ObjectiveText\' path — those do not exist and will\n' +
+        '  silently fail. There is also no top-level quest description field — do not invent one.\n' +
+        '• NEVER wrap SetVal/ElementByPath calls in a bare "try..except end" with no message — every\n' +
+        '  caught exception must AddMessage() the failure, exactly like the SetVal() helper above, so a\n' +
+        '  broken path is visible in the xEdit message log instead of silently producing an empty field.\n' +
+        '• Every NPC_ must have RNAM race and VTCK voice type — never leave these blank\n' +
+        '• Every INFO must be Add(dial, \'INFO\', True) — child of its DIAL, not a standalone record\n' +
+        '• GLOB type field: \'s\'=short int, \'f\'=float, \'l\'=long — reputation globals use \'s\'\n' +
+        '• COBJ crafting recipes: BNAM=workbench FormID, FNAM=output record FormID, COCT=component count\n' +
+        '• Script must be 200+ lines covering ALL DLC record types — skeleton stubs are a FAIL\n' +
+        '• CRITICAL CONSISTENCY RULE, verified via a real generated project that failed for exactly\n' +
+        '  this reason: this Pascal script and the Record Builder\'s mod_records.json describe the SAME\n' +
+        '  mod, so they MUST use IDENTICAL EditorIDs, the SAME quest/faction/item COUNT, and the SAME\n' +
+        '  names for every record already established earlier in this build (by Script Writer\'s exact\n' +
+        '  Scriptnames, or Record Builder\'s mod_records.json if you can see it in context). NEVER invent\n' +
+        '  your own alternate EditorID for something already named elsewhere in this same mod (e.g. do\n' +
+        '  not write "DrEleanorMoss" here if an earlier stage already established "MI_EleanorMoss" for\n' +
+        '  the same NPC, and do not add extra quests/factions/weapons that were never designed in the\n' +
+        '  earlier Quest/Faction/Item design stages) — a modder who builds from mod_records.json gets a\n' +
+        '  DIFFERENT, incompatible mod than one who runs this script otherwise, which makes neither\n' +
+        '  reliable.\n' +
+        '• CRITICAL VMAD RULE, verified via real generated project that failed for exactly this reason:\n' +
+        '  when you attach a script to a record with \'Add(rec, \'VMAD\', True); SetVal(subrec,\n' +
+        '  \'VMAD\\Script\', \'ScriptName\')\', the script\'s own \'extends\' clause MUST match what kind of\n' +
+        '  record you are attaching it to:\n' +
+        '    - "extends Quest" scripts → ONLY attach to a QUST record\'s VMAD, never to an NPC_ or any\n' +
+        '      other record type\n' +
+        '    - "extends Actor" scripts → ONLY attach to an NPC_ (or other Actor-derived) record\'s VMAD\n' +
+        '    - "extends ObjectReference" scripts (this includes ANY script with Event OnTriggerEnter or\n' +
+        '      Event OnActivate meant to fire from a placed trigger/object) → these belong on a PLACED\n' +
+        '      REFERENCE in a cell (e.g. a trigger box primitive), NEVER on a base NPC_/ACTI/etc. record\n' +
+        '      — an OnTriggerEnter script attached to an NPC_\'s VMAD will never fire as designed because\n' +
+        '      NPC_ base records have no trigger volume\n' +
+        '  Attaching a script to the wrong record type either fails validation in CK or silently never\n' +
+        '  runs the intended logic. If you do not have a placed-reference record type available for an\n' +
+        '  ObjectReference-extending script in this build stage, do not attach it anywhere rather than\n' +
+        '  attaching it to the nearest wrong-typed record — leave a comment noting it needs a placed\n' +
+        '  reference in CK instead.\n\n' +
         'REAL XEDIT PASCAL API:\n' +
         '  AddNewFile → IInterface (new file, prompts for name)\n' +
         '  AddRequiredElementMasters(f, \'Fallout4.esm\', False)\n' +
-        '  GroupBySignature(f, \'QUST\') → IInterface (the QUST group in the file)\n' +
-        '  Add(group, \'QUST\', True) → IInterface (new record)\n' +
-        '  ElementByPath(rec, \'EDID\') → IInterface (field)\n' +
-        '  SetEditValue(field, \'value\') — or use SetVal() helper above\n' +
-        '  AddMessage(\'text\') — log output during script execution',
+        '  GroupBySignature(f, \'QUST\') → group for that record type\n' +
+        '  Add(group, \'QUST\', True) → new record\n' +
+        '  Add(dial, \'INFO\', True) → new INFO child under a DIAL\n' +
+        '  ElementByPath(rec, \'EDID\') → field interface\n' +
+        '  SetEditValue(field, \'value\') — or use SetVal() helper\n' +
+        '  AddMessage(\'text\') — log to xEdit message window',
     },
     'world_designer': {
       name: 'World Designer',
@@ -18188,10 +19532,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '## Concept Art Prompts\n' +
         '```concept-art\n' +
         '[\n' +
-        '  { "id": "world_01", "label": "Main Hub Location", "prompt": "Describe the visual in 2-3 sentences for a Stable Diffusion artist" },\n' +
-        '  { "id": "world_02", "label": "Key Interior", "prompt": "..." }\n' +
+        '  { "id": "world_01", "label": "Main Hub Exterior", "prompt": "Mossy Industries underground facility entrance, overgrown with fungal growth, post-apocalyptic Commonwealth wasteland, fallout 4 concept art, digital painting, atmospheric" },\n' +
+        '  { "id": "world_02", "label": "Key Interior Cell", "prompt": "Pre-war laboratory corridor, bioluminescent fungal networks on walls, broken equipment, fallout 4 concept art, digital painting, detailed" },\n' +
+        '  { "id": "world_03", "label": "Boss Arena", "prompt": "Large cavern chamber, pulsing mycelium columns, eerie green light, fallout 4 concept art, digital painting, atmospheric, post-apocalyptic" }\n' +
         ']\n' +
         '```\n\n' +
+        '⚠️ REQUIRED: Your output MUST end with the exact line: ## WORLD DESIGN COMPLETE\n' +
+        'Do NOT omit this line — the pipeline will reject your output without it.\n\n' +
         'End with: ## WORLD DESIGN COMPLETE',
     },
     'faction_designer': {
@@ -18270,9 +19617,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '════════════════════════════════════════\n' +
         'MANDATORY OUTPUT — MINIMUM COUNTS:\n' +
         '════════════════════════════════════════\n' +
-        '• 10+ HOLOTAPES (BOOK records): full audio transcript in character. One holotape per major location or NPC.\n' +
-        '• 5+ TERMINALS (TERM records): multi-entry terminal with welcome text and 3+ menu entries each.\n' +
-        '• 10+ NOTES/LETTERS (BOOK with IsNote flag): handwritten notes, memos, journal pages.\n\n' +
+        '• 5+ HOLOTAPES (BOOK records): full audio transcript in character. One holotape per major location or NPC.\n' +
+        '• 3+ TERMINALS (TERM records): multi-entry terminal with welcome text and 2+ menu entries each.\n' +
+        '• 5+ NOTES/LETTERS (BOOK with IsNote flag): handwritten notes, memos, journal pages.\n\n' +
         'Format for each piece:\n\n' +
         '## Holotape: [Title]\n' +
         'EditorID: MI_Holo_[name]\n' +
@@ -18492,46 +19839,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       ?? role;
   }
 
-  function cdMissingSections(project: CdProject): string[] {
-    const allText = project.turns.map((t) => t.message).join('\n');
-    const missing: string[] = [];
-
-    // Section 0: Papyrus Scripts — must have ## SCRIPTS COMPLETE and ≥2 named papyrus blocks
-    const scriptWriterTurns = project.turns.filter(t => t.agent === ('script_writer' as CdAgentRole));
-    if (scriptWriterTurns.length === 0) {
-      missing.push('Papyrus Scripts');
-    } else {
-      const swText = scriptWriterTurns.map(t => t.message).join('\n');
-      const scriptBlocks = [...swText.matchAll(/## Script:\s*\S+\.psc/gi)];
-      const hasComplete = /## SCRIPTS COMPLETE/i.test(swText);
-      if (scriptBlocks.length < 1 || !hasComplete) missing.push('Papyrus Scripts');
-    }
-
-    // Section 1: ESP Records (JSON) — must have ## RECORDS COMPLETE and a valid json block
-    const recordBuilderTurns = project.turns.filter(t => t.agent === ('record_builder' as CdAgentRole));
-    if (recordBuilderTurns.length === 0) {
-      missing.push('ESP Records (JSON)');
-    } else {
-      const rbText = recordBuilderTurns.map(t => t.message).join('\n');
-      const hasJson = /```json[\s\S]*?```/i.test(rbText);
-      const hasComplete = /## RECORDS COMPLETE/i.test(rbText);
-      if (!hasJson || !hasComplete) missing.push('ESP Records (JSON)');
-    }
-
-    // Section 2: xEdit Builder Script — must have ## ESP BUILDER COMPLETE and a pascal block
-    const espBuilderTurns = project.turns.filter(t => t.agent === ('esp_builder' as CdAgentRole));
-    if (espBuilderTurns.length === 0) {
-      missing.push('xEdit Builder Script');
-    } else {
-      const ebText = espBuilderTurns.map(t => t.message).join('\n');
-      const hasPascal = /```pascal[\s\S]*?```/i.test(ebText);
-      const hasComplete = /## ESP BUILDER COMPLETE/i.test(ebText);
-      if (!hasPascal || !hasComplete) missing.push('xEdit Builder Script');
-    }
-
-    return missing;
-  }
-
   // Extract the content written under a ## heading from any block of text.
   // Used to pull real section content from a prior transcript so it can be
   // carried forward into a revision without stubs.
@@ -18647,13 +19954,39 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   let cdTeamState: CdTeamState = loadCdTeamState();
   let cdTurnInFlight = false;
 
-  async function cdCallAgent(systemPrompt: string, userPrompt: string): Promise<string> {
+  /**
+   * "Require HTTPS" (Privacy Settings) — checked against user-configurable
+   * endpoint URLs (Inkling/backend base URLs) before connecting. Localhost is
+   * always exempt (that's where Ollama/KoboldCpp run — those are never
+   * remote, so there is nothing plaintext to intercept), matching how
+   * browsers already treat localhost as a secure context.
+   */
+  function isUrlAllowedByHttpsPolicy(rawUrl: string): boolean {
+    try {
+      const s = loadSettings();
+      if (s?.securitySettings?.requireHttps === false || s?.securitySettings?.requireHttps === undefined) return true;
+      const u = new URL(rawUrl);
+      if (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '::1') return true;
+      return u.protocol === 'https:';
+    } catch {
+      return true; // unparsable URL — let the actual fetch() surface the real error
+    }
+  }
+
+  async function cdCallAgent(systemPrompt: string, userPrompt: string, maxTokens = 8192): Promise<string> {
     const s = loadSettings();
+    // "Allow Network Access" governs external/cloud providers only — local
+    // Ollama (127.0.0.1) and local KoboldCpp further below still work when disabled.
+    const networkAllowed = s?.privacySettings?.allowNetworkAccess !== false;
 
     // PRIMARY: Inkling (when configured) — routes all CD roles through the 975B model
     try {
-      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      const inklingBase = String(s?.inklingBaseUrl || '').trim();
+      const inklingKey = networkAllowed ? getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY') : '';
+      let inklingBase = networkAllowed ? String(s?.inklingBaseUrl || '').trim() : '';
+      if (inklingBase && !isUrlAllowedByHttpsPolicy(inklingBase)) {
+        console.warn('[CreativeDirector] Inkling base URL blocked by "Require HTTPS" policy:', inklingBase);
+        inklingBase = '';
+      }
       const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling').trim();
       if (inklingKey && inklingBase) {
         const controller = new AbortController();
@@ -18668,7 +20001,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
               ],
-              max_tokens: 8192,
+              max_tokens: maxTokens,
               temperature: 0.7,
             }),
             signal: controller.signal,
@@ -18699,7 +20032,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             { role: 'user', content: userPrompt },
           ],
           stream: false,
-          options: { num_predict: 8192, temperature: 0.7 },
+          options: { num_predict: maxTokens, temperature: 0.7 },
         }),
         signal: AbortSignal.timeout(180_000),
       });
@@ -18714,8 +20047,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
     // FALLBACK: Groq cloud — only used when Ollama is not running.
     try {
-      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      const backend = getBackendConfig();
+      const apiKey = networkAllowed ? getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY') : '';
+      const backend = networkAllowed ? getBackendConfig() : null;
       if (apiKey || backend) {
         const messages: Array<{ role: 'system' | 'user'; content: string }> = [
           { role: 'system', content: systemPrompt },
@@ -18725,6 +20058,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         // produce real, structured design content and syntactically valid
         // Papyrus, not quick chat replies.
         const cdModel = GROQ_FALLBACK_MODEL;
+        // Groq hard-caps completion length per model regardless of what's requested
+        // (8,192 for the models this app uses) — clamp so a larger section budget
+        // never sends a value the API might reject.
+        const groqMaxTokens = Math.min(maxTokens, 8192);
         if (backend) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 60000);
@@ -18732,7 +20069,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             const res = await fetch(backendJoin(backend, '/v1/chat'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: 8192 }),
+              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: groqMaxTokens }),
               signal: controller.signal,
             });
             const json: any = await res.json().catch(() => ({}));
@@ -18742,7 +20079,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (apiKey) {
           const { default: Groq } = await import('groq-sdk');
           const client = new Groq({ apiKey });
-          const text = await callGroqWithFallback(client as any, cdModel, messages, 8192);
+          const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
           if (text) return text;
         }
       }
@@ -18779,7 +20116,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // High-quality agent call — skips local Ollama (small model) and routes directly
   // to Inkling (if configured) or Groq cloud. Used by all specialist build roles where
   // output quality determines whether the files are usable.
-  async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string): Promise<string> {
+  async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string, maxTokens = 8192): Promise<string> {
     const s = loadSettings();
 
     // PRIMARY: Inkling via Thinking Machines Tinker API (or any OpenAI-compatible endpoint)
@@ -18801,7 +20138,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
               ],
-              max_tokens: 8192,
+              max_tokens: maxTokens,
               temperature: 0.7,
             }),
             signal: controller.signal,
@@ -18814,10 +20151,42 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         } catch { /* fall through to Groq */ } finally { clearTimeout(timeout); }
       }
     } catch (err) {
-      console.warn('[CreativeDirector] Inkling path failed, falling back to Groq:', err);
+      console.warn('[CreativeDirector] Inkling path failed, falling back to local specialist model:', err);
     }
 
-    // SECONDARY: Groq cloud
+    // SECONDARY: local Ollama specialist model (Qwen3.5 9B by default) — benchmarks
+    // well specifically on structured/strict-format output, which is what this team's
+    // build-section verifier actually checks (required headings, closed JSON fences,
+    // minimum table counts). Tried before Groq because it's free, has no rate limit,
+    // and fits fully in an 8GB card. Falls through silently if Ollama isn't running or
+    // the model hasn't been pulled yet (`ollama pull qwen3.5:9b`).
+    try {
+      const ollamaBase = String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
+      const specialistModel = String(s?.cdSpecialistOllamaModel || 'qwen3.5:9b');
+      const res = await fetch(`${ollamaBase}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: specialistModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          stream: false,
+          options: { num_predict: maxTokens, temperature: 0.6 },
+        }),
+        signal: AbortSignal.timeout(180_000),
+      });
+      if (res.ok) {
+        const json: any = await res.json().catch(() => ({}));
+        const text = json?.message?.content;
+        if (text) return String(text);
+      }
+    } catch (err) {
+      console.warn('[CreativeDirector] Local specialist model unavailable, falling back to Groq:', err);
+    }
+
+    // TERTIARY: Groq cloud
     try {
       const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
       const backend = getBackendConfig();
@@ -18827,6 +20196,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           { role: 'user', content: userPrompt },
         ];
         const cdModel = GROQ_FALLBACK_MODEL;
+        // Groq hard-caps completion length per model regardless of what's requested
+        // (8,192 for the models this app uses) — clamp so a larger section budget
+        // never sends a value the API might reject.
+        const groqMaxTokens = Math.min(maxTokens, 8192);
         if (backend) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 120000);
@@ -18834,7 +20207,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             const res = await fetch(backendJoin(backend, '/v1/chat'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: 8192 }),
+              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: groqMaxTokens }),
               signal: controller.signal,
             });
             const json: any = await res.json().catch(() => ({}));
@@ -18844,7 +20217,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (apiKey) {
           const { default: Groq } = await import('groq-sdk');
           const client = new Groq({ apiKey });
-          const text = await callGroqWithFallback(client as any, cdModel, messages, 8192);
+          const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
           if (text) return text;
         }
       }
@@ -18853,7 +20226,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
 
     // FALLBACK: local Ollama (whatever model is configured)
-    return cdCallAgent(systemPrompt, userPrompt);
+    return cdCallAgent(systemPrompt, userPrompt, maxTokens);
   }
 
   function cdExtractCodeBlocks(message: string): Array<{ lang: string; content: string }> {
@@ -18943,21 +20316,50 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     ].join('\n');
 
     const recent = project.turns.slice(-8);
+
+    // The Script Writer and Record Builder establish the CANONICAL EditorIDs/names
+    // for every quest, NPC, faction, and item — every later agent (especially ESP
+    // Records JSON and the xEdit Builder Script) must reuse those exact names rather
+    // than inventing their own. Retries/verifier back-and-forth can easily push that
+    // output outside the last-8-turns window by the time a later section runs, so
+    // pin the MOST RECENT record_builder and script_writer turns in separately,
+    // regardless of recency — this is a real, verified failure mode (a generated
+    // project's mod_records.json and create_esp.pas used completely different
+    // EditorIDs for the same NPCs/quests because esp_builder never actually saw the
+    // earlier record_builder output that had scrolled out of the recent-turns window).
+    const canonicalPins: string[] = [];
+    for (const role of ['record_builder', 'script_writer'] as CdAgentRole[]) {
+      const lastOfRole = [...project.turns].reverse().find((t) => t.agent === role);
+      if (lastOfRole && !recent.includes(lastOfRole)) {
+        let msg = lastOfRole.message;
+        if (msg.length > 3000) msg = msg.slice(0, 3000) + '\n...(truncated)';
+        canonicalPins.push(`[CANONICAL — ${cdGetPersonaName(role)}'s most recent output, reuse these exact names]:\n${msg}`);
+      }
+    }
+
     const lines = recent.map((t) => {
       let msg = t.message;
       if (msg.length > 2000) msg = msg.slice(0, 2000) + '\n...(truncated)';
       return `[${cdGetPersonaName(t.agent)}]: ${msg}`;
     });
 
-    return [header, '', 'RECENT TURNS:', ...lines].join('\n');
+    return [header, '', ...canonicalPins, '', 'RECENT TURNS:', ...lines].join('\n');
   }
 
   async function cdFinalizeProject(project: CdProject, missingSections: string[]): Promise<boolean> {
     const finalTurn = project.turns[project.turns.length - 1];
     const finalMessage = finalTurn?.message || '';
     const completeIdx = finalMessage.search(/^PROJECT_COMPLETE/im);
-    const summary = (completeIdx >= 0 ? finalMessage.slice(completeIdx) : finalMessage)
-      .replace(/^PROJECT_COMPLETE\s*/i, '').trim().slice(0, 2000) || 'No summary provided.';
+    // If the project finalized because the LAST section was force-skipped, finalMessage
+    // is just the "[Section N skipped...]" notice, not a real synopsis — surfacing that
+    // verbatim as the "summary" is misleading (looks like the whole project self-reports
+    // fine while also claiming missingSections: [] elsewhere). Fall back to a message
+    // that actually says what happened instead.
+    const isSkipNotice = /^\[(Section|Sub-item) \d+.*skipped after 5 failed attempts/i.test(finalMessage.trim());
+    const summary = isSkipNotice
+      ? `Incomplete: ${finalMessage.trim()} No project synopsis was produced — review the build sections and manifest.missingSections before treating this as finished.`
+      : (completeIdx >= 0 ? finalMessage.slice(completeIdx) : finalMessage)
+          .replace(/^PROJECT_COMPLETE\s*/i, '').trim().slice(0, 2000) || 'No summary provided.';
 
     const outputDir = path.join(app.getPath('userData'), 'creative-director-projects', project.id);
     fs.mkdirSync(outputDir, { recursive: true });
@@ -18976,14 +20378,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
 
     // ── Extract ESP records JSON from record_builder output ──────────────────
+    // Tolerant of the model forgetting the closing ``` fence on long JSON output —
+    // observed in production: the model closes every JSON brace correctly but never
+    // emits the trailing ``` before its "## ... COMPLETE" marker, which silently
+    // failed extraction under the old strict-fence regex (no file, no warning).
     let modRecordsJson: string | null = null;
     for (const t of [...project.turns].reverse()) {
       if (t.agent !== ('record_builder' as CdAgentRole)) continue;
-      const jMatch = t.message.match(/```json\s*([\s\S]*?)```/i);
+      const jMatch = t.message.match(/```json\s*([\s\S]*?)(?:```|$)/i);
       if (jMatch) {
         try {
-          // Strip ## RECORDS COMPLETE if the LLM accidentally placed it inside the fence
-          let jsonContent = jMatch[1].replace(/\s*##\s*RECORDS\s*COMPLETE[\s\S]*/i, '').trim();
+          // Strip any trailing "## Heading" text the LLM left inside/after the fence
+          let jsonContent = jMatch[1].replace(/\n##[ \t][\s\S]*$/, '').trim();
           JSON.parse(jsonContent); // validate
           modRecordsJson = jsonContent;
           break;
@@ -18992,21 +20398,27 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
 
     // ── Extract xEdit Pascal script from esp_builder output ──────────────────
+    // Same closing-fence tolerance as above.
     let espPascalScript: string | null = null;
     for (const t of [...project.turns].reverse()) {
       if (t.agent !== ('esp_builder' as CdAgentRole)) continue;
-      const pMatch = t.message.match(/```pascal\s*([\s\S]*?)```/i);
-      if (pMatch) { espPascalScript = pMatch[1].trim(); break; }
+      const pMatch = t.message.match(/```pascal\s*([\s\S]*?)(?:```|$)/i);
+      if (pMatch) {
+        espPascalScript = pMatch[1].replace(/\n##[ \t][\s\S]*$/, '').trim();
+        break;
+      }
     }
 
     // ── Extract FOMOD installer from fomod_builder output ────────────────────
+    // Anchor on the real closing XML tag rather than the ``` fence — the fence is
+    // not load-bearing here since </fomod>/</config> already mark the true end.
     let fomodInfoXml: string | null = null;
     let fomodModuleConfig: string | null = null;
     for (const t of [...project.turns].reverse()) {
       if (t.agent !== ('fomod_builder' as CdAgentRole)) continue;
-      const infoMatch = t.message.match(/```xml\s*([\s\S]*?<\/fomod>[\s\S]*?)```/i);
+      const infoMatch = t.message.match(/```xml\s*([\s\S]*?<\/fomod>)/i);
       if (infoMatch && infoMatch[1].includes('<fomod>')) fomodInfoXml = infoMatch[1].trim();
-      const configMatch = t.message.match(/```xml\s*([\s\S]*?<\/config>[\s\S]*?)```/i);
+      const configMatch = t.message.match(/```xml\s*([\s\S]*?<\/config>)/i);
       if (configMatch && configMatch[1].includes('<config')) fomodModuleConfig = configMatch[1].trim();
       if (fomodInfoXml || fomodModuleConfig) break;
     }
@@ -19093,6 +20505,17 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         project.phase = 'building';
         saveCdTeamState();
         return false;
+      }
+      // Scripts were written but the compiler never actually ran on any of them (not
+      // installed/configured) — the stale default detail text ("No Papyrus scripts
+      // were produced") is wrong in this case and must not be left in place, since it
+      // gets surfaced verbatim in manifest.json and directly contradicts filesProduced.
+      if (!verification.attempted) {
+        verification = {
+          attempted: false,
+          compiled: false,
+          detail: `${namedScripts.length} Papyrus script(s) were written but NOT verified — the Papyrus Compiler was not found/configured, so compilation was never attempted. Compile them yourself before attaching in CK.`,
+        };
       }
     } else if (questScripts.length > 0) {
       // Legacy fallback: unnamed scripts from older builder
@@ -19223,7 +20646,11 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         : [
             modRecordsJson ? 'mod_records.json — paste into xEdit or use create_esp.pas to auto-build the .esp.' : '',
             espPascalScript ? 'create_esp.pas — open FO4Edit, load Fallout4.esm, then Tools > Apply Script to create the .esp automatically.' : '',
-            namedScripts.length > 0 ? `scripts/ — ${namedScripts.length} Papyrus .psc file(s) compiled and ready. Copy to your Papyrus source folder and compile before attaching in CK.` : '',
+            namedScripts.length > 0
+              ? (verification.compiled
+                  ? `scripts/ — ${namedScripts.length} Papyrus .psc file(s), verified against the real Papyrus Compiler. Copy to your Papyrus source folder and compile again before attaching in CK.`
+                  : `scripts/ — ${namedScripts.length} Papyrus .psc file(s) WRITTEN BUT NOT VERIFIED (${verification.detail.slice(0, 200)}). Compile them yourself in the Creation Kit / Papyrus Compiler before attaching — do not assume they work.`)
+              : '',
             'BUILD_GUIDE.md — step-by-step instructions if you prefer to build manually in CK.',
           ].filter(Boolean).join('\n') || 'See BUILD_GUIDE.md for instructions.',
     };
@@ -19391,33 +20818,111 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       else if (project.phase === 'building') {
         const sectionIdx = project.buildSectionIdx;
+        const usesSubItems = CD_SUBITEM_SECTIONS.has(sectionIdx);
+
+        // First entry into a sub-turn section (fresh project, or just advanced into it
+        // from the previous section) — compute the sub-item list and reset tracking.
+        if (usesSubItems && !project.buildSubItems) {
+          project.buildSubItems = cdComputeSubItemsForSection(project, sectionIdx);
+          project.buildSubItemIdx = 0;
+          project.buildSubItemOutputs = [];
+          project.turns.push({
+            agent: 'director',
+            message: `[Sub-item 1/${project.buildSubItems.length} started: ${project.buildSubItems[0]}]`,
+            timestamp: Date.now(),
+          });
+        }
+        const subItemIdx = project.buildSubItemIdx ?? 0;
+        const subItemName = usesSubItems ? (project.buildSubItems?.[subItemIdx] ?? 'Everything') : '';
+        const subItemTotal = usesSubItems ? (project.buildSubItems?.length ?? 1) : 1;
 
         // ── Count failures and surface verifier feedback to the builder ─────
         // Find the most recent verifier FAILED turn
         const lastVerifierFail = [...project.turns].reverse().find(
           t => t.agent === 'verifier' && /Verification:\s*FAILED/i.test(t.message)
         );
-        // Count failures since the last PASSED (= retries on the current section)
-        const lastPassedIdx = project.turns.reduceRight(
-          (found, t, i) => found === -1 && t.agent === 'verifier' && /Verification:\s*PASSED/i.test(t.message) ? i : found, -1
-        );
-        const sectionFailCount = project.turns.slice(lastPassedIdx + 1).filter(
+        // Count failures since the last reset anchor: a PASSED verifier turn, a
+        // section-skip/start message, OR (for sub-turn sections) a sub-item skip/start
+        // message. CRITICAL: must include skip messages as reset anchors — otherwise
+        // when section/sub-item N is skipped after 5 fails, N+1 starts with
+        // failCount=5 and is immediately skipped too, cascading through everything
+        // that follows.
+        const lastResetIdx = project.turns.reduceRight((found, t, i) => {
+          if (found !== -1) return found;
+          if (t.agent === 'verifier' && /Verification:\s*PASSED/i.test(t.message)) return i;
+          if (t.agent === 'director' && /\[(Section \d+|Sub-item \d+\/\d+) (skipped|started)/.test(t.message)) return i;
+          return -1;
+        }, -1);
+        const sectionFailCount = project.turns.slice(lastResetIdx + 1).filter(
           t => t.agent === 'verifier' && /Verification:\s*FAILED/i.test(t.message)
         ).length;
 
-        // Force-advance after 5 failures on the same section to avoid infinite loops
+        // Force-advance after 5 failures in a row to avoid infinite loops. For
+        // sub-turn sections this skips just the current sub-item (e.g. one NPC's
+        // dialogue), not the whole section — the sub-items that already passed are
+        // kept, and subItemSkippedSections records the gap so cdComputeMissingSections
+        // still reports it honestly instead of treating a partial section as complete.
         if (sectionFailCount >= 5) {
+          if (usesSubItems) {
+            project.turns.push({
+              agent: 'director',
+              message: `[Sub-item ${subItemIdx + 1}/${subItemTotal} skipped after 5 failed attempts: ${subItemName} — moving to next sub-item. Review manually.]`,
+              timestamp: Date.now(),
+            });
+            project.subItemSkippedSections = [...new Set([...(project.subItemSkippedSections ?? []), sectionIdx])];
+            const nextSubItemIdx = subItemIdx + 1;
+            if (nextSubItemIdx < subItemTotal) {
+              project.buildSubItemIdx = nextSubItemIdx;
+              project.turns.push({
+                agent: 'director',
+                message: `[Sub-item ${nextSubItemIdx + 1}/${subItemTotal} started: ${project.buildSubItems![nextSubItemIdx]}]`,
+                timestamp: Date.now(),
+              });
+              project.phase = 'building';
+              saveCdTeamState();
+              return;
+            }
+            // That was the last sub-item — join whatever passed and move on to the
+            // next section exactly like a normal sub-item completion would.
+            const outKey = CD_SECTION_OUTPUT_KEYS[sectionIdx];
+            if (outKey && (project.buildSubItemOutputs?.length ?? 0) > 0) {
+              project.phaseOutputs[outKey] = project.buildSubItemOutputs!.join('\n\n');
+            }
+            project.buildSubItems = undefined;
+            project.buildSubItemIdx = undefined;
+            project.buildSubItemOutputs = undefined;
+            project.buildSectionIdx++;
+            if (project.buildSectionIdx < CD_BUILD_SECTIONS.length) {
+              project.phase = 'building';
+              saveCdTeamState();
+              return;
+            }
+            const finalized = await cdFinalizeProject(project, cdComputeMissingSections(project));
+            if (finalized && cdTeamState.pendingQueue.length > 0) {
+              setTimeout(() => { void runCreativeDirectorTick(); }, 500);
+            }
+            return;
+          }
           project.turns.push({
             agent: 'director',
             message: `[Section ${sectionIdx + 1} skipped after 5 failed attempts — moving to next section. Review manually.]`,
             timestamp: Date.now(),
           });
+          project.skippedSections = [...new Set([...(project.skippedSections ?? []), sectionIdx])];
           project.buildSectionIdx++;
           if (project.buildSectionIdx < CD_BUILD_SECTIONS.length) {
             project.phase = 'building';
             saveCdTeamState();
             return;
           }
+          // Skip landed on the LAST section — nothing left to build. Finalize now
+          // instead of falling through into stale instruction-building code below
+          // (which would re-run the section this block just marked skipped).
+          const finalized = await cdFinalizeProject(project, cdComputeMissingSections(project));
+          if (finalized && cdTeamState.pendingQueue.length > 0) {
+            setTimeout(() => { void runCreativeDirectorTick(); }, 500);
+          }
+          return;
         }
 
         // Build the failure note with ACTUAL verifier output so the builder can learn
@@ -19427,9 +20932,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           const correctM = lastVerifierFail.message.match(/##\s*Required Corrections\s*([\s\S]*?)(?=##|$)/i);
           const issues = issuesM?.[1]?.trim().slice(0, 800) || lastVerifierFail.message.slice(0, 800);
           const corrections = correctM?.[1]?.trim().slice(0, 600) || '';
+          // IMPORTANT: this warning must never read as "cut headings" — a prior version
+          // said "simplify, cut any extras" and the model responded by dropping every
+          // required markdown table and submitting JSON-only, which is an instant
+          // AUTO-FAIL on its own. Every required heading/table/block listed in
+          // REQUIRED OUTPUT above is mandatory; "simplify" can only mean shorter prose
+          // WITHIN each one, never fewer of them.
           const simplifyWarning = sectionFailCount >= 3
-            ? `\n⚠️ ${sectionFailCount} FAILURES IN A ROW. Simplify. Focus ONLY on the required structure. ` +
-              `Cut any extras. Make sure you hit every AUTO-FAIL check before submitting.\n`
+            ? `\n⚠️ ${sectionFailCount} FAILURES IN A ROW. Do NOT drop or merge any required heading, table, ` +
+              `or code block — every one listed under REQUIRED OUTPUT must still be present. ` +
+              `Instead, shorten the prose/descriptions WITHIN each section and keep entries closer to the ` +
+              `stated minimum counts (not larger) so you have room to cover all of them. ` +
+              `Make sure you hit every AUTO-FAIL check before submitting.\n`
             : '';
           failNote =
             `⚠️ YOUR PREVIOUS OUTPUT WAS REJECTED BY THE VERIFIER (failure #${sectionFailCount} for this section).\n\n` +
@@ -19450,15 +20964,31 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             commonContext + failNote +
             `YOUR TASK (Section 1/12 — World & Location Design): Design the COMPLETE world structure for this DLC.\n` +
             `Use the DLC plan and reference table above for all location names, worldspace decisions, and Mossy Industries elements.\n\n` +
-            `REQUIRED OUTPUT (all headings mandatory):\n` +
-            `## Worldspace Decision — new WRLD record or cell cluster in existing worldspace? State clearly.\n` +
-            `## Cell Registry — table of EVERY cell (EditorID, name, type Int/Ext, size, key contents, connections)\n` +
-            `## Encounter Zone Design (ECZN) — table of all encounter zones (EditorID, cell, level, min/max, reset)\n` +
-            `## Location Records (LCTN) — table of all location records (EditorID, display name, parent, cells)\n` +
-            `## Key Area Descriptions — for each named location: description, Mossy elements, storytelling hooks\n` +
-            `## Vanilla Asset Catalog — every vanilla NIF and LTEX this DLC references\n` +
-            `## Concept Art Prompts — JSON block with 4+ prompts for key locations\n\n` +
-            `End with: ## WORLD DESIGN COMPLETE`;
+            `REQUIRED OUTPUT — produce ALL of these headings in order:\n\n` +
+            `## Worldspace Decision\n` +
+            `State: new WRLD record OR cell cluster in existing worldspace (e.g. Commonwealth). Be explicit.\n\n` +
+            `## Cell Registry\n` +
+            `Table with 6+ cells minimum: | # | Cell EditorID | Cell Name | Type (Int/Ext) | Size | Key Contents | Connects To |\n\n` +
+            `## Encounter Zone Design (ECZN)\n` +
+            `Table: | ECZN EditorID | Owner Cell | Min Level | Max Level | Resets | Reset Hrs |\n` +
+            `(One ECZN per cell cluster or major area — minimum 2 entries)\n\n` +
+            `## Location Records (LCTN)\n` +
+            `Table: | LCTN EditorID | Display Name | Parent LCTN | Associated Cells |\n` +
+            `(One LCTN per named area — minimum 2 entries)\n\n` +
+            `## Key Area Descriptions\n` +
+            `For each named location: describe what the player finds, Mossy Industries elements, storytelling hooks.\n\n` +
+            `## Vanilla Asset Catalog\n` +
+            `List vanilla NIF mesh paths and LTEX EditorIDs this DLC uses. Format: Mesh\\Path\\To.nif | purpose\n\n` +
+            `## Concept Art Prompts\n` +
+            `REQUIRED — must be a fenced code block labeled concept-art:\n` +
+            `\`\`\`concept-art\n` +
+            `[\n` +
+            `  { "id": "world_01", "label": "Main Location", "prompt": "2-3 sentence visual description ending with: fallout 4 concept art, digital painting" },\n` +
+            `  { "id": "world_02", "label": "Key Interior", "prompt": "..." },\n` +
+            `  { "id": "world_03", "label": "Notable Area", "prompt": "..." }\n` +
+            `]\n` +
+            `\`\`\`\n\n` +
+            `⚠️ MANDATORY FINAL LINE — your response MUST end with exactly:\n## WORLD DESIGN COMPLETE`;
         } else if (sectionIdx === 1) {
           // Faction Designer — full faction and reputation system
           const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 1500);
@@ -19533,39 +21063,53 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `## NPC JSON Block — valid JSON with all NPC_ records\n\n` +
             `End with: ## NPC ROSTER COMPLETE`;
         } else if (sectionIdx === 5) {
-          // Dialogue Writer — full dialogue trees for all NPCs
+          // Dialogue Writer — ONE NPC's full dialogue tree per sub-turn (see
+          // CD_SUBITEM_SECTIONS) instead of all NPCs in one response — the single-shot
+          // version hit the token ceiling partway through the roster and the verifier
+          // correctly reported later NPCs as missing (they were actually truncated).
           const npcCtx = (project.phaseOutputs.npcRoster || '').slice(0, 1500);
           const questCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 600);
           instruction =
             commonContext + failNote +
-            `=== NPC ROSTER ===\n${npcCtx}\n=== END NPC ROSTER ===\n\n` +
+            `=== NPC ROSTER (for reference — EditorIDs, voice types, everyone in the DLC) ===\n${npcCtx}\n=== END NPC ROSTER ===\n\n` +
             `=== MAIN QUESTLINE ===\n${questCtx}\n=== END QUESTLINE ===\n\n` +
-            `YOUR TASK (Section 6/12 — Dialogue Trees): Write the COMPLETE dialogue for EVERY NPC.\n\n` +
-            `For EACH NPC:\n` +
-            `## NPC: [Name] ([EditorID]) — Voice Type: [xxx]\n` +
+            `YOUR TASK (Section 6/12 — Dialogue Trees, NPC ${subItemIdx + 1}/${subItemTotal}): ` +
+            `Write the COMPLETE dialogue tree for ONLY this one NPC: **${subItemName}**.\n` +
+            `Do NOT write dialogue for any other NPC — the rest are handled in separate turns.\n\n` +
+            `## NPC: ${subItemName} ([EditorID from roster above]) — Voice Type: [xxx]\n` +
             `For EACH topic:\n` +
             `### Topic: [DIAL EditorID] — [Player Prompt]\n` +
             `Condition: [Papyrus condition that unlocks this topic]\n` +
             `INFO [EditorID]: "[Response text ≤80 chars]" | Emotion: x | Links to: y\n` +
             `(repeat INFOs for all responses and branches)\n\n` +
-            `MINIMUM per NPC: Greeting, Farewell, Idle topic + 3+ quest-related topics.\n` +
-            `Major NPCs: full branching trees with player-choice lines and condition-gated paths.\n` +
+            `MINIMUM for this NPC: Greeting, Farewell, Idle topic + 3+ quest-related topics.\n` +
+            `If ${subItemName} is a major NPC (quest giver, faction leader, recurring character): full branching tree with player-choice lines and condition-gated paths.\n` +
             `ALL response text must be fully written — no placeholders.\n\n` +
             `End with: ## DIALOGUE TREES COMPLETE`;
         } else if (sectionIdx === 6) {
-          // Lore Writer — all holotapes, terminals, notes
+          // Lore Writer — ONE content category per sub-turn (Holotapes / Terminals /
+          // Notes) instead of all three at once, for the same token-ceiling reason.
           const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 800);
+          const categorySpec: Record<string, string> = {
+            Holotapes:
+              `MINIMUM: 5+ HOLOTAPES (BOOK records) — full in-character audio transcripts.\n` +
+              `Format: ## Holotape: [Title] | EditorID: MI_Holo_xxx | Location: [cell EditorID] | Speaker: [name] | [full transcript with [RECORDING BEGINS]/[RECORDING ENDS]]\n` +
+              `AUTO-FAIL: fewer than 5 holotapes | any missing [RECORDING BEGINS]/[RECORDING ENDS] markers.`,
+            Terminals:
+              `MINIMUM: 3+ TERMINALS (TERM records) — welcome text + 2+ menu entries each.\n` +
+              `Format: ## Terminal: [Name] | EditorID: MI_Term_xxx | Location: [cell EditorID] | Welcome: [text] | Entry N — [Title]: [full text]\n` +
+              `AUTO-FAIL: fewer than 3 terminals | any terminal with fewer than 2 entries.`,
+            Notes:
+              `MINIMUM: 5+ NOTES/LETTERS (BOOK with IsNote flag) — handwritten notes, memos, journals.\n` +
+              `Format: ## Note: [Title] | EditorID: MI_Note_xxx | Location: [cell EditorID] | Author: [name] | [full text]\n` +
+              `AUTO-FAIL: fewer than 5 notes.`,
+          };
           instruction =
             commonContext + failNote +
             `=== WORLD DESIGN ===\n${worldCtx}\n=== END WORLD ===\n\n` +
-            `YOUR TASK (Section 7/12 — Lore & Environmental Storytelling): Write ALL lore content.\n\n` +
-            `MINIMUM COUNTS — fail if missing any:\n` +
-            `• 10+ HOLOTAPES (BOOK records): full in-character audio transcripts\n` +
-            `• 5+ TERMINALS (TERM records): welcome text + 3+ menu entries each\n` +
-            `• 10+ NOTES/LETTERS (BOOK with IsNote flag): handwritten notes, memos, journals\n\n` +
-            `Format for holotapes: ## Holotape: [Title] | EditorID: MI_Holo_xxx | Location: [cell EditorID] | Speaker: [name] | [full transcript with [RECORDING BEGINS]/[RECORDING ENDS]]\n` +
-            `Format for terminals: ## Terminal: [Name] | EditorID: MI_Term_xxx | Location: [cell EditorID] | Welcome: [text] | Entry N — [Title]: [full text]\n` +
-            `Format for notes: ## Note: [Title] | EditorID: MI_Note_xxx | Location: [cell EditorID] | Author: [name] | [full text]\n\n` +
+            `YOUR TASK (Section 7/12 — Lore & Environmental Storytelling, category ${subItemIdx + 1}/${subItemTotal}): ` +
+            `Write ONLY the **${subItemName}** category. Do not write the other two categories — they are separate turns.\n\n` +
+            `${categorySpec[subItemName] || categorySpec['Holotapes']}\n\n` +
             `All content must be authentic Fallout voice (retro-futurism, period-appropriate). Mossy Industries lore only — hint at Dr. Moss, never resolve.\n\n` +
             `End with: ## LORE COMPLETE`;
         } else if (sectionIdx === 7) {
@@ -19623,16 +21167,25 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `End with: ## RECORDS COMPLETE`;
         } else if (sectionIdx === 10) {
           // xEdit Pascal Builder — auto-build script
-          const recordsJson = (project.phaseOutputs.records || '').slice(0, 3000);
+          // Pass more context: records JSON + world/faction/item EditorID summaries
+          const recordsJson = (project.phaseOutputs.records || '').slice(0, 6000);
+          const worldCtxSlice = (project.phaseOutputs.worldDesign || '').slice(0, 1500);
+          const factionCtxSlice = (project.phaseOutputs.factionDesign || '').slice(0, 1000);
+          const itemCtxSlice = (project.phaseOutputs.itemDesign || '').slice(0, 1000);
+          const npcCtxSlice = (project.phaseOutputs.npcRoster || '').slice(0, 1000);
           instruction =
             commonContext + failNote +
-            `=== RECORDS JSON (first 3000 chars) ===\n${recordsJson}\n=== END JSON ===\n\n` +
-            `YOUR TASK (Section 11/12 — xEdit Builder Script): Write the COMPLETE Pascal script that builds this DLC's .esp in FO4Edit.\n\n` +
-            `The script must create EVERY record from the JSON above.\n` +
-            `Minimum 200+ lines of real xEdit Pascal — no skeletons, no stubs.\n` +
-            `Must create: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL, FACT, GLOB, LCTN, ECZN, WEAP, ARMO, MISC, COBJ.\n` +
-            `Use helpers: SetVal(), AddRec(), AddRequiredElementMasters().\n` +
-            `Add all DLC masters: Fallout4.esm and any DLC ESMs referenced.\n\n` +
+            `=== RECORDS JSON (primary spec — use ALL EditorIDs from here) ===\n${recordsJson}\n=== END JSON ===\n\n` +
+            `=== WORLD DESIGN (cell & location EditorIDs) ===\n${worldCtxSlice}\n=== END WORLD ===\n\n` +
+            `=== FACTION DESIGN (FACT & GLOB EditorIDs) ===\n${factionCtxSlice}\n=== END FACTIONS ===\n\n` +
+            `=== NPC ROSTER (NPC_ EditorIDs & voice types) ===\n${npcCtxSlice}\n=== END NPCs ===\n\n` +
+            `=== ITEM DESIGN (WEAP/ARMO/MISC EditorIDs) ===\n${itemCtxSlice}\n=== END ITEMS ===\n\n` +
+            `YOUR TASK (Section 11/12 — xEdit Builder Script): Write the COMPLETE Pascal script that builds this entire DLC .esp in FO4Edit.\n\n` +
+            `The modder will run this once in FO4Edit and get a complete, loadable .esp with ALL records.\n` +
+            `Script must create EVERY record from the JSON and design docs above — no stubs, no TODOs.\n` +
+            `Dependency order: GLOB → FACT → NPC_ → QUST → DIAL → INFO → BOOK → TERM → WEAP → ARMO → MISC → CELL → LCTN → ECZN\n` +
+            `Must include: QUST, NPC_, DIAL, INFO, BOOK (holotapes+notes), TERM, WEAP, ARMO, MISC, FACT, GLOB, CELL, LCTN, ECZN.\n` +
+            `Minimum 300+ lines of real xEdit Pascal.\n\n` +
             `End with: ## ESP BUILDER COMPLETE`;
         } else if (sectionIdx === 11) {
           // FOMOD Builder — installer XML + folder structure
@@ -19660,19 +21213,21 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         const lastBuilderTurn = [...project.turns].reverse().find(t => builderRoles.includes(t.agent));
         const sectionName = CD_BUILD_SECTIONS[project.buildSectionIdx] ?? 'section';
         const sectionIdx = project.buildSectionIdx;
+        const vSubItemIdx = project.buildSubItemIdx ?? 0;
+        const vSubItemName = project.buildSubItems?.[vSubItemIdx] ?? '';
         let sectionChecks = '';
         if (sectionIdx === 0) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (World & Location Design):\n' +
             '• ## Worldspace Decision heading present with clear new-WRLD vs cell-cluster decision\n' +
-            '• ## Cell Registry table has 10+ rows (EditorID, name, type, size, contents, connections)\n' +
-            '• ## Encounter Zone Design table with ECZN records (EditorID, cell, levels, reset)\n' +
-            '• ## Location Records (LCTN) table present\n' +
-            '• ## Key Area Descriptions section has prose for each named location\n' +
-            '• ## Vanilla Asset Catalog lists real NIF and LTEX paths\n' +
-            '• ```concept-art JSON block present with 4+ entries\n' +
+            '• ## Cell Registry table has 6+ rows (EditorID, name, type, size, contents, connections)\n' +
+            '• ## Encounter Zone Design section present (table or list of ECZN EditorIDs with levels)\n' +
+            '• ## Location Records section present (table or list of LCTN EditorIDs)\n' +
+            '• ## Key Area Descriptions section present with at least 2 location descriptions\n' +
+            '• ## Vanilla Asset Catalog section present\n' +
+            '• ```concept-art JSON block present with 3+ entries\n' +
             '• Ends with: ## WORLD DESIGN COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 10 cells | no ECZN records | no LCTN records | no concept-art block | no completion marker';
+            'AUTO-FAIL: fewer than 6 cells | no ECZN section | no LCTN section | no concept-art block | no completion marker';
         } else if (sectionIdx === 1) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Faction & Reputation System):\n' +
@@ -19719,27 +21274,34 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             '• Ends with: ## NPC ROSTER COMPLETE\n\n' +
             'AUTO-FAIL: fewer than 8 NPCs | any NPC missing voice type or faction | no JSON block | no completion marker';
         } else if (sectionIdx === 5) {
+          // Verifies ONE NPC's dialogue per sub-turn (see CD_SUBITEM_SECTIONS) —
+          // checks scoped to vSubItemName, not "every NPC from the roster" like the
+          // old single-shot version, since that NPC is the only thing this turn wrote.
           sectionChecks =
-            'SECTION-SPECIFIC CHECKS (Dialogue Trees):\n' +
-            '• ## NPC: block present for EVERY NPC from the NPC Roster\n' +
-            '• Every NPC has at minimum: Greeting topic, Farewell topic, 3+ quest-related topics\n' +
+            `SECTION-SPECIFIC CHECKS (Dialogue Trees — NPC: ${vSubItemName || 'this NPC'}):\n` +
+            `• ## NPC: block present for ${vSubItemName || 'this NPC'} specifically (not a different NPC)\n` +
+            '• At minimum: Greeting topic, Farewell topic, 3+ quest-related topics\n' +
             '• ResponseText ≤80 chars per INFO record\n' +
             '• All conditions use real Papyrus functions (GetStage, GetGlobalValue, HasPerk, etc.)\n' +
             '• No placeholder text — every response fully written\n' +
-            '• Major NPCs (3+) have branching trees with player-choice lines\n' +
+            '• If a major NPC (quest giver, faction leader, recurring character): branching tree with player-choice lines\n' +
             '• Ends with: ## DIALOGUE TREES COMPLETE\n\n' +
-            'AUTO-FAIL: any NPC from roster missing | ResponseText >80 chars | placeholder text present | fewer than 3 topics per NPC | no completion marker';
+            'AUTO-FAIL: NPC block missing or for the wrong NPC | ResponseText >80 chars | placeholder text present | fewer than 3 topics | no completion marker';
         } else if (sectionIdx === 6) {
+          // Verifies ONE lore category per sub-turn (Holotapes / Terminals / Notes).
+          const loreCounts: Record<string, string> = {
+            Holotapes: '5+ ## Holotape: blocks with EditorID, Location, Speaker, full transcript text, [RECORDING BEGINS]/[RECORDING ENDS] markers.\nAUTO-FAIL: fewer than 5 holotapes | any missing recording markers.',
+            Terminals: '3+ ## Terminal: blocks with EditorID, Location, Welcome text, 2+ entries each.\nAUTO-FAIL: fewer than 3 terminals | any terminal with fewer than 2 entries.',
+            Notes: '5+ ## Note: blocks with EditorID, Location, Author, full text.\nAUTO-FAIL: fewer than 5 notes.',
+          };
           sectionChecks =
-            'SECTION-SPECIFIC CHECKS (Lore & Environmental Storytelling):\n' +
-            '• 10+ ## Holotape: blocks with EditorID, Location, Speaker, full transcript text\n' +
-            '• 5+ ## Terminal: blocks with EditorID, Location, Welcome text, 3+ entries each\n' +
-            '• 10+ ## Note: blocks with EditorID, Location, Author, full text\n' +
-            '• All holotape transcripts include [RECORDING BEGINS] / [RECORDING ENDS] markers\n' +
+            `SECTION-SPECIFIC CHECKS (Lore & Environmental Storytelling — category: ${vSubItemName || 'this category'}):\n` +
+            `• ${loreCounts[vSubItemName] || loreCounts['Holotapes']}\n` +
             '• Content is authentic Fallout voice — no anachronisms, no modern slang\n' +
             '• Mossy Industries lore consistent — hints at Dr. Moss, never resolves fate\n' +
+            '• Only the requested category is present — not the other two lore categories\n' +
             '• Ends with: ## LORE COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 10 holotapes | fewer than 5 terminals | fewer than 10 notes | any missing recording markers | Dr. Moss fate revealed | no completion marker';
+            'AUTO-FAIL: Dr. Moss fate revealed | no completion marker | wrong category written';
         } else if (sectionIdx === 7) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Items & Equipment):\n' +
@@ -19783,11 +21345,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             '• Exactly ONE pascal code block\n' +
             '• Contains: function Initialize: Integer AND function Finalize: Integer\n' +
             '• Contains: AddNewFile, AddRequiredElementMasters, GroupBySignature\n' +
-            '• Creates ALL record types: QUST, NPC_, DIAL, INFO, BOOK, TERM, CELL, FACT, GLOB, WEAP, ARMO, MISC\n' +
-            '• Script is 200+ lines — DLC-scale — skeletons FAIL\n' +
-            '• Every EditorID from the JSON is referenced in creation calls\n' +
+            '• Creates ALL DLC record types: QUST, NPC_, DIAL, INFO, BOOK (holotapes+notes), TERM, WEAP, ARMO, MISC, FACT, GLOB, CELL, LCTN, ECZN\n' +
+            '• Dependency order correct: GLOB/FACT before NPC_, NPC_ before QUST, QUST before DIAL, DIAL before INFO\n' +
+            '• Script is 300+ lines — DLC-scale — skeleton scripts under 150 lines AUTO-FAIL\n' +
+            '• Every INFO is Add(dial, \'INFO\', True) — child of its DIAL, not standalone\n' +
+            '• EditorIDs use real DLC names from the records JSON — no placeholder "MI_QuestEditorID" stubs\n' +
             '• Ends with: ## ESP BUILDER COMPLETE\n\n' +
-            'AUTO-FAIL: missing Initialize or Finalize | script under 100 lines | missing FACT/GLOB/WEAP/ARMO records | no completion marker';
+            'AUTO-FAIL: missing Initialize or Finalize | script under 150 lines | missing FACT/GLOB/LCTN/ECZN/WEAP/ARMO | placeholder EditorIDs remain | no completion marker';
         } else if (sectionIdx === 11) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (FOMOD Installer):\n' +
@@ -19815,9 +21379,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         'script_writer', 'record_builder', 'esp_builder', 'analyst',
         'world_designer', 'faction_designer', 'dialogue_writer', 'lore_writer', 'item_designer', 'fomod_builder',
       ]);
+      // Dialogue Trees (idx 5) and Lore (idx 6) require far more raw prose than any
+      // other section — full branching dialogue for 8+ NPCs, or 13+ full-length
+      // holotape/terminal/note texts — and were hitting the standard 8192-token
+      // completion cap mid-response, which the verifier then correctly reported as
+      // "missing" content that was actually just cut off. Only Ollama/Inkling can use
+      // a bigger budget; the Groq path clamps back down to its real 8192 hard cap.
+      const verboseSectionBudget = (project.phase === 'building' && (project.buildSectionIdx === 5 || project.buildSectionIdx === 6))
+        ? 16384
+        : 8192;
       const message = specialistRoles.has(role)
-        ? await cdCallAgentHighQuality(persona.systemPrompt, instruction)
-        : await cdCallAgent(persona.systemPrompt, instruction);
+        ? await cdCallAgentHighQuality(persona.systemPrompt, instruction, verboseSectionBudget)
+        : await cdCallAgent(persona.systemPrompt, instruction, verboseSectionBudget);
       project.turns.push({ agent: role, message, timestamp: Date.now() });
       project.updatedAt = Date.now();
 
@@ -19877,25 +21450,59 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
 
       else if (project.phase === 'building') {
-        // Specialist wrote their section — save output and send to verifier
-        // Save section output keyed by section index so later sections can reference earlier work
-        const sectionOutputKeys: (keyof typeof project.phaseOutputs)[] = [
-          'worldDesign', 'factionDesign', 'mainQuestline', 'sideQuests',
-          'npcRoster', 'dialogueTrees', 'loreContent', 'itemDesign',
-          'scripts', 'records', 'espBuilder', 'fomod',
-        ];
-        const outKey = sectionOutputKeys[project.buildSectionIdx];
-        if (outKey) project.phaseOutputs[outKey] = message;
+        // Specialist wrote their section (or, for sub-turn sections, one sub-item)
+        // — save output and send to verifier. For sub-turn sections the real
+        // phaseOutputs write happens once ALL sub-items pass (see 'verifying'
+        // below) — writing just this one sub-item now would clobber the ones
+        // already accumulated from earlier sub-items in the same section.
+        const usesSubItems = CD_SUBITEM_SECTIONS.has(project.buildSectionIdx);
+        const outKey = CD_SECTION_OUTPUT_KEYS[project.buildSectionIdx];
+        if (outKey && !usesSubItems) project.phaseOutputs[outKey] = message;
         project.phase = 'verifying';
       }
 
       else if (project.phase === 'verifying') {
         const passed = /##\s*Verification:\s*PASSED/i.test(message);
+        const usesSubItems = CD_SUBITEM_SECTIONS.has(project.buildSectionIdx);
         if (passed) {
+          if (usesSubItems) {
+            // Pull the actual content that was just verified — the sub-item
+            // builder's last turn — not the verifier's PASSED message itself.
+            const subItemBuilderRoles: CdAgentRole[] = ['dialogue_writer', 'lore_writer'];
+            const lastSubItemTurn = [...project.turns].reverse().find(t => subItemBuilderRoles.includes(t.agent));
+            project.buildSubItemOutputs = [...(project.buildSubItemOutputs ?? []), lastSubItemTurn?.message ?? ''];
+            const nextSubItemIdx = (project.buildSubItemIdx ?? 0) + 1;
+            const subItemTotal = project.buildSubItems?.length ?? 1;
+            if (nextSubItemIdx < subItemTotal) {
+              // More sub-items to go — stay on this section, move to the next one.
+              project.buildSubItemIdx = nextSubItemIdx;
+              project.turns.push({
+                agent: 'director',
+                message: `[Sub-item ${nextSubItemIdx + 1}/${subItemTotal} started: ${project.buildSubItems![nextSubItemIdx]}]`,
+                timestamp: Date.now(),
+              });
+              project.phase = 'building';
+              saveCdTeamState();
+              const _chain1 = cdTeamState.currentProject;
+              if (_chain1 && _chain1.phase !== 'done' && _chain1.phase !== 'awaiting_approval') {
+                setTimeout(() => { void runCreativeDirectorTick(); }, 300);
+              }
+              return;
+            }
+            // Last sub-item just passed — join everything into the section's real output.
+            const outKey = CD_SECTION_OUTPUT_KEYS[project.buildSectionIdx];
+            if (outKey) project.phaseOutputs[outKey] = project.buildSubItemOutputs.join('\n\n');
+            project.buildSubItems = undefined;
+            project.buildSubItemIdx = undefined;
+            project.buildSubItemOutputs = undefined;
+          }
           project.buildSectionIdx++;
           if (project.buildSectionIdx >= CD_BUILD_SECTIONS.length) {
-            // All sections built and verified — finalize
-            const finalized = await cdFinalizeProject(project, []);
+            // All sections built and verified — finalize. Compute missing sections from
+            // real phaseOutputs rather than assuming [] — a section skipped earlier in
+            // this same run (5-failure cap) never wrote its output and must still be
+            // reported as missing here.
+            const finalized = await cdFinalizeProject(project, cdComputeMissingSections(project));
             if (finalized && cdTeamState.pendingQueue.length > 0) {
               setTimeout(() => { void runCreativeDirectorTick(); }, 500);
             }
@@ -19903,7 +21510,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           }
           project.phase = 'building'; // next section
         } else {
-          // FAILED — builder retries same section
+          // FAILED — builder retries same section (or same sub-item, for sub-turn sections)
           project.phase = 'building';
         }
       }
@@ -19975,10 +21582,24 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         const tried = candidates.join('\n  ');
         return { success: false, error: `fo4_strings_scan.py not found. Looked in:\n  ${tried}` };
       }
-      const pythonExe = 'C:\\Users\\Owner\\AppData\\Local\\Python\\bin\\python.exe';
-      const py = fs.existsSync(pythonExe) ? pythonExe : 'python';
       const { execFileSync } = await import('child_process');
-      const stdout = execFileSync(py, [script], { timeout: 120_000, encoding: 'utf-8' });
+      let py = 'python';
+      try {
+        const where = execFileSync('where', ['python'], { encoding: 'utf-8', timeout: 5000 });
+        const found = where.split(/\r?\n/).map(l => l.trim()).find(Boolean);
+        if (found) py = found;
+      } catch { /* fall back to 'python' on PATH */ }
+
+      const scanFo4Root = resolveFO4Root();
+      const stdout = execFileSync(py, [script], {
+        timeout: 120_000,
+        encoding: 'utf-8',
+        env: {
+          ...process.env,
+          MOSSY_FO4_DATA: scanFo4Root ? path.join(scanFo4Root, 'Data') : '',
+          MOSSY_SCAN_OUTPUT_DIR: resolveScanCacheDir(),
+        }
+      });
       // Reload the world context into the running session
       if (fs.existsSync(FO4_STRINGS_JSON)) {
         const raw = JSON.parse(fs.readFileSync(FO4_STRINGS_JSON, 'utf-8'));
@@ -20074,11 +21695,11 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  // ── Asset Browser — F:\FO4 WORKING FLODER ─────────────────────────────────
+  // ── Asset Browser ──────────────────────────────────────────────────────────
   // Lets the renderer browse the extracted vanilla FO4 assets so the user can
   // attach real mesh/texture paths to a handoff project's BUILD_GUIDE.
 
-  const FO4_ASSETS_ROOT = 'F:\\FO4 WORKING FLODER';
+  const FO4_ASSETS_ROOT = resolveAssetStagingFolder('') || 'F:\\FO4 WORKING FLODER';
 
   registerHandler('creative-director:list-assets', async (_event, relativePath: string) => {
     try {
@@ -20198,7 +21819,7 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
             const res = await fetch(backendJoin(backend, '/v1/chat'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 2500 }),
+              body: JSON.stringify({ provider: 'groq', model: 'openai/gpt-oss-120b', messages, maxTokens: 2500 }),
               signal: controller.signal,
             });
             clearTimeout(timeout);
@@ -20254,9 +21875,9 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
         ? rawTranscript.replace(/^##\s/gm, '▸ ')
         : rawTranscript;
 
-      // Which sections were genuinely completed in the prior run?
+      // Which sections were genuinely completed (verifier-PASSED) in the prior run?
       const completedSections = !maskHeadings
-        ? CD_REQUIRED_SECTIONS.filter(s => rawTranscript.toLowerCase().includes(`## ${s}`.toLowerCase()))
+        ? CD_REQUIRED_SECTIONS.filter((_s, i) => cdSectionPassedInTranscript(rawTranscript, i))
         : [];
 
       const stillMissing = isIncomplete
@@ -20541,7 +22162,7 @@ Keep scripts focused and real — no placeholder comments like TODO.`;
             const res = await fetch(backendJoin(backend, '/v1/chat'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: 'llama-3.3-70b-versatile', messages, maxTokens: 4000 }),
+              body: JSON.stringify({ provider: 'groq', model: 'openai/gpt-oss-120b', messages, maxTokens: 4000 }),
               signal: controller.signal,
             });
             clearTimeout(timeout);
@@ -21414,11 +23035,18 @@ Rules:
     }
   });
 
-  const COMFYUI_CHECKPOINTS_DIR =
-    'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable\\ComfyUI\\models\\checkpoints';
+  // Previously hardcoded to the original developer's own drive layout with no Settings
+  // field to configure it, so this silently pointed at a nonexistent folder on every
+  // other machine. ComfyUIExtension.tsx already saves a real, user-configured
+  // `comfyuiPath` via setSettings({ comfyuiPath }) — read it here instead.
+  const getComfyUiCheckpointsDir = (): string => {
+    const configured = String(loadSettings()?.comfyuiPath || '').trim();
+    const base = configured || 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
+    return path.join(base, 'ComfyUI', 'models', 'checkpoints');
+  };
 
   registerHandler('textures:comfyui-download-model', async (event, params: { url: string; filename: string }) => {
-    const dest = path.join(COMFYUI_CHECKPOINTS_DIR, params.filename);
+    const dest = path.join(getComfyUiCheckpointsDir(), params.filename);
     const tmp  = dest + '.part';
     try {
       if (fs.existsSync(dest)) {
@@ -21506,11 +23134,12 @@ Rules:
 
   registerHandler('textures:comfyui-list-checkpoints', async () => {
     try {
-      const files = fs.readdirSync(COMFYUI_CHECKPOINTS_DIR)
+      const checkpointsDir = getComfyUiCheckpointsDir();
+      const files = fs.readdirSync(checkpointsDir)
         .filter(f => f.endsWith('.safetensors') || f.endsWith('.ckpt'))
         .map(f => ({
           name: f,
-          sizeMB: Math.round(fs.statSync(path.join(COMFYUI_CHECKPOINTS_DIR, f)).size / (1024 * 1024)),
+          sizeMB: Math.round(fs.statSync(path.join(checkpointsDir, f)).size / (1024 * 1024)),
         }));
       return { success: true, files };
     } catch (err: any) {
@@ -21518,8 +23147,10 @@ Rules:
     }
   });
 
-  const COMFYUI_ROOT =
-    'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
+  const getComfyUiRoot = (): string => {
+    const configured = String(loadSettings()?.comfyuiPath || '').trim();
+    return configured || 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
+  };
 
   registerHandler('textures:comfyui-restart', async (event) => {
     try {
@@ -21536,7 +23167,7 @@ Rules:
 
       // Spawn ComfyUI in a new visible console window
       const child = spawn('cmd.exe', ['/C', 'start', '""', 'run_nvidia_gpu.bat'], {
-        cwd: COMFYUI_ROOT,
+        cwd: getComfyUiRoot(),
         detached: true,
         stdio: 'ignore',
         shell: false,
@@ -21653,406 +23284,6 @@ Rules:
 
   loadTutorialDataFromDisk();
 
-  registerHandler('tutorial:create-session', async (_event, tutorialId: string, title?: string) => {
-    const startTime = Date.now();
-    try {
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const session = {
-        id: sessionId,
-        tutorialId,
-        title: title || `Tutorial: ${tutorialId}`,
-        createdAt: Date.now(),
-        startedAt: Date.now(),
-        status: 'in-progress',
-        currentStep: 0,
-        totalSteps: 5,
-        progress: 0,
-        completed: false
-      };
-      tutorialSessionsStorage.set(sessionId, session);
-      const progressEntry = {
-        id: `progress_${sessionId}`,
-        sessionId,
-        tutorialId,
-        steps: Array.from({ length: 5 }, (_, i) => ({
-          stepNumber: i + 1,
-          completed: false,
-          completedAt: null,
-          duration: 0
-        })),
-        totalDuration: 0,
-        lastActivityAt: Date.now()
-      };
-      tutorialProgressStorage.set(progressEntry.id, progressEntry);
-      saveTutorialDataToDisk();
-      auditLogger.log({
-        operation: 'session-management',
-        tool: 'interactive-tutorials',
-        action: 'create-session',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, tutorialId }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:create-session error:', errMsg);
-      auditLogger.log({
-        operation: 'session-management',
-        tool: 'interactive-tutorials',
-        action: 'create-session',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:get-progress', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = tutorialSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const progressKey = `progress_${sessionId}`;
-      const progress = tutorialProgressStorage.get(progressKey);
-      if (!progress) throw new Error('Progress not found');
-      const completedSteps = progress.steps.filter((s: any) => s.completed).length;
-      const progressPercent = (completedSteps / progress.steps.length * 100).toFixed(1);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'interactive-tutorials',
-        action: 'get-progress',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, progress: progressPercent }
-      });
-      return { success: true, session, progress: { ...progress, percentComplete: progressPercent } };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:get-progress error:', errMsg);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'interactive-tutorials',
-        action: 'get-progress',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:complete-step', async (_event, sessionId: string, stepNumber: number) => {
-    const startTime = Date.now();
-    try {
-      const session = tutorialSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const progressKey = `progress_${sessionId}`;
-      const progress = tutorialProgressStorage.get(progressKey);
-      if (!progress) throw new Error('Progress not found');
-      if (stepNumber > 0 && stepNumber <= progress.steps.length) {
-        progress.steps[stepNumber - 1].completed = true;
-        progress.steps[stepNumber - 1].completedAt = Date.now();
-        progress.steps[stepNumber - 1].duration = Math.floor(Math.random() * 600) + 30;
-        progress.lastActivityAt = Date.now();
-      }
-      session.currentStep = stepNumber;
-      session.progress = (progress.steps.filter((s: any) => s.completed).length / progress.steps.length * 100).toFixed(1);
-      tutorialProgressStorage.set(progressKey, progress);
-      tutorialSessionsStorage.set(sessionId, session);
-      saveTutorialDataToDisk();
-      auditLogger.log({
-        operation: 'step-completion',
-        tool: 'interactive-tutorials',
-        action: 'complete-step',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, stepNumber, progress: session.progress }
-      });
-      return { success: true, session, completedStep: progress.steps[stepNumber - 1] };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:complete-step error:', errMsg);
-      auditLogger.log({
-        operation: 'step-completion',
-        tool: 'interactive-tutorials',
-        action: 'complete-step',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:get-tutorials', async () => {
-    const startTime = Date.now();
-    try {
-      const tutorials = [
-        { id: 'getting-started', title: 'Getting Started', description: 'Learn the basics of Mossy', steps: 5, duration: 12, difficulty: 'Beginner' },
-        { id: 'install-wizard', title: 'Install Wizard', description: 'Set up tools and dependencies', steps: 8, duration: 20, difficulty: 'Beginner' },
-        { id: 'first-mod', title: 'Create Your First Mod', description: 'Build a simple mod from scratch', steps: 10, duration: 45, difficulty: 'Intermediate' },
-        { id: 'quests', title: 'Advanced Quest Design', description: 'Master quest creation', steps: 12, duration: 60, difficulty: 'Advanced' },
-        { id: 'optimization', title: 'Performance Optimization', description: 'Optimize your mod for best performance', steps: 8, duration: 30, difficulty: 'Intermediate' }
-      ];
-      auditLogger.log({
-        operation: 'tutorial-discovery',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorials',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { tutorialCount: tutorials.length }
-      });
-      return { success: true, tutorials };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:get-tutorials error:', errMsg);
-      auditLogger.log({
-        operation: 'tutorial-discovery',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorials',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:get-tutorial-content', async (_event, tutorialId: string) => {
-    const startTime = Date.now();
-    try {
-      const content = {
-        id: tutorialId,
-        title: `Tutorial: ${tutorialId}`,
-        description: 'Interactive step-by-step guide',
-        steps: [
-          { stepNumber: 1, title: 'Introduction', content: 'Welcome to this tutorial', duration: 2, videoUrl: '' },
-          { stepNumber: 2, title: 'Setup', content: 'Configure your environment', duration: 5, videoUrl: '' },
-          { stepNumber: 3, title: 'Main Task', content: 'Complete the main objective', duration: 15, videoUrl: '' },
-          { stepNumber: 4, title: 'Testing', content: 'Test your work', duration: 8, videoUrl: '' },
-          { stepNumber: 5, title: 'Review', content: 'Final review and next steps', duration: 3, videoUrl: '' }
-        ],
-        totalDuration: 33,
-        difficulty: 'Intermediate',
-        prerequisites: [],
-        resources: ['README', 'Video Guide', 'Code Examples'],
-        keyTakeaways: ['Learn core concepts', 'Practical application', 'Best practices']
-      };
-      auditLogger.log({
-        operation: 'content-retrieval',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorial-content',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { tutorialId, steps: content.steps.length }
-      });
-      return { success: true, content };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:get-tutorial-content error:', errMsg);
-      auditLogger.log({
-        operation: 'content-retrieval',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorial-content',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:skip-tutorial', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = tutorialSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      session.status = 'skipped';
-      session.completedAt = Date.now();
-      tutorialSessionsStorage.set(sessionId, session);
-      saveTutorialDataToDisk();
-      auditLogger.log({
-        operation: 'session-management',
-        tool: 'interactive-tutorials',
-        action: 'skip-tutorial',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:skip-tutorial error:', errMsg);
-      auditLogger.log({
-        operation: 'session-management',
-        tool: 'interactive-tutorials',
-        action: 'skip-tutorial',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:get-recommendations', async (_event, userLevel?: string) => {
-    const startTime = Date.now();
-    try {
-      const level = userLevel || 'beginner';
-      const recommendations = {
-        userLevel: level,
-        recommended: [
-          { id: 'getting-started', priority: 1, reason: 'Start here', match: 100 },
-          { id: 'install-wizard', priority: 2, reason: 'Required setup', match: 95 },
-          { id: level === 'advanced' ? 'quests' : 'first-mod', priority: 3, reason: 'Next step', match: 85 }
-        ],
-        estimatedTime: 70,
-        completionBenefit: 'Master the platform'
-      };
-      auditLogger.log({
-        operation: 'recommendations',
-        tool: 'interactive-tutorials',
-        action: 'get-recommendations',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { userLevel: level, recommendationCount: recommendations.recommended.length }
-      });
-      return { success: true, recommendations };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:get-recommendations error:', errMsg);
-      auditLogger.log({
-        operation: 'recommendations',
-        tool: 'interactive-tutorials',
-        action: 'get-recommendations',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:save-progress', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = tutorialSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const progressKey = `progress_${sessionId}`;
-      const progress = tutorialProgressStorage.get(progressKey);
-      if (!progress) throw new Error('Progress not found');
-      progress.lastActivityAt = Date.now();
-      progress.totalDuration = progress.steps.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
-      tutorialProgressStorage.set(progressKey, progress);
-      saveTutorialDataToDisk();
-      auditLogger.log({
-        operation: 'progress-persistence',
-        tool: 'interactive-tutorials',
-        action: 'save-progress',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, totalDuration: progress.totalDuration }
-      });
-      return { success: true, progress };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:save-progress error:', errMsg);
-      auditLogger.log({
-        operation: 'progress-persistence',
-        tool: 'interactive-tutorials',
-        action: 'save-progress',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:reset-progress', async (_event, sessionId?: string) => {
-    const startTime = Date.now();
-    try {
-      if (sessionId) {
-        const progressKey = `progress_${sessionId}`;
-        const progress = tutorialProgressStorage.get(progressKey);
-        if (progress) {
-          progress.steps.forEach((s: any) => {
-            s.completed = false;
-            s.completedAt = null;
-            s.duration = 0;
-          });
-          tutorialProgressStorage.set(progressKey, progress);
-        }
-      } else {
-        tutorialProgressStorage.clear();
-        tutorialSessionsStorage.clear();
-      }
-      saveTutorialDataToDisk();
-      auditLogger.log({
-        operation: 'progress-reset',
-        tool: 'interactive-tutorials',
-        action: 'reset-progress',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId: sessionId || 'all' }
-      });
-      return { success: true, message: 'Progress reset' };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:reset-progress error:', errMsg);
-      auditLogger.log({
-        operation: 'progress-reset',
-        tool: 'interactive-tutorials',
-        action: 'reset-progress',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('tutorial:get-tutorial-stats', async (_event, tutorialId?: string) => {
-    const startTime = Date.now();
-    try {
-      const sessions = Array.from(tutorialSessionsStorage.values());
-      const filteredSessions = tutorialId ? sessions.filter((s: any) => s.tutorialId === tutorialId) : sessions;
-      const completedSessions = filteredSessions.filter((s: any) => s.completed);
-      const stats = {
-        tutorialId: tutorialId || 'all',
-        totalSessions: filteredSessions.length,
-        completedSessions: completedSessions.length,
-        skippedSessions: filteredSessions.filter((s: any) => s.status === 'skipped').length,
-        inProgressSessions: filteredSessions.filter((s: any) => s.status === 'in-progress').length,
-        completionRate: filteredSessions.length > 0 ? ((completedSessions.length / filteredSessions.length) * 100).toFixed(1) : 0,
-        averageDuration: filteredSessions.length > 0 ? Math.floor(filteredSessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0) / filteredSessions.length) : 0,
-        engagementScore: 75 + Math.random() * 20
-      };
-      auditLogger.log({
-        operation: 'statistics',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorial-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { tutorialId: stats.tutorialId, totalSessions: stats.totalSessions }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] tutorial:get-tutorial-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'statistics',
-        tool: 'interactive-tutorials',
-        action: 'get-tutorial-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // =========================================================================
   // Platform 20: AI Texture Enhancement IPC Handlers
@@ -22091,402 +23322,6 @@ Rules:
 
   loadEnhanceDataFromDisk();
 
-  registerHandler('enhance:init-enhancer', async (_event, filterName?: string, gpuEnabled?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const settings = loadSettings();
-      settings.upscaleConfig = {
-        filter: filterName || 'Detail-Preservation',
-        gpuEnabled: gpuEnabled !== false,
-        initialized: true,
-        initTime: Date.now(),
-        maxBatchSize: 10,
-        maxResolution: '4096x4096',
-        qualityMode: 'production',
-        preserveOriginalSize: true
-      };
-      saveSettings(settings);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'ai-texture-enhancement',
-        action: 'init-enhancer',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filter: filterName || 'Detail-Preservation', maxRes: '4K' }
-      });
-      return { success: true, config: settings.upscaleConfig };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:init-enhancer error:', errMsg);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'ai-texture-enhancement',
-        action: 'init-enhancer',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:load-filters', async () => {
-    const startTime = Date.now();
-    try {
-      const filters = [
-        { id: 'Detail-Preservation', name: 'Detail Preservation', type: 'conservative', strength: 'Medium', speed: 'Fast', vramRequired: 256 },
-        { id: 'Sharpness-Boost', name: 'Sharpness Boost', type: 'balanced', strength: 'Strong', speed: 'Medium', vramRequired: 512 },
-        { id: 'Advanced-Enhancement', name: 'Advanced Detail', type: 'aggressive', strength: 'Maximum', speed: 'Slow', vramRequired: 1024 },
-        { id: 'Normal-Map-Enhance', name: 'Normal Map Detail', type: 'specialized', strength: 'Custom', speed: 'Medium', vramRequired: 768 },
-        { id: 'Roughness-Optimizer', name: 'Roughness Optimization', type: 'specialized', strength: 'Custom', speed: 'Fast', vramRequired: 384 }
-      ];
-      auditLogger.log({
-        operation: 'filter-discovery',
-        tool: 'ai-texture-enhancement',
-        action: 'load-filters',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filterCount: filters.length }
-      });
-      return { success: true, filters };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:load-filters error:', errMsg);
-      auditLogger.log({
-        operation: 'filter-discovery',
-        tool: 'ai-texture-enhancement',
-        action: 'load-filters',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:get-filter-info', async (_event, filterId: string) => {
-    const startTime = Date.now();
-    try {
-      const filterMap: Record<string, any> = {
-        'Detail-Preservation': {
-          id: 'Detail-Preservation',
-          name: 'Detail Preservation',
-          description: 'Conservative enhancement preserving original texture character for Fallout 4',
-          type: 'conservative',
-          strength: 'Medium',
-          speed: 'Fast',
-          vramRequired: 256,
-          estimatedTime: 15,
-          bestFor: ['Diffuse maps', 'Color textures', 'General use'],
-          parameters: { enhancementStrength: 0.5, edgePreservation: 0.8, maxResolution: '4096x4096' }
-        }
-      };
-      const info = filterMap[filterId] || filterMap['Detail-Preservation'];
-      auditLogger.log({
-        operation: 'filter-info',
-        tool: 'ai-texture-enhancement',
-        action: 'get-filter-info',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filterId, type: info.type }
-      });
-      return { success: true, info };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:get-filter-info error:', errMsg);
-      auditLogger.log({
-        operation: 'filter-info',
-        tool: 'ai-texture-enhancement',
-        action: 'get-filter-info',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:start-enhance', async (_event, inputPath: string, outputPath?: string, filterId?: string) => {
-    const startTime = Date.now();
-    try {
-      const sessionId = `enhance_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const session = {
-        id: sessionId,
-        inputPath,
-        outputPath: outputPath || `${inputPath}_enhanced.png`,
-        filterId: filterId || 'Detail-Preservation',
-        status: 'enhancing',
-        progress: 0,
-        startedAt: Date.now(),
-        estimatedTime: 30000,
-        preserveResolution: true,
-        maxResolution: '4096x4096',
-        detailLevel: 'enhanced'
-      };
-      enhanceSessionsStorage.set(sessionId, session);
-      const historyEntry = { ...session, id: `history_${sessionId}`, type: 'single' };
-      enhanceHistoryStorage.set(historyEntry.id, historyEntry);
-      saveEnhanceDataToDisk();
-      auditLogger.log({
-        operation: 'enhancement-operation',
-        tool: 'ai-texture-enhancement',
-        action: 'start-enhance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, filter: filterId || 'Detail-Preservation' }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:start-enhance error:', errMsg);
-      auditLogger.log({
-        operation: 'enhancement-operation',
-        tool: 'ai-texture-enhancement',
-        action: 'start-enhance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:enhance-batch', async (_event, inputPaths: string[], filterId?: string) => {
-    const startTime = Date.now();
-    try {
-      const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const sessions = inputPaths.map((path: string, index: number) => ({
-        id: `${batchId}_${index}`,
-        inputPath: path,
-        outputPath: `${path}_enhanced.png`,
-        filterId: filterId || 'Detail-Preservation',
-        status: 'queued',
-        progress: 0,
-        batchId,
-        preserveResolution: true,
-        maxResolution: '4096x4096'
-      }));
-      sessions.forEach((session: any) => {
-        enhanceSessionsStorage.set(session.id, session);
-        const historyEntry = { id: `history_${session.id}`, ...session, type: 'batch' };
-        enhanceHistoryStorage.set(historyEntry.id, historyEntry);
-      });
-      saveEnhanceDataToDisk();
-      auditLogger.log({
-        operation: 'batch-enhancement',
-        tool: 'ai-texture-enhancement',
-        action: 'enhance-batch',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { batchId, sessionCount: sessions.length }
-      });
-      return { success: true, batchId, sessions };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:enhance-batch error:', errMsg);
-      auditLogger.log({
-        operation: 'batch-enhancement',
-        tool: 'ai-texture-enhancement',
-        action: 'enhance-batch',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:get-enhancement-progress', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = enhanceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      session.progress = Math.min(100, session.progress + Math.random() * 20);
-      if (session.progress >= 100) {
-        session.status = 'completed';
-        session.completedAt = Date.now();
-        session.duration = Date.now() - session.startedAt;
-      }
-      enhanceSessionsStorage.set(sessionId, session);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'ai-texture-enhancement',
-        action: 'get-enhancement-progress',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, progress: session.progress }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:get-enhancement-progress error:', errMsg);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'ai-texture-enhancement',
-        action: 'get-enhancement-progress',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:cancel-enhancement', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = enhanceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      session.status = 'cancelled';
-      session.cancelledAt = Date.now();
-      enhanceSessionsStorage.set(sessionId, session);
-      saveEnhanceDataToDisk();
-      auditLogger.log({
-        operation: 'operation-control',
-        tool: 'ai-texture-enhancement',
-        action: 'cancel-enhancement',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:cancel-enhancement error:', errMsg);
-      auditLogger.log({
-        operation: 'operation-control',
-        tool: 'ai-texture-enhancement',
-        action: 'cancel-enhancement',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:get-enhancement-history', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const historyLimit = limit || 50;
-      const history = Array.from(enhanceHistoryStorage.values())
-        .sort((a: any, b: any) => (b.startedAt || 0) - (a.startedAt || 0))
-        .slice(0, historyLimit);
-      const stats = {
-        totalEnhancements: enhanceHistoryStorage.size,
-        completedEnhancements: history.filter((h: any) => h.status === 'completed').length,
-        cancelledEnhancements: history.filter((h: any) => h.status === 'cancelled').length,
-        totalEnhancementTime: history.reduce((sum: number, h: any) => sum + (h.duration || 0), 0)
-      };
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'ai-texture-enhancement',
-        action: 'get-enhancement-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { entryCount: history.length }
-      });
-      return { success: true, history, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:get-enhancement-history error:', errMsg);
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'ai-texture-enhancement',
-        action: 'get-enhancement-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:compare-enhancements', async (_event, beforePath: string, afterPath: string) => {
-    const startTime = Date.now();
-    try {
-      const comparison = {
-        beforePath,
-        afterPath,
-        timestamp: Date.now(),
-        metrics: {
-          detailEnhancement: 72,
-          sharpnessImprovement: 45,
-          noiseLevels: 8,
-          artifactDetection: 2,
-          colorAccuracy: 98,
-          overallQuality: 85
-        },
-        recommendation: 'Excellent detail enhancement - maintains original resolution and character',
-        timeTaken: 30000,
-        resolutionPreserved: true,
-        maxResolutionUsed: '4096x4096'
-      };
-      auditLogger.log({
-        operation: 'quality-analysis',
-        tool: 'ai-texture-enhancement',
-        action: 'compare-enhancements',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { quality: comparison.metrics.overallQuality }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:compare-enhancements error:', errMsg);
-      auditLogger.log({
-        operation: 'quality-analysis',
-        tool: 'ai-texture-enhancement',
-        action: 'compare-enhancements',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enhance:export-enhanced', async (_event, sessionId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const session = enhanceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const exportFormat = format || 'dds';
-      const exportData = {
-        sessionId,
-        exportFormat,
-        outputPath: `${session.outputPath}.${exportFormat}`,
-        timestamp: Date.now(),
-        quality: 'production',
-        compression: exportFormat === 'dds' ? 'BC7' : 'lossless',
-        fileSize: Math.floor(Math.random() * 3000000) + 500000,
-        resolutionPreserved: true,
-        maxResolutionEnforced: '4K',
-        ready: true
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'ai-texture-enhancement',
-        action: 'export-enhanced',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, format: exportFormat, resolutionPreserved: true }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enhance:export-enhanced error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'ai-texture-enhancement',
-        action: 'export-enhanced',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // =========================================================================
   // Platform 21: AI Voice Generation IPC Handlers
@@ -22525,414 +23360,6 @@ Rules:
 
   loadVoiceDataFromDisk();
 
-  registerHandler('voice:init-tts', async (_event, voiceProfile?: string, gpuEnabled?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const settings = loadSettings();
-      settings.voiceGenerationConfig = {
-        voiceProfile: voiceProfile || 'Fallout4-Male-Human',
-        gpuEnabled: gpuEnabled !== false,
-        initialized: true,
-        initTime: Date.now(),
-        sampleRate: 44100,
-        bitDepth: 16,
-        lipSyncGeneration: true,
-        emotionControl: true
-      };
-      saveSettings(settings);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'ai-voice-generation',
-        action: 'init-tts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { profile: voiceProfile || 'Fallout4-Male-Human' }
-      });
-      return {
-        success: true,
-        config: settings.voiceGenerationConfig,
-        qualityDisclaimer: {
-          message: 'AI-generated voices are for prototyping and testing purposes. For competitive Nexus mods, real voice actors will make your mod stand out significantly. Consider hiring voice talent for production-quality dialogue.',
-          recommendation: 'Hire voice actors for professional-grade mod dialogue',
-          documentation: 'See VOICE_GENERATION_GUIDELINES.md for details'
-        }
-      };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:init-tts error:', errMsg);
-      auditLogger.log({
-        operation: 'configuration',
-        tool: 'ai-voice-generation',
-        action: 'init-tts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:load-voice-profiles', async () => {
-    const startTime = Date.now();
-    try {
-      const profiles = [
-        { id: 'Fallout4-Male-Human', name: 'Male Human (Fallout 4)', category: 'Game-Matched', style: 'neutral', vramRequired: 512 },
-        { id: 'Fallout4-Female-Human', name: 'Female Human (Fallout 4)', category: 'Game-Matched', style: 'neutral', vramRequired: 512 },
-        { id: 'Fallout4-Ghoul-Male', name: 'Male Ghoul (Fallout 4)', category: 'Game-Matched', style: 'raspy', vramRequired: 768 },
-        { id: 'Fallout4-Ghoul-Female', name: 'Female Ghoul (Fallout 4)', category: 'Game-Matched', style: 'raspy', vramRequired: 768 },
-        { id: 'Fallout4-Robot', name: 'Robot/Synth (Fallout 4)', category: 'Game-Matched', style: 'robotic', vramRequired: 384 }
-      ];
-      auditLogger.log({
-        operation: 'profile-discovery',
-        tool: 'ai-voice-generation',
-        action: 'load-voice-profiles',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { profileCount: profiles.length }
-      });
-      return { success: true, profiles };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:load-voice-profiles error:', errMsg);
-      auditLogger.log({
-        operation: 'profile-discovery',
-        tool: 'ai-voice-generation',
-        action: 'load-voice-profiles',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:get-voice-profile-info', async (_event, profileId: string) => {
-    const startTime = Date.now();
-    try {
-      const profileMap: Record<string, any> = {
-        'Fallout4-Male-Human': {
-          id: 'Fallout4-Male-Human',
-          name: 'Male Human (Fallout 4)',
-          description: 'Standard male human voice matched to Fallout 4 style',
-          category: 'Game-Matched',
-          style: 'neutral',
-          vramRequired: 512,
-          estimatedTime: 5,
-          features: ['Emotion Control', 'Speed Adjustment', 'Pitch Modulation'],
-          parameters: { emotionIntensity: 0.5, speedFactor: 1.0, pitchShift: 0 }
-        }
-      };
-      const info = profileMap[profileId] || profileMap['Fallout4-Male-Human'];
-      auditLogger.log({
-        operation: 'profile-info',
-        tool: 'ai-voice-generation',
-        action: 'get-voice-profile-info',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { profileId, category: info.category }
-      });
-      return { success: true, info };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:get-voice-profile-info error:', errMsg);
-      auditLogger.log({
-        operation: 'profile-info',
-        tool: 'ai-voice-generation',
-        action: 'get-voice-profile-info',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:generate-voice', async (_event, text: string, profileId?: string, emotion?: string) => {
-    const startTime = Date.now();
-    try {
-      const sessionId = `voice_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const session = {
-        id: sessionId,
-        text,
-        profileId: profileId || 'Fallout4-Male-Human',
-        emotion: emotion || 'neutral',
-        status: 'generating',
-        progress: 0,
-        startedAt: Date.now(),
-        estimatedTime: 8000,
-        audioFormat: 'wav',
-        sampleRate: 44100,
-        duration: 0,
-        lipSyncData: null
-      };
-      voiceSessionsStorage.set(sessionId, session);
-      const historyEntry = { ...session, id: `history_${sessionId}`, type: 'single' };
-      voiceHistoryStorage.set(historyEntry.id, historyEntry);
-      saveVoiceDataToDisk();
-      auditLogger.log({
-        operation: 'voice-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-voice',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, characterCount: text.length }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:generate-voice error:', errMsg);
-      auditLogger.log({
-        operation: 'voice-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-voice',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:generate-batch-dialogue', async (_event, dialogueList: Array<{text: string, profileId?: string}>) => {
-    const startTime = Date.now();
-    try {
-      const batchId = `batch_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const sessions = dialogueList.map((dialog: any, index: number) => ({
-        id: `${batchId}_${index}`,
-        text: dialog.text,
-        profileId: dialog.profileId || 'Fallout4-Male-Human',
-        emotion: 'neutral',
-        status: 'queued',
-        progress: 0,
-        batchId,
-        audioFormat: 'wav'
-      }));
-      sessions.forEach((session: any) => {
-        voiceSessionsStorage.set(session.id, session);
-        const historyEntry = { id: `history_${session.id}`, ...session, type: 'batch' };
-        voiceHistoryStorage.set(historyEntry.id, historyEntry);
-      });
-      saveVoiceDataToDisk();
-      auditLogger.log({
-        operation: 'batch-voice-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-batch-dialogue',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { batchId, sessionCount: sessions.length }
-      });
-      return { success: true, batchId, sessions };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:generate-batch-dialogue error:', errMsg);
-      auditLogger.log({
-        operation: 'batch-voice-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-batch-dialogue',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:get-generation-progress', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = voiceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      session.progress = Math.min(100, session.progress + Math.random() * 25);
-      if (session.progress >= 100) {
-        session.status = 'completed';
-        session.completedAt = Date.now();
-        session.duration = (Date.now() - session.startedAt) / 1000;
-        session.lipSyncData = {
-          phonemes: ['aa', 'e', 'i', 'o', 'u', 'consonants'],
-          timings: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-        };
-      }
-      voiceSessionsStorage.set(sessionId, session);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'ai-voice-generation',
-        action: 'get-generation-progress',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, progress: session.progress }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:get-generation-progress error:', errMsg);
-      auditLogger.log({
-        operation: 'progress-tracking',
-        tool: 'ai-voice-generation',
-        action: 'get-generation-progress',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:clone-voice-profile', async (_event, audioSamplePath: string, profileName: string) => {
-    const startTime = Date.now();
-    try {
-      const cloneId = `custom_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      const clonedProfile = {
-        id: cloneId,
-        name: profileName,
-        category: 'Custom-Cloned',
-        sourceFile: audioSamplePath,
-        createdAt: Date.now(),
-        quality: 'high',
-        suitableFor: ['dialogue', 'narration', 'character-voices']
-      };
-      auditLogger.log({
-        operation: 'voice-cloning',
-        tool: 'ai-voice-generation',
-        action: 'clone-voice-profile',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { cloneId, profileName }
-      });
-      return { success: true, profile: clonedProfile };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:clone-voice-profile error:', errMsg);
-      auditLogger.log({
-        operation: 'voice-cloning',
-        tool: 'ai-voice-generation',
-        action: 'clone-voice-profile',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:generate-lipsync', async (_event, sessionId: string, animationFormat?: string) => {
-    const startTime = Date.now();
-    try {
-      const session = voiceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const format = animationFormat || 'fallout4-anim';
-      const lipsyncData = {
-        sessionId,
-        format,
-        phonemeMap: {
-          'aa': 0.8, 'e': 0.6, 'i': 0.7, 'o': 0.75, 'u': 0.65, 'consonants': 0.5
-        },
-        timing: session.lipSyncData?.timings || [],
-        animationClips: ['mouth_open', 'mouth_neutral', 'mouth_closed'],
-        generatedAt: Date.now(),
-        ready: true
-      };
-      auditLogger.log({
-        operation: 'lipsync-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-lipsync',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, format, clipsCount: 3 }
-      });
-      return { success: true, lipsyncData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:generate-lipsync error:', errMsg);
-      auditLogger.log({
-        operation: 'lipsync-generation',
-        tool: 'ai-voice-generation',
-        action: 'generate-lipsync',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:get-voice-history', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const historyLimit = limit || 50;
-      const history = Array.from(voiceHistoryStorage.values())
-        .sort((a: any, b: any) => (b.startedAt || 0) - (a.startedAt || 0))
-        .slice(0, historyLimit);
-      const stats = {
-        totalVoiceGenerated: voiceHistoryStorage.size,
-        completedVoices: history.filter((h: any) => h.status === 'completed').length,
-        totalDuration: history.reduce((sum: number, h: any) => sum + (h.duration || 0), 0),
-        profilesUsed: [...new Set(history.map((h: any) => h.profileId))].length
-      };
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'ai-voice-generation',
-        action: 'get-voice-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { entryCount: history.length }
-      });
-      return { success: true, history, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:get-voice-history error:', errMsg);
-      auditLogger.log({
-        operation: 'history-retrieval',
-        tool: 'ai-voice-generation',
-        action: 'get-voice-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('voice:export-voice-audio', async (_event, sessionId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const session = voiceSessionsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const audioFormat = format || 'wav';
-      const exportData = {
-        sessionId,
-        audioFormat,
-        outputPath: `voice_${sessionId}.${audioFormat}`,
-        timestamp: Date.now(),
-        bitDepth: 16,
-        sampleRate: 44100,
-        quality: 'high',
-        fileSize: Math.floor(Math.random() * 2000000) + 500000,
-        lipsyncIncluded: true,
-        ready: true
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'ai-voice-generation',
-        action: 'export-voice-audio',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionId, format: audioFormat, lipsyncIncluded: true }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] voice:export-voice-audio error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'ai-voice-generation',
-        action: 'export-voice-audio',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // =========================================================================
   // Platform 22: Mod Dependency Manager IPC Handlers
@@ -22969,370 +23396,6 @@ Rules:
     }
   }
 
-  registerHandler('deps:add-mod-dependency', async (_event, modName: string, dependencies: Array<{name: string, version?: string}>) => {
-    const startTime = Date.now();
-    try {
-      const depId = `dep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const modDependency = {
-        id: depId,
-        modName,
-        dependencies: dependencies || [],
-        addedAt: Date.now(),
-        status: 'active',
-        validated: false,
-        conflicts: []
-      };
-      modDependenciesStorage.set(depId, modDependency);
-      saveModDependencyDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'mod-dependency-manager',
-        action: 'add-mod-dependency',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, depCount: dependencies?.length || 0 }
-      });
-      return { success: true, dependency: modDependency };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:add-mod-dependency error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'mod-dependency-manager',
-        action: 'add-mod-dependency',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:get-mod-dependencies', async (_event, modName: string) => {
-    const startTime = Date.now();
-    try {
-      const deps = Array.from(modDependenciesStorage.values()).filter((d: any) => d.modName === modName);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-mod-dependencies',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, depCount: deps.length }
-      });
-      return { success: true, dependencies: deps };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:get-mod-dependencies error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-mod-dependencies',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:detect-conflicts', async (_event) => {
-    const startTime = Date.now();
-    try {
-      const conflicts: any[] = [];
-      const allDeps = Array.from(modDependenciesStorage.values());
-      for (let i = 0; i < allDeps.length; i++) {
-        for (let j = i + 1; j < allDeps.length; j++) {
-          const conflict = {
-            id: `conflict_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            mod1: allDeps[i].modName,
-            mod2: allDeps[j].modName,
-            type: 'version-mismatch',
-            severity: 'high',
-            detectedAt: Date.now(),
-            resolved: false
-          };
-          conflicts.push(conflict);
-          dependencyConflictsStorage.set(conflict.id, conflict);
-        }
-      }
-      saveModDependencyDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'mod-dependency-manager',
-        action: 'detect-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { conflictCount: conflicts.length }
-      });
-      return { success: true, conflicts };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:detect-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'mod-dependency-manager',
-        action: 'detect-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:resolve-conflict', async (_event, conflictId: string, resolution: string) => {
-    const startTime = Date.now();
-    try {
-      const conflict = dependencyConflictsStorage.get(conflictId);
-      if (!conflict) throw new Error('Conflict not found');
-      conflict.resolved = true;
-      conflict.resolution = resolution;
-      conflict.resolvedAt = Date.now();
-      dependencyConflictsStorage.set(conflictId, conflict);
-      saveModDependencyDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'mod-dependency-manager',
-        action: 'resolve-conflict',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { conflictId, resolution }
-      });
-      return { success: true, conflict };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:resolve-conflict error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'mod-dependency-manager',
-        action: 'resolve-conflict',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:get-conflict-report', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const conflicts = Array.from(dependencyConflictsStorage.values()).slice(-Math.min(limit || 50, 100));
-      const report = {
-        totalConflicts: conflicts.length,
-        resolved: conflicts.filter((c: any) => c.resolved).length,
-        unresolved: conflicts.filter((c: any) => !c.resolved).length,
-        bySeverity: {
-          critical: conflicts.filter((c: any) => c.severity === 'critical').length,
-          high: conflicts.filter((c: any) => c.severity === 'high').length,
-          medium: conflicts.filter((c: any) => c.severity === 'medium').length,
-          low: conflicts.filter((c: any) => c.severity === 'low').length
-        },
-        conflicts
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-conflict-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalConflicts: report.totalConflicts }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:get-conflict-report error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-conflict-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:optimize-load-order', async (_event, modList: string[]) => {
-    const startTime = Date.now();
-    try {
-      const optimizedOrder = [...modList].sort((a, b) => {
-        const aDeps = Array.from(modDependenciesStorage.values()).find((d: any) => d.modName === a)?.dependencies?.length || 0;
-        const bDeps = Array.from(modDependenciesStorage.values()).find((d: any) => d.modName === b)?.dependencies?.length || 0;
-        return aDeps - bDeps;
-      });
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mod-dependency-manager',
-        action: 'optimize-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modCount: modList.length }
-      });
-      return { success: true, optimizedOrder, changesMade: optimizedOrder.join(',') !== modList.join(',') };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:optimize-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mod-dependency-manager',
-        action: 'optimize-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:validate-dependencies', async (_event, modName: string) => {
-    const startTime = Date.now();
-    try {
-      const modDeps = Array.from(modDependenciesStorage.values()).find((d: any) => d.modName === modName);
-      if (!modDeps) throw new Error('Mod not found');
-      const validation = {
-        modName,
-        allInstalled: Math.random() > 0.3,
-        missingDependencies: Math.random() > 0.5 ? [] : ['MissingMod-v1.0.esp'],
-        versionMismatches: [],
-        validatedAt: Date.now(),
-        status: 'valid'
-      };
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'mod-dependency-manager',
-        action: 'validate-dependencies',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, allInstalled: validation.allInstalled }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:validate-dependencies error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'mod-dependency-manager',
-        action: 'validate-dependencies',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:export-dependency-list', async (_event, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const deps = Array.from(modDependenciesStorage.values());
-      const exportFormat = format || 'json';
-      const exportData = {
-        format: exportFormat,
-        exportDate: Date.now(),
-        modCount: deps.length,
-        outputPath: `dependencies_export.${exportFormat}`,
-        fileSize: Math.floor(Math.random() * 500000) + 50000,
-        content: exportFormat === 'json' ? JSON.stringify(deps, null, 2) : deps.map((d: any) => `${d.modName}: ${d.dependencies.map((dep: any) => dep.name).join(', ')}`).join('\n')
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'mod-dependency-manager',
-        action: 'export-dependency-list',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format: exportFormat, modCount: deps.length }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:export-dependency-list error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'mod-dependency-manager',
-        action: 'export-dependency-list',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:import-dependency-list', async (_event, importPath: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const importFormat = format || 'json';
-      const importedCount = Math.floor(Math.random() * 20) + 5;
-      const result = {
-        importPath,
-        format: importFormat,
-        importedAt: Date.now(),
-        modsImported: importedCount,
-        status: 'success',
-        message: `Successfully imported ${importedCount} mod dependencies`
-      };
-      auditLogger.log({
-        operation: 'import',
-        tool: 'mod-dependency-manager',
-        action: 'import-dependency-list',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:import-dependency-list error:', errMsg);
-      auditLogger.log({
-        operation: 'import',
-        tool: 'mod-dependency-manager',
-        action: 'import-dependency-list',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('deps:get-dependency-stats', async (_event) => {
-    const startTime = Date.now();
-    try {
-      const allDeps = Array.from(modDependenciesStorage.values());
-      const stats = {
-        totalMods: allDeps.length,
-        totalDependencies: allDeps.reduce((sum: number, d: any) => sum + (d.dependencies?.length || 0), 0),
-        averageDepsPerMod: allDeps.length > 0 ? (allDeps.reduce((sum: number, d: any) => sum + (d.dependencies?.length || 0), 0) / allDeps.length).toFixed(2) : 0,
-        modsWithConflicts: dependencyConflictsStorage.size,
-        unresolvedConflicts: Array.from(dependencyConflictsStorage.values()).filter((c: any) => !c.resolved).length,
-        lastUpdated: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-dependency-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: stats
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] deps:get-dependency-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mod-dependency-manager',
-        action: 'get-dependency-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize mod dependency data on startup
   loadModDependencyDataFromDisk();
@@ -23372,389 +23435,6 @@ Rules:
     }
   }
 
-  registerHandler('release:create-release-package', async (_event, modName: string, version: string, files: string[]) => {
-    const startTime = Date.now();
-    try {
-      const pkgId = `pkg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const releasePackage = {
-        id: pkgId,
-        modName,
-        version,
-        files: files || [],
-        createdAt: Date.now(),
-        status: 'draft',
-        fileSize: Math.floor(Math.random() * 50000000) + 5000000,
-        checksum: Math.random().toString(36).substr(2, 16).toUpperCase(),
-        compressed: true,
-        compressionRatio: '65%'
-      };
-      releasePackagesStorage.set(pkgId, releasePackage);
-      saveReleaseDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'create-release-package',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, version, fileCount: files?.length || 0 }
-      });
-      return { success: true, package: releasePackage };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:create-release-package error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'create-release-package',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:generate-changelog', async (_event, modName: string, version: string, changes: string[]) => {
-    const startTime = Date.now();
-    try {
-      const changelog = {
-        modName,
-        version,
-        generatedAt: Date.now(),
-        changes: changes || [],
-        format: 'markdown',
-        sections: {
-          added: changes.filter((c: string) => c.toLowerCase().includes('added')).length,
-          fixed: changes.filter((c: string) => c.toLowerCase().includes('fixed')).length,
-          changed: changes.filter((c: string) => c.toLowerCase().includes('changed')).length,
-          removed: changes.filter((c: string) => c.toLowerCase().includes('removed')).length
-        },
-        content: `# Version ${version}\n\n${changes.map((c: string) => `- ${c}`).join('\n')}`
-      };
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'generate-changelog',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, version, changeCount: changes?.length || 0 }
-      });
-      return { success: true, changelog };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:generate-changelog error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'generate-changelog',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:bump-version', async (_event, modName: string, currentVersion: string, bumpType?: string) => {
-    const startTime = Date.now();
-    try {
-      const type = bumpType || 'patch';
-      const parts = currentVersion.split('.').map(p => parseInt(p, 10));
-      if (type === 'major') parts[0]++;
-      else if (type === 'minor') { parts[1]++; parts[2] = 0; }
-      else { parts[2]++; }
-      const newVersion = parts.join('.');
-      auditLogger.log({
-        operation: 'update',
-        tool: 'release-automation',
-        action: 'bump-version',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, from: currentVersion, to: newVersion, type }
-      });
-      return { success: true, newVersion, previousVersion: currentVersion };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:bump-version error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'release-automation',
-        action: 'bump-version',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:create-release-notes', async (_event, modName: string, version: string, changelog: string, highlights?: string[]) => {
-    const startTime = Date.now();
-    try {
-      const releaseNotes = {
-        modName,
-        version,
-        createdAt: Date.now(),
-        changelog,
-        highlights: highlights || [],
-        author: 'current-user',
-        status: 'draft',
-        content: `## ${modName} v${version}\n\n${changelog}\n\nHighlights:\n${(highlights || []).map((h: string) => `- ${h}`).join('\n')}`
-      };
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'create-release-notes',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, version }
-      });
-      return { success: true, releaseNotes };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:create-release-notes error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'release-automation',
-        action: 'create-release-notes',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:validate-release', async (_event, packageId: string) => {
-    const startTime = Date.now();
-    try {
-      const pkg = releasePackagesStorage.get(packageId);
-      if (!pkg) throw new Error('Package not found');
-      const validation = {
-        packageId,
-        valid: true,
-        checks: {
-          filesPresent: true,
-          checksumValid: true,
-          versionFormatted: true,
-          changelogIncluded: true,
-          dependenciesResolved: true
-        },
-        issues: [],
-        validatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'release-automation',
-        action: 'validate-release',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { packageId, valid: validation.valid }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:validate-release error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'release-automation',
-        action: 'validate-release',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:publish-to-nexus', async (_event, packageId: string, nexusModId: string, releaseNotes?: string) => {
-    const startTime = Date.now();
-    try {
-      const pkg = releasePackagesStorage.get(packageId);
-      if (!pkg) throw new Error('Package not found');
-      pkg.status = 'published';
-      pkg.publishedAt = Date.now();
-      pkg.nexusModId = nexusModId;
-      releasePackagesStorage.set(packageId, pkg);
-      const releaseRecord = {
-        id: `rel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        packageId,
-        modName: pkg.modName,
-        version: pkg.version,
-        nexusModId,
-        publishedAt: Date.now(),
-        status: 'live',
-        url: `https://www.nexusmods.com/fallout4/mods/${nexusModId}`,
-        notes: releaseNotes || ''
-      };
-      releaseHistoryStorage.set(releaseRecord.id, releaseRecord);
-      saveReleaseDataToDisk();
-      auditLogger.log({
-        operation: 'publish',
-        tool: 'release-automation',
-        action: 'publish-to-nexus',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { packageId, nexusModId, version: pkg.version }
-      });
-      return { success: true, published: releaseRecord };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:publish-to-nexus error:', errMsg);
-      auditLogger.log({
-        operation: 'publish',
-        tool: 'release-automation',
-        action: 'publish-to-nexus',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:get-release-history', async (_event, modName: string, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const history = Array.from(releaseHistoryStorage.values())
-        .filter((r: any) => r.modName === modName)
-        .slice(-Math.min(limit || 50, 100));
-      auditLogger.log({
-        operation: 'read',
-        tool: 'release-automation',
-        action: 'get-release-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, releaseCount: history.length }
-      });
-      return { success: true, history };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:get-release-history error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'release-automation',
-        action: 'get-release-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:manage-release-tags', async (_event, packageId: string, tags: string[], action?: string) => {
-    const startTime = Date.now();
-    try {
-      const pkg = releasePackagesStorage.get(packageId);
-      if (!pkg) throw new Error('Package not found');
-      if (!pkg.tags) pkg.tags = [];
-      const op = action || 'add';
-      if (op === 'add') pkg.tags = [...new Set([...pkg.tags, ...tags])];
-      else if (op === 'remove') pkg.tags = pkg.tags.filter((t: string) => !tags.includes(t));
-      releasePackagesStorage.set(packageId, pkg);
-      saveReleaseDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'release-automation',
-        action: 'manage-release-tags',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { packageId, tags: pkg.tags, operation: op }
-      });
-      return { success: true, tags: pkg.tags };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:manage-release-tags error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'release-automation',
-        action: 'manage-release-tags',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:export-release', async (_event, packageId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const pkg = releasePackagesStorage.get(packageId);
-      if (!pkg) throw new Error('Package not found');
-      const exportFormat = format || 'zip';
-      const exportData = {
-        packageId,
-        modName: pkg.modName,
-        version: pkg.version,
-        format: exportFormat,
-        exportDate: Date.now(),
-        outputPath: `${pkg.modName}_v${pkg.version}_export.${exportFormat}`,
-        fileSize: pkg.fileSize,
-        compressed: true,
-        ready: true
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'release-automation',
-        action: 'export-release',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { packageId, format: exportFormat }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:export-release error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'release-automation',
-        action: 'export-release',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('release:schedule-release', async (_event, packageId: string, releaseDate: number, timezone?: string) => {
-    const startTime = Date.now();
-    try {
-      const pkg = releasePackagesStorage.get(packageId);
-      if (!pkg) throw new Error('Package not found');
-      pkg.scheduledRelease = {
-        date: releaseDate,
-        timezone: timezone || 'UTC',
-        status: 'scheduled',
-        createdAt: Date.now()
-      };
-      releasePackagesStorage.set(packageId, pkg);
-      saveReleaseDataToDisk();
-      auditLogger.log({
-        operation: 'schedule',
-        tool: 'release-automation',
-        action: 'schedule-release',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { packageId, releaseDate: new Date(releaseDate).toISOString() }
-      });
-      return { success: true, scheduled: pkg.scheduledRelease };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] release:schedule-release error:', errMsg);
-      auditLogger.log({
-        operation: 'schedule',
-        tool: 'release-automation',
-        action: 'schedule-release',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize release data on startup
   loadReleaseDataFromDisk();
@@ -23794,482 +23474,6 @@ Rules:
     }
   }
 
-  registerHandler('audit:scan-nif-mesh', async (_event, filePath: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const nifAudit = {
-        id: `nif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'NIF_MESH',
-        filePath,
-        modName: modName || 'unknown',
-        timestamp: Date.now(),
-        status: 'completed',
-        checks: {
-          fileIntegrity: 'pass',
-          meshValidity: 'pass',
-          shaderCompatibility: 'pass',
-          textureReferences: 'pass',
-          triangleCount: 45230,
-          vertexCount: 28450,
-          materialCount: 12
-        },
-        warnings: [],
-        errors: [],
-        recommendations: [
-          'Consider LOD optimization for performance',
-          'Verify texture paths are relative'
-        ],
-        score: 95
-      };
-      assetAuditStorage.set(nifAudit.id, nifAudit);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-nif-mesh',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, score: nifAudit.score }
-      });
-      return { success: true, audit: nifAudit };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:scan-nif-mesh error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-nif-mesh',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:scan-dds-texture', async (_event, filePath: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const ddsAudit = {
-        id: `dds_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'DDS_TEXTURE',
-        filePath,
-        modName: modName || 'unknown',
-        timestamp: Date.now(),
-        status: 'completed',
-        checks: {
-          fileIntegrity: 'pass',
-          formatValid: 'pass',
-          dimensionsOptimal: 'pass',
-          mipmapsPresent: true,
-          compression: 'BC3 (DXT5)',
-          resolution: '2048x2048',
-          fileSize: '5.3 MB',
-          colorSpace: 'sRGB'
-        },
-        warnings: ['Consider BC5 for normal maps'],
-        errors: [],
-        recommendations: [
-          'Verify resolution matches Fallout 4 standards',
-          'Ensure compression format matches texture purpose'
-        ],
-        score: 92
-      };
-      assetAuditStorage.set(ddsAudit.id, ddsAudit);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-dds-texture',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, score: ddsAudit.score }
-      });
-      return { success: true, audit: ddsAudit };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:scan-dds-texture error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-dds-texture',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:scan-esp-plugin', async (_event, filePath: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const espAudit = {
-        id: `esp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'ESP_PLUGIN',
-        filePath,
-        modName: modName || 'unknown',
-        timestamp: Date.now(),
-        status: 'completed',
-        checks: {
-          fileIntegrity: 'pass',
-          headerValid: 'pass',
-          masterFileReferences: 'pass',
-          formIdValidity: 'pass',
-          recordCount: 1247,
-          masters: ['Fallout4.esm', 'DLC01.esm'],
-          formIdConflicts: 0,
-          orphanedRecords: 0
-        },
-        warnings: [],
-        errors: [],
-        recommendations: [
-          'Master files are correctly ordered',
-          'No circular dependencies detected'
-        ],
-        score: 98
-      };
-      assetAuditStorage.set(espAudit.id, espAudit);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-esp-plugin',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, score: espAudit.score }
-      });
-      return { success: true, audit: espAudit };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:scan-esp-plugin error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'scan-esp-plugin',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:validate-papyrus-scripts', async (_event, scriptContent: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const syntaxIssues: string[] = [];
-      if (scriptContent.includes('while (true)')) syntaxIssues.push('Infinite loop detected');
-      const scriptAudit = {
-        id: `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'PAPYRUS_SCRIPT',
-        modName: modName || 'unknown',
-        timestamp: Date.now(),
-        status: 'completed',
-        checks: {
-          syntaxValid: syntaxIssues.length === 0,
-          propertyDeclarations: 'pass',
-          eventHandlers: 'pass',
-          functionSignatures: 'pass',
-          scriptCount: 14,
-          propertyCount: 47,
-          eventCount: 23
-        },
-        warnings: ['Consider caching property references'],
-        errors: syntaxIssues.length > 0 ? syntaxIssues : [],
-        recommendations: [
-          'Use proper error handling in all functions',
-          'Avoid expensive operations in event handlers'
-        ],
-        score: syntaxIssues.length === 0 ? 94 : 45
-      };
-      assetAuditStorage.set(scriptAudit.id, scriptAudit);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'validate-papyrus-scripts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, syntaxValid: scriptAudit.checks.syntaxValid }
-      });
-      return { success: true, audit: scriptAudit };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:validate-papyrus-scripts error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'validate-papyrus-scripts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:check-audio-compatibility', async (_event, filePath: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const audioAudit = {
-        id: `audio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'AUDIO_FILE',
-        filePath,
-        modName: modName || 'unknown',
-        timestamp: Date.now(),
-        status: 'completed',
-        checks: {
-          formatValid: 'pass',
-          codecCompatible: true,
-          bitrate: '192 kbps',
-          sampleRate: '44100 Hz',
-          channels: 'stereo',
-          duration: '2m 34s',
-          fileSize: '58 MB'
-        },
-        warnings: [],
-        errors: [],
-        recommendations: [
-          'Audio format WAV/MP3 compatible with Fallout 4',
-          'Bitrate suitable for voice acting'
-        ],
-        score: 96
-      };
-      assetAuditStorage.set(audioAudit.id, audioAudit);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'check-audio-compatibility',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, score: audioAudit.score }
-      });
-      return { success: true, audit: audioAudit };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:check-audio-compatibility error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'check-audio-compatibility',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:generate-report', async (_event, modName: string, auditIds: string[]) => {
-    const startTime = Date.now();
-    try {
-      const audits = auditIds.map(id => assetAuditStorage.get(id)).filter(Boolean);
-      const avgScore = audits.length > 0 ? Math.round(audits.reduce((sum: number, a: any) => sum + (a.score || 0), 0) / audits.length) : 0;
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modName,
-        generatedAt: Date.now(),
-        totalAudits: audits.length,
-        overallScore: avgScore,
-        assetTypes: {
-          nifMeshes: audits.filter((a: any) => a.type === 'NIF_MESH').length,
-          ddsTextures: audits.filter((a: any) => a.type === 'DDS_TEXTURE').length,
-          espPlugins: audits.filter((a: any) => a.type === 'ESP_PLUGIN').length,
-          papyrusScripts: audits.filter((a: any) => a.type === 'PAPYRUS_SCRIPT').length,
-          audioFiles: audits.filter((a: any) => a.type === 'AUDIO_FILE').length
-        },
-        summary: `${modName} mod integrity audit completed with ${audits.length} assets scanned. Overall quality score: ${avgScore}/100.`,
-        status: 'completed'
-      };
-      auditReportsStorage.set(report.id, report);
-      saveAssetAuditDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-integrity-auditor',
-        action: 'generate-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, auditCount: audits.length, score: avgScore }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:generate-report error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-integrity-auditor',
-        action: 'generate-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:get-audit-history', async (_event, modName: string, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const history = Array.from(assetAuditStorage.values())
-        .filter((a: any) => a.modName === modName)
-        .sort((a: any, b: any) => b.timestamp - a.timestamp)
-        .slice(0, Math.min(limit || 50, 100));
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-integrity-auditor',
-        action: 'get-audit-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, auditCount: history.length }
-      });
-      return { success: true, history };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:get-audit-history error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-integrity-auditor',
-        action: 'get-audit-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:export-audit-data', async (_event, reportId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const report = auditReportsStorage.get(reportId);
-      if (!report) throw new Error('Report not found');
-      const exportFormat = format || 'json';
-      const exportData = {
-        reportId,
-        modName: report.modName,
-        format: exportFormat,
-        exportDate: Date.now(),
-        outputPath: `${report.modName}_audit_${report.generatedAt}.${exportFormat}`,
-        ready: true,
-        fileSize: Math.floor(Math.random() * 2000000) + 500000
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'asset-integrity-auditor',
-        action: 'export-audit-data',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { reportId, format: exportFormat }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:export-audit-data error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'asset-integrity-auditor',
-        action: 'export-audit-data',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:compare-versions', async (_event, modName: string, version1Id: string, version2Id: string) => {
-    const startTime = Date.now();
-    try {
-      const audit1 = assetAuditStorage.get(version1Id);
-      const audit2 = assetAuditStorage.get(version2Id);
-      if (!audit1 || !audit2) throw new Error('Audit records not found');
-      const comparison = {
-        modName,
-        version1Id,
-        version2Id,
-        timestamp: Date.now(),
-        scoreChange: audit2.score - audit1.score,
-        improved: audit2.score > audit1.score,
-        changes: {
-          newIssues: Math.random() < 0.5 ? 0 : 2,
-          resolvedIssues: Math.random() < 0.5 ? 1 : 3,
-          assetChanges: Math.random() < 0.5 ? 5 : 12
-        },
-        recommendation: audit2.score > audit1.score ? 'Version 2 has improved quality' : 'Review changes in Version 2'
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-integrity-auditor',
-        action: 'compare-versions',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, scoreChange: comparison.scoreChange }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:compare-versions error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-integrity-auditor',
-        action: 'compare-versions',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('audit:batch-scan-assets', async (_event, modName: string, assetPaths: string[], assetTypes?: string[]) => {
-    const startTime = Date.now();
-    try {
-      const batchResults: any[] = [];
-      for (const path of assetPaths || []) {
-        const auditId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const audit = {
-          id: auditId,
-          type: assetTypes ? assetTypes[0] : 'UNKNOWN',
-          filePath: path,
-          modName,
-          timestamp: Date.now(),
-          status: 'completed',
-          score: Math.floor(Math.random() * 30) + 70,
-          checks: {
-            fileIntegrity: 'pass',
-            validation: 'pass'
-          }
-        };
-        assetAuditStorage.set(auditId, audit);
-        batchResults.push(audit);
-      }
-      saveAssetAuditDataToDisk();
-      const avgScore = batchResults.length > 0 ? Math.round(batchResults.reduce((sum: number, a: any) => sum + (a.score || 0), 0) / batchResults.length) : 0;
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'batch-scan-assets',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, assetCount: assetPaths?.length || 0, avgScore }
-      });
-      return { success: true, results: batchResults, averageScore: avgScore };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] audit:batch-scan-assets error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-integrity-auditor',
-        action: 'batch-scan-assets',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize asset audit data on startup
   loadAssetAuditDataFromDisk();
@@ -24309,419 +23513,6 @@ Rules:
     }
   }
 
-  registerHandler('codeGenerator:get-template', async (_event, templateType: string) => {
-    const startTime = Date.now();
-    try {
-      const templates: any = {
-        'quest-script': `Scriptname MyQuestScript extends Quest\n\nEvent OnInit()\n  ; Initialize quest\nEndEvent\n\nEvent OnQuestStart()\n  ; Quest started\nEndEvent`,
-        'actor-alias': `Scriptname MyActorAliasScript extends ReferenceAlias\n\nEvent OnInit()\n  ; Initialize actor alias\nEndEvent\n\nEvent OnCellAttach()\n  ; Actor entered cell\nEndEvent`,
-        'magic-effect': `Scriptname MyMagicEffectScript extends ActiveMagicEffect\n\nEvent OnEffectStart(Actor akTarget, Actor akCaster)\n  ; Effect started\nEndEvent\n\nEvent OnEffectFinish(Actor akTarget, Actor akCaster)\n  ; Effect finished\nEndEvent`,
-        'object-reference': `Scriptname MyObjectReferenceScript extends ObjectReference\n\nEvent OnInit()\n  ; Initialize reference\nEndEvent\n\nEvent OnActivate(ObjectReference akActionRef)\n  ; Object activated\nEndEvent`,
-        'perk-script': `Scriptname MyPerkScript extends Perk\n\nEvent OnPerkEntryRun(int auiEntryID, Actor akTarget, Actor akCaster)\n  ; Perk ability executed\nEndEvent`
-      };
-      const template = {
-        id: `tmpl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: templateType,
-        content: templates[templateType] || 'Scriptname CustomScript extends Form\n\n; Add implementation\n\nEndScript',
-        createdAt: Date.now(),
-        language: 'papyrus',
-        complexity: 'beginner'
-      };
-      scriptTemplatesStorage.set(template.id, template);
-      saveScriptingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-template',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { templateType }
-      });
-      return { success: true, template };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:get-template error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-template',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:generate-stub', async (_event, functionName: string, parameters?: any[], returnType?: string) => {
-    const startTime = Date.now();
-    try {
-      const paramList = (parameters || []).map((p: any) => `${p.type} a${p.name}`).join(', ');
-      const returnDecl = returnType && returnType !== 'void' ? `${returnType} ` : '';
-      const stub = `Function ${returnDecl}${functionName}(${paramList})\n  ; TODO: Implement function\nEndFunction`;
-      const generated = {
-        id: `stub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        functionName,
-        parameters: parameters || [],
-        returnType: returnType || 'void',
-        content: stub,
-        generatedAt: Date.now()
-      };
-      generatedScriptsStorage.set(generated.id, generated);
-      saveScriptingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-stub',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { functionName, paramCount: parameters?.length || 0 }
-      });
-      return { success: true, stub: generated };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-stub error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-stub',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:validate-syntax', async (_event, scriptContent: string) => {
-    const startTime = Date.now();
-    try {
-      const issues: any[] = [];
-      if (!scriptContent.includes('Scriptname')) issues.push({ line: 1, type: 'warning', message: 'Missing Scriptname declaration' });
-      if (scriptContent.includes('while (true)')) issues.push({ type: 'error', message: 'Infinite loop detected' });
-      if ((scriptContent.match(/Function/g) || []).length !== (scriptContent.match(/EndFunction/g) || []).length) {
-        issues.push({ type: 'error', message: 'Mismatched Function/EndFunction blocks' });
-      }
-      const validation = {
-        id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        valid: issues.length === 0,
-        issueCount: issues.length,
-        issues,
-        warnings: issues.filter((i: any) => i.type === 'warning').length,
-        errors: issues.filter((i: any) => i.type === 'error').length,
-        validatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'scripting-assistant',
-        action: 'validate-syntax',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { valid: validation.valid, issueCount: validation.issueCount }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:validate-syntax error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'scripting-assistant',
-        action: 'validate-syntax',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:get-snippets', async (_event, category?: string) => {
-    const startTime = Date.now();
-    try {
-      const snippets = [
-        { name: 'SafeWait', code: 'int i = 0\nWhile (i < 10)\n  Utility.Wait(0.1)\n  i += 1\nEndWhile' },
-        { name: 'RegisterForEvent', code: 'RegisterForSingleUpdate(5.0)\nRegisterForMenuOpenCloseEvent("InventoryMenu")' },
-        { name: 'FindInArray', code: 'Int index = -1\nInt i = 0\nWhile (i < actorArray.Length)\n  If (actorArray[i] == akTarget)\n    index = i\n  EndIf\n  i += 1\nEndWhile' },
-        { name: 'CloneArray', code: 'Actor[] newArray = new Actor[oldArray.Length]\nInt i = 0\nWhile (i < oldArray.Length)\n  newArray[i] = oldArray[i]\n  i += 1\nEndWhile' },
-        { name: 'RandomFromArray', code: 'Int randomIndex = Utility.RandomInt(0, myArray.Length - 1)\nReturn myArray[randomIndex]' }
-      ];
-      const result = {
-        id: `snippets_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        category: category || 'general',
-        count: snippets.length,
-        snippets,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-snippets',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { category, snippetCount: snippets.length }
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:get-snippets error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-snippets',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:generate-event-handlers', async (_event, scriptType: string, events?: string[]) => {
-    const startTime = Date.now();
-    try {
-      const eventHandlers = (events || ['OnInit', 'OnUpdate']).map((evt: string) => 
-        `Event ${evt}()\n  ; Handle ${evt}\nEndEvent`
-      ).join('\n\n');
-      const handlers = {
-        id: `handlers_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptType,
-        events: events || [],
-        content: eventHandlers,
-        generatedAt: Date.now()
-      };
-      generatedScriptsStorage.set(handlers.id, handlers);
-      saveScriptingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-event-handlers',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptType, eventCount: events?.length || 0 }
-      });
-      return { success: true, handlers };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-event-handlers error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-event-handlers',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:format-script', async (_event, scriptContent: string) => {
-    const startTime = Date.now();
-    try {
-      const lines = scriptContent.split('\n');
-      let indentLevel = 0;
-      const formatted = lines.map((line: string) => {
-        const trimmed = line.trim();
-        if (trimmed.includes('EndFunction') || trimmed.includes('EndEvent') || trimmed.includes('EndIf') || trimmed.includes('EndWhile')) {
-          indentLevel = Math.max(0, indentLevel - 1);
-        }
-        const indented = '  '.repeat(indentLevel) + trimmed;
-        if (trimmed.includes('Function') || trimmed.includes('Event') || trimmed.includes('If ') || trimmed.includes('While ')) {
-          indentLevel++;
-        }
-        return indented;
-      }).join('\n');
-      const result = {
-        id: `fmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        original: scriptContent,
-        formatted,
-        lineCount: lines.length,
-        formattedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'update',
-        tool: 'scripting-assistant',
-        action: 'format-script',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { lineCount: lines.length }
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:format-script error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'scripting-assistant',
-        action: 'format-script',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:get-documentation', async (_event, functionName: string, category?: string) => {
-    const startTime = Date.now();
-    try {
-      const docs: any = {
-        'RegisterForUpdate': { params: ['interval: float'], returns: 'void', description: 'Register for single update after delay' },
-        'RegisterForSingleUpdate': { params: ['interval: float'], returns: 'void', description: 'Register for single update event' },
-        'Utility.Wait': { params: ['seconds: float'], returns: 'void', description: 'Wait for specified seconds' },
-        'Debug.MessageBox': { params: ['message: string'], returns: 'int', description: 'Display message box to player' },
-        'GetFormFromFile': { params: ['formID: int', 'fileName: string'], returns: 'Form', description: 'Load form from external file' }
-      };
-      const docEntry = docs[functionName] || { params: [], returns: 'unknown', description: 'Function documentation not found' };
-      const documentation = {
-        id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        functionName,
-        ...docEntry,
-        category: category || 'utility',
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-documentation',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { functionName }
-      });
-      return { success: true, documentation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:get-documentation error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'scripting-assistant',
-        action: 'get-documentation',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:generate-from-spec', async (_event, specification: string, scriptType?: string) => {
-    const startTime = Date.now();
-    try {
-      const scriptId = `gen_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const generated = {
-        id: scriptId,
-        specification,
-        scriptType: scriptType || 'custom',
-        generatedCode: `Scriptname GeneratedScript extends ${scriptType || 'Form'}\n\n; Generated from spec: ${specification.substring(0, 50)}...\n\nEvent OnInit()\n  ; Initialize\nEndEvent`,
-        generatedAt: Date.now(),
-        complexity: 'intermediate',
-        status: 'generated'
-      };
-      generatedScriptsStorage.set(scriptId, generated);
-      saveScriptingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-from-spec',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptType, specLength: specification.length }
-      });
-      return { success: true, generated };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-from-spec error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'scripting-assistant',
-        action: 'generate-from-spec',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:optimize-script', async (_event, scriptContent: string) => {
-    const startTime = Date.now();
-    try {
-      const suggestions: any[] = [];
-      if (scriptContent.includes('while (true)')) suggestions.push('Infinite loop detected - add break condition');
-      if ((scriptContent.match(/Utility\.Wait/g) || []).length > 5) suggestions.push('Multiple waits - consider consolidating');
-      if (scriptContent.includes('RegisterForUpdate')) suggestions.push('Use RegisterForSingleUpdate for one-time events');
-      if ((scriptContent.match(/GetFormFromFile/g) || []).length > 10) suggestions.push('Many form lookups - cache results');
-      const optimization = {
-        id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        suggestions,
-        performanceGain: suggestions.length > 0 ? `${10 * suggestions.length}%` : 'Already optimized',
-        optimizedAt: Date.now(),
-        complexity: 'advanced'
-      };
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'scripting-assistant',
-        action: 'optimize-script',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { suggestionCount: suggestions.length }
-      });
-      return { success: true, optimization };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:optimize-script error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'scripting-assistant',
-        action: 'optimize-script',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('codeGenerator:test-in-sandbox', async (_event, scriptContent: string, testParams?: any) => {
-    const startTime = Date.now();
-    try {
-      const testResult = {
-        id: `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptContent: scriptContent.substring(0, 100),
-        status: 'passed',
-        executionTime: Math.random() * 100,
-        output: 'Script executed without errors',
-        errors: [],
-        warnings: [],
-        testParams: testParams || {},
-        testedAt: Date.now(),
-        coverage: '85%'
-      };
-      generatedScriptsStorage.set(testResult.id, testResult);
-      saveScriptingDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'scripting-assistant',
-        action: 'test-in-sandbox',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { status: testResult.status, coverage: testResult.coverage }
-      });
-      return { success: true, testResult };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:test-in-sandbox error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'scripting-assistant',
-        action: 'test-in-sandbox',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize scripting data on startup
   loadScriptingDataFromDisk();
@@ -24761,412 +23552,6 @@ Rules:
     }
   }
 
-  registerHandler('perf:start-monitoring', async (_event, sessionName?: string) => {
-    const startTime = Date.now();
-    try {
-      const session = {
-        id: `perf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: sessionName || 'Performance Session',
-        startTime: Date.now(),
-        endTime: null,
-        status: 'active',
-        metrics: {
-          avgFps: 0,
-          minFps: 0,
-          maxFps: 0,
-          memoryUsage: 0,
-          cpuUsage: 0,
-          loadTime: 0
-        }
-      };
-      performanceMetricsStorage.set(session.id, session);
-      savePerformanceDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'performance-profiler',
-        action: 'start-monitoring',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionName }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:start-monitoring error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'performance-profiler',
-        action: 'start-monitoring',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:get-fps-metrics', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const fpsData = {
-        id: `fps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId,
-        avgFps: Math.floor(Math.random() * 60) + 30,
-        minFps: Math.floor(Math.random() * 20) + 5,
-        maxFps: Math.floor(Math.random() * 50) + 55,
-        frameCount: Math.floor(Math.random() * 10000) + 1000,
-        droppedFrames: Math.floor(Math.random() * 50),
-        stutderEvents: Math.floor(Math.random() * 10),
-        measuredAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'get-fps-metrics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { avgFps: fpsData.avgFps }
-      });
-      return { success: true, fpsData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:get-fps-metrics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'get-fps-metrics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:analyze-memory', async (_event, sessionId: string, threshold?: number) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const memoryAnalysis = {
-        id: `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId,
-        totalMemory: Math.floor(Math.random() * 4000) + 2000,
-        usedMemory: Math.floor(Math.random() * 2000) + 1000,
-        availableMemory: Math.floor(Math.random() * 2000) + 1000,
-        memoryUsagePercent: Math.random() * 100,
-        topConsumers: [
-          { process: 'Fallout4.exe', memory: 1200 },
-          { process: 'CreationKit.exe', memory: 850 },
-          { process: 'xEdit.exe', memory: 620 }
-        ],
-        memoryLeaks: Math.random() < 0.3 ? Math.floor(Math.random() * 3) : 0,
-        threshold: threshold || 80,
-        status: Math.random() * 100 > (threshold || 80) ? 'warning' : 'normal',
-        analyzedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'performance-profiler',
-        action: 'analyze-memory',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { usedMemory: memoryAnalysis.usedMemory }
-      });
-      return { success: true, memoryAnalysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:analyze-memory error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'performance-profiler',
-        action: 'analyze-memory',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:measure-load-time', async (_event, modPath: string) => {
-    const startTime = Date.now();
-    try {
-      const loadTimeData = {
-        id: `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modPath,
-        parseTime: Math.random() * 500,
-        compileTime: Math.random() * 1000,
-        totalLoadTime: Math.random() * 2000 + 500,
-        assetsProcessed: Math.floor(Math.random() * 1000) + 100,
-        texturesLoaded: Math.floor(Math.random() * 200) + 20,
-        meshesLoaded: Math.floor(Math.random() * 100) + 10,
-        soundsLoaded: Math.floor(Math.random() * 50) + 5,
-        measurementComplete: true,
-        measuredAt: Date.now()
-      };
-      performanceMetricsStorage.set(loadTimeData.id, loadTimeData);
-      savePerformanceDataToDisk();
-      auditLogger.log({
-        operation: 'measure',
-        tool: 'performance-profiler',
-        action: 'measure-load-time',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalLoadTime: loadTimeData.totalLoadTime }
-      });
-      return { success: true, loadTimeData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:measure-load-time error:', errMsg);
-      auditLogger.log({
-        operation: 'measure',
-        tool: 'performance-profiler',
-        action: 'measure-load-time',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:detect-bottlenecks', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const bottlenecks = [
-        { type: 'cpu', severity: 'high', description: 'High CPU usage during asset loading' },
-        { type: 'memory', severity: 'medium', description: 'Memory usage peaks above threshold' },
-        { type: 'io', severity: 'low', description: 'Disk I/O latency detected' }
-      ].filter(() => Math.random() > 0.4);
-      const analysis = {
-        id: `bottle_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId,
-        bottleneckCount: bottlenecks.length,
-        bottlenecks,
-        overallPerformance: 'good',
-        recommendations: bottlenecks.map(b => `Address ${b.type}: ${b.description}`),
-        detectedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'performance-profiler',
-        action: 'detect-bottlenecks',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { bottleneckCount: analysis.bottleneckCount }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:detect-bottlenecks error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'performance-profiler',
-        action: 'detect-bottlenecks',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:suggest-optimizations', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const suggestions = [
-        { priority: 'high', suggestion: 'Reduce texture resolution for distant objects', estimatedGain: '15%' },
-        { priority: 'high', suggestion: 'Enable texture compression', estimatedGain: '20%' },
-        { priority: 'medium', suggestion: 'Optimize LOD distance settings', estimatedGain: '8%' },
-        { priority: 'medium', suggestion: 'Reduce shadow rendering distance', estimatedGain: '10%' },
-        { priority: 'low', suggestion: 'Cache frequently accessed forms', estimatedGain: '3%' }
-      ];
-      const optimizationPlan = {
-        id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId,
-        suggestions,
-        estimatedTotalGain: '56%',
-        implementationTime: '2-4 hours',
-        difficulty: 'intermediate',
-        createdAt: Date.now()
-      };
-      optimizationReportsStorage.set(optimizationPlan.id, optimizationPlan);
-      savePerformanceDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'performance-profiler',
-        action: 'suggest-optimizations',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { suggestionCount: suggestions.length, totalGain: optimizationPlan.estimatedTotalGain }
-      });
-      return { success: true, optimizationPlan };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:suggest-optimizations error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'performance-profiler',
-        action: 'suggest-optimizations',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:compare-sessions', async (_event, session1Id: string, session2Id: string) => {
-    const startTime = Date.now();
-    try {
-      const session1 = performanceMetricsStorage.get(session1Id);
-      const session2 = performanceMetricsStorage.get(session2Id);
-      if (!session1 || !session2) throw new Error('Session not found');
-      const comparison = {
-        id: `cmp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        session1Id,
-        session2Id,
-        fpsImprovement: (Math.random() - 0.5) * 20,
-        memoryImprovement: (Math.random() - 0.5) * 30,
-        loadTimeImprovement: (Math.random() - 0.5) * 15,
-        improved: Math.random() > 0.3,
-        summary: 'Session 2 shows improvements in memory and load time',
-        comparedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'compare-sessions',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { improved: comparison.improved }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:compare-sessions error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'compare-sessions',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:export-report', async (_event, sessionId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      const reportFormat = format || 'html';
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sessionId,
-        format: reportFormat,
-        title: `Performance Report - ${session.name}`,
-        outputPath: `perf_report_${sessionId}.${reportFormat}`,
-        fileSize: Math.floor(Math.random() * 5000) + 500,
-        ready: true,
-        generatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'performance-profiler',
-        action: 'export-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format: reportFormat }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:export-report error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'performance-profiler',
-        action: 'export-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:stop-monitoring', async (_event, sessionId: string) => {
-    const startTime = Date.now();
-    try {
-      const session = performanceMetricsStorage.get(sessionId);
-      if (!session) throw new Error('Session not found');
-      session.endTime = Date.now();
-      session.status = 'completed';
-      session.duration = session.endTime - session.startTime;
-      performanceMetricsStorage.set(sessionId, session);
-      savePerformanceDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'performance-profiler',
-        action: 'stop-monitoring',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionDuration: session.duration }
-      });
-      return { success: true, session };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:stop-monitoring error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'performance-profiler',
-        action: 'stop-monitoring',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('perf:get-session-history', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const history = Array.from(performanceMetricsStorage.values())
-        .sort((a: any, b: any) => b.startTime - a.startTime)
-        .slice(0, Math.min(limit || 50, 100));
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'get-session-history',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sessionCount: history.length }
-      });
-      return { success: true, history };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] perf:get-session-history error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'performance-profiler',
-        action: 'get-session-history',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize performance data on startup
   loadPerformanceDataFromDisk();
@@ -25206,420 +23591,6 @@ Rules:
     }
   }
 
-  registerHandler('modlist:create-modlist', async (_event, listName: string, description?: string) => {
-    const startTime = Date.now();
-    try {
-      const listId = `modlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const modlist = {
-        id: listId,
-        name: listName,
-        description: description || '',
-        mods: [],
-        modCount: 0,
-        totalSize: 0,
-        created: Date.now(),
-        modified: Date.now(),
-        author: 'current-user',
-        version: '1.0',
-        gameVersion: '1.10.162.0',
-        tags: [],
-        public: false
-      };
-      modlistsStorage.set(listId, modlist);
-      saveModlistDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'modlist-manager',
-        action: 'create-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { listName }
-      });
-      return { success: true, modlist };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:create-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'modlist-manager',
-        action: 'create-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:add-mod-to-list', async (_event, modlistId: string, modEntry: any) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      const mod = {
-        id: `mod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: modEntry.name,
-        nexusModId: modEntry.nexusModId,
-        version: modEntry.version || '1.0',
-        fileSize: modEntry.fileSize || 0,
-        enabled: true,
-        order: modlist.mods.length,
-        addedAt: Date.now()
-      };
-      modlist.mods.push(mod);
-      modlist.modCount = modlist.mods.length;
-      modlist.totalSize += mod.fileSize;
-      modlist.modified = Date.now();
-      modlistsStorage.set(modlistId, modlist);
-      saveModlistDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'modlist-manager',
-        action: 'add-mod-to-list',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, modName: mod.name }
-      });
-      return { success: true, mod, modlist };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:add-mod-to-list error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'modlist-manager',
-        action: 'add-mod-to-list',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:remove-mod-from-list', async (_event, modlistId: string, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      const modIndex = modlist.mods.findIndex((m: any) => m.id === modId);
-      if (modIndex === -1) throw new Error('Mod not found in list');
-      const removedMod = modlist.mods.splice(modIndex, 1)[0];
-      modlist.modCount = modlist.mods.length;
-      modlist.totalSize -= removedMod.fileSize;
-      modlist.modified = Date.now();
-      modlistsStorage.set(modlistId, modlist);
-      saveModlistDataToDisk();
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'modlist-manager',
-        action: 'remove-mod-from-list',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, modName: removedMod.name }
-      });
-      return { success: true, modlist };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:remove-mod-from-list error:', errMsg);
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'modlist-manager',
-        action: 'remove-mod-from-list',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:get-modlist', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'get-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, modCount: modlist.modCount }
-      });
-      return { success: true, modlist };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:get-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'get-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:export-modlist', async (_event, modlistId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      const exportFormat = format || 'json';
-      const exportedList = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        name: modlist.name,
-        format: exportFormat,
-        modCount: modlist.modCount,
-        totalSize: modlist.totalSize,
-        outputPath: `${modlist.name}_v${modlist.version}.${exportFormat}`,
-        ready: true,
-        exportedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'modlist-manager',
-        action: 'export-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, format: exportFormat }
-      });
-      return { success: true, export: exportedList };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:export-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'modlist-manager',
-        action: 'export-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:import-modlist', async (_event, importPath: string, listName?: string) => {
-    const startTime = Date.now();
-    try {
-      const listId = `modlist_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const modlist = {
-        id: listId,
-        name: listName || 'Imported List',
-        description: 'Imported modlist',
-        mods: [],
-        modCount: Math.floor(Math.random() * 100) + 20,
-        totalSize: Math.floor(Math.random() * 50000) + 5000,
-        created: Date.now(),
-        modified: Date.now(),
-        author: 'imported',
-        version: '1.0',
-        importedFrom: importPath,
-        importedAt: Date.now()
-      };
-      modlistsStorage.set(listId, modlist);
-      saveModlistDataToDisk();
-      auditLogger.log({
-        operation: 'import',
-        tool: 'modlist-manager',
-        action: 'import-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { listName, modCount: modlist.modCount }
-      });
-      return { success: true, modlist };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:import-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'import',
-        tool: 'modlist-manager',
-        action: 'import-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:validate-modlist', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      const validation = {
-        id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        valid: true,
-        checks: {
-          modsExist: true,
-          dependenciesResolved: true,
-          noConflicts: Math.random() > 0.3,
-          correctLoadOrder: true,
-          allMastersPresent: true
-        },
-        issues: [],
-        warnings: Math.random() > 0.5 ? [] : ['Some mods may have outdated dependencies'],
-        validatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'modlist-manager',
-        action: 'validate-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, valid: validation.valid }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:validate-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'modlist-manager',
-        action: 'validate-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:get-modlist-stats', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        totalMods: modlist.modCount,
-        enabledMods: modlist.mods.filter((m: any) => m.enabled).length,
-        disabledMods: modlist.mods.filter((m: any) => !m.enabled).length,
-        totalSize: modlist.totalSize,
-        averageModSize: modlist.totalSize / (modlist.modCount || 1),
-        lastModified: modlist.modified,
-        daysSinceModified: Math.floor((Date.now() - modlist.modified) / (1000 * 60 * 60 * 24)),
-        estimatedLoadTime: Math.random() * 45 + 15,
-        playabilityScore: Math.floor(Math.random() * 30) + 70
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'get-modlist-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, totalMods: stats.totalMods }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:get-modlist-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'get-modlist-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:share-modlist', async (_event, modlistId: string, platform?: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist = modlistsStorage.get(modlistId);
-      if (!modlist) throw new Error('Modlist not found');
-      modlist.public = true;
-      const sharingRecord = {
-        id: `share_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        name: modlist.name,
-        platform: platform || 'community',
-        publicUrl: `https://falloutmods.community/modlists/${modlistId}`,
-        shareCode: Math.random().toString(36).substr(2, 8).toUpperCase(),
-        sharedAt: Date.now(),
-        downloads: 0,
-        rating: 0,
-        reviews: 0
-      };
-      modlistHistoryStorage.set(sharingRecord.id, sharingRecord);
-      modlistsStorage.set(modlistId, modlist);
-      saveModlistDataToDisk();
-      auditLogger.log({
-        operation: 'publish',
-        tool: 'modlist-manager',
-        action: 'share-modlist',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, platform }
-      });
-      return { success: true, sharing: sharingRecord };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:share-modlist error:', errMsg);
-      auditLogger.log({
-        operation: 'publish',
-        tool: 'modlist-manager',
-        action: 'share-modlist',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('modlist:compare-modlists', async (_event, modlist1Id: string, modlist2Id: string) => {
-    const startTime = Date.now();
-    try {
-      const modlist1 = modlistsStorage.get(modlist1Id);
-      const modlist2 = modlistsStorage.get(modlist2Id);
-      if (!modlist1 || !modlist2) throw new Error('Modlist not found');
-      const comparison = {
-        id: `cmp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlist1Id,
-        modlist2Id,
-        list1Name: modlist1.name,
-        list2Name: modlist2.name,
-        commonMods: Math.floor(Math.min(modlist1.modCount, modlist2.modCount) * 0.7),
-        uniqueToList1: modlist1.modCount - Math.floor(Math.min(modlist1.modCount, modlist2.modCount) * 0.7),
-        uniqueToList2: modlist2.modCount - Math.floor(Math.min(modlist1.modCount, modlist2.modCount) * 0.7),
-        sizeDifference: modlist2.totalSize - modlist1.totalSize,
-        similarity: Math.floor(Math.random() * 30) + 60,
-        comparedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'compare-modlists',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlist1Id, modlist2Id, similarity: comparison.similarity }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] modlist:compare-modlists error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'modlist-manager',
-        action: 'compare-modlists',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize modlist data on startup
   loadModlistDataFromDisk();
@@ -25659,426 +23630,6 @@ Rules:
     }
   }
 
-  registerHandler('conflict:scan-for-conflicts', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const scanId = `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const scan = {
-        id: scanId,
-        modlistId,
-        startTime: Date.now(),
-        endTime: null,
-        status: 'completed',
-        totalConflicts: Math.floor(Math.random() * 10) + 1,
-        criticalConflicts: Math.floor(Math.random() * 3),
-        warningConflicts: Math.floor(Math.random() * 5),
-        conflictTypes: {
-          pluginConflicts: Math.floor(Math.random() * 4),
-          assetConflicts: Math.floor(Math.random() * 6),
-          scriptConflicts: Math.floor(Math.random() * 2)
-        },
-        affectedMods: []
-      };
-      conflictDetectionStorage.set(scanId, scan);
-      saveConflictDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'conflict-resolution-engine',
-        action: 'scan-for-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, totalConflicts: scan.totalConflicts }
-      });
-      return { success: true, scan };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:scan-for-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'conflict-resolution-engine',
-        action: 'scan-for-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:detect-plugin-conflicts', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const conflicts = [
-        { mod1: 'mod-a.esp', mod2: 'mod-b.esp', formIds: [0x000800, 0x000801], severity: 'high' },
-        { mod1: 'mod-c.esm', mod2: 'mod-d.esp', formIds: [0x010000], severity: 'medium' }
-      ].filter(() => Math.random() > 0.3);
-      const detection = {
-        id: `plugin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        type: 'PLUGIN_CONFLICT',
-        conflictCount: conflicts.length,
-        conflicts,
-        detectedAt: Date.now()
-      };
-      conflictDetectionStorage.set(detection.id, detection);
-      saveConflictDataToDisk();
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-plugin-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, conflictCount: conflicts.length }
-      });
-      return { success: true, detection };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:detect-plugin-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-plugin-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:detect-asset-conflicts', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const assetConflicts = [
-        { path: 'textures/armor/powersuits/mod1.dds', mods: ['mod-armor-a', 'mod-armor-b'], type: 'DDS' },
-        { path: 'meshes/weapons/rifle.nif', mods: ['mod-weapon-x'], type: 'NIF' }
-      ].filter(() => Math.random() > 0.4);
-      const detection = {
-        id: `asset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        type: 'ASSET_CONFLICT',
-        conflictCount: assetConflicts.length,
-        assetConflicts,
-        totalAssetsScanned: Math.floor(Math.random() * 5000) + 1000,
-        detectedAt: Date.now()
-      };
-      conflictDetectionStorage.set(detection.id, detection);
-      saveConflictDataToDisk();
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-asset-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, assetConflictCount: assetConflicts.length }
-      });
-      return { success: true, detection };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:detect-asset-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-asset-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:detect-script-conflicts', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const scriptConflicts = [
-        { script: 'CustomQuestScript', functions: ['OnQuestStart', 'OnQuestEnd'], mods: ['mod-quest-1', 'mod-quest-2'], severity: 'high' }
-      ].filter(() => Math.random() > 0.5);
-      const detection = {
-        id: `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        type: 'SCRIPT_CONFLICT',
-        conflictCount: scriptConflicts.length,
-        scriptConflicts,
-        scriptsAnalyzed: Math.floor(Math.random() * 500) + 100,
-        detectedAt: Date.now()
-      };
-      conflictDetectionStorage.set(detection.id, detection);
-      saveConflictDataToDisk();
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-script-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId, scriptConflictCount: scriptConflicts.length }
-      });
-      return { success: true, detection };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:detect-script-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'conflict-resolution-engine',
-        action: 'detect-script-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:suggest-conflict-resolution', async (_event, conflictId: string) => {
-    const startTime = Date.now();
-    try {
-      const conflict = conflictDetectionStorage.get(conflictId);
-      if (!conflict) throw new Error('Conflict not found');
-      const suggestions = [
-        { priority: 'high', suggestion: 'Reorder mods (mod-a before mod-b)', estimatedSuccess: '95%' },
-        { priority: 'high', suggestion: 'Install compatibility patch for mod-b', estimatedSuccess: '88%' },
-        { priority: 'medium', suggestion: 'Disable conflicting mod-c features', estimatedSuccess: '75%' },
-        { priority: 'low', suggestion: 'Merge assets into unified package', estimatedSuccess: '60%' }
-      ];
-      const suggestion = {
-        id: `suggest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        conflictId,
-        suggestions,
-        bestSuggestion: suggestions[0],
-        implementationDifficulty: 'intermediate',
-        timeEstimate: '15-30 minutes',
-        createdAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'conflict-resolution-engine',
-        action: 'suggest-conflict-resolution',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { conflictId, suggestionCount: suggestions.length }
-      });
-      return { success: true, suggestion };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:suggest-conflict-resolution error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'conflict-resolution-engine',
-        action: 'suggest-conflict-resolution',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:auto-resolve-conflicts', async (_event, conflictId: string, strategy?: string) => {
-    const startTime = Date.now();
-    try {
-      const conflict = conflictDetectionStorage.get(conflictId);
-      if (!conflict) throw new Error('Conflict not found');
-      const resolutionStrategy = strategy || 'priority-based';
-      const resolution = {
-        id: `resolve_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        conflictId,
-        strategy: resolutionStrategy,
-        status: Math.random() > 0.3 ? 'successful' : 'partial',
-        resolvedConflicts: Math.random() > 0.3 ? conflict.totalConflicts : Math.floor(conflict.totalConflicts * 0.7),
-        remainingConflicts: Math.random() > 0.3 ? 0 : Math.ceil(conflict.totalConflicts * 0.3),
-        changes: ['Reordered mod load order', 'Applied compatibility patches'],
-        resolvedAt: Date.now()
-      };
-      resolutionRecordsStorage.set(resolution.id, resolution);
-      saveConflictDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'conflict-resolution-engine',
-        action: 'auto-resolve-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { conflictId, status: resolution.status }
-      });
-      return { success: true, resolution };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:auto-resolve-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'conflict-resolution-engine',
-        action: 'auto-resolve-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:generate-patch', async (_event, conflictId: string, patchType?: string) => {
-    const startTime = Date.now();
-    try {
-      const conflict = conflictDetectionStorage.get(conflictId);
-      if (!conflict) throw new Error('Conflict not found');
-      const patch = {
-        id: `patch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        conflictId,
-        patchType: patchType || 'esp',
-        name: `Conflict_Patch_${Date.now()}.esp`,
-        description: 'Auto-generated compatibility patch',
-        fileSize: Math.floor(Math.random() * 500) + 50,
-        formIdRemaps: Math.floor(Math.random() * 100) + 10,
-        assetRedirects: Math.floor(Math.random() * 50),
-        createdAt: Date.now(),
-        ready: true
-      };
-      auditLogger.log({
-        operation: 'create',
-        tool: 'conflict-resolution-engine',
-        action: 'generate-patch',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { conflictId, patchName: patch.name }
-      });
-      return { success: true, patch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:generate-patch error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'conflict-resolution-engine',
-        action: 'generate-patch',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:validate-resolution', async (_event, resolutionId: string) => {
-    const startTime = Date.now();
-    try {
-      const resolution = resolutionRecordsStorage.get(resolutionId);
-      if (!resolution) throw new Error('Resolution not found');
-      const validation = {
-        id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        resolutionId,
-        valid: resolution.status === 'successful',
-        checks: {
-          loadOrderCorrect: true,
-          noFormIdConflicts: true,
-          assetPathsValid: true,
-          scriptSyntaxOk: true,
-          dependenciesResolved: Math.random() > 0.3
-        },
-        issues: [],
-        validatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'conflict-resolution-engine',
-        action: 'validate-resolution',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resolutionId, valid: validation.valid }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:validate-resolution error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'conflict-resolution-engine',
-        action: 'validate-resolution',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:get-conflict-report', async (_event, scanId: string) => {
-    const startTime = Date.now();
-    try {
-      const scan = conflictDetectionStorage.get(scanId);
-      if (!scan) throw new Error('Scan not found');
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scanId,
-        title: `Conflict Report - Scan ${scanId}`,
-        summary: `Found ${scan.totalConflicts} conflicts: ${scan.criticalConflicts} critical, ${scan.warningConflicts} warnings`,
-        conflictDetails: scan.conflictTypes,
-        recommendations: [
-          'Address critical conflicts immediately',
-          'Review warning-level conflicts before playing',
-          'Consider installing compatibility patches'
-        ],
-        generatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'create',
-        tool: 'conflict-resolution-engine',
-        action: 'get-conflict-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scanId }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:get-conflict-report error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'conflict-resolution-engine',
-        action: 'get-conflict-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('conflict:export-conflict-data', async (_event, scanId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const scan = conflictDetectionStorage.get(scanId);
-      if (!scan) throw new Error('Scan not found');
-      const exportFormat = format || 'json';
-      const exported = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scanId,
-        format: exportFormat,
-        outputPath: `conflict_data_${scanId}.${exportFormat}`,
-        fileSize: Math.floor(Math.random() * 1000) + 100,
-        ready: true,
-        exportedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'export',
-        tool: 'conflict-resolution-engine',
-        action: 'export-conflict-data',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scanId, format: exportFormat }
-      });
-      return { success: true, exported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] conflict:export-conflict-data error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'conflict-resolution-engine',
-        action: 'export-conflict-data',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize conflict data on startup
   loadConflictDataFromDisk();
@@ -26118,441 +23669,6 @@ Rules:
     }
   }
 
-  registerHandler('diag:analyze-crash-log', async (_event, logPath: string) => {
-    const startTime = Date.now();
-    try {
-      const analysis = {
-        id: `crash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        logPath,
-        crashType: Math.random() > 0.5 ? 'segfault' : 'exception',
-        timestamp: Date.now() - Math.random() * 3600000,
-        faultAddress: `0x${Math.random().toString(16).substr(2, 8).toUpperCase()}`,
-        affectedMods: ['mod-x.esp', 'mod-y.esp'],
-        stackTrace: ['Frame 0: main.exe+0x12345', 'Frame 1: mods.dll+0xABCDE'],
-        severity: 'critical',
-        possibleCauses: [
-          'Memory corruption from conflicting mods',
-          'Invalid form ID reference',
-          'Infinite loop in script'
-        ],
-        analyzedAt: Date.now()
-      };
-      diagnosticsDataStorage.set(analysis.id, analysis);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'troubleshooting-diagnostics',
-        action: 'analyze-crash-log',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { crashType: analysis.crashType }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:analyze-crash-log error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'troubleshooting-diagnostics',
-        action: 'analyze-crash-log',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:diagnose-ctd-issues', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const ctdDiagnosis = {
-        id: `ctd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        ctdFrequency: `${Math.floor(Math.random() * 30) + 10} crashes per hour`,
-        likelyTriggers: [
-          'Loading certain cells',
-          'Interacting with specific NPCs',
-          'Using crafting stations'
-        ],
-        suspectedMods: ['conflicting-mod-a.esp', 'broken-script-mod.esp'],
-        memoryIssues: Math.random() > 0.5,
-        scriptErrors: Math.random() > 0.4,
-        formIdConflicts: Math.random() > 0.6,
-        recommendations: [
-          'Disable suspected mods one by one',
-          'Check mod load order',
-          'Run asset validation'
-        ],
-        diagnosedAt: Date.now()
-      };
-      diagnosticsDataStorage.set(ctdDiagnosis.id, ctdDiagnosis);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'diagnose',
-        tool: 'troubleshooting-diagnostics',
-        action: 'diagnose-ctd-issues',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId }
-      });
-      return { success: true, diagnosis: ctdDiagnosis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:diagnose-ctd-issues error:', errMsg);
-      auditLogger.log({
-        operation: 'diagnose',
-        tool: 'troubleshooting-diagnostics',
-        action: 'diagnose-ctd-issues',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:check-mod-compatibility', async (_event, mod1: string, mod2: string) => {
-    const startTime = Date.now();
-    try {
-      const compatible = Math.random() > 0.4;
-      const compatibility = {
-        id: `compat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        mod1,
-        mod2,
-        compatible,
-        compatibilityScore: Math.floor(Math.random() * 40) + (compatible ? 60 : 0),
-        conflicts: compatible ? [] : [
-          { type: 'asset', description: 'Both mods override same texture' },
-          { type: 'script', description: 'Script function conflicts' }
-        ],
-        warnings: Math.random() > 0.5 ? ['May have performance impact'] : [],
-        recommendations: compatible ? ['Safe to use together'] : ['Requires compatibility patch', 'Or reorder in load list'],
-        checkedAt: Date.now()
-      };
-      diagnosticsDataStorage.set(compatibility.id, compatibility);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'check',
-        tool: 'troubleshooting-diagnostics',
-        action: 'check-mod-compatibility',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { compatible, score: compatibility.compatibilityScore }
-      });
-      return { success: true, compatibility };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:check-mod-compatibility error:', errMsg);
-      auditLogger.log({
-        operation: 'check',
-        tool: 'troubleshooting-diagnostics',
-        action: 'check-mod-compatibility',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:generate-diagnostics-report', async (_event, modlistId: string) => {
-    const startTime = Date.now();
-    try {
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        title: `System Diagnostics Report - ${modlistId}`,
-        timestamp: Date.now(),
-        sections: {
-          systemHealth: { status: 'good', issues: Math.floor(Math.random() * 3) },
-          modCompatibility: { status: 'warning', issues: Math.floor(Math.random() * 5) },
-          performanceMetrics: { avgFps: Math.floor(Math.random() * 60) + 30, memoryUsage: Math.random() * 100 },
-          scriptStatus: { errors: Math.floor(Math.random() * 2), warnings: Math.floor(Math.random() * 5) }
-        },
-        summary: 'Modlist is generally stable with minor compatibility warnings',
-        recommendations: ['Review load order', 'Update outdated mods', 'Install compatibility patches'],
-        generatedAt: Date.now()
-      };
-      troubleshootingRecordsStorage.set(report.id, report);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'generate-diagnostics-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modlistId }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:generate-diagnostics-report error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'generate-diagnostics-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:suggest-troubleshooting-steps', async (_event, issue: string) => {
-    const startTime = Date.now();
-    try {
-      const steps = {
-        id: `steps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        issue,
-        troubleshootingSteps: [
-          { step: 1, action: 'Disable half the mods', expected: 'CTD should stop if caused by mod' },
-          { step: 2, action: 'Identify which mod group caused issue', expected: 'Narrow down culprit' },
-          { step: 3, action: 'Disable mods individually to find exact mod', expected: 'Identify problem mod' },
-          { step: 4, action: 'Check mod compatibility', expected: 'Find conflicts' },
-          { step: 5, action: 'Apply fix or remove mod', expected: 'Issue resolved' }
-        ],
-        estimatedTime: '30-60 minutes',
-        difficulty: 'intermediate',
-        successRate: '85%',
-        createdAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'suggest-troubleshooting-steps',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { issue, stepCount: steps.troubleshootingSteps.length }
-      });
-      return { success: true, steps };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:suggest-troubleshooting-steps error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'suggest-troubleshooting-steps',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:test-game-stability', async (_event, modlistId: string, duration?: number) => {
-    const startTime = Date.now();
-    try {
-      const testDuration = (duration || 30) * 60 * 1000;
-      const crashes = Math.floor(Math.random() * 3);
-      const memoryLeaks = Math.random() > 0.7;
-      const scriptErrors = Math.floor(Math.random() * 5);
-      const stabilityScore = Math.floor(Math.random() * 30) + 70;
-      const stability = {
-        id: `stability_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modlistId,
-        testDuration: testDuration / 60000,
-        crashes,
-        frameLossEvents: Math.floor(Math.random() * 10),
-        memoryLeaks,
-        scriptErrors,
-        stabilityScore,
-        verdict: (crashes > 0 || memoryLeaks || scriptErrors > 2 || stabilityScore < 75) ? 'unstable' : 'stable',
-        testedAt: Date.now()
-      };
-      diagnosticsDataStorage.set(stability.id, stability);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'test',
-        tool: 'troubleshooting-diagnostics',
-        action: 'test-game-stability',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { score: stability.stabilityScore, verdict: stability.verdict }
-      });
-      return { success: true, stability };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:test-game-stability error:', errMsg);
-      auditLogger.log({
-        operation: 'test',
-        tool: 'troubleshooting-diagnostics',
-        action: 'test-game-stability',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:debug-script-errors', async (_event, scriptContent: string, modName?: string) => {
-    const startTime = Date.now();
-    try {
-      const errors: any[] = [];
-      if (!scriptContent.includes('EndFunction')) errors.push({ line: 'unknown', type: 'syntax', message: 'Missing EndFunction' });
-      if (scriptContent.includes('while (true)')) errors.push({ type: 'logic', message: 'Infinite loop detected' });
-      const debug = {
-        id: `debug_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modName: modName || 'unknown',
-        errorCount: errors.length,
-        errors,
-        warnings: Math.floor(Math.random() * 3),
-        suggestions: errors.length > 0 ? ['Fix syntax errors first', 'Add safety conditions', 'Test in sandbox'] : [],
-        debuggedAt: Date.now()
-      };
-      troubleshootingRecordsStorage.set(debug.id, debug);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'debug',
-        tool: 'troubleshooting-diagnostics',
-        action: 'debug-script-errors',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modName, errorCount: errors.length }
-      });
-      return { success: true, debug };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:debug-script-errors error:', errMsg);
-      auditLogger.log({
-        operation: 'debug',
-        tool: 'troubleshooting-diagnostics',
-        action: 'debug-script-errors',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:analyze-load-order-issues', async (_event, loadOrder: string[]) => {
-    const startTime = Date.now();
-    try {
-      const issues: any[] = [];
-      if (loadOrder.length > 255) issues.push({ type: 'limit', message: 'Too many plugins (>255)' });
-      const analysis = {
-        id: `loadorder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginCount: loadOrder.length,
-        issueCount: issues.length,
-        issues,
-        masterOrder: 'valid',
-        esl_Count: Math.floor(Math.random() * 50),
-        recommendations: issues.length > 0 ? ['Use ESL-flagged plugins', 'Remove duplicates'] : ['Load order looks good'],
-        analyzedAt: Date.now()
-      };
-      diagnosticsDataStorage.set(analysis.id, analysis);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'troubleshooting-diagnostics',
-        action: 'analyze-load-order-issues',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: loadOrder.length, issueCount: issues.length }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:analyze-load-order-issues error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'troubleshooting-diagnostics',
-        action: 'analyze-load-order-issues',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:run-system-diagnostics', async (_event) => {
-    const startTime = Date.now();
-    try {
-      const diagnostics = {
-        id: `sysdiag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        cpu: { cores: 8, usage: Math.random() * 100, temp: Math.random() * 40 + 40 },
-        memory: { total: 16384, used: Math.random() * 12000, available: Math.random() * 4000 },
-        disk: { total: 1000000, free: Math.random() * 400000, readSpeed: Math.random() * 500 + 100 },
-        gpu: { model: 'RTX 3080', vram: 10240, usage: Math.random() * 100 },
-        issues: Math.random() > 0.6 ? [] : ['Low disk space', 'High CPU usage'],
-        timestamp: Date.now()
-      };
-      diagnosticsDataStorage.set(diagnostics.id, diagnostics);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'diagnose',
-        tool: 'troubleshooting-diagnostics',
-        action: 'run-system-diagnostics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { issueCount: diagnostics.issues.length }
-      });
-      return { success: true, diagnostics };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:run-system-diagnostics error:', errMsg);
-      auditLogger.log({
-        operation: 'diagnose',
-        tool: 'troubleshooting-diagnostics',
-        action: 'run-system-diagnostics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('diag:generate-troubleshooting-guide', async (_event, issue: string, modlistId?: string) => {
-    const startTime = Date.now();
-    try {
-      const guide = {
-        id: `guide_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        issue,
-        modlistId: modlistId || 'generic',
-        title: `Troubleshooting Guide: ${issue}`,
-        sections: [
-          { title: 'Understanding the Issue', content: 'Description of the problem and common causes' },
-          { title: 'Quick Fix Steps', content: '5 steps to try first' },
-          { title: 'Advanced Debugging', content: 'Technical troubleshooting for advanced users' },
-          { title: 'Getting Help', content: 'Resources and community options' }
-        ],
-        estimatedReadTime: '15-20 minutes',
-        difficulty: 'beginner-to-intermediate',
-        successRate: '80%',
-        lastUpdated: Date.now(),
-        generatedAt: Date.now()
-      };
-      troubleshootingRecordsStorage.set(guide.id, guide);
-      saveDiagnosticsDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'generate-troubleshooting-guide',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { issue }
-      });
-      return { success: true, guide };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] diag:generate-troubleshooting-guide error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'troubleshooting-diagnostics',
-        action: 'generate-troubleshooting-guide',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize diagnostics data on startup
   loadDiagnosticsDataFromDisk();
@@ -26592,187 +23708,79 @@ Rules:
     }
   }
 
-  registerHandler('loadorder:analyze-load-order', async (_event, loadOrder: string[]) => {
-    const startTime = Date.now();
-    try {
-      const analysis = {
-        id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginCount: loadOrder.length,
-        masterCount: Math.floor(Math.random() * 5) + 1,
-        espCount: loadOrder.length - Math.floor(Math.random() * 5) - 1,
-        eslCount: Math.floor(Math.random() * 20),
-        formIdUtilization: Math.floor(Math.random() * 30) + 70,
-        issues: Math.random() > 0.6 ? [] : ['Load order exceeds 255 plugins', 'Missing master files'],
-        masterDependencies: loadOrder.slice(0, Math.floor(Math.random() * 5)),
-        criticalPlugins: loadOrder.slice(Math.floor(Math.random() * 5), Math.floor(Math.random() * 10)),
-        analyzedAt: Date.now()
-      };
-      loadOrderOptimizationStorage.set(analysis.id, analysis);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'load-order-optimizer',
-        action: 'analyze-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: analysis.pluginCount }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:analyze-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'load-order-optimizer',
-        action: 'analyze-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
-  registerHandler('loadorder:suggest-optimal-order', async (_event, loadOrder: string[], conflictMap?: any) => {
-    const startTime = Date.now();
-    try {
-      const optimized = {
-        id: `optimal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        originalOrder: loadOrder,
-        optimizedOrder: loadOrder.slice().sort(() => Math.random() - 0.5),
-        rearrangements: Math.floor(Math.random() * 20),
-        stabilityImprovement: Math.floor(Math.random() * 30) + 20,
-        performanceGain: Math.floor(Math.random() * 15),
-        recommendations: [
-          'Move master files to beginning',
-          'Place core gameplay mods after masters',
-          'Load graphics mods near end',
-          'Place script-heavy mods before content mods'
-        ],
-        suggestedAt: Date.now()
-      };
-      loadOrderOptimizationStorage.set(optimized.id, optimized);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'suggest',
-        tool: 'load-order-optimizer',
-        action: 'suggest-optimal-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { improvement: optimized.stabilityImprovement }
-      });
-      return { success: true, optimized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:suggest-optimal-order error:', errMsg);
-      auditLogger.log({
-        operation: 'suggest',
-        tool: 'load-order-optimizer',
-        action: 'suggest-optimal-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
+  /**
+   * Real load-order integrity check: reads each plugin's actual TES4 header
+   * (masters + light-master flag) off disk and checks duplicates, missing
+   * files, missing/out-of-order masters, and the real FO4 254 non-ESL
+   * plugin cap. Shared by the manual IPC handler below and the
+   * `action:validate-load-order` automation rule.
+   */
+  function computeLoadOrderValidation(loadOrder: string[]) {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const seenBefore = new Set<string>(); // lowercase basenames loaded so far
+    const seenAt = new Map<string, number>();
+    let masterCount = 0;
+    let nonEslCount = 0;
 
-  registerHandler('loadorder:detect-master-dependencies', async (_event, pluginName: string) => {
-    const startTime = Date.now();
-    try {
-      const dependencies = {
-        id: `deps_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        plugin: pluginName,
-        masterFiles: ['Fallout4.esm', 'DLCRobot.esm'],
-        requiredMasters: Math.floor(Math.random() * 5),
-        missingMasters: Math.random() > 0.8 ? ['OptionalDLC.esm'] : [],
-        dependentPlugins: [`dependent-mod-a.esp`, `dependent-mod-b.esp`],
-        detectedAt: Date.now()
-      };
-      loadOrderOptimizationStorage.set(dependencies.id, dependencies);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'load-order-optimizer',
-        action: 'detect-master-dependencies',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { plugin: pluginName, masterCount: dependencies.masterFiles.length }
-      });
-      return { success: true, dependencies };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:detect-master-dependencies error:', errMsg);
-      auditLogger.log({
-        operation: 'detect',
-        tool: 'load-order-optimizer',
-        action: 'detect-master-dependencies',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
+    for (let i = 0; i < loadOrder.length; i++) {
+      const entryPath = loadOrder[i];
+      const baseName = path.basename(entryPath);
+      const baseLower = baseName.toLowerCase();
 
-  registerHandler('loadorder:prioritize-plugins', async (_event, loadOrder: string[], priorityMap?: any) => {
-    const startTime = Date.now();
-    try {
-      const prioritized = {
-        id: `priority_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalPlugins: loadOrder.length,
-        priorityTiers: {
-          critical: loadOrder.slice(0, Math.floor(loadOrder.length * 0.1)),
-          high: loadOrder.slice(Math.floor(loadOrder.length * 0.1), Math.floor(loadOrder.length * 0.3)),
-          medium: loadOrder.slice(Math.floor(loadOrder.length * 0.3), Math.floor(loadOrder.length * 0.7)),
-          low: loadOrder.slice(Math.floor(loadOrder.length * 0.7))
-        },
-        loadOrderSequence: loadOrder.slice().sort(() => Math.random() - 0.5),
-        priorityAdjustments: Math.floor(Math.random() * 15),
-        estimatedStability: Math.floor(Math.random() * 25) + 75,
-        prioritizedAt: Date.now()
-      };
-      loadOrderOptimizationStorage.set(prioritized.id, prioritized);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'prioritize',
-        tool: 'load-order-optimizer',
-        action: 'prioritize-plugins',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalPlugins: loadOrder.length, stability: prioritized.estimatedStability }
-      });
-      return { success: true, prioritized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:prioritize-plugins error:', errMsg);
-      auditLogger.log({
-        operation: 'prioritize',
-        tool: 'load-order-optimizer',
-        action: 'prioritize-plugins',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
+      if (seenAt.has(baseLower)) {
+        errors.push(`Duplicate plugin: ${baseName} appears at positions ${seenAt.get(baseLower)! + 1} and ${i + 1}`);
+      } else {
+        seenAt.set(baseLower, i);
+      }
+
+      if (/\.(esm|esl)$/i.test(baseLower)) masterCount++;
+
+      if (!fs.existsSync(entryPath)) {
+        errors.push(`Plugin file not found: ${entryPath}`);
+      } else {
+        try {
+          const buf = fs.readFileSync(entryPath);
+          const flags = buf.readUInt32LE(8);
+          const isLight = (flags & 0x200) !== 0;
+          if (!isLight) nonEslCount++;
+          const { masters } = _readEspMasters(buf);
+          for (const m of masters) {
+            if (!seenBefore.has(m.toLowerCase())) {
+              errors.push(`${baseName} requires master "${m}" which is missing or loads after it in this order`);
+            }
+          }
+        } catch (err: any) {
+          warnings.push(`Could not read plugin header for ${baseName}: ${err?.message || err}`);
+        }
+      }
+
+      seenBefore.add(baseLower);
     }
-  });
+
+    if (nonEslCount > 254) {
+      warnings.push(`${nonEslCount} non-ESL-flagged plugins loaded — exceeds Fallout 4's 254 slot limit (ESL-flagged plugins don't count against this cap)`);
+    }
+
+    const isValid = errors.length === 0;
+    return {
+      id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      isValid,
+      pluginCount: loadOrder.length,
+      errors,
+      warnings,
+      masterOrderValid: !errors.some(e => e.includes('requires master')),
+      masterCount,
+      espCount: loadOrder.length - masterCount,
+      validatedAt: Date.now()
+    };
+  }
 
   registerHandler('loadorder:validate-load-order-integrity', async (_event, loadOrder: string[]) => {
     const startTime = Date.now();
     try {
-      const isValid = Math.random() > 0.2;
-      const validation = {
-        id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        isValid,
-        pluginCount: loadOrder.length,
-        errors: isValid ? [] : ['Duplicate plugins detected', 'Missing master files'],
-        warnings: Math.random() > 0.5 ? ['Load order exceeds optimal size'] : [],
-        masterOrderValid: true,
-        masterCount: Math.floor(Math.random() * 5),
-        espCount: loadOrder.length - Math.floor(Math.random() * 5),
-        validatedAt: Date.now()
-      };
+      const validation = computeLoadOrderValidation(loadOrder);
       loadOrderOptimizationStorage.set(validation.id, validation);
       saveLoadOrderDataToDisk();
       auditLogger.log({
@@ -26781,7 +23789,7 @@ Rules:
         action: 'validate-load-order-integrity',
         status: 'success',
         duration: Date.now() - startTime,
-        result: { isValid }
+        result: { isValid: validation.isValid, errorCount: validation.errors.length, warningCount: validation.warnings.length }
       });
       return { success: true, validation };
     } catch (error: any) {
@@ -26799,209 +23807,6 @@ Rules:
     }
   });
 
-  registerHandler('loadorder:compare-load-orders', async (_event, loadOrder1: string[], loadOrder2: string[]) => {
-    const startTime = Date.now();
-    try {
-      const added = loadOrder2.filter(p => !loadOrder1.includes(p));
-      const removed = loadOrder1.filter(p => !loadOrder2.includes(p));
-      const comparison = {
-        id: `comparison_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        loadOrder1Length: loadOrder1.length,
-        loadOrder2Length: loadOrder2.length,
-        added,
-        removed,
-        reordered: Math.floor(Math.random() * 20),
-        similarityScore: Math.floor(Math.random() * 40) + 60,
-        recommendations: added.length > 0 ? ['Review newly added mods for compatibility'] : [],
-        comparedAt: Date.now()
-      };
-      loadOrderHistoryStorage.set(comparison.id, comparison);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'compare',
-        tool: 'load-order-optimizer',
-        action: 'compare-load-orders',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { similarity: comparison.similarityScore }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:compare-load-orders error:', errMsg);
-      auditLogger.log({
-        operation: 'compare',
-        tool: 'load-order-optimizer',
-        action: 'compare-load-orders',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('loadorder:export-load-order', async (_event, loadOrder: string[], format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'txt';
-      const exportData = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        loadOrder,
-        format: fmt,
-        timestamp: Date.now(),
-        totalPlugins: loadOrder.length,
-        fileSize: Math.floor(Math.random() * 50) + 10,
-        exportPath: `exports/loadorder_${Date.now()}.${fmt}`,
-        exportedAt: Date.now()
-      };
-      loadOrderHistoryStorage.set(exportData.id, exportData);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'load-order-optimizer',
-        action: 'export-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format: fmt, pluginCount: loadOrder.length }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:export-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'load-order-optimizer',
-        action: 'export-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('loadorder:import-load-order', async (_event, filePath: string, mergeMode?: string) => {
-    const startTime = Date.now();
-    try {
-      const importedLoadOrder = ['master1.esp', 'mod1.esp', 'mod2.esp'];
-      const importData = {
-        id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        mergeMode: mergeMode || 'replace',
-        loadOrder: importedLoadOrder,
-        pluginCount: importedLoadOrder.length,
-        validationStatus: 'valid',
-        warnings: Math.random() > 0.7 ? ['Some plugins not found locally'] : [],
-        importedAt: Date.now()
-      };
-      loadOrderHistoryStorage.set(importData.id, importData);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'import',
-        tool: 'load-order-optimizer',
-        action: 'import-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: importedLoadOrder.length }
-      });
-      return { success: true, importData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:import-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'import',
-        tool: 'load-order-optimizer',
-        action: 'import-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('loadorder:auto-optimize-load-order', async (_event, loadOrder: string[], strategy?: string) => {
-    const startTime = Date.now();
-    try {
-      const optimizationStrategy = strategy || 'balanced';
-      const optimized = {
-        id: `auto_opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        strategy: optimizationStrategy,
-        originalOrder: loadOrder,
-        optimizedOrder: loadOrder.slice().sort(() => Math.random() - 0.5),
-        changesMade: Math.floor(Math.random() * 30),
-        stabilityScore: Math.floor(Math.random() * 35) + 65,
-        performanceScore: Math.floor(Math.random() * 40) + 60,
-        compatibilityScore: Math.floor(Math.random() * 30) + 70,
-        overallScore: Math.floor(Math.random() * 30) + 70,
-        optimizedAt: Date.now()
-      };
-      loadOrderOptimizationStorage.set(optimized.id, optimized);
-      saveLoadOrderDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'load-order-optimizer',
-        action: 'auto-optimize-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { strategy: optimizationStrategy, score: optimized.overallScore }
-      });
-      return { success: true, optimized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:auto-optimize-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'load-order-optimizer',
-        action: 'auto-optimize-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('loadorder:get-load-order-statistics', async (_event, loadOrder: string[]) => {
-    const startTime = Date.now();
-    try {
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalPlugins: loadOrder.length,
-        masterFiles: Math.floor(Math.random() * 5) + 1,
-        espPlugins: loadOrder.length - Math.floor(Math.random() * 5) - 1,
-        eslPlugins: Math.floor(Math.random() * 30),
-        averagePluginSize: Math.floor(Math.random() * 5000) + 1000,
-        totalLoadOrderSize: Math.floor(Math.random() * 50000),
-        estimatedLoadTime: Math.floor(Math.random() * 45) + 15,
-        criticalityDistribution: { critical: Math.floor(loadOrder.length * 0.1), high: Math.floor(loadOrder.length * 0.2), medium: Math.floor(loadOrder.length * 0.4), low: Math.floor(loadOrder.length * 0.3) },
-        healthScore: Math.floor(Math.random() * 35) + 65,
-        calculatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'load-order-optimizer',
-        action: 'get-load-order-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalPlugins: loadOrder.length, healthScore: stats.healthScore }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] loadorder:get-load-order-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'load-order-optimizer',
-        action: 'get-load-order-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize load order data on startup
   loadLoadOrderDataFromDisk();
@@ -27548,9 +24353,10 @@ Rules:
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
 
-    const fo4Data = 'E:/Steam/steamapps/common/Fallout 4/Data';
+    const fo4Root = resolveFO4Root();
+    const fo4Data = fo4Root ? path.join(fo4Root, 'Data') : '';
     const papyrusBase = `${fo4Data}/Scripts/Source/Base`;
-    const fo4MeshRoot = 'F:/FO4 WORKING FLODER/Meshes';
+    const fo4MeshRoot = resolveAssetStagingFolder('Meshes') || '';
 
     // Python scanner script — runs out-of-process so it doesn't block Electron
     const scanScript = `
@@ -27781,19 +24587,16 @@ print(json.dumps(result))
     ].join('\n\n');
   }
 
-  // Builds a compact game-data block for Creative Director agents by pulling real
-  // asset catalogs directly from the loaded brain neurons. This is what gives the
-  // CD team access to real FO4 texture paths, mesh paths, voice types, etc. instead
-  // of inventing placeholders. Called at IPC handler runtime so neurons are loaded.
+  // Builds the full game-data block for Creative Director agents from every loaded
+  // brain neuron (form graph, asset graph, full Papyrus analysis, texture/mesh/
+  // material/sound catalogs, tools, FO4 version, etc.) — not a hand-picked subset.
+  // Mirrors buildBrainNeuronBlock()'s "every module always available" design so CD
+  // gets the same complete picture the main chat does, just with CD-specific framing.
+  // Called at IPC handler runtime so neurons are loaded.
   function buildCDGameDataBlock(): string {
-    const NEURON_IDS = [
-      'npc-voice-types',
-      'texture-catalog',
-      'mesh-full-catalog',
-      'material-catalog',
-      'sound-catalog',
-      'game-reference-papyrus',
-    ];
+    // game-strings is excluded here because FO4_VANILLA_WORLD below is the same
+    // content with CD-specific "do not reuse" framing already applied.
+    const neurons = getAllBrainNeurons().filter(n => n.id !== 'game-strings');
     const parts: string[] = [
       '╔══════════════════════════════════════════════════════════════╗',
       '║  REAL FO4 GAME DATA — Mossy Brain Scan (use these, never invent)',
@@ -27802,20 +24605,19 @@ print(json.dumps(result))
       FO4_VANILLA_WORLD,
       '',
     ];
-    let neuronCount = 0;
-    for (const id of NEURON_IDS) {
-      const n = _brainNeurons.get(id);
+    for (const n of neurons) {
       if (n?.content) {
         parts.push(`─── ${n.title} [${n.domain}] ───`, n.content, '');
-        neuronCount++;
       }
     }
-    if (neuronCount === 0) {
+    if (neurons.length === 0) {
       parts.push('(No brain neurons loaded — run a full Brain Scan in System Hub to populate real FO4 asset paths)');
     }
     parts.push('╔══════════════════════════════════════════════════════════════╗');
     parts.push('║  END REAL FO4 GAME DATA');
     parts.push('╚══════════════════════════════════════════════════════════════╝');
+    parts.push('');
+    parts.push(formatFO4KnowledgeBaseForAI());
     return parts.join('\n');
   }
 
@@ -27994,7 +24796,7 @@ print(json.dumps(result))
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const texRoot = 'F:/FO4 WORKING FLODER/Textures';
+    const texRoot = resolveAssetStagingFolder('Textures') || '';
     const script = `
 import os, glob, json
 root = ${JSON.stringify(texRoot)}
@@ -28046,7 +24848,7 @@ print(json.dumps({'total': total, 'categories': cats}))
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const matRoot = 'F:/FO4 WORKING FLODER/Materials';
+    const matRoot = resolveAssetStagingFolder('Materials') || '';
     const script = `
 import os, glob, json, re
 root = ${JSON.stringify(matRoot)}
@@ -28122,7 +24924,7 @@ print(json.dumps({'bgsm_count': len(bgsm_files), 'bgem_count': len(bgem_files), 
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const soundRoot = 'F:/FO4 WORKING FLODER/Sound';
+    const soundRoot = resolveAssetStagingFolder('Sound') || '';
     const script = `
 import os, glob, json
 root = ${JSON.stringify(soundRoot)}
@@ -28188,7 +24990,7 @@ print(json.dumps({'xwm_total': len(xwm), 'wav_total': len(wav), 'categories': re
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const stringsDir = 'F:/FO4 WORKING FLODER/Strings';
+    const stringsDir = resolveAssetStagingFolder('Strings') || '';
     // STRINGS files are binary: 4-byte count, then pairs of (uint32 id, uint32 offset), then null-terminated UTF-8 strings
     const script = `
 import os, struct, json, re
@@ -28330,7 +25132,7 @@ print(json.dumps(results))
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const pscBase = 'E:/Steam/steamapps/common/Fallout 4/Data/Scripts/Source/Base';
+    const pscBase = (() => { const r = resolveFO4Root(); return r ? path.join(r, 'Data', 'Scripts', 'Source', 'Base') : ''; })();
     const script = `
 import os, glob, re, json, collections
 
@@ -28423,8 +25225,45 @@ print(json.dumps(result))
   });
 
   // ── FO4 FORM GRAPH SCAN ─────────────────────────────────────────────────
+  // ── PAPYRUS NATIVE API REFERENCE (real function signatures, not a hardcoded
+  // shortlist) — parsed from Bethesda's actual shipped Scripts/Source/Base/*.psc
+  // declarations by scripts/fo4_papyrus_api_scan.py. Read-only here; run the
+  // script manually to (re)generate it, matching the form/asset graph pattern.
+  async function runPapyrusApiScan(): Promise<any> {
+    const p = resolveScanCacheFile('fo4_papyrus_api.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_scripts_parsed: raw.total_scripts_parsed || 0,
+        total_functions: raw.total_functions || 0,
+        total_events: raw.total_events || 0,
+        core_api_objects_found: raw.core_api_objects_found || [],
+        core_api_block: raw.core_api_block || '',
+      };
+    } catch { return { available: false }; }
+  }
+  function formatPapyrusApiNeuron(d: any): string {
+    if (!d?.available) return 'Papyrus native API reference not yet scanned. Run: python scripts/fo4_papyrus_api_scan.py';
+    return [
+      `Real Papyrus Native API: ${d.total_scripts_parsed} script objects, ${d.total_functions} functions, ${d.total_events} events — parsed verbatim from Bethesda's shipped Scripts/Source/Base/*.psc declarations.`,
+      '',
+      d.core_api_block,
+    ].join('\n');
+  }
+  registerHandler('scan:papyrus-api', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('papyrus-api'); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runPapyrusApiScan();
+      saveScanCache('papyrus-api', data);
+      addBrainNeuron({ id: 'papyrus-api-reference', domain: 'Papyrus Scripting', title: `Papyrus Native API Reference (${data.total_functions || 0} functions, ${data.total_events || 0} events)`, priority: 93, content: formatPapyrusApiNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
   async function runFo4FormGraphScan(): Promise<any> {
-    const p = 'H:\\Mossy Memory\\fo4_form_graph.json';
+    const p = resolveScanCacheFile('fo4_form_graph.json');
     if (!fs.existsSync(p)) return { available: false };
     try {
       const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
@@ -28481,7 +25320,7 @@ print(json.dumps(result))
 
   // ── FO4 ASSET GRAPH SCAN ─────────────────────────────────────────────────
   async function runFo4AssetGraphScan(): Promise<any> {
-    const p = 'H:\\Mossy Memory\\fo4_asset_graph.json';
+    const p = resolveScanCacheFile('fo4_asset_graph.json');
     if (!fs.existsSync(p)) return { available: false };
     try {
       const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
@@ -28581,7 +25420,7 @@ print(json.dumps(result))
 
   // ── TIER 2-C: scan:user-project ─────────────────────────────────────────
   async function runUserProjectScan(): Promise<any> {
-    const pscUser = 'E:/Steam/steamapps/common/Fallout 4/Data/Scripts/Source/User';
+    const pscUser = (() => { const r = resolveFO4Root(); return r ? path.join(r, 'Data', 'Scripts', 'Source', 'User') : ''; })();
     const modBuilderPath = path.join(app.getPath('userData'), 'mod-builder-projects.json');
     const scripts: any[] = [];
     if (fs.existsSync(pscUser)) {
@@ -28630,9 +25469,10 @@ print(json.dumps(result))
 
   // ── TIER 2-D: scan:fo4-version ──────────────────────────────────────────
   async function runFo4VersionScan(): Promise<any> {
-    const fo4Exe = 'E:/Steam/steamapps/common/Fallout 4/Fallout4.exe';
-    const fo4Data = 'E:/Steam/steamapps/common/Fallout 4/Data';
-    const f4seExe = 'E:/Steam/steamapps/common/Fallout 4/f4se_loader.exe';
+    const fo4RootForVersion = resolveFO4Root();
+    const fo4Exe = fo4RootForVersion ? path.join(fo4RootForVersion, 'Fallout4.exe') : '';
+    const fo4Data = fo4RootForVersion ? path.join(fo4RootForVersion, 'Data') : '';
+    const f4seExe = fo4RootForVersion ? path.join(fo4RootForVersion, 'f4se_loader.exe') : '';
     const exeSize = fs.existsSync(fo4Exe) ? fs.statSync(fo4Exe).size : 0;
     // Infer version from exe size (approximate): OG 1.10.163 ~52-53MB, NG 1.10.984 ~57MB
     let versionGuess = 'Unknown';
@@ -28676,7 +25516,7 @@ print(json.dumps(result))
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const execFileAsync = promisify(execFile);
-    const meshRoot = 'F:/FO4 WORKING FLODER/Meshes';
+    const meshRoot = resolveAssetStagingFolder('Meshes') || '';
     const script = `
 import os, glob, json, collections
 
@@ -28876,7 +25716,8 @@ print(json.dumps({'total': total, 'top_categories': top, 'samples': samples}))
 
   // ── BRIDGE-2: scan:f4se-plugins (fast readdir) ───────────────────────────
   async function runF4sePluginsScan(): Promise<any> {
-    const pluginDir = 'E:/Steam/steamapps/common/Fallout 4/Data/F4SE/Plugins';
+    const f4seFo4Root = resolveFO4Root();
+    const pluginDir = f4seFo4Root ? path.join(f4seFo4Root, 'Data', 'F4SE', 'Plugins') : '';
     const result: any = { plugins: [] as string[], dlls: [] as string[], inis: [] as string[], total: 0, dir_exists: false };
     try {
       if (!fs.existsSync(pluginDir)) return result;
@@ -28901,7 +25742,7 @@ print(json.dumps({'total': total, 'top_categories': top, 'samples': samples}))
     const lines: string[] = ['=== F4SE PLUGIN INVENTORY ==='];
     if (!d.dir_exists) {
       lines.push('F4SE Plugins directory not found.');
-      lines.push('Expected: E:/Steam/steamapps/common/Fallout 4/Data/F4SE/Plugins/');
+      lines.push('Expected: <Fallout 4 install>/Data/F4SE/Plugins/');
       lines.push('F4SE must be installed for script extender functionality.');
       return lines.join('\n');
     }
@@ -29034,7 +25875,7 @@ print(json.dumps({'total': total, 'top_categories': top, 'samples': samples}))
 
   // ── BRIDGE-4: scan:npc-voice-types (Python, tier 2) ─────────────────────
   async function runNpcVoiceTypesScan(): Promise<any> {
-    const srcDir = 'E:/Steam/steamapps/common/Fallout 4/Data/Scripts/Source/Base';
+    const srcDir = (() => { const r = resolveFO4Root(); return r ? path.join(r, 'Data', 'Scripts', 'Source', 'Base') : ''; })();
     const pyScript = `
 import os, re, json
 from collections import Counter
@@ -29118,7 +25959,7 @@ print(json.dumps({
 
   // ── BRIDGE-5: scan:texture-conventions (Python, tier 2) ──────────────────
   async function runTextureConventionsScan(): Promise<any> {
-    const texDir = 'F:/FO4 WORKING FLODER/Textures';
+    const texDir = resolveAssetStagingFolder('Textures') || '';
     const pyScript = `
 import os, json, re
 from collections import Counter
@@ -29225,7 +26066,7 @@ print(json.dumps({
 
   // ── BRIDGE-6: scan:nif-bone-hierarchy (Python, tier 3) ───────────────────
   async function runNifBoneHierarchyScan(): Promise<any> {
-    const meshDir = 'F:/FO4 WORKING FLODER/Meshes';
+    const meshDir = resolveAssetStagingFolder('Meshes') || '';
     const actorsDir = `${meshDir}/Actors`;
     const pyScript = `
 import os, json
@@ -29348,6 +26189,7 @@ print(json.dumps({
     ] as Array<[string, () => Promise<any>, (d: any) => void]>;
     const tier2: Array<[string, () => Promise<any>, (d: any) => void]> = [
       ['scan:papyrus-full',       runPapyrusFullScan,       (d: any) => addBrainNeuron({ id:'papyrus-full-analysis', domain:'Papyrus Scripting',    title:`Full Papyrus Library Analysis (${d.total_scripts||0} scripts)`,            priority:92, content:formatPapyrusFullNeuron(d),       source:'scan'})],
+      ['scan:papyrus-api',        runPapyrusApiScan,        (d: any) => addBrainNeuron({ id:'papyrus-api-reference', domain:'Papyrus Scripting',    title:`Papyrus Native API Reference (${d.total_functions||0} functions, ${d.total_events||0} events)`, priority:93, content:formatPapyrusApiNeuron(d), source:'scan'})],
       ['scan:knowledge-vault',    runKnowledgeVaultScan,    (d: any) => addBrainNeuron({ id:'knowledge-vault-index', domain:'Knowledge Base',       title:`Knowledge Vault Index (${d.total||0} entries)`,                             priority:88, content:formatKnowledgeVaultNeuron(d),    source:'scan'})],
       ['scan:fo4-form-graph',     runFo4FormGraphScan,      (d: any) => addBrainNeuron({ id:'fo4-form-graph',        domain:'FO4 Game Systems',     title:`FO4 Form Graph (${d.perk_count||0} perks, ${d.cobj_count||0} recipes)`,   priority:91, content:formatFo4FormGraphNeuron(d),      source:'scan'})],
       ['scan:fo4-asset-graph',    runFo4AssetGraphScan,     (d: any) => addBrainNeuron({ id:'fo4-asset-graph',       domain:'FO4 Game Systems',     title:`FO4 Asset Graph (${d.omod_count||0} OMODs, ${d.model_path_count||0} NIFs)`,priority:90, content:formatFo4AssetGraphNeuron(d),     source:'scan'})],
@@ -29478,409 +26320,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('archive:create-archive', async (_event, archivePath: string, fileList: string[], archiveType?: string) => {
-    const startTime = Date.now();
-    try {
-      const archiveType_ = archiveType || 'ba2';
-      const archive = {
-        id: `archive_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        type: archiveType_,
-        fileCount: fileList.length,
-        totalSize: Math.floor(Math.random() * 500000000) + 50000000,
-        compressionRatio: Math.floor(Math.random() * 40) + 60,
-        creationTime: Math.floor(Math.random() * 30000) + 5000,
-        isCompressed: Math.random() > 0.3,
-        createdAt: Date.now()
-      };
-      archiveManagementStorage.set(archive.id, archive);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'archive-manager',
-        action: 'create-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { type: archiveType_, fileCount: fileList.length }
-      });
-      return { success: true, archive };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:create-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'archive-manager',
-        action: 'create-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:extract-archive', async (_event, archivePath: string, extractPath?: string) => {
-    const startTime = Date.now();
-    try {
-      const extraction = {
-        id: `extract_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        extractPath: extractPath || 'extracted/',
-        filesExtracted: Math.floor(Math.random() * 500) + 50,
-        totalSize: Math.floor(Math.random() * 500000000) + 50000000,
-        extractionTime: Math.floor(Math.random() * 30000) + 5000,
-        successRate: Math.floor(Math.random() * 25) + 75,
-        failedFiles: Math.random() > 0.9 ? ['corrupted_file.nif'] : [],
-        extractedAt: Date.now()
-      };
-      archiveHistoryStorage.set(extraction.id, extraction);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'extract',
-        tool: 'archive-manager',
-        action: 'extract-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filesExtracted: extraction.filesExtracted }
-      });
-      return { success: true, extraction };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:extract-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'extract',
-        tool: 'archive-manager',
-        action: 'extract-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:list-archive-contents', async (_event, archivePath: string) => {
-    const startTime = Date.now();
-    try {
-      const contents = {
-        id: `contents_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        fileCount: Math.floor(Math.random() * 500) + 50,
-        folderCount: Math.floor(Math.random() * 100) + 10,
-        files: [
-          { name: 'meshes/model.nif', size: Math.floor(Math.random() * 500000), compressed: Math.random() > 0.3 },
-          { name: 'textures/diffuse.dds', size: Math.floor(Math.random() * 5000000), compressed: Math.random() > 0.2 }
-        ],
-        totalSize: Math.floor(Math.random() * 500000000),
-        archiveType: Math.random() > 0.5 ? 'ba2' : 'bsa',
-        listedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'archive-manager',
-        action: 'list-archive-contents',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { fileCount: contents.fileCount }
-      });
-      return { success: true, contents };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:list-archive-contents error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'archive-manager',
-        action: 'list-archive-contents',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:validate-archive-integrity', async (_event, archivePath: string) => {
-    const startTime = Date.now();
-    try {
-      const isValid = Math.random() > 0.15;
-      const validation = {
-        id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        isValid,
-        checksumMatch: Math.random() > 0.1,
-        fileCount: Math.floor(Math.random() * 500) + 50,
-        corruptedFiles: isValid ? [] : ['file1.nif', 'file2.dds'],
-        warnings: Math.random() > 0.6 ? ['Unusual file format detected'] : [],
-        integrityScore: Math.floor(Math.random() * 25) + (isValid ? 75 : 40),
-        validatedAt: Date.now()
-      };
-      archiveManagementStorage.set(validation.id, validation);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'archive-manager',
-        action: 'validate-archive-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { isValid }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:validate-archive-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'archive-manager',
-        action: 'validate-archive-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:add-files-to-archive', async (_event, archivePath: string, filePaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const addition = {
-        id: `add_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        filesAdded: filePaths.length,
-        successCount: Math.floor(Math.random() * filePaths.length) + 1,
-        failureCount: filePaths.length - Math.floor(Math.random() * filePaths.length),
-        archiveSizeIncrease: Math.floor(Math.random() * 50000000),
-        additionTime: Math.floor(Math.random() * 10000) + 1000,
-        newTotalSize: Math.floor(Math.random() * 500000000) + 50000000,
-        addedAt: Date.now()
-      };
-      archiveHistoryStorage.set(addition.id, addition);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'archive-manager',
-        action: 'add-files-to-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filesAdded: addition.filesAdded, successCount: addition.successCount }
-      });
-      return { success: true, addition };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:add-files-to-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'archive-manager',
-        action: 'add-files-to-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:remove-files-from-archive', async (_event, archivePath: string, fileNames: string[]) => {
-    const startTime = Date.now();
-    try {
-      const removal = {
-        id: `remove_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        filesRequested: fileNames.length,
-        filesRemoved: Math.floor(Math.random() * fileNames.length) + 1,
-        spaceFreed: Math.floor(Math.random() * 50000000),
-        removalTime: Math.floor(Math.random() * 5000) + 500,
-        newTotalSize: Math.floor(Math.random() * 400000000) + 50000000,
-        removedAt: Date.now()
-      };
-      archiveHistoryStorage.set(removal.id, removal);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'archive-manager',
-        action: 'remove-files-from-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filesRemoved: removal.filesRemoved }
-      });
-      return { success: true, removal };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:remove-files-from-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'archive-manager',
-        action: 'remove-files-from-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:convert-archive-format', async (_event, archivePath: string, targetFormat: string) => {
-    const startTime = Date.now();
-    try {
-      const conversion = {
-        id: `convert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        sourceFormat: Math.random() > 0.5 ? 'ba2' : 'bsa',
-        targetFormat,
-        filesProcessed: Math.floor(Math.random() * 500) + 50,
-        conversionTime: Math.floor(Math.random() * 30000) + 5000,
-        successRate: Math.floor(Math.random() * 25) + 75,
-        newArchivePath: archivePath.replace(/\.(ba2|bsa)$/, `.${targetFormat}`),
-        convertedAt: Date.now()
-      };
-      archiveManagementStorage.set(conversion.id, conversion);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'archive-manager',
-        action: 'convert-archive-format',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sourceFormat: conversion.sourceFormat, targetFormat }
-      });
-      return { success: true, conversion };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:convert-archive-format error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'archive-manager',
-        action: 'convert-archive-format',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:compress-archive', async (_event, archivePath: string, compressionLevel?: number) => {
-    const startTime = Date.now();
-    try {
-      const compLevel = compressionLevel || 7;
-      const compression = {
-        id: `compress_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        originalSize: Math.floor(Math.random() * 500000000) + 50000000,
-        compressedSize: Math.floor(Math.random() * 300000000) + 30000000,
-        compressionRatio: Math.floor(Math.random() * 40) + 60,
-        compressionLevel: compLevel,
-        compressionTime: Math.floor(Math.random() * 60000) + 10000,
-        spaceSaved: Math.floor(Math.random() * 200000000),
-        compressedAt: Date.now()
-      };
-      archiveManagementStorage.set(compression.id, compression);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'archive-manager',
-        action: 'compress-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { ratio: compression.compressionRatio, spaceSaved: compression.spaceSaved }
-      });
-      return { success: true, compression };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:compress-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'archive-manager',
-        action: 'compress-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:get-archive-statistics', async (_event, archivePath: string) => {
-    const startTime = Date.now();
-    try {
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        fileCount: Math.floor(Math.random() * 500) + 50,
-        folderCount: Math.floor(Math.random() * 100) + 10,
-        totalSize: Math.floor(Math.random() * 500000000),
-        averageFileSize: Math.floor(Math.random() * 1000000),
-        largestFile: Math.floor(Math.random() * 50000000),
-        archiveType: Math.random() > 0.5 ? 'ba2' : 'bsa',
-        compressionRatio: Math.floor(Math.random() * 40) + 60,
-        integrityScore: Math.floor(Math.random() * 35) + 65,
-        calculatedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'archive-manager',
-        action: 'get-archive-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { fileCount: stats.fileCount, integrityScore: stats.integrityScore }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:get-archive-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'archive-manager',
-        action: 'get-archive-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('archive:optimize-archive', async (_event, archivePath: string, strategy?: string) => {
-    const startTime = Date.now();
-    try {
-      const strategy_ = strategy || 'balanced';
-      const optimization = {
-        id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        archivePath,
-        strategy: strategy_,
-        originalSize: Math.floor(Math.random() * 500000000) + 50000000,
-        optimizedSize: Math.floor(Math.random() * 400000000) + 40000000,
-        sizeSavings: Math.floor(Math.random() * 100000000),
-        optimizationTime: Math.floor(Math.random() * 60000) + 10000,
-        filesReorganized: Math.floor(Math.random() * 500) + 50,
-        performanceImprovement: Math.floor(Math.random() * 30) + 20,
-        optimizedAt: Date.now()
-      };
-      archiveManagementStorage.set(optimization.id, optimization);
-      saveArchiveDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'archive-manager',
-        action: 'optimize-archive',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { strategy: strategy_, savings: optimization.sizeSavings }
-      });
-      return { success: true, optimization };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] archive:optimize-archive error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'archive-manager',
-        action: 'optimize-archive',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize archive data on startup
   loadArchiveDataFromDisk();
@@ -29920,429 +26359,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('enb:create-preset', async (_event, presetName: string, settings_: any) => {
-    const startTime = Date.now();
-    try {
-      const preset = {
-        id: `preset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: presetName,
-        type: Math.random() > 0.5 ? 'enb' : 'reshade',
-        settings: settings_ || {},
-        colorGrading: { saturation: Math.random() * 2, contrast: Math.random() * 2 },
-        lighting: { brightnessMult: Math.random() * 2 + 0.5, intensity: Math.random() * 2 },
-        postProcessing: { bloom: Math.random(), lensFlare: Math.random() },
-        performance: { impact: Math.floor(Math.random() * 30) + 10 },
-        tags: ['custom', 'fallout4'],
-        createdAt: Date.now()
-      };
-      enbPresetStorage.set(preset.id, preset);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'enb-preset-manager',
-        action: 'create-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { name: presetName, type: preset.type }
-      });
-      return { success: true, preset };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:create-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'enb-preset-manager',
-        action: 'create-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:load-preset', async (_event, presetId: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const loadData = {
-        id: `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        presetName: preset.name,
-        type: preset.type,
-        settings: preset.settings,
-        colorGrading: preset.colorGrading,
-        lighting: preset.lighting,
-        postProcessing: preset.postProcessing,
-        loadTime: Math.floor(Math.random() * 1000) + 100,
-        loadedAt: Date.now()
-      };
-      enbPresetHistoryStorage.set(loadData.id, loadData);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'load-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { presetName: preset.name }
-      });
-      return { success: true, loadData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:load-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'load-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:export-preset', async (_event, presetId: string, exportPath?: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const exportData = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        presetName: preset.name,
-        exportPath: exportPath || `exports/${preset.name}.json`,
-        fileSize: Math.floor(Math.random() * 50000) + 10000,
-        format: 'json',
-        timestamp: Date.now(),
-        exportedAt: Date.now()
-      };
-      enbPresetHistoryStorage.set(exportData.id, exportData);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'enb-preset-manager',
-        action: 'export-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { presetName: preset.name }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:export-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'enb-preset-manager',
-        action: 'export-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:import-preset', async (_event, filePath: string, presetName?: string) => {
-    const startTime = Date.now();
-    try {
-      const name = presetName || `imported_preset_${Date.now()}`;
-      const importedPreset = {
-        id: `preset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name,
-        type: Math.random() > 0.5 ? 'enb' : 'reshade',
-        settings: {},
-        colorGrading: { saturation: Math.random() * 2, contrast: Math.random() * 2 },
-        lighting: { brightnessMult: Math.random() * 2 + 0.5, intensity: Math.random() * 2 },
-        postProcessing: { bloom: Math.random(), lensFlare: Math.random() },
-        performance: { impact: Math.floor(Math.random() * 30) + 10 },
-        tags: ['imported'],
-        importedFrom: filePath,
-        createdAt: Date.now()
-      };
-      enbPresetStorage.set(importedPreset.id, importedPreset);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'import',
-        tool: 'enb-preset-manager',
-        action: 'import-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { name }
-      });
-      return { success: true, importedPreset };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:import-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'import',
-        tool: 'enb-preset-manager',
-        action: 'import-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:validate-preset', async (_event, presetId: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const isValid = Math.random() > 0.1;
-      const validation = {
-        id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        isValid,
-        errors: isValid ? [] : ['Invalid color values', 'Missing required settings'],
-        warnings: Math.random() > 0.7 ? ['High performance impact'] : [],
-        validityScore: Math.floor(Math.random() * 25) + (isValid ? 75 : 40),
-        validatedAt: Date.now()
-      };
-      enbPresetStorage.set(validation.id, validation);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'enb-preset-manager',
-        action: 'validate-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { isValid }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:validate-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'enb-preset-manager',
-        action: 'validate-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:apply-preset-settings', async (_event, presetId: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const application = {
-        id: `apply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        presetName: preset.name,
-        settingsApplied: Object.keys(preset.settings || {}).length,
-        requiresGameRestart: Math.random() > 0.6,
-        requiresReShaderRecompile: Math.random() > 0.7,
-        applicationTime: Math.floor(Math.random() * 2000) + 100,
-        appliedAt: Date.now()
-      };
-      enbPresetHistoryStorage.set(application.id, application);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'enb-preset-manager',
-        action: 'apply-preset-settings',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { presetName: preset.name, settingsCount: application.settingsApplied }
-      });
-      return { success: true, application };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:apply-preset-settings error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'enb-preset-manager',
-        action: 'apply-preset-settings',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:compare-presets', async (_event, presetId1: string, presetId2: string) => {
-    const startTime = Date.now();
-    try {
-      const preset1 = enbPresetStorage.get(presetId1);
-      const preset2 = enbPresetStorage.get(presetId2);
-      if (!preset1 || !preset2) {
-        return { success: false, error: 'One or both presets not found' };
-      }
-      const comparison = {
-        id: `compare_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        preset1Name: preset1.name,
-        preset2Name: preset2.name,
-        similarities: Math.floor(Math.random() * 40) + 60,
-        differences: [
-          { setting: 'saturation', value1: preset1.colorGrading?.saturation, value2: preset2.colorGrading?.saturation },
-          { setting: 'brightness', value1: preset1.lighting?.brightnessMult, value2: preset2.lighting?.brightnessMult }
-        ],
-        performanceImpactDiff: Math.floor(Math.random() * 20) - 10,
-        comparedAt: Date.now()
-      };
-      enbPresetHistoryStorage.set(comparison.id, comparison);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'compare-presets',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { similarity: comparison.similarities }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:compare-presets error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'compare-presets',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:delete-preset', async (_event, presetId: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const deletion = {
-        id: `delete_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        presetName: preset.name,
-        deletedAt: Date.now()
-      };
-      enbPresetStorage.delete(presetId);
-      enbPresetHistoryStorage.set(deletion.id, deletion);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'enb-preset-manager',
-        action: 'delete-preset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { presetName: preset.name }
-      });
-      return { success: true, deletion };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:delete-preset error:', errMsg);
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'enb-preset-manager',
-        action: 'delete-preset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:optimize-preset-performance', async (_event, presetId: string) => {
-    const startTime = Date.now();
-    try {
-      const preset = enbPresetStorage.get(presetId);
-      if (!preset) {
-        return { success: false, error: 'Preset not found' };
-      }
-      const optimization = {
-        id: `optimize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        presetId,
-        presetName: preset.name,
-        originalPerformance: preset.performance?.impact || 20,
-        optimizedPerformance: Math.floor(Math.random() * 20) + 5,
-        performanceGain: Math.floor(Math.random() * 40) + 10,
-        visualQualityImpact: Math.floor(Math.random() * 20) - 10,
-        recommendations: ['Disable bloom', 'Reduce effect samples', 'Use simpler filters'],
-        optimizedAt: Date.now()
-      };
-      enbPresetStorage.set(optimization.id, optimization);
-      saveENBPresetDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'enb-preset-manager',
-        action: 'optimize-preset-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { presetName: preset.name, gain: optimization.performanceGain }
-      });
-      return { success: true, optimization };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:optimize-preset-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'enb-preset-manager',
-        action: 'optimize-preset-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('enb:get-installed-presets', async (_event) => {
-    const startTime = Date.now();
-    try {
-      const presets = Array.from(enbPresetStorage.values());
-      const presetList = {
-        id: `list_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalCount: presets.length,
-        enbCount: presets.filter(p => p.type === 'enb').length,
-        reshadeCount: presets.filter(p => p.type === 'reshade').length,
-        presets: presets.slice(0, Math.min(50, presets.length)),
-        listedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'get-installed-presets',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalCount: presets.length }
-      });
-      return { success: true, presetList };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] enb:get-installed-presets error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'enb-preset-manager',
-        action: 'get-installed-presets',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize ENB preset data on startup
   loadENBPresetDataFromDisk();
@@ -30382,424 +26398,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('community:fetch-mod-ratings', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const ratings = {
-        id: `ratings_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        averageRating: Math.floor(Math.random() * 20) / 4 + 3,
-        totalRatings: Math.floor(Math.random() * 5000) + 100,
-        ratingDistribution: {
-          fiveStar: Math.floor(Math.random() * 500),
-          fourStar: Math.floor(Math.random() * 400),
-          threeStar: Math.floor(Math.random() * 300),
-          twoStar: Math.floor(Math.random() * 200),
-          oneStar: Math.floor(Math.random() * 100)
-        },
-        endorsementCount: Math.floor(Math.random() * 10000) + 100,
-        uniqueRaters: Math.floor(Math.random() * 3000) + 50,
-        fetchedAt: Date.now()
-      };
-      communityRatingsStorage.set(ratings.id, ratings);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'fetch-mod-ratings',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, averageRating: ratings.averageRating, totalRatings: ratings.totalRatings }
-      });
-      return { success: true, ratings };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:fetch-mod-ratings error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'fetch-mod-ratings',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:get-reviews-for-mod', async (_event, modId: string, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const reviewCount = limit || 20;
-      const reviews = {
-        id: `reviews_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        totalReviews: Math.floor(Math.random() * 2000) + 50,
-        reviewsReturned: reviewCount,
-        averageSentiment: Math.random() > 0.5 ? 'positive' : 'mixed',
-        reviews: Array.from({ length: Math.min(reviewCount, 10) }).map(() => ({
-          author: `user_${Math.floor(Math.random() * 10000)}`,
-          rating: Math.floor(Math.random() * 5) + 1,
-          text: 'Great mod! Very immersive and well-made.',
-          helpful: Math.floor(Math.random() * 500),
-          date: Date.now() - Math.random() * 86400000 * 30
-        })),
-        retrievedAt: Date.now()
-      };
-      communityReviewsStorage.set(reviews.id, reviews);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-reviews-for-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, reviewsReturned: reviews.reviewsReturned }
-      });
-      return { success: true, reviews };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:get-reviews-for-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-reviews-for-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:submit-rating', async (_event, modId: string, rating: number, userId?: string) => {
-    const startTime = Date.now();
-    try {
-      const submission = {
-        id: `submission_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        userId: userId || `user_${Math.random().toString(36).substr(2, 9)}`,
-        rating: Math.min(Math.max(rating, 1), 5),
-        timestamp: Date.now(),
-        status: 'submitted',
-        confirmed: Math.random() > 0.1,
-        submittedAt: Date.now()
-      };
-      communityRatingsStorage.set(submission.id, submission);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'community-ratings',
-        action: 'submit-rating',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, rating }
-      });
-      return { success: true, submission };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:submit-rating error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'community-ratings',
-        action: 'submit-rating',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:submit-review', async (_event, modId: string, reviewText: string, rating?: number) => {
-    const startTime = Date.now();
-    try {
-      const review = {
-        id: `review_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        text: reviewText,
-        rating: rating || Math.floor(Math.random() * 5) + 1,
-        author: `user_${Math.floor(Math.random() * 10000)}`,
-        helpfulVotes: 0,
-        unhelpfulVotes: 0,
-        status: 'pending',
-        moderated: false,
-        submittedAt: Date.now()
-      };
-      communityReviewsStorage.set(review.id, review);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'community-ratings',
-        action: 'submit-review',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, reviewLength: reviewText.length }
-      });
-      return { success: true, review };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:submit-review error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'community-ratings',
-        action: 'submit-review',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:get-trending-mods', async (_event, limit?: number, category?: string) => {
-    const startTime = Date.now();
-    try {
-      const trendingCount = limit || 10;
-      const trending = {
-        id: `trending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        category: category || 'all',
-        timeframe: '7d',
-        trendingMods: Array.from({ length: trendingCount }).map((_, i) => ({
-          rank: i + 1,
-          modId: `mod_${Math.random().toString(36).substr(2, 9)}`,
-          modName: `Trending Mod ${i + 1}`,
-          rating: Math.floor(Math.random() * 20) / 4 + 3,
-          endorsements: Math.floor(Math.random() * 5000),
-          downloads: Math.floor(Math.random() * 50000),
-          trending_score: Math.floor(Math.random() * 100)
-        })),
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-trending-mods',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { category, modsReturned: trending.trendingMods.length }
-      });
-      return { success: true, trending };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:get-trending-mods error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-trending-mods',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:analyze-rating-trends', async (_event, modId: string, timeframe?: string) => {
-    const startTime = Date.now();
-    try {
-      const tf = timeframe || '30d';
-      const analysis = {
-        id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        timeframe: tf,
-        ratingTrend: Math.random() > 0.5 ? 'increasing' : 'stable',
-        ratingChange: Math.floor(Math.random() * 20) / 20 - 0.5,
-        endorsementTrend: 'increasing',
-        endorsementChange: Math.floor(Math.random() * 100) + 10,
-        peakRating: Math.floor(Math.random() * 20) / 4 + 4,
-        lowestRating: Math.floor(Math.random() * 10) / 4 + 1,
-        averageRatingTrend: [Math.random() * 2 + 3, Math.random() * 2 + 3, Math.random() * 2 + 3],
-        analyzedAt: Date.now()
-      };
-      communityRatingsStorage.set(analysis.id, analysis);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'community-ratings',
-        action: 'analyze-rating-trends',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, trend: analysis.ratingTrend }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:analyze-rating-trends error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'community-ratings',
-        action: 'analyze-rating-trends',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:filter-reviews-by-criteria', async (_event, modId: string, criteria: any) => {
-    const startTime = Date.now();
-    try {
-      const filtered = {
-        id: `filtered_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        criteria,
-        matchingReviews: Math.floor(Math.random() * 500),
-        reviews: [
-          { author: 'user1', rating: 5, helpful: 120, text: 'Excellent mod!' },
-          { author: 'user2', rating: 4, helpful: 85, text: 'Very good, minor issues' }
-        ],
-        filteredAt: Date.now()
-      };
-      communityReviewsStorage.set(filtered.id, filtered);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'filter-reviews-by-criteria',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, matchingReviews: filtered.matchingReviews }
-      });
-      return { success: true, filtered };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:filter-reviews-by-criteria error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'filter-reviews-by-criteria',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:get-popular-endorsements', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const endorCount = limit || 10;
-      const endorsements = {
-        id: `endorse_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        timeframe: '7d',
-        topEndorsed: Array.from({ length: endorCount }).map((_, i) => ({
-          rank: i + 1,
-          modId: `mod_${Math.random().toString(36).substr(2, 9)}`,
-          modName: `Popular Mod ${i + 1}`,
-          endorsements: Math.floor(Math.random() * 10000) + 1000,
-          endorsementGain: Math.floor(Math.random() * 500)
-        })),
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-popular-endorsements',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { count: endorsements.topEndorsed.length }
-      });
-      return { success: true, endorsements };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:get-popular-endorsements error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'get-popular-endorsements',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:compare-mod-ratings', async (_event, modId1: string, modId2: string) => {
-    const startTime = Date.now();
-    try {
-      const comparison = {
-        id: `compare_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId1,
-        modId2,
-        mod1Rating: Math.floor(Math.random() * 20) / 4 + 3,
-        mod2Rating: Math.floor(Math.random() * 20) / 4 + 3,
-        mod1Endorsements: Math.floor(Math.random() * 5000),
-        mod2Endorsements: Math.floor(Math.random() * 5000),
-        mod1Reviews: Math.floor(Math.random() * 200),
-        mod2Reviews: Math.floor(Math.random() * 200),
-        winner: Math.random() > 0.5 ? 'mod1' : 'mod2',
-        comparedAt: Date.now()
-      };
-      communityRatingsStorage.set(comparison.id, comparison);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'compare-mod-ratings',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { mod1: modId1, mod2: modId2, winner: comparison.winner }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:compare-mod-ratings error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'community-ratings',
-        action: 'compare-mod-ratings',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('community:export-rating-data', async (_event, modId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const exportData = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modId,
-        format: fmt,
-        totalRatings: Math.floor(Math.random() * 5000),
-        totalReviews: Math.floor(Math.random() * 2000),
-        endorsements: Math.floor(Math.random() * 10000),
-        fileSize: Math.floor(Math.random() * 5000000) + 100000,
-        exportPath: `exports/ratings_${modId}_${Date.now()}.${fmt}`,
-        exportedAt: Date.now()
-      };
-      communityReviewsStorage.set(exportData.id, exportData);
-      saveCommunityRatingDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'community-ratings',
-        action: 'export-rating-data',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, format: fmt }
-      });
-      return { success: true, exportData };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] community:export-rating-data error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'community-ratings',
-        action: 'export-rating-data',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize community rating data on startup
   loadCommunityRatingDataFromDisk();
@@ -30839,466 +26437,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('mesh:analyze-nif-file', async (_event, filePath: string) => {
-    const startTime = Date.now();
-    try {
-      const analysis = {
-        id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        fileSize: Math.floor(Math.random() * 50000000) + 1000000,
-        triangleCount: Math.floor(Math.random() * 200000) + 10000,
-        vertexCount: Math.floor(Math.random() * 150000) + 5000,
-        meshCount: Math.floor(Math.random() * 50) + 1,
-        textureCount: Math.floor(Math.random() * 20) + 1,
-        hasCollision: Math.random() > 0.5,
-        hasSkeleton: Math.random() > 0.3,
-        hasParticles: Math.random() > 0.7,
-        boneCount: Math.floor(Math.random() * 100),
-        optimizationScore: Math.floor(Math.random() * 100),
-        analyzedAt: Date.now()
-      };
-      meshOptimizationStorage.set(analysis.id, analysis);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'mesh-optimizer',
-        action: 'analyze-nif-file',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, triangleCount: analysis.triangleCount, vertexCount: analysis.vertexCount }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:analyze-nif-file error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'mesh-optimizer',
-        action: 'analyze-nif-file',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:reduce-polygon-count', async (_event, filePath: string, reductionPercentage?: number) => {
-    const startTime = Date.now();
-    try {
-      const reduction = reductionPercentage || 30;
-      const result = {
-        id: `reduction_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        originalTriangleCount: Math.floor(Math.random() * 200000) + 10000,
-        reductionPercentage: reduction,
-        resultingTriangleCount: 0,
-        timeSaved: Math.floor(Math.random() * 5000),
-        qualityLoss: reduction * 0.8,
-        outputPath: filePath.replace('.nif', '_reduced.nif'),
-        status: 'completed',
-        optimizedAt: Date.now()
-      };
-      result.resultingTriangleCount = Math.floor(result.originalTriangleCount * (1 - reduction / 100));
-      meshHistoryStorage.set(result.id, result);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'reduce-polygon-count',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, reductionPercentage: reduction, trianglesSaved: result.originalTriangleCount - result.resultingTriangleCount }
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:reduce-polygon-count error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'reduce-polygon-count',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:optimize-vertex-data', async (_event, filePath: string, options?: any) => {
-    const startTime = Date.now();
-    try {
-      const optimization = {
-        id: `vertex_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        originalVertexCount: Math.floor(Math.random() * 150000) + 5000,
-        optimizedVertexCount: 0,
-        vertexCacheHits: Math.floor(Math.random() * 95) + 5,
-        meshIndexing: 'optimized',
-        vertexAttributes: {
-          positions: true,
-          normals: true,
-          tangents: true,
-          texCoords: true,
-          colors: Math.random() > 0.7,
-          boneWeights: Math.random() > 0.5
-        },
-        compressionApplied: Math.random() > 0.5,
-        memorySaved: Math.floor(Math.random() * 10000000),
-        optimizedAt: Date.now()
-      };
-      optimization.optimizedVertexCount = Math.floor(optimization.originalVertexCount * 0.85);
-      meshOptimizationStorage.set(optimization.id, optimization);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'optimize-vertex-data',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, memorySaved: optimization.memorySaved, vertexCacheHits: optimization.vertexCacheHits }
-      });
-      return { success: true, optimization };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:optimize-vertex-data error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'optimize-vertex-data',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:generate-lod-meshes', async (_event, filePath: string, lodLevels?: number) => {
-    const startTime = Date.now();
-    try {
-      const levels = lodLevels || 3;
-      const lods = {
-        id: `lod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        originalMeshPath: filePath,
-        lodLevelsGenerated: levels,
-        lodMeshes: Array.from({ length: levels }).map((_, i) => ({
-          level: i,
-          reduction: (i + 1) * 25,
-          triangleCount: Math.floor(Math.random() * 100000),
-          meshSize: Math.floor(Math.random() * 5000000),
-          path: filePath.replace('.nif', `_LOD${i}.nif`)
-        })),
-        totalSize: Math.floor(Math.random() * 50000000),
-        autoSwitchDistance: true,
-        generatedAt: Date.now()
-      };
-      meshHistoryStorage.set(lods.id, lods);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'mesh-optimizer',
-        action: 'generate-lod-meshes',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, lodLevels: levels }
-      });
-      return { success: true, lods };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:generate-lod-meshes error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'mesh-optimizer',
-        action: 'generate-lod-meshes',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:remove-unused-data', async (_event, filePath: string) => {
-    const startTime = Date.now();
-    try {
-      const cleanup = {
-        id: `cleanup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        originalSize: Math.floor(Math.random() * 50000000) + 1000000,
-        cleanedSize: 0,
-        itemsRemoved: {
-          unusedBones: Math.floor(Math.random() * 20),
-          emptyMeshes: Math.floor(Math.random() * 5),
-          orphanedNormals: Math.floor(Math.random() * 100),
-          duplicateVertices: Math.floor(Math.random() * 500),
-          unusedTextures: Math.floor(Math.random() * 5)
-        },
-        percentageSaved: Math.floor(Math.random() * 40) + 5,
-        cleanedAt: Date.now()
-      };
-      cleanup.cleanedSize = Math.floor(cleanup.originalSize * (1 - cleanup.percentageSaved / 100));
-      meshOptimizationStorage.set(cleanup.id, cleanup);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'remove-unused-data',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, itemsRemoved: cleanup.itemsRemoved, percentageSaved: cleanup.percentageSaved }
-      });
-      return { success: true, cleanup };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:remove-unused-data error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'remove-unused-data',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:batch-optimize-meshes', async (_event, filePaths: string[], options?: any) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalFiles: filePaths.length,
-        processedFiles: 0,
-        failedFiles: 0,
-        totalTrianglesBefore: 0,
-        totalTrianglesAfter: 0,
-        totalTimeSaved: 0,
-        results: filePaths.map(fp => ({
-          filePath: fp,
-          status: 'optimized',
-          trianglesReduced: Math.floor(Math.random() * 50000),
-          timeImprovement: Math.floor(Math.random() * 20) + 5
-        })),
-        completedAt: Date.now()
-      };
-      batch.processedFiles = batch.results.filter(r => r.status === 'optimized').length;
-      batch.failedFiles = filePaths.length - batch.processedFiles;
-      meshHistoryStorage.set(batch.id, batch);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'batch-optimize-meshes',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalFiles: batch.totalFiles, processedFiles: batch.processedFiles, failedFiles: batch.failedFiles }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:batch-optimize-meshes error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'mesh-optimizer',
-        action: 'batch-optimize-meshes',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:compare-optimization-results', async (_event, beforePath: string, afterPath: string) => {
-    const startTime = Date.now();
-    try {
-      const comparison = {
-        id: `compare_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        beforePath,
-        afterPath,
-        beforeTriangles: Math.floor(Math.random() * 200000) + 10000,
-        afterTriangles: 0,
-        beforeSize: Math.floor(Math.random() * 50000000) + 1000000,
-        afterSize: 0,
-        triangleReduction: Math.floor(Math.random() * 50),
-        sizeReduction: Math.floor(Math.random() * 60),
-        visualQuality: 'excellent',
-        performanceGain: Math.floor(Math.random() * 40) + 10,
-        recommendOptimization: true,
-        comparedAt: Date.now()
-      };
-      comparison.afterTriangles = Math.floor(comparison.beforeTriangles * (1 - comparison.triangleReduction / 100));
-      comparison.afterSize = Math.floor(comparison.beforeSize * (1 - comparison.sizeReduction / 100));
-      meshOptimizationStorage.set(comparison.id, comparison);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mesh-optimizer',
-        action: 'compare-optimization-results',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { triangleReduction: comparison.triangleReduction, sizeReduction: comparison.sizeReduction }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:compare-optimization-results error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mesh-optimizer',
-        action: 'compare-optimization-results',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:validate-mesh-integrity', async (_event, filePath: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        isValid: Math.random() > 0.1,
-        issues: [] as any[],
-        warnings: [] as any[],
-        info: {
-          hasDegenerate: Math.random() > 0.8,
-          degenerateTriangles: Math.floor(Math.random() * 50),
-          overlappingUVs: Math.random() > 0.9,
-          unusedVertices: Math.floor(Math.random() * 100),
-          materialErrors: Math.floor(Math.random() * 5)
-        },
-        qualityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      if (Math.random() > 0.7) {
-        validation.issues.push({ type: 'degenerate_triangle', count: Math.floor(Math.random() * 50) });
-      }
-      if (Math.random() > 0.8) {
-        validation.warnings.push({ type: 'unused_vertices', count: Math.floor(Math.random() * 100) });
-      }
-      meshOptimizationStorage.set(validation.id, validation);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'mesh-optimizer',
-        action: 'validate-mesh-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, isValid: validation.isValid, qualityScore: validation.qualityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:validate-mesh-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'mesh-optimizer',
-        action: 'validate-mesh-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:export-optimization-report', async (_event, filePath: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        format: fmt,
-        reportGenerated: Date.now(),
-        sections: {
-          meshAnalysis: true,
-          optimizationMetrics: true,
-          performanceImpact: true,
-          recommendations: true
-        },
-        fileSize: Math.floor(Math.random() * 500000) + 10000,
-        exportPath: `reports/mesh_report_${Date.now()}.${fmt}`,
-        exportedAt: Date.now()
-      };
-      meshHistoryStorage.set(report.id, report);
-      saveMeshOptimizationDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'mesh-optimizer',
-        action: 'export-optimization-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, format: fmt }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:export-optimization-report error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'mesh-optimizer',
-        action: 'export-optimization-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mesh:get-analysis-summary', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const summary = {
-        id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalAnalyzed: Array.from(meshOptimizationStorage.values()).length,
-        recentAnalyses: Array.from(meshOptimizationStorage.values())
-          .slice(-count)
-          .map(a => ({
-            filePath: a.filePath,
-            triangleCount: a.triangleCount,
-            optimizationScore: a.optimizationScore,
-            timeAnalyzed: a.analyzedAt
-          })),
-        averageOptimizationScore: Math.floor(Math.random() * 40) + 60,
-        totalMeshesProcessed: Math.floor(Math.random() * 10000) + 1000,
-        totalTrianglesSaved: Math.floor(Math.random() * 50000000),
-        averageReductionPercentage: Math.floor(Math.random() * 40) + 10,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mesh-optimizer',
-        action: 'get-analysis-summary',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalAnalyzed: summary.totalAnalyzed, averageOptimizationScore: summary.averageOptimizationScore }
-      });
-      return { success: true, summary };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mesh:get-analysis-summary error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'mesh-optimizer',
-        action: 'get-analysis-summary',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize mesh optimization data on startup
   loadMeshOptimizationDataFromDisk();
@@ -31338,440 +26476,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('animation:import-animation-file', async (_event, filePath: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'hkx';
-      const animation = {
-        id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        format: fmt,
-        frameCount: Math.floor(Math.random() * 5000) + 100,
-        duration: Math.floor(Math.random() * 10000) + 500,
-        fps: 30,
-        boneCount: Math.floor(Math.random() * 100) + 10,
-        keyframeCount: Math.floor(Math.random() * 50000),
-        animationType: ['idle', 'walk', 'run', 'attack', 'cast'][Math.floor(Math.random() * 5)],
-        trackingMode: 'full',
-        importedAt: Date.now()
-      };
-      animationRetargetingStorage.set(animation.id, animation);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'import-animation-file',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, format: fmt, frameCount: animation.frameCount }
-      });
-      return { success: true, animation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:import-animation-file error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'import-animation-file',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:retarget-skeleton', async (_event, animationId: string, targetSkeleton: string) => {
-    const startTime = Date.now();
-    try {
-      const retargeted = {
-        id: `retarget_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        animationId,
-        targetSkeleton,
-        sourceBones: Math.floor(Math.random() * 100) + 10,
-        targetBones: Math.floor(Math.random() * 100) + 10,
-        matchedBones: Math.floor(Math.random() * 90) + 10,
-        unmappedBones: Math.floor(Math.random() * 20),
-        rotationOffset: Math.random() * 360,
-        positionScale: Math.random() * 2 + 0.5,
-        status: 'success',
-        quality: Math.floor(Math.random() * 40) + 60,
-        retargetedAt: Date.now()
-      };
-      animationRetargetingStorage.set(retargeted.id, retargeted);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'animation-retargeting',
-        action: 'retarget-skeleton',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { animationId, targetSkeleton, matchedBones: retargeted.matchedBones }
-      });
-      return { success: true, retargeted };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:retarget-skeleton error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'animation-retargeting',
-        action: 'retarget-skeleton',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:validate-bone-structure', async (_event, filePath: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        isValid: Math.random() > 0.15,
-        boneCount: Math.floor(Math.random() * 100) + 10,
-        issues: [] as any[],
-        warnings: [] as any[],
-        missingBones: Math.floor(Math.random() * 5),
-        duplicateBones: Math.floor(Math.random() * 3),
-        invalidHierarchy: Math.random() > 0.9,
-        qualityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      if (Math.random() > 0.8) {
-        validation.issues.push({ type: 'missing_bone', bone: 'NPC Root [Root]' });
-      }
-      if (Math.random() > 0.85) {
-        validation.warnings.push({ type: 'unusual_rotation', bone: 'Armature' });
-      }
-      animationRetargetingStorage.set(validation.id, validation);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'animation-retargeting',
-        action: 'validate-bone-structure',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, isValid: validation.isValid, boneCount: validation.boneCount }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:validate-bone-structure error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'animation-retargeting',
-        action: 'validate-bone-structure',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:blend-animations', async (_event, animationIds: string[], blendMode?: string) => {
-    const startTime = Date.now();
-    try {
-      const mode = blendMode || 'linear';
-      const blended = {
-        id: `blend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourceAnimations: animationIds.length,
-        blendMode: mode,
-        resultFrameCount: Math.floor(Math.random() * 5000) + 100,
-        blendDuration: Math.floor(Math.random() * 1000) + 100,
-        smoothness: Math.floor(Math.random() * 40) + 60,
-        preserveRotation: Math.random() > 0.5,
-        preservePosition: Math.random() > 0.5,
-        outputFormat: 'hkx',
-        blendedAt: Date.now()
-      };
-      animationRetargetingStorage.set(blended.id, blended);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'blend-animations',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sourceAnimations: animationIds.length, blendMode: mode }
-      });
-      return { success: true, blended };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:blend-animations error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'blend-animations',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:create-custom-animation', async (_event, name: string, frameCount: number, boneData?: any) => {
-    const startTime = Date.now();
-    try {
-      const created = {
-        id: `create_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name,
-        frameCount,
-        duration: frameCount / 30,
-        keyframes: Math.floor(Math.random() * 100) + 50,
-        boneCount: Math.floor(Math.random() * 80) + 10,
-        tracks: frameCount * (Math.floor(Math.random() * 80) + 10),
-        animationType: 'custom',
-        status: 'created',
-        createdAt: Date.now()
-      };
-      animationRetargetingStorage.set(created.id, created);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'create-custom-animation',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { name, frameCount }
-      });
-      return { success: true, created };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:create-custom-animation error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'animation-retargeting',
-        action: 'create-custom-animation',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:export-animation', async (_event, animationId: string, outputPath: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'hkx';
-      const exported = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        animationId,
-        outputPath,
-        format: fmt,
-        fileSize: Math.floor(Math.random() * 10000000) + 100000,
-        compressionApplied: Math.random() > 0.5,
-        compressedSize: Math.floor(Math.random() * 5000000) + 50000,
-        status: 'completed',
-        exportedAt: Date.now()
-      };
-      skeletonHistoryStorage.set(exported.id, exported);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'animation-retargeting',
-        action: 'export-animation',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { animationId, format: fmt }
-      });
-      return { success: true, exported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:export-animation error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'animation-retargeting',
-        action: 'export-animation',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:batch-retarget-animations', async (_event, animationIds: string[], targetSkeleton: string) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalAnimations: animationIds.length,
-        targetSkeleton,
-        processedAnimations: 0,
-        failedAnimations: 0,
-        results: animationIds.map(id => ({
-          animationId: id,
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          matchedBones: Math.floor(Math.random() * 90) + 10
-        })),
-        totalDuration: Math.floor(Math.random() * 60000),
-        completedAt: Date.now()
-      };
-      batch.processedAnimations = batch.results.filter(r => r.status === 'success').length;
-      batch.failedAnimations = animationIds.length - batch.processedAnimations;
-      skeletonHistoryStorage.set(batch.id, batch);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'animation-retargeting',
-        action: 'batch-retarget-animations',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalAnimations: batch.totalAnimations, processedAnimations: batch.processedAnimations }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:batch-retarget-animations error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'animation-retargeting',
-        action: 'batch-retarget-animations',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:compare-animations', async (_event, animationId1: string, animationId2: string) => {
-    const startTime = Date.now();
-    try {
-      const comparison = {
-        id: `compare_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        animation1: animationId1,
-        animation2: animationId2,
-        similarity: Math.floor(Math.random() * 50) + 50,
-        duration1: Math.floor(Math.random() * 5000) + 500,
-        duration2: Math.floor(Math.random() * 5000) + 500,
-        frameCount1: Math.floor(Math.random() * 5000) + 100,
-        frameCount2: Math.floor(Math.random() * 5000) + 100,
-        boneDifferences: Math.floor(Math.random() * 20),
-        motionDifference: Math.floor(Math.random() * 40) + 10,
-        recommendation: Math.random() > 0.5 ? 'compatible' : 'retarget_needed',
-        comparedAt: Date.now()
-      };
-      animationRetargetingStorage.set(comparison.id, comparison);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'animation-retargeting',
-        action: 'compare-animations',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { similarity: comparison.similarity, recommendation: comparison.recommendation }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:compare-animations error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'animation-retargeting',
-        action: 'compare-animations',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:get-retargeting-summary', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const summary = {
-        id: `summary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalRetargeted: Array.from(animationRetargetingStorage.values()).length,
-        successfulRetargeting: Array.from(animationRetargetingStorage.values()).filter(a => a.status === 'success').length,
-        failedRetargeting: Array.from(animationRetargetingStorage.values()).filter(a => a.status === 'failed').length,
-        recentAnimations: Array.from(animationRetargetingStorage.values())
-          .slice(-count)
-          .map(a => ({
-            name: a.name || a.animationType,
-            frameCount: a.frameCount,
-            matchedBones: a.matchedBones,
-            processedAt: a.retargetedAt || a.importedAt
-          })),
-        averageRetargetingQuality: Math.floor(Math.random() * 40) + 60,
-        totalAnimationsProcessed: Math.floor(Math.random() * 10000) + 1000,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'animation-retargeting',
-        action: 'get-retargeting-summary',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalRetargeted: summary.totalRetargeted, averageQuality: summary.averageRetargetingQuality }
-      });
-      return { success: true, summary };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:get-retargeting-summary error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'animation-retargeting',
-        action: 'get-retargeting-summary',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('animation:optimize-keyframes', async (_event, animationId: string, tolerance?: number) => {
-    const startTime = Date.now();
-    try {
-      const tol = tolerance || 0.1;
-      const optimized = {
-        id: `optimize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        animationId,
-        originalKeyframes: Math.floor(Math.random() * 50000) + 1000,
-        optimizedKeyframes: 0,
-        keyframesRemoved: 0,
-        compressionRatio: Math.floor(Math.random() * 40) + 30,
-        toleranceUsed: tol,
-        qualityPreserved: Math.floor(Math.random() * 20) + 95,
-        sizeSaved: Math.floor(Math.random() * 50) + 10,
-        optimizedAt: Date.now()
-      };
-      optimized.optimizedKeyframes = Math.floor(optimized.originalKeyframes * (1 - optimized.compressionRatio / 100));
-      optimized.keyframesRemoved = optimized.originalKeyframes - optimized.optimizedKeyframes;
-      animationRetargetingStorage.set(optimized.id, optimized);
-      saveAnimationRetargetingDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'animation-retargeting',
-        action: 'optimize-keyframes',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { animationId, keyframesRemoved: optimized.keyframesRemoved, compressionRatio: optimized.compressionRatio }
-      });
-      return { success: true, optimized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] animation:optimize-keyframes error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'animation-retargeting',
-        action: 'optimize-keyframes',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize animation retargeting data on startup
   loadAnimationRetargetingDataFromDisk();
@@ -31811,440 +26515,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('dialogue:create-dialogue-tree', async (_event, npcId: string, dialogueName: string) => {
-    const startTime = Date.now();
-    try {
-      const tree = {
-        id: `tree_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        npcId,
-        dialogueName,
-        nodeCount: 0,
-        topicCount: Math.floor(Math.random() * 20) + 1,
-        conditionCount: Math.floor(Math.random() * 50),
-        voiceLineCount: 0,
-        branchingPaths: 0,
-        complexity: 'simple',
-        status: 'created',
-        createdAt: Date.now()
-      };
-      dialogueTreeStorage.set(tree.id, tree);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'create-dialogue-tree',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { npcId, dialogueName }
-      });
-      return { success: true, tree };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:create-dialogue-tree error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'create-dialogue-tree',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:add-dialogue-node', async (_event, treeId: string, nodeData: any) => {
-    const startTime = Date.now();
-    try {
-      const node = {
-        id: `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        treeId,
-        text: nodeData?.text || 'New dialogue node',
-        parentNode: nodeData?.parentNode || null,
-        childNodes: [],
-        conditionCount: Math.floor(Math.random() * 10),
-        voiceLineId: null,
-        responseType: ['dialogue', 'persuasion', 'trade', 'attack'][Math.floor(Math.random() * 4)],
-        consequences: [],
-        addedAt: Date.now()
-      };
-      dialogueTreeStorage.set(node.id, node);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'add-dialogue-node',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { treeId, nodeId: node.id }
-      });
-      return { success: true, node };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:add-dialogue-node error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'add-dialogue-node',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:add-voice-line', async (_event, nodeId: string, voicePath: string, voiceActor?: string) => {
-    const startTime = Date.now();
-    try {
-      const voiceLine = {
-        id: `voice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        nodeId,
-        voicePath,
-        voiceActor: voiceActor || 'Unknown',
-        duration: Math.floor(Math.random() * 10000) + 500,
-        fileSize: Math.floor(Math.random() * 5000000) + 100000,
-        format: 'wav',
-        sampleRate: 44100,
-        channels: 2,
-        quality: 'excellent',
-        addedAt: Date.now()
-      };
-      dialogueTreeStorage.set(voiceLine.id, voiceLine);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'add-voice-line',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { nodeId, voiceActor }
-      });
-      return { success: true, voiceLine };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:add-voice-line error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'add-voice-line',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:set-dialogue-conditions', async (_event, nodeId: string, conditions: any[]) => {
-    const startTime = Date.now();
-    try {
-      const conditionSet = {
-        id: `conditions_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        nodeId,
-        conditionCount: conditions.length,
-        conditions: conditions.map(c => ({
-          type: c.type || ['quest', 'skill', 'reputation', 'race', 'gender'][Math.floor(Math.random() * 5)],
-          operator: c.operator || '==',
-          value: c.value || Math.floor(Math.random() * 100),
-          target: c.target || 'player'
-        })),
-        logicMode: 'AND',
-        evaluationOrder: Array.from({ length: conditions.length }, (_, i) => i),
-        setAt: Date.now()
-      };
-      dialogueTreeStorage.set(conditionSet.id, conditionSet);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'dialogue-manager',
-        action: 'set-dialogue-conditions',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { nodeId, conditionCount: conditions.length }
-      });
-      return { success: true, conditionSet };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:set-dialogue-conditions error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'dialogue-manager',
-        action: 'set-dialogue-conditions',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:export-dialogue-tree', async (_event, treeId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'yaml';
-      const exported = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        treeId,
-        format: fmt,
-        nodeCount: Math.floor(Math.random() * 100) + 10,
-        voiceLineCount: Math.floor(Math.random() * 200) + 20,
-        fileSize: Math.floor(Math.random() * 5000000) + 100000,
-        exportPath: `dialogues/dialogue_export_${Date.now()}.${fmt}`,
-        validated: true,
-        exportedAt: Date.now()
-      };
-      dialogueHistoryStorage.set(exported.id, exported);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'dialogue-manager',
-        action: 'export-dialogue-tree',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { treeId, format: fmt }
-      });
-      return { success: true, exported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:export-dialogue-tree error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'dialogue-manager',
-        action: 'export-dialogue-tree',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:import-dialogue-file', async (_event, filePath: string, npcId?: string) => {
-    const startTime = Date.now();
-    try {
-      const imported = {
-        id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        npcId: npcId || `npc_${Math.random().toString(36).substr(2, 9)}`,
-        nodeCount: Math.floor(Math.random() * 150) + 10,
-        voiceLineCount: Math.floor(Math.random() * 300) + 20,
-        conditionCount: Math.floor(Math.random() * 100),
-        branchingPaths: Math.floor(Math.random() * 50) + 5,
-        complexity: 'complex',
-        validationErrors: 0,
-        importedAt: Date.now()
-      };
-      dialogueTreeStorage.set(imported.id, imported);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'import-dialogue-file',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, nodeCount: imported.nodeCount }
-      });
-      return { success: true, imported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:import-dialogue-file error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'import-dialogue-file',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:validate-dialogue-tree', async (_event, treeId: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        treeId,
-        isValid: Math.random() > 0.1,
-        nodeCount: Math.floor(Math.random() * 150) + 10,
-        issues: [] as any[],
-        warnings: [] as any[],
-        orphanedNodes: Math.floor(Math.random() * 5),
-        unreachableNodes: Math.floor(Math.random() * 3),
-        duplicateTextWarnings: Math.floor(Math.random() * 10),
-        qualityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      if (Math.random() > 0.8) {
-        validation.issues.push({ type: 'orphaned_node', count: validation.orphanedNodes });
-      }
-      if (Math.random() > 0.85) {
-        validation.warnings.push({ type: 'unreachable_node', count: validation.unreachableNodes });
-      }
-      dialogueTreeStorage.set(validation.id, validation);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'dialogue-manager',
-        action: 'validate-dialogue-tree',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { treeId, isValid: validation.isValid, qualityScore: validation.qualityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:validate-dialogue-tree error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'dialogue-manager',
-        action: 'validate-dialogue-tree',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:batch-import-dialogues', async (_event, filePaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalFiles: filePaths.length,
-        successfulImports: 0,
-        failedImports: 0,
-        totalNodes: 0,
-        totalVoiceLines: 0,
-        results: filePaths.map(fp => ({
-          filePath: fp,
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          nodeCount: Math.floor(Math.random() * 150),
-          voiceLineCount: Math.floor(Math.random() * 300)
-        })),
-        completedAt: Date.now()
-      };
-      batch.successfulImports = batch.results.filter(r => r.status === 'success').length;
-      batch.failedImports = filePaths.length - batch.successfulImports;
-      batch.totalNodes = batch.results.reduce((sum, r) => sum + r.nodeCount, 0);
-      batch.totalVoiceLines = batch.results.reduce((sum, r) => sum + r.voiceLineCount, 0);
-      dialogueHistoryStorage.set(batch.id, batch);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'batch-import-dialogues',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalFiles: batch.totalFiles, successfulImports: batch.successfulImports }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:batch-import-dialogues error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'dialogue-manager',
-        action: 'batch-import-dialogues',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:get-dialogue-system-stats', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalDialogueTrees: Array.from(dialogueTreeStorage.values()).length,
-        totalNodes: Math.floor(Math.random() * 10000) + 1000,
-        totalVoiceLines: Math.floor(Math.random() * 20000) + 2000,
-        totalConditions: Math.floor(Math.random() * 5000) + 500,
-        averageNodesPerTree: Math.floor(Math.random() * 150) + 10,
-        averageVoiceLinesPerTree: Math.floor(Math.random() * 300) + 20,
-        recentTrees: Array.from(dialogueTreeStorage.values())
-          .slice(-count)
-          .map(t => ({
-            name: t.dialogueName,
-            nodeCount: t.nodeCount,
-            complexity: t.complexity,
-            createdAt: t.createdAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'dialogue-manager',
-        action: 'get-dialogue-system-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalDialogueTrees: stats.totalDialogueTrees, totalNodes: stats.totalNodes }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:get-dialogue-system-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'dialogue-manager',
-        action: 'get-dialogue-system-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('dialogue:compare-dialogue-trees', async (_event, treeId1: string, treeId2: string) => {
-    const startTime = Date.now();
-    try {
-      const comparison = {
-        id: `compare_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        tree1: treeId1,
-        tree2: treeId2,
-        similarity: Math.floor(Math.random() * 50) + 30,
-        commonNodes: Math.floor(Math.random() * 50),
-        uniqueToTree1: Math.floor(Math.random() * 30),
-        uniqueToTree2: Math.floor(Math.random() * 30),
-        structuralDifferences: Math.floor(Math.random() * 20),
-        voiceLineDifferences: Math.floor(Math.random() * 30),
-        recommendation: Math.random() > 0.5 ? 'can_merge' : 'keep_separate',
-        comparedAt: Date.now()
-      };
-      dialogueTreeStorage.set(comparison.id, comparison);
-      saveDialogueSystemDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'dialogue-manager',
-        action: 'compare-dialogue-trees',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { similarity: comparison.similarity, recommendation: comparison.recommendation }
-      });
-      return { success: true, comparison };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] dialogue:compare-dialogue-trees error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'dialogue-manager',
-        action: 'compare-dialogue-trees',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize dialogue system data on startup
   loadDialogueSystemDataFromDisk();
@@ -32284,443 +26554,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('texture:create-material-definition', async (_event, materialName: string, properties?: any) => {
-    const startTime = Date.now();
-    try {
-      const material = {
-        id: `material_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        materialName,
-        diffusePath: properties?.diffusePath || '',
-        normalPath: properties?.normalPath || '',
-        roughnessPath: properties?.roughnessPath || '',
-        metallicPath: properties?.metallicPath || '',
-        aoPath: properties?.aoPath || '',
-        emissivePath: properties?.emissivePath || '',
-        roughness: Math.random() * 0.8 + 0.1,
-        metallic: Math.random(),
-        specular: Math.random() * 0.5,
-        emissive: Math.random(),
-        textureCount: Math.floor(Math.random() * 6) + 1,
-        uvScale: Math.random() * 2 + 0.5,
-        createdAt: Date.now()
-      };
-      textureManagementStorage.set(material.id, material);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'create-material-definition',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { materialName, textureCount: material.textureCount }
-      });
-      return { success: true, material };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:create-material-definition error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'create-material-definition',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:create-texture-atlas', async (_event, atlasName: string, textureList: string[]) => {
-    const startTime = Date.now();
-    try {
-      const atlas = {
-        id: `atlas_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        atlasName,
-        textureCount: textureList.length,
-        resolution: [1024, 2048, 4096][Math.floor(Math.random() * 3)],
-        atlasSize: Math.floor(Math.random() * 50000000) + 5000000,
-        packingDensity: Math.floor(Math.random() * 30) + 70,
-        texturesIncluded: textureList.slice(0, Math.min(textureList.length, 10)),
-        paddingPixels: 4,
-        textureFormat: 'DDS',
-        compression: 'BC3',
-        createdAt: Date.now()
-      };
-      textureManagementStorage.set(atlas.id, atlas);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'create-texture-atlas',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { atlasName, textureCount: textureList.length, resolution: atlas.resolution }
-      });
-      return { success: true, atlas };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:create-texture-atlas error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'create-texture-atlas',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:apply-material-properties', async (_event, materialId: string, properties: any) => {
-    const startTime = Date.now();
-    try {
-      const applied = {
-        id: `apply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        materialId,
-        propertiesApplied: Object.keys(properties).length,
-        properties: {
-          roughness: properties.roughness || Math.random() * 0.8 + 0.1,
-          metallic: properties.metallic || Math.random(),
-          specular: properties.specular || Math.random() * 0.5,
-          normalScale: properties.normalScale || Math.random() * 2 + 0.5,
-          parallaxHeight: properties.parallaxHeight || Math.random(),
-          aoStrength: properties.aoStrength || Math.random()
-        },
-        status: 'applied',
-        appliedAt: Date.now()
-      };
-      textureManagementStorage.set(applied.id, applied);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'apply-material-properties',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { materialId, propertiesApplied: applied.propertiesApplied }
-      });
-      return { success: true, applied };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:apply-material-properties error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'apply-material-properties',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:manage-texture-replacements', async (_event, sourceTexture: string, replacementTexture: string) => {
-    const startTime = Date.now();
-    try {
-      const replacement = {
-        id: `replace_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourceTexture,
-        replacementTexture,
-        sourceResolution: [512, 1024, 2048][Math.floor(Math.random() * 3)],
-        replacementResolution: [1024, 2048, 4096][Math.floor(Math.random() * 3)],
-        qualityImprovement: Math.floor(Math.random() * 40) + 20,
-        memoryImpact: Math.floor(Math.random() * 10000000),
-        compatible: Math.random() > 0.1,
-        preservesAlpha: Math.random() > 0.3,
-        replacedAt: Date.now()
-      };
-      materialHistoryStorage.set(replacement.id, replacement);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'manage-texture-replacements',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sourceTexture, replacementTexture, qualityImprovement: replacement.qualityImprovement }
-      });
-      return { success: true, replacement };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:manage-texture-replacements error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'manage-texture-replacements',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:validate-material-compatibility', async (_event, materialId: string, targetEngine?: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        materialId,
-        targetEngine: targetEngine || 'Fallout4',
-        isCompatible: Math.random() > 0.1,
-        issues: [] as any[],
-        warnings: [] as any[],
-        textureFormatIssues: Math.floor(Math.random() * 3),
-        resolutionIssues: Math.floor(Math.random() * 2),
-        propertyWarnings: Math.floor(Math.random() * 5),
-        compatibilityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      if (Math.random() > 0.8) {
-        validation.issues.push({ type: 'unsupported_format', detail: 'PNG format not supported' });
-      }
-      if (Math.random() > 0.85) {
-        validation.warnings.push({ type: 'resolution_mismatch', detail: '2K texture with 1K normal map' });
-      }
-      textureManagementStorage.set(validation.id, validation);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'texture-manager',
-        action: 'validate-material-compatibility',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { materialId, isCompatible: validation.isCompatible, compatibilityScore: validation.compatibilityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:validate-material-compatibility error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'texture-manager',
-        action: 'validate-material-compatibility',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:optimize-material-performance', async (_event, materialId: string, targetMemory?: number) => {
-    const startTime = Date.now();
-    try {
-      const optimized = {
-        id: `optimize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        materialId,
-        originalMemory: Math.floor(Math.random() * 100000000) + 10000000,
-        optimizedMemory: 0,
-        memorySaved: Math.floor(Math.random() * 50000000),
-        compressionApplied: Math.random() > 0.5,
-        resolutionReduced: Math.random() > 0.4,
-        qualityPreserved: Math.floor(Math.random() * 20) + 85,
-        lodLevelsCreated: Math.floor(Math.random() * 3) + 1,
-        optimizedAt: Date.now()
-      };
-      optimized.optimizedMemory = optimized.originalMemory - optimized.memorySaved;
-      textureManagementStorage.set(optimized.id, optimized);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'texture-manager',
-        action: 'optimize-material-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { materialId, memorySaved: optimized.memorySaved, qualityPreserved: optimized.qualityPreserved }
-      });
-      return { success: true, optimized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:optimize-material-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'texture-manager',
-        action: 'optimize-material-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:batch-process-materials', async (_event, materialIds: string[], operation: string) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalMaterials: materialIds.length,
-        operation,
-        processedMaterials: 0,
-        failedMaterials: 0,
-        results: materialIds.map(id => ({
-          materialId: id,
-          status: Math.random() > 0.1 ? 'processed' : 'failed',
-          outcome: Math.random() > 0.3 ? 'success' : 'warning'
-        })),
-        totalDuration: Math.floor(Math.random() * 60000),
-        completedAt: Date.now()
-      };
-      batch.processedMaterials = batch.results.filter(r => r.status === 'processed').length;
-      batch.failedMaterials = materialIds.length - batch.processedMaterials;
-      materialHistoryStorage.set(batch.id, batch);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'batch-process-materials',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalMaterials: batch.totalMaterials, processedMaterials: batch.processedMaterials, operation }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:batch-process-materials error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'texture-manager',
-        action: 'batch-process-materials',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:export-material-package', async (_event, materialId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'zip';
-      const exported = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        materialId,
-        format: fmt,
-        texturesIncluded: Math.floor(Math.random() * 6) + 1,
-        totalSize: Math.floor(Math.random() * 50000000) + 5000000,
-        compressed: fmt === 'zip',
-        compressedSize: Math.floor(Math.random() * 25000000) + 2000000,
-        exportPath: `materials/material_export_${Date.now()}.${fmt}`,
-        validated: true,
-        exportedAt: Date.now()
-      };
-      materialHistoryStorage.set(exported.id, exported);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'texture-manager',
-        action: 'export-material-package',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { materialId, format: fmt, totalSize: exported.totalSize }
-      });
-      return { success: true, exported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:export-material-package error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'texture-manager',
-        action: 'export-material-package',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:get-material-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalMaterials: Array.from(textureManagementStorage.values()).length,
-        totalTextures: Math.floor(Math.random() * 10000) + 1000,
-        totalMemoryUsage: Math.floor(Math.random() * 5000000000) + 500000000,
-        averageTexturesPerMaterial: Math.floor(Math.random() * 5) + 2,
-        atlasCount: Math.floor(Math.random() * 50) + 5,
-        replacementCount: Math.floor(Math.random() * 1000),
-        recentMaterials: Array.from(textureManagementStorage.values())
-          .slice(-count)
-          .map(m => ({
-            name: m.materialName,
-            textureCount: m.textureCount,
-            memorySize: Math.floor(Math.random() * 50000000),
-            createdAt: m.createdAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'texture-manager',
-        action: 'get-material-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalMaterials: stats.totalMaterials, totalMemoryUsage: stats.totalMemoryUsage }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:get-material-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'texture-manager',
-        action: 'get-material-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('texture:import-material-package', async (_event, filePath: string, materialName?: string) => {
-    const startTime = Date.now();
-    try {
-      const imported = {
-        id: `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        materialName: materialName || `Imported_${Date.now()}`,
-        texturesImported: Math.floor(Math.random() * 6) + 1,
-        totalSize: Math.floor(Math.random() * 50000000) + 5000000,
-        resolution: [512, 1024, 2048, 4096][Math.floor(Math.random() * 4)],
-        format: 'DDS',
-        validationStatus: 'passed',
-        compatibleEngines: ['Fallout4', 'Skyrim'],
-        importedAt: Date.now()
-      };
-      textureManagementStorage.set(imported.id, imported);
-      saveTextureManagementDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'import-material-package',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, materialName: imported.materialName, texturesImported: imported.texturesImported }
-      });
-      return { success: true, imported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] texture:import-material-package error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'texture-manager',
-        action: 'import-material-package',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize texture management data on startup
   loadTextureManagementDataFromDisk();
@@ -32760,458 +26593,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('plugin:analyze-plugin-file', async (_event, filePath: string) => {
-    const startTime = Date.now();
-    try {
-      const analysis = {
-        id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        filePath,
-        fileSize: Math.floor(Math.random() * 100000000) + 1000000,
-        recordCount: Math.floor(Math.random() * 50000) + 100,
-        masterCount: Math.floor(Math.random() * 10) + 1,
-        masters: Array.from({ length: Math.floor(Math.random() * 10) + 1 }).map(() => ({
-          name: ['Fallout4.esm', 'DLC01.esm', 'DLC02.esm'][Math.floor(Math.random() * 3)],
-          required: true
-        })),
-        formIdCount: Math.floor(Math.random() * 30000),
-        worldFormCount: Math.floor(Math.random() * 1000),
-        questFormCount: Math.floor(Math.random() * 500),
-        pluginType: Math.random() > 0.3 ? 'ESP' : 'ESM',
-        compression: Math.random() > 0.7,
-        analyzedAt: Date.now()
-      };
-      pluginManagementStorage.set(analysis.id, analysis);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'analyze-plugin-file',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { filePath, recordCount: analysis.recordCount, masterCount: analysis.masterCount }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:analyze-plugin-file error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'analyze-plugin-file',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:validate-plugin-references', async (_event, pluginPath: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginPath,
-        isValid: Math.random() > 0.15,
-        totalReferences: Math.floor(Math.random() * 50000),
-        validReferences: Math.floor(Math.random() * 50000),
-        brokenReferences: Math.floor(Math.random() * 1000),
-        orphanedReferences: Math.floor(Math.random() * 500),
-        missingMasters: Math.floor(Math.random() * 5),
-        issues: [] as any[],
-        warnings: [] as any[],
-        qualityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      if (Math.random() > 0.8) {
-        validation.issues.push({ type: 'broken_reference', count: validation.brokenReferences });
-      }
-      if (Math.random() > 0.85) {
-        validation.warnings.push({ type: 'orphaned_reference', count: validation.orphanedReferences });
-      }
-      pluginManagementStorage.set(validation.id, validation);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'plugin-manager',
-        action: 'validate-plugin-references',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginPath, isValid: validation.isValid, brokenReferences: validation.brokenReferences }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:validate-plugin-references error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'plugin-manager',
-        action: 'validate-plugin-references',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:merge-plugins', async (_event, pluginPaths: string[], outputPath: string) => {
-    const startTime = Date.now();
-    try {
-      const merged = {
-        id: `merge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourcePlugins: pluginPaths.length,
-        outputPath,
-        totalRecords: Math.floor(Math.random() * 100000) + 10000,
-        recordsMerged: Math.floor(Math.random() * 100000) + 10000,
-        conflictResolutions: Math.floor(Math.random() * 1000),
-        fileSize: Math.floor(Math.random() * 100000000) + 10000000,
-        status: 'completed',
-        compatibilityIssues: Math.floor(Math.random() * 10),
-        mergedAt: Date.now()
-      };
-      pluginHistoryStorage.set(merged.id, merged);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'plugin-manager',
-        action: 'merge-plugins',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { sourcePlugins: pluginPaths.length, totalRecords: merged.totalRecords }
-      });
-      return { success: true, merged };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:merge-plugins error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'plugin-manager',
-        action: 'merge-plugins',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:analyze-plugin-dependencies', async (_event, pluginPath: string) => {
-    const startTime = Date.now();
-    try {
-      const dependencies = {
-        id: `depend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginPath,
-        directDependencies: Math.floor(Math.random() * 20) + 1,
-        indirectDependencies: Math.floor(Math.random() * 50) + 1,
-        allDependencies: [] as {name: string; required: boolean}[],
-        dependencyGraph: {
-          depth: Math.floor(Math.random() * 5) + 1,
-          width: Math.floor(Math.random() * 20) + 1
-        },
-        circularDependencies: Math.floor(Math.random() * 3),
-        unmetDependencies: Math.floor(Math.random() * 5),
-        compatibilityScore: Math.floor(Math.random() * 40) + 60,
-        analyzedAt: Date.now()
-      };
-      dependencies.allDependencies = Array.from<{name: string; required: boolean}>({ length: dependencies.directDependencies + dependencies.indirectDependencies }).map(() => ({
-        name: `Dependency_${Math.random().toString(36).substr(2, 9)}`,
-        required: Math.random() > 0.3
-      })) as any[];
-      pluginManagementStorage.set(dependencies.id, dependencies);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'analyze-plugin-dependencies',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginPath, directDependencies: dependencies.directDependencies, indirectDependencies: dependencies.indirectDependencies }
-      });
-      return { success: true, dependencies };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:analyze-plugin-dependencies error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'analyze-plugin-dependencies',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:detect-plugin-conflicts', async (_event, pluginPaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const conflicts = {
-        id: `conflict_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginCount: pluginPaths.length,
-        conflictCount: Math.floor(Math.random() * 100),
-        detailedConflicts: Array.from({ length: Math.min(Math.floor(Math.random() * 10), 5) }).map(() => ({
-          type: ['form_override', 'navmesh_conflict', 'script_conflict', 'master_conflict'][Math.floor(Math.random() * 4)],
-          severity: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)],
-          affectedPlugins: Math.floor(Math.random() * 5) + 2,
-          recordCount: Math.floor(Math.random() * 1000)
-        })),
-        resolvableConflicts: Math.floor(Math.random() * 50),
-        criticalConflicts: Math.floor(Math.random() * 10),
-        overallCompatibility: Math.floor(Math.random() * 40) + 60,
-        detectedAt: Date.now()
-      };
-      pluginManagementStorage.set(conflicts.id, conflicts);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'detect-plugin-conflicts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: pluginPaths.length, conflictCount: conflicts.conflictCount }
-      });
-      return { success: true, conflicts };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:detect-plugin-conflicts error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'plugin-manager',
-        action: 'detect-plugin-conflicts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:optimize-plugin-load-order', async (_event, pluginPaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const optimized = {
-        id: `optimize_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        originalOrder: pluginPaths,
-        optimizedOrder: pluginPaths.slice().sort(() => Math.random() - 0.5),
-        reordersNeeded: Math.floor(Math.random() * 20),
-        stabilityImprovement: Math.floor(Math.random() * 40) + 20,
-        compatibilityImprovement: Math.floor(Math.random() * 30) + 10,
-        issuesResolved: Math.floor(Math.random() * 100),
-        issuesRemaining: Math.floor(Math.random() * 20),
-        optimizationScore: Math.floor(Math.random() * 40) + 60,
-        optimizedAt: Date.now()
-      };
-      pluginHistoryStorage.set(optimized.id, optimized);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'plugin-manager',
-        action: 'optimize-plugin-load-order',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: pluginPaths.length, stabilityImprovement: optimized.stabilityImprovement }
-      });
-      return { success: true, optimized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:optimize-plugin-load-order error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'plugin-manager',
-        action: 'optimize-plugin-load-order',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:generate-compatibility-report', async (_event, pluginPaths: string[], format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pluginCount: pluginPaths.length,
-        format: fmt,
-        reportGenerated: Date.now(),
-        sections: {
-          pluginAnalysis: true,
-          dependencyAnalysis: true,
-          conflictAnalysis: true,
-          loadOrderAnalysis: true,
-          recommendations: true
-        },
-        compatibilityScore: Math.floor(Math.random() * 40) + 60,
-        fileSize: Math.floor(Math.random() * 10000000) + 100000,
-        exportPath: `reports/plugin_report_${Date.now()}.${fmt}`,
-        exportedAt: Date.now()
-      };
-      pluginHistoryStorage.set(report.id, report);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'plugin-manager',
-        action: 'generate-compatibility-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginCount: pluginPaths.length, format: fmt, compatibilityScore: report.compatibilityScore }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:generate-compatibility-report error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'plugin-manager',
-        action: 'generate-compatibility-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:batch-validate-plugins', async (_event, filePaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalPlugins: filePaths.length,
-        validPlugins: 0,
-        invalidPlugins: 0,
-        results: filePaths.map(fp => ({
-          filePath: fp,
-          status: Math.random() > 0.1 ? 'valid' : 'invalid',
-          brokenReferences: Math.floor(Math.random() * 100),
-          qualityScore: Math.floor(Math.random() * 40) + 60
-        })),
-        totalIssuesFound: Math.floor(Math.random() * 500),
-        completedAt: Date.now()
-      };
-      batch.validPlugins = batch.results.filter(r => r.status === 'valid').length;
-      batch.invalidPlugins = filePaths.length - batch.validPlugins;
-      pluginHistoryStorage.set(batch.id, batch);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'plugin-manager',
-        action: 'batch-validate-plugins',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalPlugins: batch.totalPlugins, validPlugins: batch.validPlugins }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:batch-validate-plugins error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'plugin-manager',
-        action: 'batch-validate-plugins',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:get-plugin-management-stats', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalPluginsAnalyzed: Array.from(pluginManagementStorage.values()).length,
-        totalRecordsProcessed: Math.floor(Math.random() * 1000000) + 100000,
-        totalConflictsDetected: Math.floor(Math.random() * 5000),
-        averageConflictsPerPlugin: Math.floor(Math.random() * 100),
-        totalMergesPerformed: Math.floor(Math.random() * 100),
-        recentAnalyses: Array.from(pluginManagementStorage.values())
-          .slice(-count)
-          .map(p => ({
-            filePath: p.filePath,
-            recordCount: p.recordCount,
-            qualityScore: p.qualityScore || p.compatibilityScore,
-            analyzedAt: p.analyzedAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'plugin-manager',
-        action: 'get-plugin-management-stats',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalPluginsAnalyzed: stats.totalPluginsAnalyzed, totalConflictsDetected: stats.totalConflictsDetected }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:get-plugin-management-stats error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'plugin-manager',
-        action: 'get-plugin-management-stats',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('plugin:export-plugin-analysis', async (_event, analysisId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const analysis = pluginManagementStorage.get(analysisId);
-      if (!analysis) {
-        throw new Error('Analysis not found');
-      }
-      const exported = {
-        id: `export_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourceAnalysisId: analysisId,
-        format: fmt,
-        fileSize: Math.floor(Math.random() * 10000000),
-        exportPath: `exports/plugin_analysis_${Date.now()}.${fmt}`,
-        compressionRatio: Math.random() * 0.5 + 0.3,
-        exportedAt: Date.now(),
-        includesConflicts: true,
-        includesDependencies: true,
-        includedRecords: Math.floor(Math.random() * 50000)
-      };
-      pluginHistoryStorage.set(exported.id, exported);
-      savePluginManagementDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'plugin-manager',
-        action: 'export-plugin-analysis',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { analysisId, format: fmt, fileSize: exported.fileSize }
-      });
-      return { success: true, exported };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] plugin:export-plugin-analysis error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'plugin-manager',
-        action: 'export-plugin-analysis',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize plugin management data on startup
   loadPluginManagementDataFromDisk();
@@ -33251,428 +26632,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('papyrusGen:generate-papyrus-script', async (_event, scriptName: string, scriptType?: string) => {
-    const startTime = Date.now();
-    try {
-      const type = scriptType || 'generic';
-      const generated = {
-        id: `script_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptName,
-        scriptType: type,
-        code: `; Auto-generated Papyrus script: ${scriptName}\nscriptName ${scriptName}\n\nevent OnInit()\n  ; Initialization code\nendEvent\n`,
-        lineCount: Math.floor(Math.random() * 500) + 50,
-        functions: Math.floor(Math.random() * 10) + 1,
-        properties: Math.floor(Math.random() * 5),
-        events: Math.floor(Math.random() * 8),
-        complexity: Math.random() > 0.5 ? 'simple' : 'moderate',
-        generatedAt: Date.now()
-      };
-      scriptGeneratorStorage.set(generated.id, generated);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-papyrus-script',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptName, lineCount: generated.lineCount, functions: generated.functions }
-      });
-      return { success: true, generated };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-papyrus-script error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-papyrus-script',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:create-event-handler', async (_event, eventName: string, parameters?: string[]) => {
-    const startTime = Date.now();
-    try {
-      const handler = {
-        id: `handler_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        eventName,
-        parameters: parameters || [],
-        code: `event ${eventName}(${(parameters || []).join(', ')})\n  ; Event handler implementation\nendEvent\n`,
-        isValid: true,
-        parameterCount: (parameters || []).length,
-        createdAt: Date.now()
-      };
-      scriptGeneratorStorage.set(handler.id, handler);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'create-event-handler',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { eventName, parameterCount: handler.parameterCount }
-      });
-      return { success: true, handler };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:create-event-handler error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'create-event-handler',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:generate-property-definition', async (_event, propertyName: string, propertyType?: string) => {
-    const startTime = Date.now();
-    try {
-      const type = propertyType || 'int';
-      const property = {
-        id: `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        propertyName,
-        propertyType: type,
-        code: `${type} property ${propertyName} auto\n`,
-        conditional: Math.random() > 0.6,
-        readOnly: Math.random() > 0.7,
-        hasGetter: Math.random() > 0.5,
-        hasSetter: Math.random() > 0.4,
-        createdAt: Date.now()
-      };
-      scriptGeneratorStorage.set(property.id, property);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-property-definition',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { propertyName, propertyType: type }
-      });
-      return { success: true, property };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-property-definition error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-property-definition',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:create-validation-helper', async (_event, helperName: string, validationType?: string) => {
-    const startTime = Date.now();
-    try {
-      const vtype = validationType || 'range';
-      const helper = {
-        id: `validation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        helperName,
-        validationType: vtype,
-        code: `function bool ${helperName}(var testValue)\n  ; Validation implementation\n  return true\nendFunction\n`,
-        checksPerformed: Math.floor(Math.random() * 5) + 1,
-        returnType: 'bool',
-        complexity: ['simple', 'moderate', 'complex'][Math.floor(Math.random() * 3)],
-        createdAt: Date.now()
-      };
-      scriptGeneratorStorage.set(helper.id, helper);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'create-validation-helper',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { helperName, validationType: vtype, checksPerformed: helper.checksPerformed }
-      });
-      return { success: true, helper };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:create-validation-helper error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'create-validation-helper',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:generate-optimization-pattern', async (_event, patternName: string, optimizationType?: string) => {
-    const startTime = Date.now();
-    try {
-      const otype = optimizationType || 'caching';
-      const pattern = {
-        id: `pattern_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        patternName,
-        optimizationType: otype,
-        code: `; ${otype} optimization pattern\n; Implementation: ${patternName}\n`,
-        performanceGain: Math.floor(Math.random() * 50) + 10,
-        memoryReduction: Math.floor(Math.random() * 40) + 5,
-        complexity: ['simple', 'moderate', 'advanced'][Math.floor(Math.random() * 3)],
-        prerequisites: Math.floor(Math.random() * 3),
-        createdAt: Date.now()
-      };
-      codeTemplateStorage.set(pattern.id, pattern);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-optimization-pattern',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { patternName, optimizationType: otype, performanceGain: pattern.performanceGain }
-      });
-      return { success: true, pattern };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-optimization-pattern error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'generate-optimization-pattern',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:generate-documentation', async (_event, scriptId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'markdown';
-      const script = scriptGeneratorStorage.get(scriptId);
-      const documentation = {
-        id: `docs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourceScriptId: scriptId,
-        format: fmt,
-        title: script ? `Documentation for ${script.scriptName}` : 'Generated Documentation',
-        sections: Math.floor(Math.random() * 8) + 3,
-        wordCount: Math.floor(Math.random() * 5000) + 500,
-        examplesIncluded: Math.random() > 0.3,
-        parametersDocumented: true,
-        returnValuesDocumented: true,
-        generatedAt: Date.now()
-      };
-      codeTemplateStorage.set(documentation.id, documentation);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'code-generator',
-        action: 'generate-documentation',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format: fmt, sections: documentation.sections, wordCount: documentation.wordCount }
-      });
-      return { success: true, documentation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:generate-documentation error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'code-generator',
-        action: 'generate-documentation',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:batch-generate-scripts', async (_event, scriptConfigs: any[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        configCount: scriptConfigs.length,
-        scriptsGenerated: 0,
-        totalLineCount: 0,
-        totalFunctions: 0,
-        generationTime: 0,
-        successRate: Math.random() * 20 + 80,
-        results: scriptConfigs.map(config => ({
-          scriptName: config.name,
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          lineCount: Math.floor(Math.random() * 500),
-          functions: Math.floor(Math.random() * 10)
-        })),
-        completedAt: Date.now()
-      };
-      batch.scriptsGenerated = batch.results.filter(r => r.status === 'success').length;
-      batch.totalLineCount = batch.results.reduce((sum, r) => sum + r.lineCount, 0);
-      batch.totalFunctions = batch.results.reduce((sum, r) => sum + r.functions, 0);
-      codeTemplateStorage.set(batch.id, batch);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'batch-generate-scripts',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { configCount: scriptConfigs.length, scriptsGenerated: batch.scriptsGenerated, totalLineCount: batch.totalLineCount }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:batch-generate-scripts error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'code-generator',
-        action: 'batch-generate-scripts',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:validate-papyrus-syntax', async (_event, code: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        codeLength: code.length,
-        isValid: Math.random() > 0.15,
-        syntaxErrors: Math.floor(Math.random() * 5),
-        warnings: Math.floor(Math.random() * 8),
-        suggestions: Math.floor(Math.random() * 10),
-        lineCount: code.split('\n').length,
-        complexity: Math.floor(Math.random() * 100),
-        qualityScore: Math.floor(Math.random() * 40) + 60,
-        validatedAt: Date.now()
-      };
-      scriptGeneratorStorage.set(validation.id, validation);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'code-generator',
-        action: 'validate-papyrus-syntax',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { isValid: validation.isValid, syntaxErrors: validation.syntaxErrors, qualityScore: validation.qualityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:validate-papyrus-syntax error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'code-generator',
-        action: 'validate-papyrus-syntax',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:apply-type-safety-patterns', async (_event, scriptId: string) => {
-    const startTime = Date.now();
-    try {
-      const script = scriptGeneratorStorage.get(scriptId);
-      const typeSafety = {
-        id: `typesafe_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        sourceScriptId: scriptId,
-        patternsApplied: Math.floor(Math.random() * 8) + 2,
-        typedVariables: Math.floor(Math.random() * 50) + 10,
-        castOperations: Math.floor(Math.random() * 20),
-        nullChecks: Math.floor(Math.random() * 15),
-        typeErrors: Math.floor(Math.random() * 5),
-        improvements: Math.floor(Math.random() * 30) + 10,
-        appliedAt: Date.now()
-      };
-      codeTemplateStorage.set(typeSafety.id, typeSafety);
-      saveScriptGeneratorDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'code-generator',
-        action: 'apply-type-safety-patterns',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { patternsApplied: typeSafety.patternsApplied, improvements: typeSafety.improvements }
-      });
-      return { success: true, typeSafety };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:apply-type-safety-patterns error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'code-generator',
-        action: 'apply-type-safety-patterns',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('papyrusGen:get-generator-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalScriptsGenerated: Array.from(scriptGeneratorStorage.values()).length,
-        totalTemplatesCreated: Array.from(codeTemplateStorage.values()).length,
-        totalLineGenerated: Math.floor(Math.random() * 5000000) + 100000,
-        averageScriptSize: Math.floor(Math.random() * 1000) + 100,
-        totalEventHandlers: Math.floor(Math.random() * 1000),
-        totalProperties: Math.floor(Math.random() * 500),
-        qualityAverageScore: Math.floor(Math.random() * 40) + 60,
-        recentGenerations: Array.from(scriptGeneratorStorage.values())
-          .slice(-count)
-          .map(s => ({
-            scriptName: s.scriptName,
-            lineCount: s.lineCount,
-            functions: s.functions,
-            generatedAt: s.generatedAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'code-generator',
-        action: 'get-generator-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalScriptsGenerated: stats.totalScriptsGenerated, totalLineGenerated: stats.totalLineGenerated }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] script:get-generator-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'code-generator',
-        action: 'get-generator-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize script generator data on startup
   loadScriptGeneratorDataFromDisk();
@@ -33712,414 +26671,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('form:create-form-reference', async (_event, formId: string, formData?: any) => {
-    const startTime = Date.now();
-    try {
-      const reference = {
-        id: `form_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        formId,
-        formType: ['Actor', 'NPC', 'Item', 'Weapon', 'Armor'][Math.floor(Math.random() * 5)],
-        referenceCount: Math.floor(Math.random() * 100) + 1,
-        properties: formData || {},
-        isValid: true,
-        lastModified: Date.now(),
-        createdAt: Date.now()
-      };
-      formReferenceStorage.set(reference.id, reference);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'form-manager',
-        action: 'create-form-reference',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { formId, referenceCount: reference.referenceCount }
-      });
-      return { success: true, reference };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:create-form-reference error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'form-manager',
-        action: 'create-form-reference',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:get-form-properties', async (_event, referenceId: string) => {
-    const startTime = Date.now();
-    try {
-      const reference = formReferenceStorage.get(referenceId);
-      const properties = reference ? reference.properties : {};
-      const result = {
-        id: `props_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceId,
-        propertyCount: Object.keys(properties).length,
-        properties,
-        lastModified: reference ? reference.lastModified : Date.now(),
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'form-manager',
-        action: 'get-form-properties',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { referenceId, propertyCount: result.propertyCount }
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:get-form-properties error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'form-manager',
-        action: 'get-form-properties',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:update-entity-state', async (_event, entityId: string, stateData: any) => {
-    const startTime = Date.now();
-    try {
-      const state = {
-        id: `state_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        entityId,
-        stateData,
-        version: Math.floor(Math.random() * 100) + 1,
-        isDirty: true,
-        previousState: {},
-        changeCount: Math.floor(Math.random() * 50),
-        updatedAt: Date.now()
-      };
-      entityStateStorage.set(state.id, state);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'form-manager',
-        action: 'update-entity-state',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { entityId, version: state.version, changeCount: state.changeCount }
-      });
-      return { success: true, state };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:update-entity-state error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'form-manager',
-        action: 'update-entity-state',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:register-event-listener', async (_event, referenceId: string, eventType: string) => {
-    const startTime = Date.now();
-    try {
-      const listener = {
-        id: `listener_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceId,
-        eventType,
-        isActive: true,
-        eventsFired: Math.floor(Math.random() * 1000),
-        lastEventTime: Date.now(),
-        priority: Math.floor(Math.random() * 10),
-        registeredAt: Date.now()
-      };
-      formReferenceStorage.set(listener.id, listener);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'form-manager',
-        action: 'register-event-listener',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { referenceId, eventType, eventsFired: listener.eventsFired }
-      });
-      return { success: true, listener };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:register-event-listener error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'form-manager',
-        action: 'register-event-listener',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:serialize-reference', async (_event, referenceId: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const reference = formReferenceStorage.get(referenceId);
-      const serialized = {
-        id: `serial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceId,
-        format: fmt,
-        dataSize: Math.floor(Math.random() * 10000000),
-        compressionRatio: Math.random() * 0.6 + 0.2,
-        serializationTime: Math.floor(Math.random() * 1000),
-        isValid: true,
-        checksum: `sha256_${Math.random().toString(36).substr(2, 9)}`,
-        serializedAt: Date.now()
-      };
-      entityStateStorage.set(serialized.id, serialized);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'form-manager',
-        action: 'serialize-reference',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { referenceId, format: fmt, dataSize: serialized.dataSize }
-      });
-      return { success: true, serialized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:serialize-reference error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'form-manager',
-        action: 'serialize-reference',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:validate-reference-integrity', async (_event, referenceId: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceId,
-        isValid: Math.random() > 0.1,
-        integrityScore: Math.floor(Math.random() * 40) + 60,
-        issuesFound: Math.floor(Math.random() * 10),
-        orphanedProperties: Math.floor(Math.random() * 5),
-        missingReferences: Math.floor(Math.random() * 3),
-        checksPerformed: Math.floor(Math.random() * 20) + 5,
-        validatedAt: Date.now()
-      };
-      entityStateStorage.set(validation.id, validation);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'form-manager',
-        action: 'validate-reference-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { referenceId, isValid: validation.isValid, integrityScore: validation.integrityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:validate-reference-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'form-manager',
-        action: 'validate-reference-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:batch-update-references', async (_event, referenceUpdates: any[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        updateCount: referenceUpdates.length,
-        successCount: 0,
-        failureCount: 0,
-        results: referenceUpdates.map(update => ({
-          referenceId: update.id,
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          propertiesChanged: Math.floor(Math.random() * 20),
-          validationPassed: Math.random() > 0.15
-        })),
-        totalPropertiesChanged: 0,
-        completedAt: Date.now()
-      };
-      batch.successCount = batch.results.filter(r => r.status === 'success').length;
-      batch.failureCount = batch.updateCount - batch.successCount;
-      batch.totalPropertiesChanged = batch.results.reduce((sum, r) => sum + r.propertiesChanged, 0);
-      entityStateStorage.set(batch.id, batch);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'form-manager',
-        action: 'batch-update-references',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { updateCount: batch.updateCount, successCount: batch.successCount, totalPropertiesChanged: batch.totalPropertiesChanged }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:batch-update-references error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'form-manager',
-        action: 'batch-update-references',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:optimize-reference-performance', async (_event, referenceId: string) => {
-    const startTime = Date.now();
-    try {
-      const optimization = {
-        id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        referenceId,
-        memoryReduction: Math.floor(Math.random() * 40) + 10,
-        speedImprovement: Math.floor(Math.random() * 50) + 5,
-        cacheHitRate: Math.floor(Math.random() * 40) + 50,
-        redundanciesRemoved: Math.floor(Math.random() * 20),
-        optimizationScore: Math.floor(Math.random() * 40) + 60,
-        optimizedAt: Date.now()
-      };
-      entityStateStorage.set(optimization.id, optimization);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'form-manager',
-        action: 'optimize-reference-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { referenceId, memoryReduction: optimization.memoryReduction, speedImprovement: optimization.speedImprovement }
-      });
-      return { success: true, optimization };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:optimize-reference-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'form-manager',
-        action: 'optimize-reference-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:get-reference-manager-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalReferencesManaged: Array.from(formReferenceStorage.values()).length,
-        totalStatesTracked: Array.from(entityStateStorage.values()).length,
-        totalPropertiesManaged: Math.floor(Math.random() * 10000) + 1000,
-        averageReferenceSize: Math.floor(Math.random() * 100000),
-        totalEventListeners: Math.floor(Math.random() * 5000),
-        eventsFired: Math.floor(Math.random() * 100000),
-        performanceScore: Math.floor(Math.random() * 40) + 60,
-        recentReferences: Array.from(formReferenceStorage.values())
-          .slice(-count)
-          .map(r => ({
-            formId: r.formId,
-            formType: r.formType,
-            referenceCount: r.referenceCount,
-            createdAt: r.createdAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'form-manager',
-        action: 'get-reference-manager-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalReferencesManaged: stats.totalReferencesManaged, totalEventListeners: stats.totalEventListeners }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:get-reference-manager-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'form-manager',
-        action: 'get-reference-manager-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('form:deserialize-reference', async (_event, serializedData: string, format?: string) => {
-    const startTime = Date.now();
-    try {
-      const fmt = format || 'json';
-      const deserialized = {
-        id: `deserial_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        format: fmt,
-        dataSize: Math.floor(Math.random() * 10000000),
-        deserializationTime: Math.floor(Math.random() * 1000),
-        isValid: Math.random() > 0.1,
-        propertiesRestored: Math.floor(Math.random() * 100) + 10,
-        checksumVerified: true,
-        deserializedAt: Date.now()
-      };
-      entityStateStorage.set(deserialized.id, deserialized);
-      saveFormReferenceDataToDisk();
-      auditLogger.log({
-        operation: 'import',
-        tool: 'form-manager',
-        action: 'deserialize-reference',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format: fmt, propertiesRestored: deserialized.propertiesRestored, isValid: deserialized.isValid }
-      });
-      return { success: true, deserialized };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] form:deserialize-reference error:', errMsg);
-      auditLogger.log({
-        operation: 'import',
-        tool: 'form-manager',
-        action: 'deserialize-reference',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize form reference data on startup
   loadFormReferenceDataFromDisk();
@@ -34159,419 +26710,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('asset:stream-large-asset', async (_event, assetPath: string, chunkSize?: number) => {
-    const startTime = Date.now();
-    try {
-      const chunk = chunkSize || 1048576;
-      const stream = {
-        id: `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        assetPath,
-        chunkSize: chunk,
-        totalSize: Math.floor(Math.random() * 5000000000) + 100000000,
-        chunksTotal: 0,
-        chunksStreamed: 0,
-        streamProgress: Math.floor(Math.random() * 30) + 50,
-        streamStatus: 'in-progress',
-        startedAt: Date.now()
-      };
-      stream.chunksTotal = Math.ceil(stream.totalSize / chunk);
-      stream.chunksStreamed = Math.floor(stream.chunksTotal * stream.streamProgress / 100);
-      assetStreamStorage.set(stream.id, stream);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'stream-large-asset',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { assetPath, totalSize: stream.totalSize, chunksStreamed: stream.chunksStreamed }
-      });
-      return { success: true, stream };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:stream-large-asset error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'stream-large-asset',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:manage-memory-efficiently', async (_event, strategy?: string) => {
-    const startTime = Date.now();
-    try {
-      const mgmt = {
-        id: `mgmt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        strategy: strategy || 'adaptive',
-        memoryUsage: Math.floor(Math.random() * 4000000000) + 100000000,
-        memoryAvailable: Math.floor(Math.random() * 8000000000) + 1000000000,
-        memoryUtilization: Math.floor(Math.random() * 30) + 40,
-        optimizationsApplied: Math.floor(Math.random() * 15),
-        memoryFreed: Math.floor(Math.random() * 500000000),
-        garbageCollections: Math.floor(Math.random() * 100),
-        managedAt: Date.now()
-      };
-      memoryProfileStorage.set(mgmt.id, mgmt);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'manage-memory-efficiently',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { strategy: mgmt.strategy, memoryFreed: mgmt.memoryFreed, optimizationsApplied: mgmt.optimizationsApplied }
-      });
-      return { success: true, mgmt };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:manage-memory-efficiently error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'manage-memory-efficiently',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:load-resource', async (_event, resourceId: string, priority?: number) => {
-    const startTime = Date.now();
-    try {
-      const resource = {
-        id: `resource_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        resourceId,
-        loadTime: Math.floor(Math.random() * 5000),
-        resourceSize: Math.floor(Math.random() * 100000000),
-        priority: priority || 5,
-        loadStatus: 'completed',
-        cacheHit: Math.random() > 0.5,
-        loadedAt: Date.now()
-      };
-      assetStreamStorage.set(resource.id, resource);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-manager',
-        action: 'load-resource',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resourceId, loadTime: resource.loadTime, cacheHit: resource.cacheHit }
-      });
-      return { success: true, resource };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:load-resource error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-manager',
-        action: 'load-resource',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:unload-resource', async (_event, resourceId: string) => {
-    const startTime = Date.now();
-    try {
-      const unload = {
-        id: `unload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        resourceId,
-        unloadTime: Math.floor(Math.random() * 2000),
-        memoryFreed: Math.floor(Math.random() * 100000000),
-        referencesRemoved: Math.floor(Math.random() * 50),
-        unloadStatus: 'success',
-        unloadedAt: Date.now()
-      };
-      memoryProfileStorage.set(unload.id, unload);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'asset-manager',
-        action: 'unload-resource',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resourceId, memoryFreed: unload.memoryFreed, referencesRemoved: unload.referencesRemoved }
-      });
-      return { success: true, unload };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:unload-resource error:', errMsg);
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'asset-manager',
-        action: 'unload-resource',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:optimize-cache-performance', async (_event, cacheStrategy?: string) => {
-    const startTime = Date.now();
-    try {
-      const cache = {
-        id: `cache_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        strategy: cacheStrategy || 'lru',
-        hitRate: Math.floor(Math.random() * 40) + 50,
-        missRate: Math.floor(Math.random() * 30) + 10,
-        evictionCount: Math.floor(Math.random() * 1000),
-        cacheSize: Math.floor(Math.random() * 500000000),
-        itemsInCache: Math.floor(Math.random() * 10000),
-        optimizedAt: Date.now()
-      };
-      memoryProfileStorage.set(cache.id, cache);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'optimize-cache-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { strategy: cache.strategy, hitRate: cache.hitRate, evictionCount: cache.evictionCount }
-      });
-      return { success: true, cache };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:optimize-cache-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'optimize-cache-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:handle-memory-pressure', async (_event, pressureLevel?: string) => {
-    const startTime = Date.now();
-    try {
-      const level = pressureLevel || 'normal';
-      const pressure = {
-        id: `pressure_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        pressureLevel: level,
-        memoryUtilization: Math.floor(Math.random() * 100),
-        criticalThreshold: 90,
-        emergencyActions: Math.floor(Math.random() * 10),
-        assetsUnloaded: Math.floor(Math.random() * 100),
-        memoryRecovered: Math.floor(Math.random() * 1000000000),
-        handleTime: Math.floor(Math.random() * 5000),
-        handledAt: Date.now()
-      };
-      memoryProfileStorage.set(pressure.id, pressure);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'handle-memory-pressure',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pressureLevel: level, memoryRecovered: pressure.memoryRecovered, assetsUnloaded: pressure.assetsUnloaded }
-      });
-      return { success: true, pressure };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:handle-memory-pressure error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'asset-manager',
-        action: 'handle-memory-pressure',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:get-memory-diagnostics', async (_event, detailed?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const diagnostics = {
-        id: `diag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        isDetailed: detailed || false,
-        totalMemory: Math.floor(Math.random() * 16000000000) + 4000000000,
-        usedMemory: Math.floor(Math.random() * 8000000000) + 500000000,
-        availableMemory: Math.floor(Math.random() * 8000000000) + 500000000,
-        memoryFragmentation: Math.floor(Math.random() * 30) + 10,
-        activeStreams: Math.floor(Math.random() * 100),
-        cachedAssets: Math.floor(Math.random() * 10000),
-        resourceUtilization: Math.floor(Math.random() * 40) + 50,
-        diagnosticsAt: Date.now()
-      };
-      assetStreamStorage.set(diagnostics.id, diagnostics);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'get-memory-diagnostics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { isDetailed: diagnostics.isDetailed, usedMemory: diagnostics.usedMemory, activeStreams: diagnostics.activeStreams }
-      });
-      return { success: true, diagnostics };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:get-memory-diagnostics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'get-memory-diagnostics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:batch-stream-assets', async (_event, assetPaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        assetCount: assetPaths.length,
-        streamsInitiated: Math.floor(Math.random() * assetPaths.length) + 1,
-        successCount: 0,
-        failureCount: 0,
-        totalBytesStreamed: Math.floor(Math.random() * 5000000000),
-        streamingTime: Math.floor(Math.random() * 60000),
-        averageSpeed: Math.floor(Math.random() * 100000000),
-        results: assetPaths.map(path => ({
-          assetPath: path,
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          bytesStreamed: Math.floor(Math.random() * 500000000)
-        })),
-        completedAt: Date.now()
-      };
-      batch.successCount = batch.results.filter(r => r.status === 'success').length;
-      batch.failureCount = batch.assetCount - batch.successCount;
-      assetStreamStorage.set(batch.id, batch);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-manager',
-        action: 'batch-stream-assets',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { assetCount: batch.assetCount, successCount: batch.successCount, totalBytesStreamed: batch.totalBytesStreamed }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:batch-stream-assets error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'asset-manager',
-        action: 'batch-stream-assets',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:get-streaming-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalAssetsStreamed: Array.from(assetStreamStorage.values()).length,
-        totalMemoryManaged: Array.from(memoryProfileStorage.values()).length,
-        totalBytesStreamed: Math.floor(Math.random() * 10000000000) + 1000000000,
-        averageStreamSpeed: Math.floor(Math.random() * 200000000),
-        cacheHitRateAverage: Math.floor(Math.random() * 40) + 50,
-        memoryOptimizationScore: Math.floor(Math.random() * 40) + 60,
-        recentStreams: Array.from(assetStreamStorage.values())
-          .slice(-count)
-          .map(s => ({
-            assetPath: s.assetPath,
-            totalSize: s.totalSize,
-            streamProgress: s.streamProgress,
-            startedAt: s.startedAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'get-streaming-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalAssetsStreamed: stats.totalAssetsStreamed, totalBytesStreamed: stats.totalBytesStreamed }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:get-streaming-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'asset-manager',
-        action: 'get-streaming-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('asset:validate-resource-integrity', async (_event, resourceId: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        resourceId,
-        isValid: Math.random() > 0.1,
-        checksumMatches: true,
-        integrityScore: Math.floor(Math.random() * 30) + 70,
-        corruptedBlocks: Math.floor(Math.random() * 5),
-        recoveryAttempts: Math.floor(Math.random() * 3),
-        validatedAt: Date.now()
-      };
-      memoryProfileStorage.set(validation.id, validation);
-      saveAssetStreamingDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-manager',
-        action: 'validate-resource-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resourceId, isValid: validation.isValid, integrityScore: validation.integrityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] asset:validate-resource-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'asset-manager',
-        action: 'validate-resource-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize asset streaming data on startup
   loadAssetStreamingDataFromDisk();
@@ -34611,418 +26749,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('scriptCache:load-cached-script', async (_event, scriptId: string, forceRecompile?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const script = {
-        id: `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptId,
-        loadTime: Math.floor(Math.random() * 2000),
-        isCached: !forceRecompile && Math.random() > 0.2,
-        cacheHit: Math.random() > 0.3,
-        scriptSize: Math.floor(Math.random() * 500000),
-        compiledSize: Math.floor(Math.random() * 300000),
-        version: Math.floor(Math.random() * 100),
-        loadedAt: Date.now()
-      };
-      scriptCacheStorage.set(script.id, script);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'load-cached-script',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptId, isCached: script.isCached, cacheHit: script.cacheHit }
-      });
-      return { success: true, script };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:load-cached-script error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'load-cached-script',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:save-script-cache', async (_event, scriptId: string, compiledData: any, compressionLevel?: number) => {
-    const startTime = Date.now();
-    try {
-      const compression = compressionLevel || 6;
-      const cache = {
-        id: `save_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptId,
-        originalSize: Math.floor(Math.random() * 500000),
-        compressedSize: Math.floor(Math.random() * 250000),
-        compressionRatio: (Math.random() * 0.5) + 0.4,
-        compressionLevel: compression,
-        saveTime: Math.floor(Math.random() * 3000),
-        cacheValidation: true,
-        savedAt: Date.now()
-      };
-      scriptCacheStorage.set(cache.id, cache);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'script-cache-manager',
-        action: 'save-script-cache',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptId, compressionRatio: cache.compressionRatio, saveTime: cache.saveTime }
-      });
-      return { success: true, cache };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:save-script-cache error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'script-cache-manager',
-        action: 'save-script-cache',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:validate-cache-integrity', async (_event, cacheId: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `validate_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        cacheId,
-        isValid: Math.random() > 0.05,
-        checksumMatch: true,
-        integrityScore: Math.floor(Math.random() * 30) + 70,
-        corruptedBlocks: 0,
-        recoveryNeeded: Math.random() > 0.9,
-        validatedAt: Date.now()
-      };
-      cacheStatisticsStorage.set(validation.id, validation);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'script-cache-manager',
-        action: 'validate-cache-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { cacheId, isValid: validation.isValid, integrityScore: validation.integrityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:validate-cache-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'script-cache-manager',
-        action: 'validate-cache-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:optimize-cache-structure', async (_event, optimization?: string) => {
-    const startTime = Date.now();
-    try {
-      const opt = optimization || 'balanced';
-      const result = {
-        id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        optimization: opt,
-        spaceSavedMB: Math.floor(Math.random() * 500) + 50,
-        optimizationTime: Math.floor(Math.random() * 10000),
-        entriesRearranged: Math.floor(Math.random() * 1000),
-        fragmentationReduced: Math.floor(Math.random() * 40) + 20,
-        performanceGain: Math.floor(Math.random() * 30) + 10,
-        optimizedAt: Date.now()
-      };
-      cacheStatisticsStorage.set(result.id, result);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'script-cache-manager',
-        action: 'optimize-cache-structure',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { optimization: opt, spaceSavedMB: result.spaceSavedMB, performanceGain: result.performanceGain }
-      });
-      return { success: true, result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:optimize-cache-structure error:', errMsg);
-      auditLogger.log({
-        operation: 'optimize',
-        tool: 'script-cache-manager',
-        action: 'optimize-cache-structure',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:clear-cache-entry', async (_event, cacheId: string) => {
-    const startTime = Date.now();
-    try {
-      const clear = {
-        id: `clear_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        cacheId,
-        freedSpace: Math.floor(Math.random() * 100000000),
-        entriesRemoved: Math.floor(Math.random() * 10),
-        referencesCleared: Math.floor(Math.random() * 50),
-        clearTime: Math.floor(Math.random() * 1000),
-        clearedAt: Date.now()
-      };
-      scriptCacheStorage.delete(cacheId);
-      cacheStatisticsStorage.set(clear.id, clear);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'script-cache-manager',
-        action: 'clear-cache-entry',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { cacheId, freedSpace: clear.freedSpace, entriesRemoved: clear.entriesRemoved }
-      });
-      return { success: true, clear };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:clear-cache-entry error:', errMsg);
-      auditLogger.log({
-        operation: 'delete',
-        tool: 'script-cache-manager',
-        action: 'clear-cache-entry',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:get-cache-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalCacheEntries: Array.from(scriptCacheStorage.values()).length,
-        totalCacheSize: Math.floor(Math.random() * 10000000000),
-        averageEntrySize: Math.floor(Math.random() * 5000000),
-        cacheHitRate: Math.floor(Math.random() * 40) + 50,
-        compressionRatioAverage: (Math.random() * 0.5) + 0.4,
-        lastOptimizationTime: Math.floor(Math.random() * 10000),
-        fragmentationLevel: Math.floor(Math.random() * 30),
-        recentEntries: Array.from(scriptCacheStorage.values())
-          .slice(-count)
-          .map(e => ({
-            scriptId: e.scriptId,
-            cacheSize: e.compressedSize || e.originalSize,
-            version: e.version,
-            cachedAt: e.loadedAt || e.savedAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'get-cache-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalCacheEntries: stats.totalCacheEntries, cacheHitRate: stats.cacheHitRate }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:get-cache-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'get-cache-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:batch-update-cache', async (_event, updates: any[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        updateCount: updates.length,
-        successCount: 0,
-        failureCount: 0,
-        totalProcessedSize: Math.floor(Math.random() * 500000000),
-        batchProcessingTime: Math.floor(Math.random() * 20000),
-        results: updates.map(u => ({
-          scriptId: u.scriptId || 'unknown',
-          status: Math.random() > 0.1 ? 'success' : 'failed',
-          processingTime: Math.floor(Math.random() * 2000)
-        })),
-        completedAt: Date.now()
-      };
-      batch.successCount = batch.results.filter(r => r.status === 'success').length;
-      batch.failureCount = batch.updateCount - batch.successCount;
-      scriptCacheStorage.set(batch.id, batch);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'script-cache-manager',
-        action: 'batch-update-cache',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { updateCount: batch.updateCount, successCount: batch.successCount, totalProcessedSize: batch.totalProcessedSize }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:batch-update-cache error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'script-cache-manager',
-        action: 'batch-update-cache',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:analyze-script-performance', async (_event, scriptId: string) => {
-    const startTime = Date.now();
-    try {
-      const analysis = {
-        id: `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        scriptId,
-        executionTime: Math.floor(Math.random() * 5000),
-        memoryUsage: Math.floor(Math.random() * 100000000),
-        cpuUsage: Math.floor(Math.random() * 100),
-        cacheEfficiency: Math.floor(Math.random() * 40) + 50,
-        bottlenecks: Math.floor(Math.random() * 5),
-        optimizationScore: Math.floor(Math.random() * 40) + 60,
-        recommendations: Math.floor(Math.random() * 3),
-        analyzedAt: Date.now()
-      };
-      cacheStatisticsStorage.set(analysis.id, analysis);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'script-cache-manager',
-        action: 'analyze-script-performance',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { scriptId, executionTime: analysis.executionTime, optimizationScore: analysis.optimizationScore }
-      });
-      return { success: true, analysis };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:analyze-script-performance error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'script-cache-manager',
-        action: 'analyze-script-performance',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:generate-cache-report', async (_event, reportFormat?: string) => {
-    const startTime = Date.now();
-    try {
-      const format = reportFormat || 'json';
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        format: format,
-        generationTime: Math.floor(Math.random() * 5000),
-        reportSize: Math.floor(Math.random() * 10000000),
-        entriesSummarized: Array.from(scriptCacheStorage.values()).length,
-        summaryAccuracy: Math.floor(Math.random() * 20) + 80,
-        recommendationsGenerated: Math.floor(Math.random() * 10),
-        generatedAt: Date.now()
-      };
-      cacheStatisticsStorage.set(report.id, report);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'export',
-        tool: 'script-cache-manager',
-        action: 'generate-cache-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { format, reportSize: report.reportSize, entriesSummarized: report.entriesSummarized }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:generate-cache-report error:', errMsg);
-      auditLogger.log({
-        operation: 'export',
-        tool: 'script-cache-manager',
-        action: 'generate-cache-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('scriptCache:monitor-cache-health', async (_event, detailedMetrics?: boolean) => {
-    const startTime = Date.now();
-    try {
-      const health = {
-        id: `health_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        detailedMetrics: detailedMetrics || false,
-        healthScore: Math.floor(Math.random() * 30) + 70,
-        cacheFragmentation: Math.floor(Math.random() * 30),
-        corruptionRisk: Math.floor(Math.random() * 15),
-        performanceImpact: Math.floor(Math.random() * 20),
-        issuesDetected: Math.floor(Math.random() * 5),
-        actionableAlerts: Math.floor(Math.random() * 3),
-        monitoredAt: Date.now()
-      };
-      cacheStatisticsStorage.set(health.id, health);
-      saveScriptCacheDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'monitor-cache-health',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { healthScore: health.healthScore, cacheFragmentation: health.cacheFragmentation, issuesDetected: health.issuesDetected }
-      });
-      return { success: true, health };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] scriptCache:monitor-cache-health error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'script-cache-manager',
-        action: 'monitor-cache-health',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize script cache data on startup
   loadScriptCacheDataFromDisk();
@@ -35062,372 +26788,6 @@ print(json.dumps({
     }
   }
 
-  registerHandler('formID:scan-for-collisions', async (_event, modPaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const scan = {
-        id: `scan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modsScanned: modPaths.length,
-        formIDsAnalyzed: Math.floor(Math.random() * 50000) + 5000,
-        collisionsFound: Math.floor(Math.random() * 20),
-        severityLevel: Math.floor(Math.random() * 80) + 10,
-        scanTime: Math.floor(Math.random() * 15000),
-        analysisComplete: true,
-        scannedAt: Date.now()
-      };
-      formIDStorage.set(scan.id, scan);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'scan-for-collisions',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modsScanned: scan.modsScanned, collisionsFound: scan.collisionsFound }
-      });
-      return { success: true, scan };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:scan-for-collisions error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'scan-for-collisions',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:detect-collision', async (_event, formID: string, affectedMods: string[]) => {
-    const startTime = Date.now();
-    try {
-      const collision = {
-        id: `collision_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        formID,
-        affectedModCount: affectedMods.length,
-        severityScore: Math.floor(Math.random() * 40) + 50,
-        recordTypes: Math.floor(Math.random() * 5) + 1,
-        resolutionSuggestions: Math.floor(Math.random() * 3),
-        conflictRisk: Math.floor(Math.random() * 60) + 20,
-        detectedAt: Date.now()
-      };
-      collisionReportStorage.set(collision.id, collision);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'detect-collision',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { formID, affectedModCount: collision.affectedModCount, severityScore: collision.severityScore }
-      });
-      return { success: true, collision };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:detect-collision error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'detect-collision',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:generate-formid-mapping', async (_event, modPath: string, baseFormID?: string) => {
-    const startTime = Date.now();
-    try {
-      const mapping = {
-        id: `mapping_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modPath,
-        baseFormID: baseFormID || `0x${Math.random().toString(16).substr(2, 8).toUpperCase()}`,
-        formIDsGenerated: Math.floor(Math.random() * 10000) + 1000,
-        mappingAccuracy: Math.floor(Math.random() * 20) + 80,
-        remapSuggestions: Math.floor(Math.random() * 50),
-        generationTime: Math.floor(Math.random() * 10000),
-        generatedAt: Date.now()
-      };
-      formIDStorage.set(mapping.id, mapping);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'create',
-        tool: 'formid-detector',
-        action: 'generate-formid-mapping',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modPath, formIDsGenerated: mapping.formIDsGenerated, mappingAccuracy: mapping.mappingAccuracy }
-      });
-      return { success: true, mapping };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:generate-formid-mapping error:', errMsg);
-      auditLogger.log({
-        operation: 'create',
-        tool: 'formid-detector',
-        action: 'generate-formid-mapping',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:validate-formid-integrity', async (_event, modPath: string) => {
-    const startTime = Date.now();
-    try {
-      const validation = {
-        id: `valid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modPath,
-        isValid: Math.random() > 0.15,
-        integrityScore: Math.floor(Math.random() * 30) + 70,
-        corruptedFormIDs: Math.floor(Math.random() * 10),
-        orphanedReferences: Math.floor(Math.random() * 20),
-        recoveryPossible: Math.random() > 0.5,
-        validationTime: Math.floor(Math.random() * 8000),
-        validatedAt: Date.now()
-      };
-      collisionReportStorage.set(validation.id, validation);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'formid-detector',
-        action: 'validate-formid-integrity',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modPath, isValid: validation.isValid, integrityScore: validation.integrityScore }
-      });
-      return { success: true, validation };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:validate-formid-integrity error:', errMsg);
-      auditLogger.log({
-        operation: 'validate',
-        tool: 'formid-detector',
-        action: 'validate-formid-integrity',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:remap-conflicting-formids', async (_event, collisionId: string, targetModID: string) => {
-    const startTime = Date.now();
-    try {
-      const remap = {
-        id: `remap_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        collisionId,
-        targetModID,
-        remappedCount: Math.floor(Math.random() * 1000) + 100,
-        successRate: Math.floor(Math.random() * 20) + 80,
-        recordsAffected: Math.floor(Math.random() * 500),
-        remapTime: Math.floor(Math.random() * 10000),
-        remappedAt: Date.now()
-      };
-      formIDStorage.set(remap.id, remap);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'update',
-        tool: 'formid-detector',
-        action: 'remap-conflicting-formids',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { collisionId, remappedCount: remap.remappedCount, successRate: remap.successRate }
-      });
-      return { success: true, remap };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:remap-conflicting-formids error:', errMsg);
-      auditLogger.log({
-        operation: 'update',
-        tool: 'formid-detector',
-        action: 'remap-conflicting-formids',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:get-collision-report', async (_event, reportId: string) => {
-    const startTime = Date.now();
-    try {
-      const report = {
-        id: `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        reportId,
-        collisionsReported: Math.floor(Math.random() * 50),
-        criticalIssues: Math.floor(Math.random() * 10),
-        warningIssues: Math.floor(Math.random() * 30),
-        resolutionsAvailable: Math.floor(Math.random() * 40) + 10,
-        reportCompleteness: Math.floor(Math.random() * 30) + 70,
-        generatedAt: Date.now()
-      };
-      collisionReportStorage.set(report.id, report);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'get-collision-report',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { reportId, collisionsReported: report.collisionsReported, criticalIssues: report.criticalIssues }
-      });
-      return { success: true, report };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:get-collision-report error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'get-collision-report',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:batch-scan-mods', async (_event, modPaths: string[]) => {
-    const startTime = Date.now();
-    try {
-      const batch = {
-        id: `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modCount: modPaths.length,
-        successCount: 0,
-        failureCount: 0,
-        totalCollisionsFound: Math.floor(Math.random() * 100),
-        totalFormIDsScanned: Math.floor(Math.random() * 500000),
-        batchScanTime: Math.floor(Math.random() * 60000),
-        results: modPaths.map(path => ({
-          modPath: path,
-          status: Math.random() > 0.05 ? 'success' : 'failed',
-          collisionsInMod: Math.floor(Math.random() * 10)
-        })),
-        completedAt: Date.now()
-      };
-      batch.successCount = batch.results.filter(r => r.status === 'success').length;
-      batch.failureCount = batch.modCount - batch.successCount;
-      formIDStorage.set(batch.id, batch);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'batch-scan-mods',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modCount: batch.modCount, successCount: batch.successCount, totalCollisionsFound: batch.totalCollisionsFound }
-      });
-      return { success: true, batch };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:batch-scan-mods error:', errMsg);
-      auditLogger.log({
-        operation: 'analyze',
-        tool: 'formid-detector',
-        action: 'batch-scan-mods',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:monitor-formid-health', async (_event, modPath: string) => {
-    const startTime = Date.now();
-    try {
-      const health = {
-        id: `health_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        modPath,
-        healthScore: Math.floor(Math.random() * 30) + 70,
-        collisionRisk: Math.floor(Math.random() * 40),
-        integrityRating: Math.floor(Math.random() * 30) + 70,
-        formIDDistribution: Math.floor(Math.random() * 40) + 50,
-        orphanedReferences: Math.floor(Math.random() * 50),
-        issuesDetected: Math.floor(Math.random() * 5),
-        monitoredAt: Date.now()
-      };
-      collisionReportStorage.set(health.id, health);
-      saveFormIDDataToDisk();
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'monitor-formid-health',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modPath, healthScore: health.healthScore, collisionRisk: health.collisionRisk }
-      });
-      return { success: true, health };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:monitor-formid-health error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'monitor-formid-health',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('formID:get-formid-statistics', async (_event, limit?: number) => {
-    const startTime = Date.now();
-    try {
-      const count = limit || 10;
-      const stats = {
-        id: `stats_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        totalScansPerformed: Array.from(formIDStorage.values()).length,
-        totalCollisionsDetected: Array.from(collisionReportStorage.values()).length,
-        averageFormIDsPerMod: Math.floor(Math.random() * 20000) + 5000,
-        totalRemappingsSuggested: Math.floor(Math.random() * 500),
-        collisionResolutionRate: Math.floor(Math.random() * 30) + 70,
-        recentScans: Array.from(formIDStorage.values())
-          .slice(-count)
-          .map(s => ({
-            modsScanned: s.modsScanned,
-            collisionsFound: s.collisionsFound,
-            severityLevel: s.severityLevel,
-            scannedAt: s.scannedAt
-          })),
-        systemHealth: Math.floor(Math.random() * 30) + 70,
-        retrievedAt: Date.now()
-      };
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'get-formid-statistics',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { totalScansPerformed: stats.totalScansPerformed, totalCollisionsDetected: stats.totalCollisionsDetected }
-      });
-      return { success: true, stats };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] formID:get-formid-statistics error:', errMsg);
-      auditLogger.log({
-        operation: 'read',
-        tool: 'formid-detector',
-        action: 'get-formid-statistics',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   // Initialize FormID data on startup
   loadFormIDDataFromDisk();
@@ -35891,42 +27251,28 @@ print(json.dumps({
   // Mod Conflict Visualizer - Full Implementation
   registerHandler(IPC_CHANNELS.MOD_CONFLICT_SCAN_LOAD_ORDER, async (_event, dataPath?: string) => {
     try {
-      // Default to Fallout 4 Data directory if not provided
-      const scanPath = dataPath || path.join(
-        app.getPath('documents'),
-        'My Games',
-        'Fallout4'
-      );
+      // Real Data directory via the same resolver used elsewhere in the app,
+      // not a fragile relative-path guess from the Documents/My Games folder.
+      const fo4Root = resolveFO4Root();
+      const dataDir = dataPath || (fo4Root ? path.join(fo4Root, 'Data') : '');
 
-      console.log(`[Conflict Visualizer] Scanning: ${scanPath}`);
-
-      // Find all ESP/ESM files
-      const dataDir = path.join(scanPath, '..', '..', 'Fallout 4', 'Data');
-      let plugins: string[] = [];
-
-      if (fs.existsSync(dataDir)) {
-        const files = fs.readdirSync(dataDir);
-        plugins = files
-          .filter(f => f.endsWith('.esp') || f.endsWith('.esm'))
-          .map(f => path.join(dataDir, f));
+      if (!dataDir || !fs.existsSync(dataDir)) {
+        return IpcResponseBuilder.fromError(
+          new Error('Fallout 4 Data folder not found — set the game path in Settings.'),
+          IpcErrorCode.OPERATION_FAILED
+        );
       }
 
-      // If no plugins found, return example data
+      const files = fs.readdirSync(dataDir);
+      const plugins = files
+        .filter(f => f.endsWith('.esp') || f.endsWith('.esm'))
+        .map(f => path.join(dataDir, f));
+
       if (plugins.length === 0) {
-        console.log('[Conflict Visualizer] No plugins found, returning sample data');
-        return IpcResponseBuilder.success({
-          plugins: ['Fallout4.esm', 'DLCRobot.esm', 'ExampleMod.esp'],
-          conflicts: [
-            {
-              recordType: 'WEAP',
-              formId: '00012345',
-              winners: ['ExampleMod.esp'],
-              losers: ['Fallout4.esm'],
-              severity: 'low',
-              description: 'Sample conflict - no actual plugins detected'
-            }
-          ]
-        });
+        // Honest empty result — previously this silently substituted a fake
+        // "ExampleMod.esp" conflict here, which was indistinguishable from a
+        // real scan result once the response reaches the renderer.
+        return IpcResponseBuilder.success({ plugins: [], conflicts: [] });
       }
 
       // Detect conflicts using ESP parser
@@ -36055,55 +27401,52 @@ print(json.dumps({
     try {
       console.log(`[Mod Comparison] Comparing: ${mod1} vs ${mod2}`);
 
+      const emptyResult = {
+        records: [], assets: [], dependencies: [],
+        pluginFlagsA: { esl: false, esm: false, esp: false },
+        pluginFlagsB: { esl: false, esm: false, esp: false },
+        loadOrderImpact: [] as string[],
+        summary: { recordConflicts: 0, assetConflicts: 0, sharedDependencies: 0, compatible: true },
+      };
+
       // Check if files exist
       if (!fs.existsSync(mod1) || !fs.existsSync(mod2)) {
         return IpcResponseBuilder.success({
-          differences: [
-            { description: 'One or both files not found' }
-          ]
+          ...emptyResult,
+          loadOrderImpact: ['One or both files not found'],
         });
       }
 
       // Use ESP parser for ESP/ESM files
       if ((mod1.endsWith('.esp') || mod1.endsWith('.esm')) &&
         (mod2.endsWith('.esp') || mod2.endsWith('.esm'))) {
-        const compareResult = espParser.compareESPs(mod1, mod2);
+        const compareResult = espParser.compareESPsDetailed(mod1, mod2);
         return IpcResponseBuilder.success(compareResult);
       }
 
-      // For other files, do binary comparison
+      // For non-plugin files, do a binary comparison and report it via loadOrderImpact
       const buffer1 = fs.readFileSync(mod1);
       const buffer2 = fs.readFileSync(mod2);
 
-      const differences: Array<{ description: string }> = [];
+      const notes: string[] = [];
 
       if (buffer1.length !== buffer2.length) {
-        differences.push({
-          description: `File size differs: ${buffer1.length} vs ${buffer2.length} bytes`
-        });
+        notes.push(`File size differs: ${buffer1.length} vs ${buffer2.length} bytes`);
       }
 
       if (buffer1.equals(buffer2)) {
-        differences.push({ description: 'Files are identical' });
+        notes.push('Files are identical');
       } else {
-        // Find first difference
         for (let i = 0; i < Math.min(buffer1.length, buffer2.length); i++) {
           if (buffer1[i] !== buffer2[i]) {
-            differences.push({
-              description: `First difference at byte ${i}: 0x${buffer1[i].toString(16)} vs 0x${buffer2[i].toString(16)}`
-            });
+            notes.push(`First difference at byte ${i}: 0x${buffer1[i].toString(16)} vs 0x${buffer2[i].toString(16)}`);
             break;
           }
         }
-
-        if (differences.length === 1) {
-          differences.push({
-            description: `Files differ in ${((buffer1.length / 1024).toFixed(2))} KB of data`
-          });
-        }
+        notes.push(`Files differ in ${(buffer1.length / 1024).toFixed(2)} KB of data`);
       }
 
-      return IpcResponseBuilder.success({ differences });
+      return IpcResponseBuilder.success({ ...emptyResult, loadOrderImpact: notes });
     } catch (error) {
       console.error('[Mod Comparison] Error:', error);
       return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
@@ -36372,6 +27715,169 @@ print(json.dumps({
     });
   };
 
+  /** Best-effort real FO4 install root finder, shared by automation actions that need a Data folder. */
+  function resolveFO4Root(): string | null {
+    const candidates = [
+      path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Steam', 'steamapps', 'common', 'Fallout 4'),
+      path.join(process.env['PROGRAMFILES'] || 'C:\\Program Files', 'Steam', 'steamapps', 'common', 'Fallout 4'),
+    ];
+    for (const drive of ['D', 'E', 'F', 'G']) {
+      candidates.push(path.join(`${drive}:\\`, 'Steam', 'steamapps', 'common', 'Fallout 4'));
+      candidates.push(path.join(`${drive}:\\`, 'SteamLibrary', 'steamapps', 'common', 'Fallout 4'));
+      candidates.push(path.join(`${drive}:\\`, 'Fallout 4'));
+    }
+    return candidates.find(p => fs.existsSync(p)) ?? null;
+  }
+
+  /**
+   * Best-effort finder for the developer's personal asset-staging folder (extracted
+   * vanilla/mod textures, materials, sounds, meshes used by the deep-scan functions),
+   * conventionally named "FO4 WORKING FLODER". Searches common drive letters instead
+   * of assuming one hardcoded drive, then falls back to the real installed game's
+   * own Data/<subfolder> (finds loose modded assets even without extraction).
+   */
+  function resolveAssetStagingFolder(subfolder: string): string | null {
+    for (const drive of ['F', 'D', 'E', 'G', 'H']) {
+      const candidate = path.join(`${drive}:\\`, 'FO4 WORKING FLODER', subfolder);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    const fo4Root = resolveFO4Root();
+    if (fo4Root) {
+      const dataSubfolder = path.join(fo4Root, 'Data', subfolder);
+      if (fs.existsSync(dataSubfolder)) return dataSubfolder;
+    }
+    return null;
+  }
+
+  /**
+   * Portable cache directory for pre-computed game-scan dumps (form graph, asset
+   * graph, world strings) written by the scripts/fo4_*.py scanners. Prefers the
+   * app's own userData folder; falls back to the legacy "H:\Mossy Memory" location
+   * (if present) so scans already run before this fix keep working without re-running.
+   */
+  function resolveScanCacheDir(): string {
+    const portable = path.join(app.getPath('userData'), 'game-scan-cache');
+    if (!fs.existsSync(portable)) {
+      try { fs.mkdirSync(portable, { recursive: true }); } catch { /* best effort */ }
+    }
+    return portable;
+  }
+
+  /**
+   * Returns the single portable path used for BOTH reading and writing a given
+   * scan-cache file. If the portable copy doesn't exist yet but a legacy
+   * "H:\Mossy Memory" copy does (from before this fix), migrates it once so
+   * previously-run scans keep working without needing to be re-run.
+   */
+  function resolveScanCacheFile(fileName: string): string {
+    const portable = path.join(resolveScanCacheDir(), fileName);
+    if (!fs.existsSync(portable)) {
+      const legacy = path.join('H:\\Mossy Memory', fileName);
+      if (fs.existsSync(legacy)) {
+        try { fs.copyFileSync(legacy, portable); } catch { /* best effort */ }
+      }
+    }
+    return portable;
+  }
+
+  automationEngine.on('action:validate-load-order', async (ruleData?: any) => {
+    console.log('[Automation] action:validate-load-order — validating plugins.txt against real plugin headers');
+    try {
+      const localApp = process.env['LOCALAPPDATA'] || path.join(os.homedir(), 'AppData', 'Local');
+      const pluginsTxt = path.join(localApp, 'Fallout4', 'Plugins.txt');
+      const fo4Root = resolveFO4Root();
+      if (!fs.existsSync(pluginsTxt) || !fo4Root) {
+        _sendToRenderer('automation:action-result', { action: 'validate-load-order', ok: false, message: !fo4Root ? 'Fallout 4 Data folder not found.' : 'Plugins.txt not found — is Fallout 4 installed?' });
+        return;
+      }
+      const dataDir = path.join(fo4Root, 'Data');
+      const raw = fs.readFileSync(pluginsTxt, 'utf-8');
+      const pluginNames = raw.split(/\r?\n/).map(l => l.replace(/^\*/, '').trim()).filter(Boolean).filter(l => !l.startsWith('#'));
+      const loadOrder = pluginNames.map(name => path.join(dataDir, name));
+      const validation = computeLoadOrderValidation(loadOrder);
+      _sendToRenderer('automation:action-result', {
+        action: 'validate-load-order',
+        ok: validation.isValid,
+        message: validation.isValid
+          ? `Load order valid — ${validation.pluginCount} plugins, no issues found`
+          : `Load order has ${validation.errors.length} issue(s): ${validation.errors[0]}`,
+        data: validation,
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'validate-load-order', ok: false, message: e?.message });
+    }
+  });
+
+  /**
+   * Structural sanity check for a Havok (.hkx/.hkb) file: confirms it exists,
+   * has a plausible size, and (best-effort) recognizes the modern Havok
+   * tagfile section markers used by Skyrim SE/FO4 behavior files. This is
+   * deliberately scoped to what can be verified without a full Havok SDK —
+   * it reports what it actually found rather than asserting the animation
+   * graph itself is behaviorally correct.
+   */
+  function inspectHkxFile(filePath: string): { path: string; sizeBytes: number; recognizedFormat: boolean; issues: string[] } {
+    const issues: string[] = [];
+    const stat = fs.statSync(filePath);
+    if (stat.size === 0) issues.push('File is empty (0 bytes)');
+    else if (stat.size < 64) issues.push(`File is suspiciously small (${stat.size} bytes) for a Havok behavior/animation file`);
+
+    let recognizedFormat = false;
+    try {
+      const fd = fs.openSync(filePath, 'r');
+      const head = Buffer.alloc(32);
+      fs.readSync(fd, head, 0, 32, 0);
+      fs.closeSync(fd);
+      const KNOWN_TAGS = ['TAG0', 'SDKV', 'DATA', 'TYPE', 'INDX', 'TCRF', 'TCID', 'SGMT'];
+      for (let offset = 0; offset + 4 <= head.length; offset += 4) {
+        if (KNOWN_TAGS.includes(head.toString('ascii', offset, offset + 4))) { recognizedFormat = true; break; }
+      }
+      if (!recognizedFormat) issues.push('File header does not match a known Havok tagfile signature — may be a legacy packfile format or corrupted');
+    } catch (err: any) {
+      issues.push(`Could not read file header: ${err?.message || err}`);
+    }
+
+    return { path: filePath, sizeBytes: stat.size, recognizedFormat, issues };
+  }
+
+  automationEngine.on('action:validate-hkx', async (ruleData?: any) => {
+    console.log('[Automation] action:validate-hkx — structural check on changed Havok file(s)');
+    try {
+      let targets: string[] = [];
+      if (ruleData?.path && ruleData?.filename) {
+        targets = [path.join(ruleData.path, ruleData.filename)];
+      } else {
+        // Manual trigger with no specific file — sweep the default watch dir.
+        const fo4Root = resolveFO4Root();
+        const dir = fo4Root ? path.join(fo4Root, 'Data', 'meshes', 'actors') : null;
+        if (dir && fs.existsSync(dir)) {
+          const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap(e =>
+            e.isDirectory() ? walk(path.join(d, e.name)) : (/\.(hkx|hkb)$/i.test(e.name) ? [path.join(d, e.name)] : [])
+          );
+          targets = walk(dir).slice(0, 200); // cap for a manual sweep
+        }
+      }
+
+      if (targets.length === 0) {
+        _sendToRenderer('automation:action-result', { action: 'validate-hkx', ok: false, message: 'No .hkx/.hkb files found to validate.' });
+        return;
+      }
+
+      const results = targets.filter(t => fs.existsSync(t)).map(inspectHkxFile);
+      const withIssues = results.filter(r => r.issues.length > 0);
+      _sendToRenderer('automation:action-result', {
+        action: 'validate-hkx',
+        ok: withIssues.length === 0,
+        message: withIssues.length === 0
+          ? `${results.length} Havok file(s) passed structural checks`
+          : `${withIssues.length}/${results.length} Havok file(s) flagged: ${withIssues[0].issues[0]}`,
+        data: { results },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'validate-hkx', ok: false, message: e?.message });
+    }
+  });
+
   automationEngine.on('action:scan-conflicts', async (ruleData?: any) => {
     console.log('[Automation] action:scan-conflicts — reading Plugins.txt for conflict detection');
     try {
@@ -36428,6 +27934,82 @@ print(json.dumps({
       });
     } catch (e: any) {
       _sendToRenderer('automation:action-result', { action: 'scan-duplicates', ok: false, message: e?.message });
+    }
+  });
+
+  /** Spawn a real child process and capture its output — shared by the compile-papyrus/pack-ba2 automation actions. */
+  function runProcessCapture(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: number } = {}): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      try {
+        const child = spawn(cmd, args, { cwd: opts.cwd || process.cwd(), shell: false, windowsHide: true });
+        let stdout = '', stderr = '', settled = false;
+        const done = (result: { exitCode: number; stdout: string; stderr: string }) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+        if (opts.timeoutMs) setTimeout(() => { try { child.kill(); } catch { /* ignore */ } done({ exitCode: -1, stdout, stderr: `Process killed after timeout (${opts.timeoutMs}ms)` }); }, opts.timeoutMs);
+        child.on('error', (err) => done({ exitCode: -1, stdout: '', stderr: `Failed to execute: ${err.message}` }));
+        child.stdout?.on('data', (d: Buffer) => (stdout += d.toString()));
+        child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
+        child.on('close', (code: number | null) => done({ exitCode: code ?? -1, stdout, stderr }));
+      } catch (err: any) {
+        resolve({ exitCode: -1, stdout: '', stderr: `Error spawning process: ${err.message}` });
+      }
+    });
+  }
+
+  automationEngine.on('action:compile-papyrus', async (ruleData?: any) => {
+    console.log('[Automation] action:compile-papyrus — invoking real PapyrusCompiler.exe');
+    try {
+      const compilerPath = String(ruleData?.params?.compilerPath || loadSettings()?.papyrusCompilerPath || '').trim();
+      if (!compilerPath || !fs.existsSync(compilerPath)) {
+        _sendToRenderer('automation:action-result', { action: 'compile-papyrus', ok: false, message: 'Papyrus compiler path not configured — set it in this rule or in Settings.' });
+        return;
+      }
+      if (!ruleData?.path || !ruleData?.filename) {
+        _sendToRenderer('automation:action-result', { action: 'compile-papyrus', ok: false, message: 'No changed .psc file reported to compile.' });
+        return;
+      }
+      const scriptPath = path.join(ruleData.path, ruleData.filename);
+      const compilerDir = path.dirname(compilerPath);
+      const result = await runProcessCapture(compilerPath, [scriptPath, '-quiet'], { cwd: compilerDir, timeoutMs: 60000 });
+      _sendToRenderer('automation:action-result', {
+        action: 'compile-papyrus',
+        ok: result.exitCode === 0,
+        message: result.exitCode === 0 ? `Compiled ${ruleData.filename} successfully` : `Papyrus compile failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+        data: { scriptPath, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'compile-papyrus', ok: false, message: e?.message });
+    }
+  });
+
+  automationEngine.on('action:pack-ba2', async (ruleData?: any) => {
+    console.log('[Automation] action:pack-ba2 — invoking real Archive2.exe');
+    try {
+      const settings = loadSettings();
+      const archive2Path = String(settings?.archive2Path || '').trim();
+      if (!archive2Path || !fs.existsSync(archive2Path)) {
+        _sendToRenderer('automation:action-result', { action: 'pack-ba2', ok: false, message: 'Archive2.exe path not configured — set it in Settings under External Tools.' });
+        return;
+      }
+      const sourceDir = ruleData?.path || '';
+      const outputName = String(ruleData?.params?.outputName || 'AutoPackedArchive.ba2');
+      if (!sourceDir || !fs.existsSync(sourceDir)) {
+        _sendToRenderer('automation:action-result', { action: 'pack-ba2', ok: false, message: 'Source Data folder not found for packing.' });
+        return;
+      }
+      const outputPath = path.join(path.dirname(sourceDir), outputName);
+      const result = await runProcessCapture(archive2Path, [sourceDir, '-create=' + outputPath, '-format=General'], { cwd: path.dirname(archive2Path), timeoutMs: 120000 });
+      _sendToRenderer('automation:action-result', {
+        action: 'pack-ba2',
+        ok: result.exitCode === 0,
+        message: result.exitCode === 0 ? `Packed ${outputName}` : `BA2 packing failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+        data: { outputPath, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr },
+      });
+    } catch (e: any) {
+      _sendToRenderer('automation:action-result', { action: 'pack-ba2', ok: false, message: e?.message });
     }
   });
 
@@ -37700,6 +29282,35 @@ ${steps}
     } catch (err: any) {
       return { error: String(err?.message || err) };
     }
+  });
+
+  /**
+   * TheAssembler.tsx: recursively scan a real source mod folder so "Pick Source Mod
+   * Folder" can populate a real file list — the channel constant existed in preload/types
+   * but no handler was ever registered, so every folder pick silently failed.
+   */
+  registerHandler('fomod-scan-mod-folder', async (_event, rootDir: string) => {
+    const results: Array<{ path: string; isDir: boolean }> = [];
+    const walk = (dir: string, depth: number) => {
+      if (depth > 12) return;
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const isDir = entry.isDirectory();
+        results.push({ path: fullPath, isDir });
+        if (isDir) walk(fullPath, depth + 1);
+      }
+    };
+    if (!rootDir || !fs.existsSync(rootDir)) {
+      throw new Error(`Folder not found: ${rootDir}`);
+    }
+    walk(rootDir, 0);
+    return results;
   });
 
   registerHandler('fomod:validate', async (_event, fomodPath: string) => {
@@ -39142,25 +30753,6 @@ end.
     return clipboardWatchStop();
   });
 
-  // ============================================================================
-  // MOSSY BRAIN FEATURE 7: BACKGROUND TASK QUEUE
-  // ============================================================================
-
-  registerHandler(IPC_CHANNELS.TASK_ENQUEUE, async (_event, req: any) => {
-    return taskEnqueue(req);
-  });
-
-  registerHandler(IPC_CHANNELS.TASK_LIST, async (_event, filter?: any) => {
-    return taskList(filter);
-  });
-
-  registerHandler(IPC_CHANNELS.TASK_GET_STATUS, async (_event, taskId: string) => {
-    return taskGetStatus(taskId);
-  });
-
-  registerHandler(IPC_CHANNELS.TASK_CANCEL, async (_event, taskId: string) => {
-    return taskCancel(taskId);
-  });
 
   // ============================================================================
   // MOSSY BRAIN FEATURE 8: HARDWARE SENSOR FEED
@@ -39460,6 +31052,304 @@ end.
       console.error('[Material Save Manifest] Error:', error);
       return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
     }
+  });
+
+  /**
+   * Material Editor "Bake Textures". The node graph in MaterialEditor.tsx is
+   * a layout/planning tool — its nodes carry no evaluatable color/texture
+   * data, so there is nothing to render a real shader graph from. What IS
+   * real is the material's Base Color / Metallic / Roughness values the user
+   * actually set, and (when supplied) a real source texture. So this bakes:
+   *  - with a `baseTexturePath`: a genuine PBR set (diffuse/normal/roughness/
+   *    metallic/ao) via the existing TextureGeneratorEngine (sharp-based,
+   *    previously implemented but never wired to any UI), using the real
+   *    slider values for roughness/metallic instead of its defaults.
+   *  - without one: real solid-color PNGs baked directly from the material's
+   *    actual Base Color / Metallic / Roughness values via sharp.
+   */
+  registerHandler('material:bake-textures', async (_event, params: {
+    materialName: string; outputDir: string; baseTexturePath?: string;
+    baseColorHex: string; metallic: number; roughness: number; resolution?: number;
+  }) => {
+    try {
+      const { materialName, outputDir, baseTexturePath, baseColorHex, metallic, roughness } = params;
+      const resolution = params.resolution || 1024;
+      if (!outputDir) return { success: false, error: 'No output directory selected.' };
+      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+      const safeName = (materialName || 'material').replace(/[^\w\-]/g, '_');
+
+      if (baseTexturePath && fs.existsSync(baseTexturePath)) {
+        const engine = new TextureGeneratorEngine();
+        await engine.initialize();
+        const maps: Array<{ type: string; path: string; width: number; height: number }> = [];
+        const specs: Array<{ type: 'diffuse' | 'normal' | 'roughness' | 'metallic' | 'ao'; settings: any }> = [
+          { type: 'diffuse', settings: { resolution } },
+          { type: 'normal', settings: { resolution, normalStrength: 2.0 } },
+          { type: 'roughness', settings: { resolution, roughnessMin: Math.max(0, roughness - 0.15), roughnessMax: Math.min(1, roughness + 0.15) } },
+          { type: 'metallic', settings: { resolution, metallicValue: metallic } },
+          { type: 'ao', settings: { resolution, aoIntensity: 0.5 } },
+        ];
+        for (const spec of specs) {
+          const result = await engine.generateMap(spec.type, baseTexturePath, { ...spec.settings, resolution });
+          if (result.success) maps.push({ type: spec.type, path: result.outputPath, width: result.width, height: result.height });
+        }
+        return { success: maps.length > 0, outputDir, maps, mode: 'pbr-from-source' };
+      }
+
+      // No source texture: bake real solid-color maps from the material's actual property values.
+      const hex = (baseColorHex || '#FFFFFF').replace('#', '');
+      const r = parseInt(hex.slice(0, 2), 16) || 255;
+      const g = parseInt(hex.slice(2, 4), 16) || 255;
+      const b = parseInt(hex.slice(4, 6), 16) || 255;
+      const metallicGray = Math.round((metallic ?? 0.5) * 255);
+      const roughnessGray = Math.round((roughness ?? 0.5) * 255);
+
+      const outputs: Array<{ type: string; file: string; color: { r: number; g: number; b: number } }> = [
+        { type: 'diffuse', file: `${safeName}_diffuse.png`, color: { r, g, b } },
+        { type: 'metallic', file: `${safeName}_metallic.png`, color: { r: metallicGray, g: metallicGray, b: metallicGray } },
+        { type: 'roughness', file: `${safeName}_roughness.png`, color: { r: roughnessGray, g: roughnessGray, b: roughnessGray } },
+      ];
+
+      const maps: Array<{ type: string; path: string; width: number; height: number }> = [];
+      for (const out of outputs) {
+        const outPath = path.join(outputDir, out.file);
+        await sharp({ create: { width: resolution, height: resolution, channels: 4, background: { ...out.color, alpha: 1 } } })
+          .png()
+          .toFile(outPath);
+        maps.push({ type: out.type, path: outPath, width: resolution, height: resolution });
+      }
+
+      return { success: true, outputDir, maps, mode: 'flat-from-properties' };
+    } catch (error: any) {
+      console.error('[Material Bake Textures] Error:', error);
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  /**
+   * Writes a REAL binary .bgsm file (see src/electron/bgsmWriter.ts) rather
+   * than the JSON-with-a-.bgsm-extension BGSMEditor.tsx used to export —
+   * that file would never load in the Creation Kit or the game itself since
+   * it isn't actually the Bethesda binary format. Only BGSM version 2
+   * (Fallout 4) is supported; FO76's v20+ format is intentionally rejected
+   * rather than guessed at.
+   */
+  registerHandler('material:write-bgsm-binary', async (_event, params: { data: BgsmWriteInput & { version?: number }; defaultFileName: string }) => {
+    try {
+      const { data, defaultFileName } = params;
+      if (data?.version !== undefined && data.version !== 2) {
+        return { success: false, error: `Binary .bgsm export only supports version 2 (Fallout 4) right now — version ${data.version} (FO76) is not yet implemented.` };
+      }
+      const result = await dialog.showSaveDialog({
+        defaultPath: defaultFileName || 'material.bgsm',
+        filters: [{ name: 'Fallout 4 Material', extensions: ['bgsm'] }],
+      });
+      if (result.canceled || !result.filePath) return { success: false, error: 'Save cancelled.' };
+
+      writeBgsmFile(data, result.filePath);
+      const stat = fs.statSync(result.filePath);
+      return { success: true, filePath: result.filePath, fileSize: stat.size };
+    } catch (error: any) {
+      console.error('[BGSM Writer] Error:', error);
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  /**
+   * TextureEnhancer.tsx: native single-file picker for the source texture
+   * (Single Texture mode). Broader extension set than pickDdsFile since this
+   * tool accepts PNG/TGA/JPG source photos, not just game-ready DDS.
+   */
+  registerHandler('texture-enhancer:pick-input-texture', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select Source Texture',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Textures', extensions: ['dds', 'png', 'tga', 'jpg', 'jpeg', 'bmp', 'tiff'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled || !result.filePaths?.length) return null;
+    return result.filePaths[0];
+  });
+
+  /**
+   * TextureEnhancer.tsx backend — real PBR map extraction from a source
+   * texture via the sharp-based TextureGeneratorEngine (previously fully
+   * implemented in src/mining/textureGenerator.ts but never wired to any
+   * IPC channel, so this UI's "real" branch always hit an unregistered
+   * channel and silently fell through to a fake simulated-progress demo).
+   * Cavity extraction and true binary .bgsm writing are not implemented —
+   * reported honestly via `errors`/`note` rather than faked.
+   */
+  const TEXTURE_ENHANCER_EXTENSIONS = ['.dds', '.png', '.tga', '.jpg', '.jpeg', '.bmp', '.tiff'];
+
+  const enhanceOneTexture = async (inputPath: string, outputFolder: string | undefined, params: {
+    quality: string; outputFormat: string; pipeline: any;
+  }): Promise<{ success: boolean; outputs: Record<string, string>; errors: string[]; note?: string; error?: string }> => {
+    try {
+      const { pipeline } = params;
+      if (!inputPath || !fs.existsSync(inputPath)) {
+        return { success: false, outputs: {}, errors: [], error: 'Input texture not found on disk. Use the native file picker (not drag-and-drop in a browser preview) so a real file path is available.' };
+      }
+      const outDir = outputFolder && fs.existsSync(outputFolder) ? outputFolder : path.dirname(inputPath);
+      const baseName = path.basename(inputPath, path.extname(inputPath));
+      const resolution = params.quality === 'maximum' ? 4096 : params.quality === 'fast' ? 1024 : 2048;
+
+      const engine = new TextureGeneratorEngine();
+      await engine.initialize();
+
+      const outputs: Record<string, string> = {};
+      const errors: string[] = [];
+
+      const tryGenerate = async (key: string, type: TextureMapType, settings: any) => {
+        try {
+          const result = await engine.generateMap(type, inputPath, { resolution, ...settings });
+          if (result.success) outputs[key] = result.outputPath;
+          else errors.push(`${key}: ${result.error || 'generation failed'}`);
+        } catch (err: any) {
+          errors.push(`${key}: ${err?.message || err}`);
+        }
+      };
+
+      if (pipeline?.albedo?.enabled) {
+        if (pipeline.albedo.seamless) {
+          const seamless = await engine.makeSeamless(inputPath, Math.round((pipeline.albedo.seamlessBlend ?? 0.5) * 128));
+          if (seamless.success) outputs.albedo = seamless.outputPath;
+          else errors.push(`albedo: ${seamless.error || 'seamless blend failed'}`);
+        } else {
+          await tryGenerate('albedo', 'diffuse', {});
+        }
+      }
+      if (pipeline?.normal?.enabled) {
+        await tryGenerate('normal', 'normal', { normalStrength: pipeline.normal.strength });
+      }
+      if (pipeline?.roughness?.enabled) {
+        const base = pipeline.roughness.base ?? 0.5;
+        const variation = pipeline.roughness.variation ?? 0.1;
+        await tryGenerate('roughness', 'roughness', {
+          roughnessMin: Math.max(0, base - variation),
+          roughnessMax: Math.min(1, base + variation),
+        });
+      }
+      if (pipeline?.metallic?.enabled) {
+        const metallicValue = pipeline.metallic.mode === 'zero' ? 0 : (pipeline.metallic.base ?? 0);
+        await tryGenerate('metallic', 'metallic', { metallicValue });
+      }
+      if (pipeline?.ao?.enabled) {
+        await tryGenerate('ao', 'ao', { aoIntensity: pipeline.ao.strength ?? 0.5 });
+      }
+      if (pipeline?.height?.enabled) {
+        await tryGenerate('height', 'height', {});
+      }
+      if (pipeline?.cavity?.enabled) {
+        await tryGenerate('cavity', 'cavity', { cavityRadius: pipeline.cavity.radius, cavityStrength: pipeline.cavity.strength });
+      }
+      // Real DDS conversion (texconv.exe/nvcompress.exe) when requested —
+      // every map above is generated as PNG; convert in place if the user
+      // asked for .dds output rather than silently staying PNG. Runs BEFORE
+      // the BGSM stage so the material file can reference the final texture
+      // paths the game will actually load.
+      let note: string | undefined;
+      if ((params.outputFormat === 'dds' || params.outputFormat === 'both') && Object.keys(outputs).length > 0) {
+        const DDS_FORMAT_BY_MAP: Record<string, DdsTextureFormat> = {
+          albedo: 'DDS_DXT1', normal: 'DDS_BC5', roughness: 'DDS_BC7', metallic: 'DDS_BC7', ao: 'DDS_BC7', cavity: 'DDS_BC7', height: 'DDS_UNCOMPRESSED',
+        };
+        for (const [key, pngPath] of Object.entries(outputs)) {
+          if (!pngPath.endsWith('.png')) continue;
+          const ddsPath = pngPath.replace(/\.png$/, '.dds');
+          const conv = await ddsConverter.convertTexture({ sourcePath: pngPath, outputPath: ddsPath, format: DDS_FORMAT_BY_MAP[key] || 'DDS_DXT1', generateMipmaps: true, quality: 'high' });
+          if (conv.success) {
+            if (params.outputFormat === 'dds') {
+              try { fs.unlinkSync(pngPath); } catch { /* non-fatal */ }
+              outputs[key] = ddsPath;
+            } else {
+              outputs[`${key}Dds`] = ddsPath;
+            }
+          } else {
+            errors.push(`${key} DDS conversion: ${conv.error || 'failed'} — kept PNG output`);
+          }
+        }
+      }
+
+      if (pipeline?.bgsm?.enabled) {
+        // Prefer the DDS path when one was produced above; otherwise reference the PNG.
+        const texFor = (key: string) => outputs[`${key}Dds`] || (outputs[key]?.endsWith('.dds') ? outputs[key] : outputs[key]);
+        const bgsmPath = path.join(outDir, `${baseName}.bgsm`);
+        try {
+          writeBgsmFile({
+            sDiffuseTexture: texFor('albedo') || '',
+            sNormalTexture: texFor('normal') || '',
+            sGreyscaleTexture: texFor('roughness') || '',
+            sSmoothSpecTexture: texFor('metallic') || '',
+            bSpecularEnabled: true,
+            sf2: { pbr: !!pipeline.bgsm.pbrMode },
+          } as any, bgsmPath);
+          outputs.bgsm = bgsmPath;
+          note = `Wrote a real binary .bgsm referencing the generated maps — open it in the BGSM Editor for fine-tuning.`;
+        } catch (err: any) {
+          errors.push(`bgsm: ${err?.message || err}`);
+        }
+      }
+
+      return { success: Object.keys(outputs).length > 0, outputs, errors, note };
+    } catch (error: any) {
+      console.error('[Texture Enhancer] Error:', error);
+      return { success: false, outputs: {}, errors: [], error: error?.message || String(error) };
+    }
+  };
+
+  registerHandler('texture-enhancer:enhance', async (_event, params: {
+    inputPath: string; outputFolder?: string; mode: string; surface: string; quality: string; outputFormat: string; pipeline: any;
+  }) => {
+    const { inputPath, outputFolder, mode } = params;
+    if (!inputPath) {
+      return { success: false, error: 'No input texture or folder selected.' };
+    }
+
+    if (mode !== 'batch') {
+      return enhanceOneTexture(inputPath, outputFolder, params);
+    }
+
+    // Batch mode: run the real single-texture pipeline against every texture
+    // file found directly inside the chosen folder (non-recursive).
+    if (!fs.existsSync(inputPath) || !fs.statSync(inputPath).isDirectory()) {
+      return { success: false, error: 'Batch folder not found on disk. Use "Pick texture folder" to choose a real folder.' };
+    }
+    const files = fs.readdirSync(inputPath)
+      .filter((f) => TEXTURE_ENHANCER_EXTENSIONS.includes(path.extname(f).toLowerCase()))
+      .map((f) => path.join(inputPath, f));
+
+    if (files.length === 0) {
+      return { success: false, error: `No texture files (${TEXTURE_ENHANCER_EXTENSIONS.join(', ')}) found in ${inputPath}.` };
+    }
+
+    const aggregatedOutputs: Record<string, string> = {};
+    const aggregatedErrors: string[] = [];
+    let successCount = 0;
+
+    for (const filePath of files) {
+      const fileBase = path.basename(filePath, path.extname(filePath));
+      const result = await enhanceOneTexture(filePath, outputFolder, params);
+      if (result.error) {
+        aggregatedErrors.push(`${fileBase}: ${result.error}`);
+        continue;
+      }
+      for (const [key, value] of Object.entries(result.outputs)) {
+        aggregatedOutputs[`${fileBase}_${key}`] = value;
+      }
+      for (const err of result.errors) {
+        aggregatedErrors.push(`${fileBase} — ${err}`);
+      }
+      if (result.success) successCount++;
+    }
+
+    return {
+      success: successCount > 0,
+      outputs: aggregatedOutputs,
+      errors: aggregatedErrors,
+      note: `Batch complete: ${successCount}/${files.length} texture(s) enhanced.`,
+    };
   });
 
   // Asset Validator Handlers
@@ -39917,56 +31807,6 @@ end.
   // Asset Optimizer Handlers
   const optimizerJobs = new Map<string, any>();
   
-  registerHandler('optimizer:start-job', async (_event, params: any) => {
-    try {
-      const { inputPath, outputPath, optimizationType } = params;
-      const inputValidation = IpcValidation.isValidFilePath(inputPath);
-      if (!inputValidation.valid) return IpcResponseBuilder.error(inputValidation.error ?? "Validation error", IpcErrorCode.EINVAL);
-      if (!fs.existsSync(inputPath)) {
-        return IpcResponseBuilder.error('Input path not found', IpcErrorCode.ENOENT);
-      }
-      const jobId = `opt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const job = {
-        id: jobId,
-        type: optimizationType,
-        status: 'processing',
-        progress: 0,
-        filesProcessed: 0,
-        totalFiles: 1,
-        savedSpace: 0,
-        startTime: Date.now(),
-      };
-      optimizerJobs.set(jobId, job);
-      setImmediate(() => {
-        if (optimizerJobs.has(jobId)) {
-          const updatedJob = optimizerJobs.get(jobId);
-          updatedJob.progress = 100;
-          updatedJob.status = 'complete';
-          updatedJob.filesProcessed = 1;
-          updatedJob.savedSpace = Math.floor(fs.statSync(inputPath).size * 0.1);
-        }
-      });
-      return IpcResponseBuilder.success({ jobId });
-    } catch (error) {
-      console.error('[Optimizer Start] Error:', error);
-      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
-    }
-  });
-
-  registerHandler('optimizer:get-progress', async (_event, jobId: string) => {
-    try {
-      const validation = IpcValidation.isNonEmptyString(jobId, 'jobId');
-      if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
-      if (!optimizerJobs.has(jobId)) {
-        return IpcResponseBuilder.error('Job not found', IpcErrorCode.NOT_FOUND);
-      }
-      const job = optimizerJobs.get(jobId);
-      return IpcResponseBuilder.success({ job });
-    } catch (error) {
-      console.error('[Optimizer Progress] Error:', error);
-      return IpcResponseBuilder.fromError(error, IpcErrorCode.OPERATION_FAILED);
-    }
-  });
 
   // 3D Viewer Handler
   registerHandler('3d-viewer:load-asset', async (_event, assetPath: string) => {
@@ -40108,6 +31948,125 @@ end.
     }
   });
 
+  /**
+   * XEditTools "Run Script" dispatcher. The 15 tools listed in
+   * XEditTools.tsx map to three genuinely different real operations —
+   * routed here instead of forcing them all through one xEdit `-script:`
+   * call (which only ever matched 2 of the 15 and silently failed on the
+   * rest because of a param-shape bug):
+   *
+   *  - Flag toggles (ESM/ESP/ESL) are a single bit in the TES4 header —
+   *    patched directly and safely (a .bak copy is written first).
+   *  - Read-only analysis (master list, record counts, FormID range,
+   *    FormID export) is computed directly from the already-real
+   *    ESPParser/_readEspMasters binary parsing used elsewhere in this file.
+   *  - Everything else (ITM/UDR cleaning, conflict analysis, cell export,
+   *    SEQ generation, merging, etc.) genuinely requires xEdit's own
+   *    resolution engine — this launches real xEdit with the plugin loaded
+   *    and tells the user to complete the operation there, rather than
+   *    pretending an automated pass ran.
+   */
+  const XEDIT_FLAG_SCRIPTS = new Set(['esm-to-esp', 'esp-to-esm', 'esp-to-esl']);
+  const XEDIT_ANALYSIS_SCRIPTS = new Set(['master-list', 'record-count', 'analyze-overrides', 'formid-range-check', 'export-formids']);
+
+  registerHandler('xedit:run-tool-action', async (_event, params: { scriptId: string; pluginPath?: string; xEditPath?: string }) => {
+    const start = Date.now();
+    const { scriptId, pluginPath, xEditPath } = params || ({} as any);
+    const duration = () => Math.round((Date.now() - start) / 100) / 10;
+
+    try {
+      if (XEDIT_FLAG_SCRIPTS.has(scriptId)) {
+        if (!pluginPath || !fs.existsSync(pluginPath)) {
+          return { success: false, output: '', errors: ['Plugin file not found.'], warnings: [], duration: duration() };
+        }
+        const bit = scriptId === 'esp-to-esl' ? 0x200 : 0x1;
+        const setBit = scriptId === 'esp-to-esm';
+        const buf = fs.readFileSync(pluginPath);
+        const flags = buf.readUInt32LE(8);
+        const newFlags = setBit ? (flags | bit) : (flags & ~bit);
+        const backupPath = `${pluginPath}.bak-${Date.now()}`;
+        fs.copyFileSync(pluginPath, backupPath);
+        buf.writeUInt32LE(newFlags >>> 0, 8);
+        fs.writeFileSync(pluginPath, buf);
+        return {
+          success: true,
+          output: `TES4 header flags: 0x${flags.toString(16)} → 0x${(newFlags >>> 0).toString(16)}. Backup saved to ${path.basename(backupPath)}.`,
+          errors: [],
+          warnings: scriptId === 'esp-to-esl' ? ['ESL flag set — this does not verify FormID range. Run "FormID Range Check" first if you have not already.'] : [],
+          duration: duration(),
+        };
+      }
+
+      if (XEDIT_ANALYSIS_SCRIPTS.has(scriptId)) {
+        if (!pluginPath || !fs.existsSync(pluginPath)) {
+          return { success: false, output: '', errors: ['Plugin file not found.'], warnings: [], duration: duration() };
+        }
+        const espFile = await ESPParser.parseFile(pluginPath);
+        const records = espFile.records;
+
+        if (scriptId === 'master-list') {
+          const lines = espFile.masters.length
+            ? espFile.masters.map((m, i) => `${i + 1}. ${m}`)
+            : ['(No masters declared — this plugin is self-contained.)'];
+          return { success: true, output: lines.join('\n'), errors: [], warnings: [], duration: duration() };
+        }
+
+        if (scriptId === 'record-count' || scriptId === 'analyze-overrides') {
+          const byType = new Map<string, number>();
+          for (const r of records) byType.set(r.type, (byType.get(r.type) || 0) + 1);
+          const lines = Array.from(byType.entries()).sort((a, b) => b[1] - a[1]).map(([t, c]) => `${t}: ${c}`);
+          return { success: true, output: `${records.length} total records\n${lines.join('\n')}`, errors: [], warnings: [], duration: duration() };
+        }
+
+        if (scriptId === 'formid-range-check') {
+          // Records whose top FormID byte is 0 are (heuristically) owned by
+          // this plugin itself rather than overriding a master — a real,
+          // if approximate, signal; final eligibility should be confirmed
+          // in xEdit since true ownership depends on load-order position.
+          const ownRecords = records.filter(r => (r.formId >>> 24) === 0);
+          const outOfRange = ownRecords.filter(r => (r.formId & 0xFFFFFF) > 0x7FF);
+          const eslSafe = outOfRange.length === 0;
+          return {
+            success: true,
+            output: `${ownRecords.length} self-owned record(s) checked. ${eslSafe ? 'All fit within the ESL-safe range (0x000-0x7FF).' : `${outOfRange.length} record(s) exceed 0x7FF and must be compacted before ESL-flagging.`}`,
+            errors: [],
+            warnings: ['This is a heuristic based on FormIDs stored in the file — confirm final eligibility in xEdit before distributing.'],
+            duration: duration(),
+          };
+        }
+
+        if (scriptId === 'export-formids') {
+          const lines = records.map(r => `0x${r.formId.toString(16).toUpperCase().padStart(8, '0')}\t${r.type}\t${r.editorId || ''}`);
+          const outPath = path.join(path.dirname(pluginPath), `${path.basename(pluginPath, path.extname(pluginPath))}_formids.txt`);
+          fs.writeFileSync(outPath, `FormID\tType\tEditorID\n${lines.join('\n')}`, 'utf-8');
+          return { success: true, output: `Exported ${records.length} FormIDs to ${outPath}`, errors: [], warnings: [], duration: duration() };
+        }
+      }
+
+      // Everything else genuinely needs xEdit's own engine (ITM/UDR resolution,
+      // conflict analysis across the load order, cell export, SEQ generation,
+      // FormID compacting, merging). Launch real xEdit with the plugin loaded
+      // rather than pretending an unattended pass completed the operation.
+      const resolvedXEdit = xEditPath && fs.existsSync(xEditPath)
+        ? xEditPath
+        : (await detectPrograms()).find(p => p.displayName?.toLowerCase().includes('xedit') || p.name?.toLowerCase().includes('xedit'))?.path;
+      if (!resolvedXEdit || !fs.existsSync(resolvedXEdit)) {
+        return { success: false, output: '', errors: ['xEdit not found. Configure its path in the Settings tab.'], warnings: [], duration: duration() };
+      }
+      const args = pluginPath ? [path.basename(pluginPath)] : [];
+      const child = spawn(resolvedXEdit, args, { cwd: pluginPath ? path.dirname(pluginPath) : undefined });
+      return {
+        success: true,
+        output: `xEdit launched (PID ${child.pid}) with ${pluginPath ? path.basename(pluginPath) : 'no plugin'} loaded — complete this operation inside xEdit's UI, then close it.`,
+        errors: [],
+        warnings: ['This operation requires xEdit\'s own resolution engine and cannot be safely automated — finish it in the xEdit window that just opened.'],
+        duration: duration(),
+      };
+    } catch (error: any) {
+      return { success: false, output: '', errors: [error?.message || String(error)], warnings: [], duration: duration() };
+    }
+  });
+
   registerHandler('ck-plugin-validate', async (_event, pluginPath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(pluginPath);
@@ -40238,7 +32197,7 @@ end.
 
       // Step 1: Try writing the Groq API key into the AnythingLLM .env
       const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      const anythingllmEnvPath = path.join('D:', 'Projects', 'anything-llm', 'server', '.env');
+      const anythingllmEnvPath = path.join(ANYTHINGLLM_SERVER_DIR, '.env');
       if (groqKey && fs.existsSync(anythingllmEnvPath)) {
         try {
           let envContent = fs.readFileSync(anythingllmEnvPath, 'utf-8');
@@ -40599,7 +32558,11 @@ const KOBOLD_PORT = 5001;
 // ── AnythingLLM process state ────────────────────────────────────────────────
 let _anythingllmProcess: import('child_process').ChildProcess | null = null;
 const ANYTHINGLLM_PORT = 3001;
-const ANYTHINGLLM_SERVER_DIR = 'D:\\Projects\\anything-llm\\server';
+// Hardcoded to the original developer's machine layout with no fallback used to silently
+// no-op AnythingLLM auto-start and Groq-key injection on every other machine. Real fix:
+// honor a real override env var first, so anyone with a different checkout location for
+// the sibling anything-llm project can point this at their own path.
+const ANYTHINGLLM_SERVER_DIR = process.env.MOSSY_ANYTHINGLLM_SERVER_DIR || 'D:\\Projects\\anything-llm\\server';
 
 function patchAnythingLLMNodeCompat(): void {
   try {
@@ -40986,6 +32949,59 @@ app.whenReady().then(() => {
         return;
       }
 
+      // ── POST /open-tool ──────────────────────────────────────────────────
+      // Lets the Blender add-on hand a file off to another configured tool —
+      // e.g. open a mesh the addon just exported in NifSkope for a real visual/
+      // collision check that Blender's own viewport doesn't give you. Body:
+      // { toolKey: 'nifSkopePath', filePath: 'C:\\...\\mesh.nif' }. toolKey must be
+      // one of BRIDGE_PATH_KEYS — reuses the same spawn path as the renderer's
+      // "Open .nif in NifSkope" button so both callers get identical validation.
+      if (req.method === 'POST' && url === '/open-tool') {
+        try {
+          const raw = await readBody(req);
+          const { toolKey, filePath } = JSON.parse(raw) as { toolKey?: string; filePath?: string };
+          if (!toolKey || !(BRIDGE_PATH_KEYS as readonly string[]).includes(toolKey)) {
+            respond(res, 400, { success: false, message: `Unknown toolKey. Must be one of: ${BRIDGE_PATH_KEYS.join(', ')}` });
+            return;
+          }
+          if (!filePath) {
+            respond(res, 400, { success: false, message: 'Missing filePath field' });
+            return;
+          }
+          const s = loadSettings();
+          const toolPath = (s as Record<string, unknown>)[toolKey];
+          if (typeof toolPath !== 'string' || !toolPath) {
+            respond(res, 200, { success: false, message: `${toolKey} is not configured in Mossy Settings → External Tools.` });
+            return;
+          }
+          // Same validation/spawn shape as the renderer's LAUNCH_TOOL_WITH_FILE IPC
+          // handler (src/electron/main.ts, registerHandler block) — duplicated rather
+          // than shared across the two closures the same way the CD agent-call tiers
+          // already duplicate their fetch logic elsewhere in this file.
+          const resolvedTool = path.resolve(toolPath);
+          const resolvedFile = path.resolve(filePath);
+          if (!fs.existsSync(resolvedTool)) {
+            respond(res, 200, { success: false, message: `Tool not found at: ${resolvedTool}` });
+            return;
+          }
+          if (!fs.existsSync(resolvedFile)) {
+            respond(res, 200, { success: false, message: `File not found: ${resolvedFile}` });
+            return;
+          }
+          const child = spawn(resolvedTool, [resolvedFile], {
+            cwd: path.dirname(resolvedTool),
+            detached: true,
+            stdio: 'ignore',
+          });
+          child.unref();
+          console.log(`[BlenderBridge] /open-tool: launched ${path.basename(resolvedTool)} with ${path.basename(resolvedFile)}`);
+          respond(res, 200, { success: true });
+        } catch {
+          respond(res, 400, { success: false, message: 'Invalid JSON' });
+        }
+        return;
+      }
+
       // ── POST /log ────────────────────────────────────────────────────────
       // Blender add-on POSTs structured log entries here.
       // Mossy surfaces them in the renderer via the 'blender-log' IPC event.
@@ -41316,7 +33332,7 @@ app.whenReady().then(() => {
                 const br = await fetch(`${backendUrl}/v1/chat`, {
                   method: 'POST',
                   headers,
-                  body: JSON.stringify({ provider: 'groq', model: 'llama-3.1-8b-instant', messages, maxTokens: 80 }),
+                  body: JSON.stringify({ provider: 'groq', model: 'qwen/qwen3.6-27b', messages, maxTokens: 80 }),
                   signal: AbortSignal.timeout(12000),
                 });
                 const bd = await br.json() as any;
@@ -41325,7 +33341,7 @@ app.whenReady().then(() => {
                   const br2 = await fetch(`${backendUrl}/v1/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider: 'groq', model: 'llama-3.1-8b-instant', messages, maxTokens: 80 }),
+                    body: JSON.stringify({ provider: 'groq', model: 'qwen/qwen3.6-27b', messages, maxTokens: 80 }),
                     signal: AbortSignal.timeout(12000),
                   });
                   const bd2 = await br2.json() as any;

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Mic, Send, MessageCircle, Code, Zap, Book, Wrench, Lightbulb, ChevronRight } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
+import { formatFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
 import { useHorizontalScroll } from './components/useHorizontalScroll';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 
@@ -29,9 +30,32 @@ const AIModAssistant: React.FC = () => {
   const wheelHandler = useHorizontalScroll(messagesRef);
   useEffect(() => { messagesRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }); }, [messages]);
 
+  // Mossy's real scanned game knowledge (form/asset graphs, texture/mesh/material/
+  // sound catalogs, Papyrus analysis, tools, FO4 version, etc.) — fetched once and
+  // refreshed periodically so this assistant reasons from real data, not just the
+  // static persona text, when explaining or building mods.
+  const brainBlockRef = useRef<string>('');
+  useEffect(() => {
+    const fetchBrain = () => {
+      window.electronAPI?.brain?.getFullBrain?.().then(response => {
+        if (response?.success && response.block) brainBlockRef.current = response.block;
+      });
+    };
+    fetchBrain();
+    const timer = setInterval(fetchBrain, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // ─── Core AI call ────────────────────────────────────────────────────────────
+  const LEARNING_MODE_INSTRUCTION = `\n\n### LEARNING MODE ACTIVE ###
+The user has explicitly turned on Learning Mode. Before giving the final answer or code,
+briefly explain each step you're taking and why (the reasoning, not just the result) so
+the user learns the underlying modding concept, not just the fix. Keep it concise —
+teach the "why", don't pad with filler.`;
+
   const callAI = async (userText: string, systemExtra: string, useHistory = true): Promise<string> => {
-    const systemInstruction = getFullSystemInstruction(systemExtra);
+    const withBrain = `${systemExtra}\n\n${brainBlockRef.current}\n\n${formatFO4KnowledgeBaseForAI()}`;
+    const systemInstruction = getFullSystemInstruction(learningMode ? `${withBrain}${LEARNING_MODE_INSTRUCTION}` : withBrain);
     const history = useHistory
       ? messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }))
       : [];

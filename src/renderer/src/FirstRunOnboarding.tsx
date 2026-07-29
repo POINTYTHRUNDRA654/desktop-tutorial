@@ -1491,7 +1491,12 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
     const finishOnboarding = () => {
         // Save user preferences
         localStorage.setItem('mossy_tool_preferences', JSON.stringify(userChoices));
+        // Set both spellings together — App.tsx reads 'mossy_onboarding_complete' for
+        // showFirstRun and 'mossy_onboarding_completed' for showOnboarding/showVoiceSetup;
+        // setting only one here left a real inconsistency window if the app closed between
+        // this point and the final onComplete callback further down the step chain.
         localStorage.setItem('mossy_onboarding_complete', 'true');
+        localStorage.setItem('mossy_onboarding_completed', 'true');
 
         // Build integrated tools list for Mossy
         const selectedIntegratedTools = recommendations
@@ -1904,7 +1909,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             Your AI-powered Fallout 4 modding assistant with next-gen voice conversation
                         </p>
                         <p className="text-slate-400 mb-6">
-                            <strong className="text-emerald-400">✨ New in v{packageJson.version}:</strong> Pick your UI language on first launch (or later in Settings), plus a smoother Install Wizard experience.
+                            <strong className="text-emerald-400">✨ New in v{packageJson.version}:</strong> Mossy's Fallout 4 knowledge has been audited and significantly deepened — verified against real game source and 35+ popular mods, covering companions, settlements, precombines/previs, F4SE plugin development, and the full config-driven patching ecosystem (SPID, Base Object Swapper, RobCo Patcher). Plus: pick your UI language on first launch (or later in Settings), and a smoother Install Wizard experience.
                         </p>
                         <p className="text-slate-400 mb-8">
                             Let me scan your system to discover tools I can integrate with.

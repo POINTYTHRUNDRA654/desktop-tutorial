@@ -6,7 +6,7 @@ import { LocalAIEngine } from './LocalAIEngine';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
 import { openExternal } from './utils/openExternal';
-import { saveKnowledgeVaultToFile, restoreKnowledgeVaultFromFile } from './knowledgeRetrieval';
+import { saveKnowledgeVaultToFile, restoreKnowledgeVaultFromFile, isDuplicateVaultEntry } from './knowledgeRetrieval';
 import { getPublicAssetUrl } from './utils/publicAssetUrl';
 
 interface MemoryItem {
@@ -700,15 +700,14 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             return;
         }
 
-        setIsUploading(true);
-        setUploadProgress(10);
-
-        // Analysis & Indexing
-        const stages = [30, 60, 90, 100];
-        for (const stage of stages) {
-            await new Promise(r => setTimeout(r, 600));
-            setUploadProgress(stage);
+        // Real duplicate check — same title added within the last 7 days.
+        if (isDuplicateVaultEntry(memories as any, newTitle)) {
+            setUploadError(`"${newTitle}" was already added recently — rename it or edit the existing entry instead.`);
+            return;
         }
+
+        setIsUploading(true);
+        setUploadProgress(50);
 
         const newItem: MemoryItem = {
             id: `mem-${Date.now()}`,
@@ -726,6 +725,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
         };
 
         setMemories([newItem, ...memories]);
+        setUploadProgress(100);
         setIsUploading(false);
         setUploadProgress(0);
         setShowUploadModal(false);
@@ -1039,7 +1039,6 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
 
                       <button
                         onClick={() => { setShowLibraryModal(true); fetchCommunityKnowledge(); }}
-                        onDoubleClick={handleBrowseKnowledgeLibrary}
                         className="relative flex items-center gap-2 px-4 py-2 bg-blue-900/50 hover:bg-blue-800/50 text-blue-100 rounded-lg transition-all border border-blue-700 text-sm font-bold"
                         title="Browse community knowledge library"
                       >
@@ -1488,7 +1487,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">Knowledge Content (Tutorial / Info / Snippet)</label>
                                     <span className={`text-[10px] font-mono ${newContent.length > 8000 ? 'text-amber-400' : newContent.length > 4000 ? 'text-emerald-400' : 'text-slate-500'}`}>
                                         {newContent.length.toLocaleString()} chars
-                                        {newContent.length > 8000 && ' · large — will be chunked'}
+                                        {newContent.length > 8000 && ' · large — will be chunked when synced to AnythingLLM'}
                                     </span>
                                 </div>
                                 <div 
@@ -1655,7 +1654,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                                     <div className="flex justify-between text-[10px] font-mono mb-1">
                                         <span className="text-emerald-400 flex items-center gap-2">
                                             <Loader2 className="w-3 h-3 animate-spin" />
-                                            NEURAL INTEGRATION IN PROGRESS...
+                                            SAVING TO KNOWLEDGE VAULT...
                                         </span>
                                         <span className="text-slate-500">{uploadProgress}%</span>
                                     </div>

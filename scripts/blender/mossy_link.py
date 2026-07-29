@@ -13,6 +13,8 @@ Features:
   • ask_mossy()        — query the Mossy AI from inside Blender
   • get_tool_paths()   — retrieve ALL tool/game paths from Mossy settings
   • get_tool_path()    — retrieve a single path by settings key
+  • open_tool()        — launch any configured tool with a file (e.g. NifSkope)
+  • open_in_nifskope() — convenience wrapper: open a .nif in NifSkope
   • get_pytorch_path() — retrieve the configured PyTorch directory
   • setup_pytorch()    — inject PyTorch path into sys.path for import
   • send_event()       — send structured events from Blender to Mossy UI
@@ -61,6 +63,7 @@ _AI_ENDPOINT    = f"{_MOSSY_BASE_URL}/mossy-ai"
 _STATUS_ENDPOINT = f"{_MOSSY_BASE_URL}/status"
 _PYTORCH_PATH_ENDPOINT = f"{_MOSSY_BASE_URL}/pytorch-path"
 _TOOL_PATHS_ENDPOINT = f"{_MOSSY_BASE_URL}/tool-paths"
+_OPEN_TOOL_ENDPOINT = f"{_MOSSY_BASE_URL}/open-tool"
 _LOG_ENDPOINT = f"{_MOSSY_BASE_URL}/log"
 
 # Default timeout for quick local-bridge calls (seconds)
@@ -237,6 +240,66 @@ def get_tool_path(name: str) -> str | None:
     :returns:       Path string, or ``None`` if not configured / Mossy not running.
     """
     return get_tool_paths().get(name) or None
+
+
+def open_tool(tool_key: str, file_path: str) -> tuple[bool, str]:
+    """
+    Ask Mossy to launch a configured external tool with *file_path* as its argument.
+
+    Useful when Blender just exported (or is about to import) a mesh and you want a
+    real look at it in a tool Blender's own viewport can't substitute for — e.g. after
+    exporting a NIF via PyNifly, open it in NifSkope to check materials, collision,
+    and texture paths before it goes in-game.
+
+    :param tool_key:  Mossy settings key for the tool, e.g. ``'nifSkopePath'``,
+                       ``'xeditPath'``, ``'creationKitPath'``. Must be configured
+                       in Mossy → Settings → External Tools.
+    :param file_path: Absolute path to the file to open in that tool.
+    :returns:         ``(True, "")`` on success, or ``(False, message)`` — Mossy not
+                       running, tool not configured, or file not found.
+
+    Example::
+
+        from . import mossy_link
+        ok, msg = mossy_link.open_tool('nifSkopePath', r"C:\\mods\\MyMesh.nif")
+        if not ok:
+            mossy_link.log_to_mossy('warning', f'Could not open NifSkope: {msg}')
+    """
+    if not tool_key or not file_path:
+        return False, "tool_key and file_path are both required"
+
+    payload = {"toolKey": tool_key, "filePath": file_path}
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        _OPEN_TOOL_ENDPOINT,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=_LOCAL_TIMEOUT) as r:
+            data = json.loads(r.read().decode("utf-8"))
+            if data.get("success"):
+                return True, ""
+            return False, data.get("message", "Unknown error")
+    except urllib.error.URLError:
+        return False, "Mossy is not running"
+    except Exception as e:
+        return False, str(e)
+
+
+def open_in_nifskope(nif_path: str) -> tuple[bool, str]:
+    """
+    Convenience wrapper: ``open_tool('nifSkopePath', nif_path)``.
+
+    Example::
+
+        from . import mossy_link
+        ok, msg = mossy_link.open_in_nifskope(exported_nif_path)
+        if not ok:
+            print(f"Could not open NifSkope: {msg}")
+    """
+    return open_tool("nifSkopePath", nif_path)
 
 
 def send_event(event_type: str, data: dict | None = None) -> bool:

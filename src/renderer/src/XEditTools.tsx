@@ -374,8 +374,8 @@ export const XEditTools: React.FC = () => {
         unsub = () => clearInterval(iv);
       }
 
-      if (api?.xEditScriptExecutor?.executeScript) {
-        const result = await api.xEditScriptExecutor.executeScript(xEditPath, selectedPlugin, selectedScript.id);
+      if (api?.xEditScriptExecutor?.runToolAction) {
+        const result = await api.xEditScriptExecutor.runToolAction({ scriptId: selectedScript.id, pluginPath: selectedPlugin, xEditPath });
         unsub?.();
         setProgress(100);
         setProgressText('Complete');

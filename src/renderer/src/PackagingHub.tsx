@@ -137,8 +137,8 @@ const PackagingHub: React.FC = () => {
     },
     {
       id: 'bethel-uploader',
-      title: 'Bethesda.net Publisher',
-      description: 'Package and upload mods directly to Bethesda.net (Creation Club compatible).',
+      title: 'Mod Auto-Enhancer',
+      description: 'Drag in a mod, automatically enhance its textures, and download the enhanced package — a local pipeline, not a Bethesda.net uploader.',
       icon: Upload,
       content: <BethelUploader />,
     },

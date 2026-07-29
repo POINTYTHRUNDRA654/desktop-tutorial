@@ -42,7 +42,7 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'materials', icon: Layers,            label: 'Mat Editor',        sublabel: 'Shader graph' },
   { id: 'matdefs',   icon: Package,           label: 'Mat Definitions',   sublabel: 'RMAOS manifest' },
   { id: 'optimizer', icon: Zap,               label: 'Optimizer',         sublabel: 'Batch compress' },
-  { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'AI upscale' },
+  { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'Detail extraction · PBR maps' },
   { id: 'krita',     icon: Palette,           label: 'Krita AI Paint',    sublabel: 'Diffusion · Inpaint' },
   { id: 'aistudio',  icon: Camera,            label: 'AI Image Studio',   sublabel: 'txt2img · img2img'   },
 ];

@@ -92,20 +92,20 @@ const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {}
       )
     },
     {
-      id: 'organizer',
-      title: 'The Organizer',
-      description: 'Mod management, AI load order, and conflict resolution',
+      id: 'plugin-load-order',
+      title: 'FO4 Plugin & Load Order Hub',
+      description: 'Load order optimization and real conflict detection',
       icon: React.createElement(Layers, { className: "w-12 h-12 text-blue-400" }),
       content: (
         <div className="space-y-6">
           <p className="text-slate-400">
-            The Organizer is your mod management hub. Enable, disable, and prioritize mods, visualize conflicts, and use AI-powered sorting for optimal load order. Quest mods and utilities are fully supported.
+            The Plugin & Load Order Hub is where you manage your actual load order. It reads your real active plugin list, detects genuine FormID conflicts between plugins, and can import from or export to Mod Organizer 2 and Vortex.
           </p>
           <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
-            <li>Enable/disable mods and manage categories</li>
-            <li>Visualize conflicts and load order</li>
-            <li>AI-powered LOOT-style sorting and quest mod support</li>
-            <li>Tool dashboard for utility detection and management</li>
+            <li>Drag-and-drop load order editing, plus MO2/Vortex import and export</li>
+            <li>Real conflict detection — overlapping FormIDs between your actual plugin files, not simulated data</li>
+            <li>Load order optimization with configurable rules (ESL-first, priority plugins, custom sorting)</li>
+            <li>Conflict Resolver: scan, review, and generate patch metadata for record-level conflicts</li>
           </ul>
         </div>
       )
@@ -113,37 +113,35 @@ const MossyOnboarding: React.FC<MossyOnboardingProps> = ({ onComplete = () => {}
     {
       id: 'assembler',
       title: 'The Assembler',
-      description: 'FOMOD packaging, automation, and preview',
+      description: 'Visual FOMOD installer builder',
       icon: React.createElement(Package, { className: "w-12 h-12 text-purple-400" }),
       content: (
         <div className="space-y-6">
           <p className="text-slate-400">
-            The Assembler lets you visually build FOMOD installers, auto-generate structure from your files, and export ready-to-use XML. Preview your installer and launch external tools for advanced packaging.
+            The Assembler is a standalone tool (reachable from the Mod Builder / Packaging & Release area) for visually building FOMOD installers. Point it at a mod folder, and it can scan the real folder structure to help you lay out install steps.
           </p>
           <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
-            <li>Visual FOMOD structure editor (pages, groups, options)</li>
-            <li>AI-powered auto-generation from mod files</li>
-            <li>Live preview and XML export</li>
-            <li>External tool integration for advanced workflows</li>
+            <li>Visual FOMOD structure editor (pages, groups, install options)</li>
+            <li>Scans your actual mod folder to help auto-generate structure</li>
+            <li>Live preview and ready-to-use FOMOD XML export</li>
           </ul>
         </div>
       )
     },
     {
       id: 'auditor',
-      title: 'The Auditor',
-      description: 'Advanced QA, asset integrity, and auto-fix',
+      title: 'Crash Prevention & Audit',
+      description: 'Asset integrity checks, now inside the Creation Kit Hub',
       icon: React.createElement(Shield, { className: "w-12 h-12 text-red-400" }),
       content: (
         <div className="space-y-6">
           <p className="text-slate-400">
-            The Auditor scans your plugins, meshes, textures, and materials for errors, warnings, and optimization issues. Get AI-powered explanations, manual fix guidance, and one-click auto-fix for common problems.
+            What used to be a standalone "Auditor" module now lives as the Audit tab inside the FO4 Creation Kit Hub's Crash Prevention tool. It scans your plugins and assets for real, checkable issues — oversized textures, missing masters, and other common problems that cause crashes or broken loads.
           </p>
           <ul className="list-disc pl-6 text-slate-300 text-sm space-y-1">
-            <li>Upload and scan ESP, NIF, DDS, and BGSM files</li>
-            <li>Automated audit with severity and actionable fixes</li>
-            <li>AI explanations and manual fix strategies</li>
-            <li>Integration with xEdit, NifSkope, and more</li>
+            <li>Scans ESP/ESM plugins and asset folders for real structural issues</li>
+            <li>Flags problems by severity so you know what to fix first</li>
+            <li>Works alongside the rest of the Creation Kit Hub's crash-prevention tools</li>
           </ul>
         </div>
       )

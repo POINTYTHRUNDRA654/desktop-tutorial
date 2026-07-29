@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Tabs, Tab } from './components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './components/ui/tabs';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from './components/ui/card';
@@ -15,7 +15,6 @@ import { Progress } from './components/ui/progress';
 import { Textarea } from './components/ui/Textarea';
 import { ScrollArea } from './components/ui/ScrollArea';
 import { Separator } from './components/ui/Separator';
-import { api } from '../lib/api';
 import type {
   GameProcess,
   CommandResult,
@@ -30,6 +29,10 @@ import type {
 interface GameIntegrationProps {
   className?: string;
 }
+
+// Real bridge — was previously importing an unrelated 9-line stub module
+// (../lib/api) whose methods didn't match anything this component calls.
+const api: any = (window as any).electron?.api || (window as any).electronAPI;
 
 export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) => {
   const [activeTab, setActiveTab] = useState('monitor');
@@ -234,7 +237,15 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <Tab value="monitor" label="Game Monitor">
+        <TabsList>
+          <TabsTrigger value="monitor">Game Monitor</TabsTrigger>
+          <TabsTrigger value="console">Console Commander</TabsTrigger>
+          <TabsTrigger value="save">Save Game Analyzer</TabsTrigger>
+          <TabsTrigger value="performance">Performance Dashboard</TabsTrigger>
+          <TabsTrigger value="tools">Quick Test Tools</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="monitor">
           <GameMonitorTab
             runningGame={runningGame}
             activeMods={activeMods}
@@ -242,9 +253,9 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             fpsHistory={fpsHistory}
             onCaptureScreenshot={captureScreenshot}
           />
-        </Tab>
+        </TabsContent>
 
-        <Tab value="console" label="Console Commander">
+        <TabsContent value="console">
           <ConsoleCommanderTab
             commandInput={commandInput}
             setCommandInput={setCommandInput}
@@ -261,9 +272,9 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             onSaveMacro={saveMacro}
             quickCommands={quickCommands}
           />
-        </Tab>
+        </TabsContent>
 
-        <Tab value="save" label="Save Game Analyzer">
+        <TabsContent value="save">
           <SaveGameAnalyzerTab
             savePath={savePath}
             setSavePath={setSavePath}
@@ -271,9 +282,9 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             isAnalyzing={isAnalyzing}
             onAnalyzeSave={analyzeSaveGame}
           />
-        </Tab>
+        </TabsContent>
 
-        <Tab value="performance" label="Performance Dashboard">
+        <TabsContent value="performance">
           <PerformanceDashboardTab
             performanceData={performanceData}
             fpsHistory={fpsHistory}
@@ -281,9 +292,9 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             isMonitoring={isMonitoring}
             onCaptureScreenshot={captureScreenshot}
           />
-        </Tab>
+        </TabsContent>
 
-        <Tab value="tools" label="Quick Test Tools">
+        <TabsContent value="tools">
           <QuickTestToolsTab
             teleportCell={teleportCell}
             setTeleportCell={setTeleportCell}
@@ -299,7 +310,7 @@ export const GameIntegration: React.FC<GameIntegrationProps> = ({ className }) =
             setWeatherId={setWeatherId}
             onExecuteCommand={executeCommand}
           />
-        </Tab>
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box, Skull } from 'lucide-react';
+import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box, Skull, Cpu } from 'lucide-react';
 
 const MiningPanel = React.lazy(() =>
   import('./MiningPanel').then((m) => ({ default: m.MiningPanel }))
@@ -21,12 +21,14 @@ const AssetViewer3D = React.lazy(() =>
 const CrashLogAnalyzer = React.lazy(() =>
   import('./CrashLogAnalyzer').then((m) => ({ default: m.CrashLogAnalyzer }))
 );
+const Phase2MiningPanel = React.lazy(() => import('./Phase2MiningPanel'));
 
-type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer' | 'crash';
+type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer' | 'crash' | 'phase2';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'mining',   icon: Binary,        label: 'Mining Dashboard',  sublabel: 'ESP · Assets · Dependencies' },
   { id: 'analysis', icon: Brain,         label: 'Advanced Analysis', sublabel: 'Conflicts · Perf · Memory' },
+  { id: 'phase2',   icon: Cpu,           label: 'Phase 2 Mining',    sublabel: 'ML Conflict · Hardware · Trends' },
   { id: 'dedup',    icon: Copy,          label: 'Asset Deduplicator',sublabel: 'Duplicates · VRAM' },
   { id: 'crash',    icon: Skull,         label: 'Crash Analyzer',    sublabel: 'Buffout4 · CLASSIC · FormIDs' },
   { id: 'guide',    icon: BookOpen,      label: 'FO4 Asset Guide',   sublabel: 'Budgets · Optimization' },
@@ -275,6 +277,11 @@ const AssetAnalysisHub: React.FC = () => {
         {activeTab === 'analysis' && (
           <PanelLoader>
             <AdvancedAnalysisPanel />
+          </PanelLoader>
+        )}
+        {activeTab === 'phase2' && (
+          <PanelLoader>
+            <Phase2MiningPanel />
           </PanelLoader>
         )}
         {activeTab === 'dedup' && (

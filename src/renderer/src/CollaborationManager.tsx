@@ -183,6 +183,15 @@ export const CollaborationManager: React.FC<CollaborationManagerProps> = ({ embe
         </div>
       </div>
 
+      <div className="flex items-start gap-2 px-4 py-2 bg-amber-900/20 border border-amber-500/30 rounded-lg text-amber-200 text-xs">
+        <Users className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <span>
+          Sessions are local to this machine only — there is no invite link or network sync yet, so a
+          second person cannot join from another computer. Use this to track your own work-in-progress
+          and active files across sessions; the Git tools below are fully real and shared via your remote.
+        </span>
+      </div>
+
       {/* Current Session */}
       {currentSession && (
         <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">

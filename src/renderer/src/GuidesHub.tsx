@@ -29,7 +29,9 @@ import {
   X,
   Keyboard,
   BarChart3,
+  ExternalLink,
 } from 'lucide-react';
+import { openExternal } from './utils/openExternal';
 
 // ---- Lazy-loaded guide panels -----------------------------------------------
 const BlenderAnimationGuide = React.lazy(() =>
@@ -355,6 +357,14 @@ const GuidesHub: React.FC = () => {
               </button>
             )}
           </div>
+          <button
+            onClick={() => void openExternal('https://fallout.fandom.com/wiki/Fallout_4')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-xs text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+            title="Open the Fallout Wiki (fallout.fandom.com) in your browser"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Fallout Wiki</span>
+          </button>
           <button
             onClick={() => setShowShortcuts((v) => !v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-xs text-slate-400 hover:text-white hover:border-slate-600 transition-colors"

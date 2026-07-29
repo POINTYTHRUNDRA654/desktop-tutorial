@@ -9,7 +9,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Check, Pencil, Save, Eye, Package, Image, ArrowUp, Sparkles, Layers, Circle, Minus } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { FileText, Check, Pencil, Save, Eye, Package, Image, ArrowUp, Sparkles, Layers, Circle, Minus, FolderOpen } from 'lucide-react';
 import './MaterialDefinitionEditor.css';
 
 interface TextureMap {
@@ -53,7 +54,7 @@ interface MaterialManifest {
 }
 
 export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
-  modPath,
+  modPath: modPathProp,
 }) => {
   const [manifest, setManifest] = useState<MaterialManifest | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
@@ -62,6 +63,22 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showPreview, setShowPreview] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
+  // The Hub renders this tab with no props — without an in-UI way to pick a mod
+  // folder, this panel always showed an empty "Materials (0)" list.
+  const [modPath, setModPath] = useState<string>(modPathProp || '');
+
+  useEffect(() => {
+    if (modPathProp) setModPath(modPathProp);
+  }, [modPathProp]);
+
+  const handleBrowseModFolder = async () => {
+    try {
+      const picked = await (window.electronAPI as any)?.pickDirectory?.('Choose a mod folder with a .mossy_enhanced material manifest');
+      if (picked) setModPath(picked);
+    } catch (err) {
+      console.error('Failed to browse for mod folder:', err);
+    }
+  };
 
   // Load manifest
   useEffect(() => {
@@ -152,12 +169,113 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
     }
   };
 
+  // Builds a real Principled BSDF node graph from this material's texture maps
+  // and sends it to the Mossy Link Blender add-on so the material can be inspected live.
+  const handlePreviewInBlender = async () => {
+    if (!selectedMaterial) return;
+    const api = window.electronAPI as any;
+    if (!api?.sendBlenderCommand) {
+      toast.error('Blender is not linked — connect Mossy Link v6 from the Runtime Hub first.');
+      return;
+    }
+    const mat = selectedMaterial;
+    const esc = (p: string) => (p || '').replace(/\\/g, '\\\\');
+    const script = `import bpy
+
+mat = bpy.data.materials.get("${mat.name}") or bpy.data.materials.new("${mat.name}")
+mat.use_nodes = True
+nodes = mat.node_tree.nodes
+links = mat.node_tree.links
+nodes.clear()
+
+bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+bsdf.location = (0, 0)
+output = nodes.new('ShaderNodeOutputMaterial')
+output.location = (300, 0)
+links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
+
+def add_texture(path, x, y, label, colorspace='sRGB'):
+    if not path:
+        return None
+    tex = nodes.new('ShaderNodeTexImage')
+    tex.location = (x, y)
+    tex.label = label
+    try:
+        tex.image = bpy.data.images.load(path, check_existing=True)
+        tex.image.colorspace_settings.name = colorspace
+    except Exception as e:
+        print(f"Mossy: failed to load {path}: {e}")
+    return tex
+
+diffuse_tex = add_texture("${esc(mat.textures.diffuse)}", -400, 200, 'Diffuse')
+if diffuse_tex:
+    links.new(diffuse_tex.outputs['Color'], bsdf.inputs['Base Color'])
+
+normal_path = "${esc(mat.textures.normal)}"
+if normal_path:
+    normal_tex = add_texture(normal_path, -400, -100, 'Normal', colorspace='Non-Color')
+    normal_map = nodes.new('ShaderNodeNormalMap')
+    normal_map.location = (-150, -100)
+    if normal_tex:
+        links.new(normal_tex.outputs['Color'], normal_map.inputs['Color'])
+        links.new(normal_map.outputs['Normal'], bsdf.inputs['Normal'])
+
+metallic_path = "${esc(mat.textures.maps.metallic || '')}"
+if metallic_path:
+    metallic_tex = add_texture(metallic_path, -400, -320, 'Metallic', colorspace='Non-Color')
+    if metallic_tex:
+        links.new(metallic_tex.outputs['Color'], bsdf.inputs['Metallic'])
+
+print(f"Mossy: built preview material '{mat.name}' in Blender.")
+`;
+    try {
+      const result = await api.sendBlenderCommand('execute_script', { script, description: `Preview material: ${mat.name}` });
+      if (result?.success !== false) {
+        toast.success(`Sent "${mat.name}" to Blender for preview.`);
+      } else {
+        toast.error(result?.message || result?.error || 'Failed to preview material in Blender.');
+      }
+    } catch (err: any) {
+      toast.error(`Preview failed: ${err?.message || err}`);
+    }
+  };
+
+  const handleExportMaterial = async () => {
+    if (!selectedMaterial) return;
+    const api = window.electronAPI as any;
+    const json = JSON.stringify(selectedMaterial, null, 2);
+    const filename = `${selectedMaterial.name}.material.json`;
+    try {
+      if (api?.saveFile) {
+        const savedPath = await api.saveFile(json, filename);
+        if (savedPath) toast.success(`Exported ${savedPath}`);
+        return;
+      }
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${filename}`);
+    } catch (err: any) {
+      toast.error(`Export failed: ${err?.message || err}`);
+    }
+  };
+
   return (
     <div className="material-editor-container">
       <div className="editor-header">
         <h1 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FileText style={{ width: '1.1em', height: '1.1em', flexShrink: 0 }} /> Material Definitions</h1>
         {manifest && <span className="mod-name">{manifest.modName}</span>}
+        <button className="btn-browse-mod" onClick={handleBrowseModFolder}>
+          <FolderOpen style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />
+          {modPath ? 'Change Mod Folder' : 'Browse Mod Folder'}
+        </button>
       </div>
+      {modPath && <div className="mod-path-display" title={modPath}>{modPath}</div>}
+      {!modPath && (
+        <div className="empty-state">No mod folder selected — click "Browse Mod Folder" to load a .mossy_material.json manifest.</div>
+      )}
 
       <div className="editor-layout">
         {/* Material List Panel */}
@@ -250,6 +368,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                   path={selectedMaterial.textures.diffuse}
                   type="diffuse"
                   editable={editMode}
+                  modPath={modPath}
                   onUpdate={(path) =>
                     handleMaterialUpdate({
                       ...selectedMaterial,
@@ -265,6 +384,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                   path={selectedMaterial.textures.normal}
                   type="normal"
                   editable={editMode}
+                  modPath={modPath}
                   onUpdate={(path) =>
                     handleMaterialUpdate({
                       ...selectedMaterial,
@@ -280,6 +400,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                   path={selectedMaterial.textures.specular}
                   type="specular"
                   editable={editMode}
+                  modPath={modPath}
                   onUpdate={(path) =>
                     handleMaterialUpdate({
                       ...selectedMaterial,
@@ -298,6 +419,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                     type="metallic"
                     generated={true}
                     editable={editMode}
+                    modPath={modPath}
                     onUpdate={(path) =>
                       handleMaterialUpdate({
                         ...selectedMaterial,
@@ -319,6 +441,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                     type="ao"
                     generated={true}
                     editable={editMode}
+                    modPath={modPath}
                     onUpdate={(path) =>
                       handleMaterialUpdate({
                         ...selectedMaterial,
@@ -340,6 +463,7 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                     type="cavity"
                     generated={true}
                     editable={editMode}
+                    modPath={modPath}
                     onUpdate={(path) =>
                       handleMaterialUpdate({
                         ...selectedMaterial,
@@ -445,10 +569,10 @@ export const MaterialDefinitionEditor: React.FC<{ modPath?: string }> = ({
                   <Save style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Save Changes
                 </button>
               )}
-              <button className="btn-preview">
+              <button className="btn-preview" onClick={handlePreviewInBlender}>
                 <Eye style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Preview in Blender
               </button>
-              <button className="btn-export">
+              <button className="btn-export" onClick={handleExportMaterial}>
                 <Package style={{ width: '0.9em', height: '0.9em', display: 'inline', marginRight: '4px' }} />Export Material
               </button>
             </div>
@@ -468,8 +592,9 @@ const TextureMapCard: React.FC<{
   type: string;
   generated?: boolean;
   editable: boolean;
+  modPath?: string;
   onUpdate: (path: string) => void;
-}> = ({ name, path, type, generated, editable, onUpdate }) => {
+}> = ({ name, path, type, generated, editable, modPath, onUpdate }) => {
   const [availableTextures, setAvailableTextures] = React.useState<string[]>([]);
   const [showPicker, setShowPicker] = React.useState(false);
 
@@ -483,8 +608,8 @@ const TextureMapCard: React.FC<{
         return;
       }
 
-      // Fallback: load available textures from the project directory and show inline list
-      const result = await window.electronAPI?.invoke?.('material:browse-textures', '.');
+      // Fallback: load available textures from the actual loaded mod directory
+      const result = await window.electronAPI?.invoke?.('material:browse-textures', modPath || '.');
       if (result?.success && Array.isArray(result.textures) && result.textures.length > 0) {
         setAvailableTextures(result.textures);
         setShowPicker(true);

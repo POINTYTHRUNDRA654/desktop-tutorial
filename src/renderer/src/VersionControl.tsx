@@ -204,11 +204,12 @@ export const VersionControl: React.FC<VersionControlProps> = ({ className }) => 
 
   const handleQuickCommit = async () => {
     if (!commitMessage.trim()) return;
+    if (stagedFiles.length === 0) { setError('Stage at least one file before committing.'); return; }
     try {
       setLoading(true);
-      const res = await (window as any).electronAPI?.versionControlCommit?.(commitMessage);
+      const res = await (window as any).electronAPI?.versionControlCommit?.(commitMessage, stagedFiles);
       if (!res?.success) { setError(res?.error || 'Failed to commit changes'); return; }
-      setCommitMessage(''); await loadRepositoryStatus(); await loadCommitHistory();
+      setCommitMessage(''); setStagedFiles([]); await loadRepositoryStatus(); await loadCommitHistory();
     }
     catch { setError('Failed to commit changes'); } finally { setLoading(false); }
   };

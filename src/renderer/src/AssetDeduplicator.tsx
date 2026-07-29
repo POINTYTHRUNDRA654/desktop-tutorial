@@ -273,7 +273,7 @@ export const AssetDeduplicator: React.FC = () => {
         const result: ScanResult = await api.dedupeScan({
           roots: scanPaths,
           extensions,
-          minSize: minSizeBytes,
+          minSizeBytes,
         });
 
         setScanId(result.scanId || null);
@@ -392,13 +392,21 @@ export const AssetDeduplicator: React.FC = () => {
         }
       });
 
-      if (api?.trashFiles) {
-        const results = await api.trashFiles(filesToDelete);
-        const successCount = results.filter((r: any) => r.ok).length;
-        showMessage('success', `Moved ${successCount} files to trash`);
-      } else if (api?.assetScanner?.deleteFiles) {
-        await api.assetScanner.deleteFiles(filesToDelete);
+      if (api?.dedupeTrash && scanId) {
+        const result = await api.dedupeTrash({ scanId, paths: filesToDelete });
+        const results: Array<{ path: string; ok: boolean; error?: string }> = result?.results || [];
+        const successCount = results.filter((r) => r.ok).length;
+        const failed = results.filter((r) => !r.ok);
+        if (successCount > 0) {
+          showMessage(failed.length > 0 ? 'info' : 'success', `Moved ${successCount} file(s) to the Recycle Bin${failed.length > 0 ? ` — ${failed.length} failed` : ''}`);
+        } else {
+          showMessage('error', failed[0]?.error || 'Failed to move files to trash');
+        }
+      } else if (api?.assetScanner?.cleanupDuplicates) {
+        await api.assetScanner.cleanupDuplicates(filesToDelete);
         showMessage('success', `Deleted ${filesToDelete.length} files`);
+      } else {
+        showMessage('error', 'File deletion is not available in this build.');
       }
 
       // Refresh scan after deletion

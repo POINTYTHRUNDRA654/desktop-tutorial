@@ -79,11 +79,11 @@ export const PlatformsHub: React.FC<PlatformsHubProps> = ({ embedded = false }) 
       badge: 'Learning Path',
     },
     {
-      title: 'All 22 Tutorial Platforms',
+      title: 'All 23 Tutorial Platforms',
       description: 'Open the complete FO4 tutorial platform index and browse every platform guide in one place.',
       to: '/guides-hub',
       icon: BookOpen,
-      badge: '22 Platforms',
+      badge: '23 Platforms',
     },
     {
       title: 'Precombine & PRP Guide',

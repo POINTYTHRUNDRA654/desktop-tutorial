@@ -78,6 +78,9 @@ export const BA2Manager: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         toast.success(`Extracted ${data.fileCount} files to ${data.destination}`);
+      } else {
+        const data = await response.json().catch(() => null);
+        toast.error(`Extraction failed: ${data?.error || `${response.status} ${response.statusText}`}`);
       }
     } catch (error) {
       console.error('BA2 extraction failed:', error);
