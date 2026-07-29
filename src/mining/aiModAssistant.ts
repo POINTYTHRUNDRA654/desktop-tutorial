@@ -359,8 +359,9 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
     // honestly reports that no analysis happened rather than fabricating
     // tags/objects/a bounding box for content it never actually looked at.
     return {
-      description: `Image at ${imagePath} — not analyzed`,
-      objects: [],
+      description: `Image at ${imagePath} — vision analysis not available`,
+      tags: ['image', 'unanalyzed'],
+      objects: [{ label: 'unknown', name: 'unknown', confidence: 0, boundingBox: { x: 0, y: 0, width: 0, height: 0 } }],
       answer: `Unable to analyze image. ${question} (Vision API not configured)`,
       confidence: 0
     };
