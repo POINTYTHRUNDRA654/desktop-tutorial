@@ -452,9 +452,8 @@ export function registerTextureEnhancerHandlers(
   // NOTE: 'texture-enhancer:enhance' is intentionally NOT registered here.
   // The real, current handler lives in main.ts (registerHandler('texture-enhancer:enhance', ...))
   // and is registered earlier during startup. Since ipcMain.handle() throws on a duplicate
-  // channel registration, registering it again here used to abort this function midway —
-  // silently skipping the 'texture-enhancer:status' registration below AND the
-  // registerCloudSyncHandlers() call made right after this function returns.
+  // channel registration, registering it again here used to abort this function midway,
+  // silently skipping the 'texture-enhancer:status' registration below.
 
   /**
    * Get enhancement job status

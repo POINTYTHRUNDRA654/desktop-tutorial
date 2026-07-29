@@ -2048,13 +2048,6 @@ const electronAPI = {
   },
 
   /**
-   * Preview installer flow
-   */
-  fomodPreview: (fomod: any, selections?: Map<string, string[]>): Promise<any> => {
-    return ipcRenderer.invoke('fomod:preview', fomod, selections);
-  },
-
-  /**
    * Export FOMOD to directory
    */
   fomodExport: (fomod: any, outputPath: string, sourceModPath: string): Promise<any> => {
@@ -2936,10 +2929,6 @@ const electronAPI = {
     createProject: (config: { templateId: string; projectName: string; projectPath: string; authorName: string }): Promise<{ success: boolean; path?: string; error?: string }> => {
       return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_CREATE, config);
     },
-
-    downloadTemplate: (templateId: string): Promise<boolean> => {
-      return ipcRenderer.invoke(IPC_CHANNELS.PROJECT_TEMPLATE_DOWNLOAD, templateId);
-    },
   },
 
   // =========================================================================
@@ -3004,23 +2993,6 @@ const electronAPI = {
 
     export: (): Promise<{ success: boolean }> => {
       return ipcRenderer.invoke(IPC_CHANNELS.MOD_COMPARISON_EXPORT);
-    },
-  },
-
-  // =========================================================================
-  // PRECOMBINE GENERATOR API (Feature 9)
-  // =========================================================================
-  precombineGenerator: {
-    generate: (worldspace: string): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GENERATE, worldspace);
-    },
-
-    validate: (): Promise<{ success: boolean }> => {
-      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_VALIDATE);
-    },
-
-    getPJMPath: (): Promise<string | null> => {
-      return ipcRenderer.invoke(IPC_CHANNELS.PRECOMBINE_GENERATOR_GET_PJM_PATH);
     },
   },
 
@@ -3122,139 +3094,6 @@ const electronAPI = {
    */
   ckExtractZip: (archivePath: string): Promise<{ success: boolean; extractedPath?: string; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CK_CRASH_EXTRACT_ZIP, archivePath);
-  },
-
-  // =========================================================================
-  // CLOUD SYNC API
-  // =========================================================================
-  cloudSync: {
-    /**
-     * Synchronize a project with cloud storage
-     */
-    syncProject: (projectId: string, direction?: 'push' | 'pull' | 'bidirectional'): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:sync-project', projectId, direction);
-    },
-
-    /**
-     * Enable automatic synchronization for a project
-     */
-    enableAutoSync: (projectId: string, interval?: number): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:enable-auto-sync', projectId, interval);
-    },
-
-    /**
-     * Share a project with collaborators
-     */
-    shareProject: (projectId: string, collaborators: string[]): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:share-project', projectId, collaborators);
-    },
-
-    /**
-     * Join a shared project using invite code
-     */
-    joinProject: (inviteCode: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:join-project', inviteCode);
-    },
-
-    /**
-     * Leave a collaboration session (with automatic sync)
-     */
-    leaveCollaborationSession: (sessionId: string, userId: string): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:leave-collaboration-session', sessionId, userId);
-    },
-
-    /**
-     * End a collaboration session gracefully
-     */
-    endCollaborationSession: (sessionId: string): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:end-collaboration-session', sessionId);
-    },
-
-    /**
-     * Broadcast a change to all collaborators
-     */
-    broadcastChange: (change: any): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:broadcast-change', change);
-    },
-
-    /**
-     * Subscribe to real-time changes
-     */
-    subscribeToChanges: (projectId: string, filters?: any): Promise<{ success: boolean; subscriptionId?: string; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:subscribe-to-changes', projectId, filters);
-    },
-
-    /**
-     * Unsubscribe from changes
-     */
-    unsubscribeFromChanges: (subscriptionId: string): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:unsubscribe-from-changes', subscriptionId);
-    },
-
-    /**
-     * Detect conflicts in a project
-     */
-    detectConflicts: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:detect-conflicts', projectId);
-    },
-
-    /**
-     * Resolve a sync conflict
-     */
-    resolveConflict: (conflict: any, resolution: any): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:resolve-conflict', conflict, resolution);
-    },
-
-    /**
-     * Get project history snapshots
-     */
-    getProjectHistory: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:get-project-history', projectId);
-    },
-
-    /**
-     * Restore a project snapshot
-     */
-    restoreSnapshot: (snapshotId: string): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:restore-snapshot', snapshotId);
-    },
-
-    /**
-     * Upload an asset to CDN
-     */
-    uploadAsset: (assetPath: string, projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:upload-asset', assetPath, projectId);
-    },
-
-    /**
-     * Download an asset from CDN
-     */
-    downloadAsset: (cdnUrl: string, localPath: string): Promise<{ success: boolean; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:download-asset', cdnUrl, localPath);
-    },
-
-    /**
-     * Get sync status for a project
-     */
-    getSyncStatus: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:get-status', projectId);
-    },
-
-    /**
-     * Get active collaboration session for a project
-     */
-    getCollaborationSession: (projectId: string): Promise<{ success: boolean; data?: any; error?: string }> => {
-      return ipcRenderer.invoke('cloud-sync:get-collaboration-session', projectId);
-    },
-
-    /**
-     * Listen for incoming changes from collaborators
-     */
-    onChangeReceived: (callback: (data: { subscriptionId: string; change: any }) => void): (() => void) => {
-      const subscription = (_event: any, data: any) => callback(data);
-      ipcRenderer.on('cloud-sync:change-received', subscription);
-      return () => ipcRenderer.removeListener('cloud-sync:change-received', subscription);
-    },
   },
 
   /**
@@ -3738,80 +3577,6 @@ const electronAPI = {
       ipcRenderer.invoke('mining:cache-mining-data', dataId, data),
     getCachedData: (cacheKey: string): Promise<any> =>
       ipcRenderer.invoke('mining:get-cached-data', cacheKey),
-  },
-
-  // Platform 14: Testing Suite API
-  testingSuite: {
-    createTestSuite: (suiteName: string, config?: any): Promise<any> =>
-      ipcRenderer.invoke('testing:create-test-suite', suiteName, config),
-    runAllTests: (suiteId: string): Promise<any> =>
-      ipcRenderer.invoke('testing:run-all-tests', suiteId),
-    runSingleTest: (suiteId: string, testId: string): Promise<any> =>
-      ipcRenderer.invoke('testing:run-single-test', suiteId, testId),
-    testLoadOrder: (loadOrderPath: string): Promise<any> =>
-      ipcRenderer.invoke('testing:test-load-order', loadOrderPath),
-    testScriptCompilation: (scriptPath: string): Promise<any> =>
-      ipcRenderer.invoke('testing:test-script-compilation', scriptPath),
-    testAssetIntegrity: (assetPath: string): Promise<any> =>
-      ipcRenderer.invoke('testing:test-asset-integrity', assetPath),
-    benchmarkPerformance: (profileName?: string): Promise<any> =>
-      ipcRenderer.invoke('testing:benchmark-performance', profileName),
-    generateTestReport: (resultId: string): Promise<any> =>
-      ipcRenderer.invoke('testing:generate-test-report', resultId),
-    getTestHistory: (suiteId: string, limit?: number): Promise<any> =>
-      ipcRenderer.invoke('testing:get-test-history', suiteId, limit),
-    saveTestResults: (testData: any): Promise<any> =>
-      ipcRenderer.invoke('testing:save-test-results', testData),
-  },
-
-  // Platform 15: Advanced Workflow Automation API
-  workflowAutomation: {
-    createWorkflow: (workflowName: string, description?: string, tags?: string[]): Promise<any> =>
-      ipcRenderer.invoke('workflow:create-workflow', workflowName, description, tags),
-    saveWorkflow: (workflowId: string, updates: any): Promise<any> =>
-      ipcRenderer.invoke('workflow:save-workflow', workflowId, updates),
-    loadWorkflow: (workflowId: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:load-workflow', workflowId),
-    deleteWorkflow: (workflowId: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:delete-workflow', workflowId),
-    runWorkflow: (workflowId: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:run-workflow', workflowId),
-    getWorkflows: (): Promise<any> =>
-      ipcRenderer.invoke('workflow:get-workflows'),
-    exportWorkflow: (workflowId: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:export-workflow', workflowId),
-    importWorkflow: (importJson: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:import-workflow', importJson),
-    getWorkflowHistory: (workflowId?: string, limit?: number): Promise<any> =>
-      ipcRenderer.invoke('workflow:get-workflow-history', workflowId, limit),
-    validateWorkflow: (workflowId: string): Promise<any> =>
-      ipcRenderer.invoke('workflow:validate-workflow', workflowId),
-  },
-
-  // Platform 16: Advanced Analytics & Reporting API
-  analyticsReporting: {
-    trackEvent: (eventName: string, category?: string, properties?: Record<string, any>): Promise<any> =>
-      ipcRenderer.invoke('analytics:track-event', eventName, category, properties),
-    getMetricsSummary: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:get-metrics-summary'),
-    getBuildStatistics: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:build-statistics'),
-    getAssetUsageReport: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:asset-usage-report'),
-    getPerformanceHistory: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:performance-history'),
-    generateReport: (reportType?: string, timeRange?: any): Promise<any> =>
-      ipcRenderer.invoke('analytics:generate-report', reportType, timeRange),
-    getDashboardData: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:get-dashboard-data'),
-    exportReport: (reportId: string, format?: string): Promise<any> =>
-      ipcRenderer.invoke('analytics:export-report', reportId, format),
-    getAnalyticsConfig: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:get-analytics-config'),
-    updateAnalyticsConfig: (updates: any): Promise<any> =>
-      ipcRenderer.invoke('analytics:update-analytics-config', updates),
-    clearData: (): Promise<any> =>
-      ipcRenderer.invoke('analytics:clear-data'),
   },
 
   getAnalyticsMetrics: async (): Promise<any> => {
