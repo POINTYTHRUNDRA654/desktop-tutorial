@@ -60,7 +60,7 @@ const PLATFORMS = [
   { id: 20, name: 'FO4 Plugin & Load Order Hub',   route: '/plugin-tools',      file: 'PluginLoadOrderHub.tsx' },
   { id: 21, name: 'FO4 System & Diagnostics Hub',  route: '/system-hub',        file: 'SystemHub.tsx' },
   { id: 22, name: 'Settings',                      route: '/settings',          file: 'SettingsHub.tsx' },
-  { id: 23, name: 'Vault-Tec Creative Director',   route: '/creative-director', file: 'plugin_creative_director/CreativeDirectorPanel.tsx' },
+  { id: 23, name: 'Vault-Tec Creative Director',   route: '/creative-director', file: 'plugin_creative_director/CreativeDirectorPanel.tsx', allowMissingFile: true },
 ];
 
 const PLACEHOLDER_PATTERNS = [
@@ -273,6 +273,13 @@ const results = PLATFORMS.map(p => {
   const resolvedFile = resolveFile(specFromPlatform) ?? resolveFile(`./${p.file}`);
   info.filePath = resolvedFile ? path.relative(ROOT, resolvedFile).replace(/\\/g, '/') : null;
   if (!resolvedFile) {
+    if (p.allowMissingFile) {
+      warns.push(`Component file not found: ${p.file} (optional local-only module)`);
+      info.lines = null;
+      info.hasIpc = false;
+      const status = warns.length > 0 ? 'WARN' : 'PASS';
+      return { ...p, issues, warns, info, status };
+    }
     issues.push(`Component file not found: ${p.file}`);
     return { ...p, issues, warns, info, status: 'FAIL' };
   }

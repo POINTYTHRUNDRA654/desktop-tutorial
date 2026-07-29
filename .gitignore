@@ -16,9 +16,8 @@ act/
 gh-cli/
 desktop-tutorial/
 
-# Vault-Tec Creative Director — local-only dev tool, never pushed to the public repo
+# Vault-Tec Creative Director panel — local-only UI, never pushed to the public repo
 src/renderer/src/plugin_creative_director/
-src/renderer/src/bridges/VaultTecCreativeDirectorBridge.ts
 
 # Build outputs
 dist

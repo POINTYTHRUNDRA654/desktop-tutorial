@@ -221,7 +221,9 @@ export class MLConflictPredictionEngineImpl extends EventEmitter implements MLCo
     // Load existing model or create new one
     if (this.config.modelPath && fs.existsSync(this.config.modelPath)) {
       this.model = await this.loadModel(this.config.modelPath);
-    } else {
+    }
+    // Fall back to a fresh model if nothing was loaded (file missing or stored model was null)
+    if (!this.model) {
       this.model = await this.createNewModel();
     }
   }
@@ -235,7 +237,7 @@ export class MLConflictPredictionEngineImpl extends EventEmitter implements MLCo
   }
 
   private async saveModelState(): Promise<void> {
-    if (this.config.modelPath) {
+    if (this.config.modelPath && this.model) {
       const state = {
         model: this.model,
         trainingData: this.trainingData,
@@ -514,7 +516,7 @@ class FeatureExtractor {
   }
 
   private assessHardwareCompatibility(profile?: HardwareProfile): number {
-    if (!profile) return 1; // no hardware context supplied — assume neutral, not fabricated
+    if (!profile || !profile.cpu || !profile.gpu || !profile.ram) return 1; // no usable hardware context — assume neutral
     const cpuScore = Math.min(profile.cpu.cores / 8, 1);
     const gpuScore = Math.min(profile.gpu.vram / 8, 1);
     const ramScore = Math.min(profile.ram.total / 32, 1);

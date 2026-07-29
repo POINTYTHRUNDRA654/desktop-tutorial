@@ -1,5 +1,18 @@
 
+import { vi } from 'vitest';
 import { HardwareAwareMiningEngine } from '../hardware-aware-mining-engine';
+
+vi.mock('../hardwareProfiler', () => ({
+  getRealHardwareProfile: vi.fn().mockResolvedValue({
+    cpu: { model: 'Intel i7-12700K', cores: 12, threads: 20, baseClock: 3.6, boostClock: 5.0, cache: 25, architecture: 'x64' },
+    gpu: { model: 'NVIDIA RTX 3080', vram: 10, driverVersion: '531.61', dxVersion: '12', rayTracing: true },
+    ram: { total: 32, speed: 3200, type: 'DDR4', channels: 2 },
+    storage: { type: 'NVMe', readSpeed: 3500, writeSpeed: 3000, totalSpace: 1000, availableSpace: 700 },
+    os: { name: 'Windows', version: '11', architecture: 'x64', build: '22621' }
+  }),
+  getRealtimeSystemMetrics: vi.fn().mockResolvedValue({ cpuUsagePercent: 20, memoryUsagePercent: 40, gpuUsagePercent: 15 }),
+  getRealtimeGpuMemory: vi.fn().mockResolvedValue({ usedMB: 2048, totalMB: 10240 })
+}));
 
 describe('HardwareAwareMiningEngine', () => {
   let engine: HardwareAwareMiningEngine;

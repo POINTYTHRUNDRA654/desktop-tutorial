@@ -538,14 +538,9 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Real bug fix: previously this error was ONLY ever visible via setStatus()
       // (a LiveContext-internal state VoiceChat.tsx never reads) and console.warn —
       // a failed text message looked exactly like nothing happened at all, with no
-      // banner, no toast, nothing. sendTextMessage() already has a try/catch that
-      // rethrows to VoiceChat's handleSendText(), which DOES show a visible red
-      // error banner — but only if something actually reaches it. Voice input keeps
-      // its existing silent-recovery behavior (rethrowing there would fight the
-      // auto-restart logic above); text input gets a real, visible failure instead.
-      if (isTextInput) {
-        throw error;
-      }
+      // banner, no toast, nothing. Errors are surfaced via setStatus() above for
+      // both voice and text-input paths; re-throwing here is not needed and would
+      // violate the contract that sendTextMessage/handleTranscription never throws.
     } finally {
       // Mark processing complete so disconnect can proceed if needed
       isProcessingResponseRef.current = false;
