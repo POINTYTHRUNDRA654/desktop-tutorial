@@ -221,7 +221,9 @@ export class MLConflictPredictionEngineImpl extends EventEmitter implements MLCo
     // Load existing model or create new one
     if (this.config.modelPath && fs.existsSync(this.config.modelPath)) {
       this.model = await this.loadModel(this.config.modelPath);
-    } else {
+    }
+    // Fall back to a fresh model if the file was missing or contained a null/corrupt model
+    if (!this.model) {
       this.model = await this.createNewModel();
     }
   }
