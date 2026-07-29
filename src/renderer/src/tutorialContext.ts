@@ -4267,7 +4267,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   // pageName: 'What s New', (parity helper)
   // pageName: 'Whats New', (parity helper)
   // parity: pageName: "What's New"
-  // parity helper: pageName: "FO4 What's New",
+  // parity helper: pageName: "FO4 What’s New",
   'whats-new': {
     pageId: 'whats-new',
     pageName: "FO4 What's New",
