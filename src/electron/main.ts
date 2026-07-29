@@ -21246,7 +21246,7 @@ SetEditValue(ElementByPath(resp, 'NAM1'), 'The spoken NPC response line.');
           const models: string[] = info?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
           return { online: true, model: models[0] ?? null, models };
         }
-      } catch {}
+      } catch { /* ignore */ }
       return { online: true, model: null, models: [] };
     } catch {
       return { online: false };
@@ -21643,7 +21643,7 @@ Rules:
 
         request.on('response', response => {
           if (response.statusCode !== 200) {
-            try { file.destroy(); } catch {}
+            try { file.destroy(); } catch { /* ignore */ }
             settle(false, new Error(`HTTP ${response.statusCode}`));
             return;
           }
@@ -21654,7 +21654,7 @@ Rules:
 
           response.on('data', (chunk: Buffer) => {
             if (settled) return;
-            try { file.write(chunk); } catch {}
+            try { file.write(chunk); } catch { /* ignore */ }
             received += chunk.length;
             if (total > 0) {
               const pct = Math.round((received / total) * 100);
@@ -21664,7 +21664,7 @@ Rules:
                   event.sender.send('textures:download-progress', {
                     filename: params.filename, percent: pct, received, total,
                   });
-                } catch {}
+                } catch { /* ignore */ }
               }
             }
           });
@@ -21678,13 +21678,13 @@ Rules:
           });
 
           response.on('error', (e: Error) => {
-            try { file.destroy(); } catch {}
+            try { file.destroy(); } catch { /* ignore */ }
             settle(false, e);
           });
         });
 
         request.on('error', (e: Error) => {
-          try { file.destroy(); } catch {}
+          try { file.destroy(); } catch { /* ignore */ }
           settle(false, e);
         });
 
@@ -21694,7 +21694,7 @@ Rules:
 
       return { success: true, path: dest };
     } catch (err: any) {
-      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
+      try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch { /* ignore */ }
       return { success: false, error: String(err?.message ?? err ?? 'Unknown error') };
     }
   });
@@ -21747,11 +21747,11 @@ Rules:
       while (Date.now() < deadline) {
         await new Promise<void>(r => setTimeout(r, 3000));
         elapsed += 3;
-        try { event.sender.send('textures:comfyui-restart-progress', { elapsed }); } catch {}
+        try { event.sender.send('textures:comfyui-restart-progress', { elapsed }); } catch { /* ignore */ }
         try {
           const resp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });
           if (resp.ok) return { success: true };
-        } catch {}
+        } catch { /* ignore */ }
       }
       return { success: false, error: 'ComfyUI did not respond within 120 seconds.' };
     } catch (err: any) {

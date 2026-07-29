@@ -199,7 +199,7 @@ const Workshop: React.FC = () => {
 
   // Persist compiler path
   useEffect(() => {
-    try { localStorage.setItem(COMPILER_PATH_KEY, compilerPath); } catch {}
+    try { localStorage.setItem(COMPILER_PATH_KEY, compilerPath); } catch { /* ignore */ }
   }, [compilerPath]);
 
   const addLog = useCallback((lines: string | string[]) => {
