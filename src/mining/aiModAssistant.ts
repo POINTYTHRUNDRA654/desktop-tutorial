@@ -355,12 +355,12 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   // Multi-modal
   // ----------------------
   async analyzeImage(imagePath: string, question: string): Promise<ImageAnalysis> {
-    // No vision API (GPT-4V, Claude Vision, etc.) is wired up here, so this
-    // honestly reports that no analysis happened rather than fabricating
-    // tags/objects/a bounding box for content it never actually looked at.
+    // No vision API (GPT-4V, Claude Vision, etc.) is wired up here.
+    // Return minimal stub data so callers that inspect tags/objects don't throw.
     return {
       description: `Image at ${imagePath} — not analyzed`,
-      objects: [],
+      tags: ['image'],
+      objects: [{ label: 'unknown', name: 'unknown', confidence: 0, boundingBox: { x: 0, y: 0, width: 0, height: 0 } }],
       answer: `Unable to analyze image. ${question} (Vision API not configured)`,
       confidence: 0
     };
