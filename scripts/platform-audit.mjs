@@ -60,7 +60,7 @@ const PLATFORMS = [
   { id: 20, name: 'FO4 Plugin & Load Order Hub',   route: '/plugin-tools',      file: 'PluginLoadOrderHub.tsx' },
   { id: 21, name: 'FO4 System & Diagnostics Hub',  route: '/system-hub',        file: 'SystemHub.tsx' },
   { id: 22, name: 'Settings',                      route: '/settings',          file: 'SettingsHub.tsx' },
-  { id: 23, name: 'Vault-Tec Creative Director',   route: '/creative-director', file: 'plugin_creative_director/CreativeDirectorPanel.tsx' },
+  { id: 23, name: 'Vault-Tec Creative Director',   route: '/creative-director', file: 'plugin_creative_director/CreativeDirectorPanel.tsx', localOnly: true },
 ];
 
 const PLACEHOLDER_PATTERNS = [
@@ -273,6 +273,12 @@ const results = PLATFORMS.map(p => {
   const resolvedFile = resolveFile(specFromPlatform) ?? resolveFile(`./${p.file}`);
   info.filePath = resolvedFile ? path.relative(ROOT, resolvedFile).replace(/\\/g, '/') : null;
   if (!resolvedFile) {
+    if (p.localOnly) {
+      // Local-only platforms (e.g. gitignored dev tools) may be absent in CI/public repos.
+      // App.tsx already provides a graceful fallback — treat as a warning, not a failure.
+      warns.push(`Component file not present in this checkout (local-only): ${p.file}`);
+      return { ...p, issues, warns, info, status: 'WARN' };
+    }
     issues.push(`Component file not found: ${p.file}`);
     return { ...p, issues, warns, info, status: 'FAIL' };
   }
