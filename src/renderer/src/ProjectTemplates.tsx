@@ -120,15 +120,6 @@ export default function ProjectTemplates() {
     }
   };
 
-  const downloadTemplate = async (templateId: string) => {
-    try {
-      await window.electron.api.projectTemplates.downloadTemplate(templateId);
-      setMessage('Template downloaded successfully');
-    } catch (error) {
-      setMessage('Failed to download template');
-    }
-  };
-
   const filteredTemplates = TEMPLATES.filter(template => {
     if (skillLevel === 'beginner') return template.difficulty === 'beginner';
     if (skillLevel === 'intermediate') return template.difficulty !== 'advanced';

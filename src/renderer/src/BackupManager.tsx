@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { Clock, Save, Undo, FolderOpen, Upload, Cloud, GitBranch, ArrowDownToLine, Trash2, AlertCircle, X, CheckCircle2 } from 'lucide-react';
+import { Clock, Save, Undo, FolderOpen, Upload, GitBranch, ArrowDownToLine, Trash2, AlertCircle, X } from 'lucide-react';
 
 interface Snapshot {
   id: string;
@@ -23,7 +23,6 @@ export const BackupManager: React.FC = () => {
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [autoBackup, setAutoBackup] = useState(true);
   const [backupInterval, setBackupInterval] = useState(60); // minutes
-  const [cloudSync, setCloudSync] = useState(false);
   const [workspacePath, setWorkspacePath] = useState('');
   const [selectedSnapshot, setSelectedSnapshot] = useState<Snapshot | null>(null);
   // Inline inputs — replaces window.prompt() which throws in Electron
@@ -401,28 +400,6 @@ export const BackupManager: React.FC = () => {
               )}
             </div>
 
-            {/* Cloud Sync */}
-            <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-              <h3 className="font-bold text-white mb-3 text-sm flex items-center gap-2">
-                <Cloud className="w-4 h-4" />
-                Cloud Sync
-              </h3>
-              <label className="flex items-center gap-2 mb-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={cloudSync}
-                  onChange={(e) => setCloudSync(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-slate-300">Sync to cloud</span>
-              </label>
-
-              {cloudSync && (
-                <div className="text-xs text-green-400">
-                  <CheckCircle2 className="w-3 h-3 inline mr-1" />Syncing to Google Drive
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Snapshots List */}

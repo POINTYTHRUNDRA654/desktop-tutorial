@@ -872,14 +872,16 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Packaging & Release',
     visualGuidePage: 11, // synced from VISUAL_GUIDE.md
     route: '/packaging-release',
-    purpose: 'Unified FO4 release pipeline for packaging and validation: BA2 archive prep, release checklist, conflict analysis, mod comparison, and FOMOD installer export.',
+    purpose: 'Unified FO4 release pipeline for packaging and validation: BA2 archive prep, release checklist, conflict analysis, mod comparison, FOMOD installer export, and final release publishing.',
     features: [
-      'Five-step consolidated workflow in one hub (BA2, checklist, conflicts, comparison, assembler)',
+      'Six-step consolidated workflow (BA2, checklist, conflicts, comparison, assembler, export) plus three standalone advanced tools',
       'BA2 Archive Manager for listing, extracting, packing, and merging BA2 files',
       'Packaging checklist wizard for release readiness and distribution sanity checks',
       'Conflict analysis for visualizing mod conflicts before shipping',
       'Mod comparison tooling for compatibility checks against similar mods',
-      'FOMOD installer assembly and export as the release packaging finalization step',
+      'FOMOD installer assembly and export as a packaging stage',
+      'Step 5 Export & Release: build the release zip, write release notes, and publish to Nexus or Bethesda.net',
+      'Three standalone advanced tools alongside the numbered steps: Conflict Resolver (resolve plugin record conflicts, generate patch recommendations), Conflict Dependency Graph (visualize mod conflict relationships as an interactive graph), and Mod Auto-Enhancer (drag in a mod, auto-enhance its textures, download the enhanced package — a local pipeline, not a Bethesda.net uploader)',
       'Section deep-link support via ?section= query values',
     ],
     controls: [
@@ -911,7 +913,31 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         name: 'Step 4: FOMOD Installer (Assembler)',
         type: 'button',
         description: 'Builds and exports a FOMOD installer for end-user distribution',
-        whenToUse: 'Use as the final packaging stage before test install and publication',
+        whenToUse: 'Use as a packaging stage before test install and publication',
+      },
+      {
+        name: 'Step 5: Export & Release',
+        type: 'button',
+        description: 'Builds your release zip, writes release notes, and publishes to Nexus or Bethesda.net',
+        whenToUse: 'Use as the final step once everything else has passed validation',
+      },
+      {
+        name: 'Conflict Resolver',
+        type: 'tab',
+        description: 'Standalone tool that resolves plugin record conflicts and generates patch recommendations',
+        whenToUse: 'Use when Conflict Analysis flags a conflict you need to actually resolve, not just see',
+      },
+      {
+        name: 'Conflict Dependency Graph',
+        type: 'tab',
+        description: 'Standalone tool that visualizes mod conflict relationships as an interactive dependency graph',
+        whenToUse: 'Use to understand how conflicts chain across multiple mods, not just one pair at a time',
+      },
+      {
+        name: 'Mod Auto-Enhancer',
+        type: 'tab',
+        description: 'Standalone tool — drag in a mod, automatically enhance its textures, and download the enhanced package; a local pipeline, not a Bethesda.net uploader',
+        whenToUse: 'Use to batch-improve another mod\'s textures locally before repackaging',
       },
     ],
     commonMistakes: [
@@ -920,6 +946,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Publishing without test-installing the exported package/FOMOD',
       'Packaging with debug/dev artifacts still included',
       'Ignoring section deep-links and reopening the wrong stage in long sessions',
+      'Forgetting Step 5 Export & Release exists and manually zipping/publishing instead',
+      'Confusing Mod Auto-Enhancer with a Bethesda.net uploader — it only enhances textures locally',
     ],
     guides: [
       {
@@ -927,9 +955,10 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         steps: [
           'Open /packaging-release and start with Step 0 BA2 Archive Manager',
           'Run Step 1 Packaging Checklist to validate release structure and required files',
-          'Use Step 2 Conflict Analysis to detect compatibility issues',
+          'Use Step 2 Conflict Analysis to detect compatibility issues (Conflict Resolver / Dependency Graph for deeper investigation)',
           'Use Step 3 Mod Comparison for overlap/risk review against similar mods',
-          'Build Step 4 FOMOD Installer, export package, then perform a clean test install',
+          'Build Step 4 FOMOD Installer',
+          'Finish with Step 5 Export & Release to build the zip, write release notes, and publish',
         ],
       },
     ],
@@ -939,12 +968,17 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Step 2: Conflict Analysis',
       'Step 3: Mod Comparison',
       'Step 4: FOMOD Installer',
+      'Step 5: Export & Release',
+      'Advanced Tools: Conflict Resolver, Conflict Dependency Graph, Mod Auto-Enhancer',
     ],
     suggestedQuestions: [
       'When should I use BA2 merge vs pack in this release flow?',
       'What order should I run checklist, conflicts, and comparison before publishing?',
       'How do I validate my FOMOD installer before Nexus release?',
       'Can I deep-link directly to a packaging step with ?section= ?',
+      'What does Step 5 Export & Release actually do?',
+      'What is the difference between Conflict Analysis and Conflict Resolver?',
+      'Is Mod Auto-Enhancer going to upload my mod anywhere?',
     ],
   },
 
@@ -3036,12 +3070,13 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 System & Diagnostics Hub',
     visualGuidePage: 21,
     route: '/system-hub',
-    purpose: 'Seven-tab system hub for runtime diagnostics, local AI/hardware capability checks, blacklist/security rule management, asset vault manifest verification, Mossy development support, backup snapshot management, and context-aware file watching.',
+    purpose: 'Eight-tab system hub for runtime diagnostics, local AI/hardware capability checks, local AI engine setup, blacklist/security rule management, asset vault manifest verification, Mossy development support, backup snapshot management, and context-aware file watching.',
     features: [
-      'Seven-tab layout: Diagnostics, Capabilities, Blacklist Manager, Asset Vault, Support Mossy, Backup Manager, File Watcher',
+      'Eight-tab layout: Diagnostics, Capabilities, Local AI Engine, Blacklist Manager, Asset Vault, Support Mossy, Backup Manager, File Watcher',
       'Session-persistent tab selection via sessionStorage key `system_hub_tab`',
       'Diagnostics — full runtime check suite: bridge, storage, mic, secrets, TTS voices, and exportable diagnostic snapshots',
       'Capabilities — local AI runtime detection: Ollama, Cosmos, OpenAI-compat, GGUF import, and LoRA fine-tune launcher',
+      'Local AI Engine — KoboldCPP setup and local model management, separate from the Ollama-focused Capabilities tab',
       'Blacklist Manager — safety rule management for flagged mods, programs, and a do-not-touch whitelist',
       'Asset Vault — manifest-driven asset registry with integrity verification, tool path config, and BA2 staging',
       'Support Mossy — development support links, donation options, and community entry points',
@@ -3052,8 +3087,8 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'Hub tab strip',
         type: 'tabs',
-        description: 'Switch between all seven system tabs in one workspace',
-        whenToUse: 'Move between system checks, capability scans, security rules, vault, support, backups, and file watching without leaving the hub',
+        description: 'Switch between all eight system tabs in one workspace',
+        whenToUse: 'Move between system checks, capability scans, local AI engine setup, security rules, vault, support, backups, and file watching without leaving the hub',
       },
       {
         name: 'Diagnostics tab',
@@ -3066,6 +3101,12 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'panel',
         description: 'Scan local hardware and AI runtime availability; import GGUF models; launch LoRA fine-tune',
         whenToUse: 'When evaluating whether local AI workflows or offline voice features can be enabled, or to fine-tune Mossy on your own data',
+      },
+      {
+        name: 'Local AI Engine tab',
+        type: 'panel',
+        description: 'Set up and manage KoboldCPP for local model inference',
+        whenToUse: 'When you want to run local models via KoboldCPP specifically, rather than Ollama',
       },
       {
         name: 'Blacklist Manager tab',
@@ -3129,12 +3170,13 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       },
     ],
     tutorialSections: [
-      'FO4 System & Diagnostics Hub - 7-Tab System Workflow',
-      'Diagnostics, Capabilities, Blacklist, Vault, Support, Backup, and File Watcher',
+      'FO4 System & Diagnostics Hub - 8-Tab System Workflow',
+      'Diagnostics, Capabilities, Local AI Engine, Blacklist, Vault, Support, Backup, and File Watcher',
     ],
     suggestedQuestions: [
       'How do I run a full diagnostic check and export the report?',
       'Why is my local Ollama / GPU capability not detected?',
+      'What is the difference between the Capabilities tab and the Local AI Engine tab?',
       'How do I add or remove blacklist rules for specific mods?',
       'What does Asset Vault manifest verification check for?',
       'How do I create a snapshot before compiling my Papyrus scripts?',

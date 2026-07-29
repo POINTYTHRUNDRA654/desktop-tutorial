@@ -1083,9 +1083,14 @@ const IniValidatorPanel: React.FC = () => {
       let status: IniCheck['status'] = 'unknown';
       if (!iniText.trim()) { status = 'unknown'; }
       else if (cv === undefined) { status = check.requiredValue ? 'missing' : 'unknown'; }
-      else if (check.requiredValue && cv !== check.requiredValue) { status = 'wrong'; }
-      else if (check.requiredValue && cv === check.requiredValue) { status = 'ok'; }
-      else { status = 'ok'; }
+      else if (check.requiredValue) { status = cv === check.requiredValue ? 'ok' : 'wrong'; }
+      // requiredValue === null means "no single mandatory value" (either "must be blank",
+      // like sResourceDataDirsFinal, or "just a recommendation"). This used to fall through
+      // to a blanket 'ok' whenever the key was merely present, regardless of its actual value
+      // — so a real, present, dangerous sResourceDataDirsFinal path would show as "OK" instead
+      // of the "WRONG VALUE" warning this exact setting exists to catch. Compare against
+      // recommendedValue instead.
+      else { status = cv === check.recommendedValue ? 'ok' : 'wrong'; }
       return { ...check, currentValue: cv, status };
     });
     setResults(checked);
