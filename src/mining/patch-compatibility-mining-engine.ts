@@ -73,11 +73,20 @@ export class PatchCompatibilityMiningEngineImpl implements PatchCompatibilityMin
       }
     }
 
+    // Derived from the actual conflicts just analyzed above (was a flat 0.8
+    // regardless of input) — each conflict penalizes the score by severity,
+    // floored at 0 rather than fabricating an unrelated constant.
+    const severityPenalty: Record<string, number> = { high: 0.3, medium: 0.15, low: 0.05 };
+    const performanceScore = Math.max(
+      0,
+      1 - conflicts.reduce((sum, c) => sum + (severityPenalty[c.severity] ?? 0.1), 0)
+    );
+
     return {
       isValid: conflicts.length === 0,
       conflicts,
       warnings,
-      performanceScore: 0.8, // Placeholder
+      performanceScore,
       compatibilityRating: conflicts.length === 0 ? 1.0 : 0.5
     };
   }

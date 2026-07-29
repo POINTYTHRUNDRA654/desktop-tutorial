@@ -69,15 +69,6 @@ async function getModPackaging() {
   return _modPackaging;
 }
 
-let _cloudSync: any = null;
-async function getCloudSync() {
-  if (!_cloudSync) {
-    const mod = await import('../../mining/cloudSync');
-    _cloudSync = mod.cloudSyncEngine;
-  }
-  return _cloudSync;
-}
-
 let _gameIntegration: any = null;
 async function getGameIntegration() {
   if (!_gameIntegration) {
@@ -690,94 +681,6 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
   safeHandle('mod-packaging:update-session', async (_event, sessionId: string, updates: any) => {
     const mp = await getModPackaging();
     return mp.updateSession?.(sessionId, updates) ?? { sessionId, ...updates };
-  });
-
-  // =========================================================================
-  // cloud-sync:* (delegates to CloudSyncEngine)
-  // =========================================================================
-  safeHandle('cloud-sync:sync-project', async (_event, projectId: string, direction: string) => {
-    const cs = await getCloudSync();
-    return cs.syncProject(projectId, direction || 'bidirectional');
-  });
-
-  safeHandle('cloud-sync:enable-auto-sync', async (_event, projectId: string, interval: number) => {
-    const cs = await getCloudSync();
-    return cs.enableAutoSync(projectId, interval || 300000);
-  });
-
-  safeHandle('cloud-sync:share-project', async (_event, projectId: string, collaborators: string[]) => {
-    const cs = await getCloudSync();
-    return cs.shareProject(projectId, collaborators || []);
-  });
-
-  safeHandle('cloud-sync:join-project', async (_event, inviteCode: string) => {
-    const cs = await getCloudSync();
-    return cs.joinProject(inviteCode);
-  });
-
-  safeHandle('cloud-sync:leave-collaboration-session', async (_event, sessionId: string, userId: string) => {
-    const cs = await getCloudSync();
-    return cs.leaveCollaborationSession(sessionId, userId);
-  });
-
-  safeHandle('cloud-sync:end-collaboration-session', async (_event, sessionId: string) => {
-    const cs = await getCloudSync();
-    return cs.endCollaborationSession(sessionId);
-  });
-
-  safeHandle('cloud-sync:broadcast-change', async (_event, change: any) => {
-    const cs = await getCloudSync();
-    return cs.broadcastChange(change);
-  });
-
-  safeHandle('cloud-sync:subscribe-to-changes', async (_event, projectId: string, filters: any) => {
-    const cs = await getCloudSync();
-    return cs.subscribeToChanges(projectId, filters);
-  });
-
-  safeHandle('cloud-sync:unsubscribe-from-changes', async (_event, subscriptionId: string) => {
-    const cs = await getCloudSync();
-    return cs.unsubscribeFromChanges?.(subscriptionId) ?? { success: true };
-  });
-
-  safeHandle('cloud-sync:detect-conflicts', async (_event, projectId: string) => {
-    const cs = await getCloudSync();
-    return cs.detectSyncConflicts(projectId, {});
-  });
-
-  safeHandle('cloud-sync:resolve-conflict', async (_event, conflict: any, resolution: any) => {
-    const cs = await getCloudSync();
-    return cs.resolveSyncConflict(conflict, resolution);
-  });
-
-  safeHandle('cloud-sync:get-project-history', async (_event, projectId: string) => {
-    const cs = await getCloudSync();
-    return cs.getProjectHistory(projectId);
-  });
-
-  safeHandle('cloud-sync:restore-snapshot', async (_event, snapshotId: string) => {
-    const cs = await getCloudSync();
-    return cs.restoreSnapshot(snapshotId);
-  });
-
-  safeHandle('cloud-sync:upload-asset', async (_event, assetPath: string, projectId: string) => {
-    const cs = await getCloudSync();
-    return cs.uploadAsset(assetPath, projectId);
-  });
-
-  safeHandle('cloud-sync:download-asset', async (_event, cdnUrl: string, localPath: string) => {
-    const cs = await getCloudSync();
-    return cs.downloadAsset(cdnUrl, localPath);
-  });
-
-  safeHandle('cloud-sync:get-status', async (_event, projectId: string) => {
-    const cs = await getCloudSync();
-    return cs.getStatus?.(projectId) ?? { projectId, status: 'idle' };
-  });
-
-  safeHandle('cloud-sync:get-collaboration-session', async (_event, projectId: string) => {
-    const cs = await getCloudSync();
-    return cs.getCollaborationSession?.(projectId) ?? { projectId };
   });
 
   // =========================================================================
