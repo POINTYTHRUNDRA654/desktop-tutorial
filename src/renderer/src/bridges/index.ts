@@ -23,7 +23,6 @@ import { BridgeRegistry } from './BridgeRegistry';
 import { HttpPluginBridge } from './HttpPluginBridge';
 import { Mo2Bridge } from './Mo2Bridge';
 import { F4AIBridge } from './F4AIBridge';
-import { VaultTecCreativeDirectorBridge } from './VaultTecCreativeDirectorBridge';
 import { VaultTecOverseerBridge } from './VaultTecOverseerBridge';
 
 // ── Register bridges here ────────────────────────────────────────────────────
@@ -37,11 +36,6 @@ BridgeRegistry.register(_f4ai);
 void _f4ai.connect();
 
 // ── Vault-Tec Modding Suite bridges ──────────────────────────────────────────
-// Two AI agents from D:\MossyModels\mossy-vault-tec-modding-assistant
-
-const _vtCreative = new VaultTecCreativeDirectorBridge();
-BridgeRegistry.register(_vtCreative);
-void _vtCreative.connect();
 
 const _vtOverseer = new VaultTecOverseerBridge();
 BridgeRegistry.register(_vtOverseer);
