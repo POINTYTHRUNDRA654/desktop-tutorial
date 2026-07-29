@@ -17,7 +17,6 @@ gh-cli/
 desktop-tutorial/
 
 # Vault-Tec Creative Director plugin panel — local-only dev tool, never pushed to the public repo
-src/renderer/src/plugin_creative_director/
 
 # Build outputs
 dist
