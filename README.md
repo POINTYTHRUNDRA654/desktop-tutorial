@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.4.68** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.5.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -17,9 +17,9 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.4.68)
+## 🚀 Onboarding & Installer Notes (v5.5.0)
 
-**New in v5.4.68 (Latest):**
+**New in v5.5.0 (Latest):**
 - ✅ **Bethel Integration** - Automatic mod enhancement system! Upload any Fallout 4 mod → Auto-enhance textures → Export as ZIP or FOMOD
   - 4x/8x/16x AI upscaling with neural networks
   - Intelligent texture classification (diffuse, normal, specular, roughness, metallic, AO)
@@ -79,7 +79,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.4.68)
+- Version is auto-set from `package.json` (currently 5.5.0)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -109,7 +109,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.4.68 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
+👉 **[Download Mossy v5.5.0 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -577,7 +577,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.4.68.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.5.0.exe`).
 
 ---
 
