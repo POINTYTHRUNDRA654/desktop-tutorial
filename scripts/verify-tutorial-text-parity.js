@@ -27,10 +27,12 @@ while ((m = pageTitleRe.exec(md)) !== null) {
 }
 
 // extract tutorialContext pageName values: pageName: 'The Auditor',
-const pageNameRe = /\bpageName:\s*['\"]([^'\"]+)['\"]\s*,/g;
+// Use backreference so the closing delimiter matches the opening one, allowing
+// apostrophes inside double-quoted strings (e.g. pageName: "FO4 What's New").
+const pageNameRe = /\bpageName:\s*(['"])(.*?)\1\s*,/g;
 const ctxNames = [];
 while ((m = pageNameRe.exec(ctx)) !== null) {
-  ctxNames.push(m[1].trim());
+  ctxNames.push(m[2].trim());
 }
 
 // build normalized lookup for ctx
