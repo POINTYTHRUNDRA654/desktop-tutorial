@@ -13,19 +13,25 @@ function extractBearerToken(req: Request): string {
  * - Set `MOSSY_API_TOKEN` in the backend environment.
  * - Client sends `Authorization: Bearer <token>`.
  *
- * If no token is configured, auth is disabled (useful for local dev),
- * but you should enable it for any public deployment.
+ * If no token is configured, auth is disabled (useful for local dev).
+ *
+ * Once a token IS configured, it is genuinely required — a request with no
+ * token is rejected the same as one with a wrong token. This backend is
+ * publicly reachable (the desktop app calls it over the internet, e.g. a
+ * Render deployment), and the previous version of this check only rejected
+ * a *wrong* token while silently letting an absent token through — meaning
+ * anyone who found the public URL could call /v1/chat and /v1/transcribe
+ * with no token at all and consume the operator's own Groq/OpenAI quota and
+ * billing. The Electron client always sends MOSSY_BACKEND_TOKEN (decrypted
+ * from the packaged .env.encrypted at startup) once it's set server-side, so
+ * enforcing it here does not break the legitimate desktop client.
  */
 export function requireApiToken(req: Request, res: Response, next: NextFunction) {
   const expected = String(process.env.MOSSY_API_TOKEN || '').trim();
   if (!expected) return next();
 
   const provided = extractBearerToken(req) || String(req.headers['x-mossy-token'] || '').trim();
-  // If a token is configured server-side, accept it when provided, but do not
-  // require it. This supports "works on download" clients.
-  //
-  // If a client *does* send a token and it's wrong, reject it (helps catch misconfig).
-  if (provided && provided !== expected) return res.status(401).json({ ok: false, error: 'unauthorized' });
+  if (!provided || provided !== expected) return res.status(401).json({ ok: false, error: 'unauthorized' });
 
   return next();
 }
