@@ -2133,6 +2133,16 @@ def _handle_npc_request(found_path: Path):
     # Note: legacy _write_text_out() intentionally omitted here — per-NPC file
     # is sufficient and writing the legacy path causes stale reads on the next request.
 
+    # _pending_request is only ever marked responded=True by the /request/respond
+    # HTTP endpoint (a manual-response path for an external tool) — this, the
+    # normal automatic file-watch path, never touched it. That left it stuck at
+    # responded=False after the very first push-to-talk request of a session,
+    # which permanently blocked every ambient social event afterwards (see
+    # _handle_social_event's is_pending check) since nothing ever cleared it.
+    with _pending_lock:
+        if _pending_request and _pending_request.get("payload") is payload:
+            _pending_request["responded"] = True
+
     # ── Persist to memory DB (best-effort, non-blocking) ─────────────────────
     try:
         if player_speech_raw:
