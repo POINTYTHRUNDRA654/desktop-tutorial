@@ -22,6 +22,7 @@ import { CreditsPanel } from './CreditsPanel';
 // ─── Credits Section ─────────────────────────────────────────────────────────
 
 const CredsSection: React.FC = () => {
+  const { t } = useI18n();
   const [showCreditPanel, setShowCreditPanel] = useState(false);
 
   return (
@@ -29,12 +30,10 @@ const CredsSection: React.FC = () => {
       <div className="p-3 rounded-md border border-emerald-700/30 bg-emerald-900/10 text-emerald-200 text-xs">
         <div className="font-semibold mb-1 flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-400" />
-          Built with Love on Amazing Open-Source Software
+          {t('settings.hub.credits.builtWithLove', 'Built with Love on Amazing Open-Source Software')}
         </div>
         <p>
-          Mossy stands on the shoulders of giants. Every feature you use is powered by dedicated developers
-          and vibrant communities. Click below to see the full searchable credits, licenses, and
-          attributions for all tools and frameworks.
+          {t('settings.hub.credits.intro', 'Mossy stands on the shoulders of giants. Every feature you use is powered by dedicated developers and vibrant communities. Click below to see the full searchable credits, licenses, and attributions for all tools and frameworks.')}
         </p>
       </div>
 
@@ -44,7 +43,7 @@ const CredsSection: React.FC = () => {
         className="flex items-center gap-2 px-4 py-2 rounded-md bg-rose-700 hover:bg-rose-600 text-white font-semibold text-xs transition-colors"
       >
         <Heart className="w-4 h-4" />
-        View Full Credits &amp; Licenses
+        {t('settings.hub.credits.viewFull', 'View Full Credits & Licenses')}
       </button>
 
       {showCreditPanel && (
@@ -54,81 +53,79 @@ const CredsSection: React.FC = () => {
       <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-3 text-xs">
         <div>
           <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-2">
-            <Package className="w-4 h-4 text-slate-400" /> Core Framework
+            <Package className="w-4 h-4 text-slate-400" /> {t('settings.hub.credits.coreFramework', 'Core Framework')}
           </h4>
           <ul className="space-y-1 text-slate-300">
-            <li>• <strong>Electron</strong> — Cross-platform desktop framework (MIT)</li>
-            <li>• <strong>React</strong> — UI library by Meta (MIT)</li>
-            <li>• <strong>TypeScript</strong> — Typed JavaScript by Microsoft (Apache 2.0)</li>
-            <li>• <strong>Vite</strong> — Next-gen build tool (MIT)</li>
+            <li>• <strong>Electron</strong> — {t('settings.hub.credits.electron', 'Cross-platform desktop framework (MIT)')}</li>
+            <li>• <strong>React</strong> — {t('settings.hub.credits.react', 'UI library by Meta (MIT)')}</li>
+            <li>• <strong>TypeScript</strong> — {t('settings.hub.credits.typescript', 'Typed JavaScript by Microsoft (Apache 2.0)')}</li>
+            <li>• <strong>Vite</strong> — {t('settings.hub.credits.vite', 'Next-gen build tool (MIT)')}</li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-2">
-            <Brain className="w-4 h-4 text-slate-400" /> AI &amp; Machine Learning
+            <Brain className="w-4 h-4 text-slate-400" /> {t('settings.hub.credits.aiMl', 'AI & Machine Learning')}
           </h4>
           <ul className="space-y-1 text-slate-300">
-            <li>• <strong>Groq</strong> — Fast LLM inference (Apache 2.0)</li>
-            <li>• <strong>OpenAI SDK</strong> — ChatGPT integration (Apache 2.0)</li>
-            <li>• <strong>Ollama</strong> — Local LLM runtime (MIT)</li>
-            <li>• <strong>PyTorch</strong> — ML framework by Meta (BSD)</li>
-            <li>• <strong>NumPy</strong> — Numerical computing (BSD 3-Clause)</li>
-            <li>• <strong>Krea AI Suite</strong> — AI image, video &amp; 3D generation (Commercial / krea.ai)</li>
+            <li>• <strong>Groq</strong> — {t('settings.hub.credits.groq', 'Fast LLM inference (Apache 2.0)')}</li>
+            <li>• <strong>OpenAI SDK</strong> — {t('settings.hub.credits.openaiSdk', 'ChatGPT integration (Apache 2.0)')}</li>
+            <li>• <strong>Ollama</strong> — {t('settings.hub.credits.ollama', 'Local LLM runtime (MIT)')}</li>
+            <li>• <strong>PyTorch</strong> — {t('settings.hub.credits.pytorch', 'ML framework by Meta (BSD)')}</li>
+            <li>• <strong>NumPy</strong> — {t('settings.hub.credits.numpy', 'Numerical computing (BSD 3-Clause)')}</li>
+            <li>• <strong>Krea AI Suite</strong> — {t('settings.hub.credits.krea', 'AI image, video & 3D generation (Commercial / krea.ai)')}</li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-2">
-            <Palette className="w-4 h-4 text-slate-400" /> UI &amp; Design
+            <Palette className="w-4 h-4 text-slate-400" /> {t('settings.hub.credits.uiDesign', 'UI & Design')}
           </h4>
           <ul className="space-y-1 text-slate-300">
-            <li>• <strong>TailwindCSS</strong> — Utility-first CSS (MIT)</li>
-            <li>• <strong>Lucide Icons</strong> — Icon library (ISC)</li>
-            <li>• <strong>react-markdown</strong> — Markdown renderer (MIT)</li>
-            <li>• <strong>Recharts</strong> — Charts library (MIT)</li>
+            <li>• <strong>TailwindCSS</strong> — {t('settings.hub.credits.tailwind', 'Utility-first CSS (MIT)')}</li>
+            <li>• <strong>Lucide Icons</strong> — {t('settings.hub.credits.lucide', 'Icon library (ISC)')}</li>
+            <li>• <strong>react-markdown</strong> — {t('settings.hub.credits.reactMarkdown', 'Markdown renderer (MIT)')}</li>
+            <li>• <strong>Recharts</strong> — {t('settings.hub.credits.recharts', 'Charts library (MIT)')}</li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-semibold text-slate-200 mb-2 flex items-center gap-2">
-            <Wrench className="w-4 h-4 text-slate-400" /> Modding Tools (separate downloads)
+            <Wrench className="w-4 h-4 text-slate-400" /> {t('settings.hub.credits.moddingTools', 'Modding Tools (separate downloads)')}
           </h4>
           <ul className="space-y-1 text-slate-300">
-            <li>• <strong>Blender</strong> — 3D modeling (GPL 2.0)</li>
-            <li>• <strong>PyNifly</strong> — NIF import/export for Blender by BadDogSkyrim (MIT)</li>
-            <li>• <strong>xEdit / FO4Edit</strong> — Plugin editor by ElminsterAU (GPL 2.0)</li>
-            <li>• <strong>Creation Kit</strong> — Official Bethesda modding tool</li>
-            <li>• <strong>NifSkope</strong> — NIF mesh &amp; texture viewer by hexabits (GPL 3.0)</li>
-            <li>• <strong>Mod Organizer 2</strong> — Mod manager by Tannin42 / MO2 Team (GPL 3.0)</li>
-            <li>• <strong>Vortex</strong> — Mod manager by Nexus Mods</li>
-            <li>• <strong>F4SE</strong> — Fallout 4 Script Extender by ianpatt &amp; behippo</li>
-            <li>• <strong>LOOT</strong> — Load Order Optimisation Tool (GPL 3.0)</li>
-            <li>• <strong>BodySlide &amp; Outfit Studio</strong> — Body morphing by ousnius &amp; Caliente (MIT)</li>
-            <li>• <strong>B.A.E.</strong> — Bethesda Archive Extractor by jonwd7</li>
-            <li>• <strong>GIMP</strong> — GNU Image Manipulation Program (GPL 3.0)</li>
-            <li>• <strong>UModel (UEViewer)</strong> — Unreal Engine asset viewer by Gildor</li>
+            <li>• <strong>Blender</strong> — {t('settings.hub.credits.blender', '3D modeling (GPL 2.0)')}</li>
+            <li>• <strong>PyNifly</strong> — {t('settings.hub.credits.pynifly', 'NIF import/export for Blender by BadDogSkyrim (MIT)')}</li>
+            <li>• <strong>xEdit / FO4Edit</strong> — {t('settings.hub.credits.xedit', 'Plugin editor by ElminsterAU (GPL 2.0)')}</li>
+            <li>• <strong>Creation Kit</strong> — {t('settings.hub.credits.creationKit', 'Official Bethesda modding tool')}</li>
+            <li>• <strong>NifSkope</strong> — {t('settings.hub.credits.nifskope', 'NIF mesh & texture viewer by hexabits (GPL 3.0)')}</li>
+            <li>• <strong>Mod Organizer 2</strong> — {t('settings.hub.credits.mo2', 'Mod manager by Tannin42 / MO2 Team (GPL 3.0)')}</li>
+            <li>• <strong>Vortex</strong> — {t('settings.hub.credits.vortex', 'Mod manager by Nexus Mods')}</li>
+            <li>• <strong>F4SE</strong> — {t('settings.hub.credits.f4se', 'Fallout 4 Script Extender by ianpatt & behippo')}</li>
+            <li>• <strong>LOOT</strong> — {t('settings.hub.credits.loot', 'Load Order Optimisation Tool (GPL 3.0)')}</li>
+            <li>• <strong>BodySlide & Outfit Studio</strong> — {t('settings.hub.credits.bodyslide', 'Body morphing by ousnius & Caliente (MIT)')}</li>
+            <li>• <strong>B.A.E.</strong> — {t('settings.hub.credits.bae', 'Bethesda Archive Extractor by jonwd7')}</li>
+            <li>• <strong>GIMP</strong> — {t('settings.hub.credits.gimp', 'GNU Image Manipulation Program (GPL 3.0)')}</li>
+            <li>• <strong>UModel (UEViewer)</strong> — {t('settings.hub.credits.umodel', 'Unreal Engine asset viewer by Gildor')}</li>
           </ul>
         </div>
 
         <div className="pt-2 border-t border-slate-700">
           <p className="text-slate-400">
-            ...and 100+ more dependencies. Click <strong>View Full Credits &amp; Licenses</strong> above
-            for the complete searchable list with version numbers and license links.
+            {t('settings.hub.credits.andMore', '...and 100+ more dependencies. Click')} <strong>{t('settings.hub.credits.viewFull', 'View Full Credits & Licenses')}</strong> {t('settings.hub.credits.andMoreSuffix', 'above for the complete searchable list with version numbers and license links.')}
           </p>
         </div>
       </div>
 
       <div className="p-3 rounded-md border border-blue-700/30 bg-blue-900/10 text-blue-200 text-xs space-y-2">
         <div className="font-semibold flex items-center gap-2">
-          <Shield className="w-4 h-4 text-blue-400" /> License Compliance
+          <Shield className="w-4 h-4 text-blue-400" /> {t('settings.hub.credits.licenseCompliance', 'License Compliance')}
         </div>
         <p>
-          Mossy respects all open-source licenses. Our LICENSE and CREDITS.md files are included
-          in your installation folder and this app bundle for transparency and attribution.
+          {t('settings.hub.credits.complianceIntro', 'Mossy respects all open-source licenses. Our LICENSE and CREDITS.md files are included in your installation folder and this app bundle for transparency and attribution.')}
         </p>
         <p className="text-blue-300">
-          Found a license issue?{' '}
+          {t('settings.hub.credits.foundIssue', 'Found a license issue?')}{' '}
           <a
             href="https://github.com/POINTYTHRUNDRA654/mossy-ai/issues/new?title=License%20Compliance%20Issue"
             target="_blank"
@@ -142,7 +139,7 @@ const CredsSection: React.FC = () => {
               }
             }}
           >
-            Report it on GitHub
+            {t('settings.hub.credits.reportGithub', 'Report it on GitHub')}
           </a>
         </p>
       </div>
@@ -418,11 +415,11 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'anythingllm',
-      title: 'Step 3c: AnythingLLM — RAG Knowledge Engine',
-      description: 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.',
+      title: t('settings.hub.step3c.title', 'Step 3c: AnythingLLM — RAG Knowledge Engine'),
+      description: t('settings.hub.step3c.desc', 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.'),
       icon: Database,
       content: <AnythingLLMSettings embedded />,
-      badge: 'OPTIONAL',
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },
     {
@@ -462,15 +459,15 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'support',
-      title: 'Support the Developer',
-      description: 'Help keep Mossy.Space and the FO4 Advanced AI project alive.',
+      title: t('settings.hub.support.title', 'Support the Developer'),
+      description: t('settings.hub.support.desc', 'Help keep Mossy.Space and the FO4 Advanced AI project alive.'),
       icon: Coffee,
-      badge: 'OPTIONAL',
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-amber-900/40 border-amber-600/40 text-amber-300',
       content: (
         <div className="space-y-4 text-sm">
           <p className="text-slate-300 text-xs leading-relaxed">
-            Mossy.Space is a free, passion-driven project. If it's helped your modding workflow, consider supporting continued development — every contribution helps keep the lights on.
+            {t('settings.hub.support.intro', "Mossy.Space is a free, passion-driven project. If it's helped your modding workflow, consider supporting continued development — every contribution helps keep the lights on.")}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
@@ -479,8 +476,8 @@ const SettingsHub: React.FC = () => {
             >
               <Star className="w-6 h-6 text-orange-400 shrink-0 group-hover:scale-110 transition-transform" />
               <div>
-                <div className="font-semibold text-orange-200 text-sm">Patreon</div>
-                <div className="text-xs text-orange-300/70">Monthly membership & exclusive updates</div>
+                <div className="font-semibold text-orange-200 text-sm">{t('home.support.patreon', 'Patreon')}</div>
+                <div className="text-xs text-orange-300/70">{t('settings.hub.support.patreonDesc', 'Monthly membership & exclusive updates')}</div>
               </div>
             </button>
             <button
@@ -489,12 +486,12 @@ const SettingsHub: React.FC = () => {
             >
               <Coffee className="w-6 h-6 text-yellow-400 shrink-0 group-hover:scale-110 transition-transform" />
               <div>
-                <div className="font-semibold text-yellow-200 text-sm">Buy Me a Coffee</div>
-                <div className="text-xs text-yellow-300/70">One-time tip, any amount</div>
+                <div className="font-semibold text-yellow-200 text-sm">{t('home.support.coffee', 'Buy Me a Coffee')}</div>
+                <div className="text-xs text-yellow-300/70">{t('settings.hub.support.coffeeDesc', 'One-time tip, any amount')}</div>
               </div>
             </button>
           </div>
-          <p className="text-slate-500 text-xs">Thank you for using Mossy.Space. Your support means everything.</p>
+          <p className="text-slate-500 text-xs">{t('settings.hub.support.thankYou', 'Thank you for using Mossy.Space. Your support means everything.')}</p>
         </div>
       ),
     },

@@ -53,10 +53,17 @@ export interface MaterialInput {
 export interface MapSettings {
   resolution?: number;
   normalStrength?: number;     // 0.1 - 10.0 (for normal map generation)
+  normalMethod?: 'sobel' | 'prewitt' | 'scharr'; // gradient kernel used for extraction
+  normalSmoothing?: number;    // 0-3 — Gaussian pre-blur radius before extraction (reduces noise)
+  normalFineDetail?: boolean;  // inject a high-frequency micro-detail pass on top of the base gradient
+  invertY?: boolean;           // false = DirectX (FO4 standard), true = OpenGL — flips the green channel
   aoIntensity?: number;        // 0.0 - 1.0 (for AO generation)
   roughnessMin?: number;       // 0.0 - 1.0
   roughnessMax?: number;       // 0.0 - 1.0
   metallicValue?: number;      // 0.0 - 1.0 (constant metallic value)
+  specularIntensity?: number;  // 0.0 - 1.0 — how strongly the RGB tint is dimmed from the source diffuse
+  glossMin?: number;           // 0.0 - 1.0 — alpha channel (smoothness) floor
+  glossMax?: number;           // 0.0 - 1.0 — alpha channel (smoothness) ceiling
   invertHeight?: boolean;      // Invert height map
   blendMode?: BlendMode;
   cavityRadius?: number;       // 1-8px — blur radius used as the high-pass baseline
@@ -557,52 +564,114 @@ export class TextureGeneratorEngine {
   /**
    * Generate normal map from height/diffuse map
    */
+  /**
+   * 3x3 gradient kernels (Gx, Gy) for each supported extraction method, plus
+   * the divisor that normalizes each kernel's raw weighted sum back to a
+   * per-pixel-difference-equivalent scale (so `strength` behaves consistently
+   * across methods). Scharr's larger integer weights need a bigger divisor
+   * or it would look wildly stronger than Sobel/Prewitt at the same strength.
+   */
+  private static readonly NORMAL_KERNELS: Record<
+    'sobel' | 'prewitt' | 'scharr',
+    { gx: number[]; gy: number[]; divisor: number }
+  > = {
+    sobel:   { gx: [-1, 0, 1, -2, 0, 2, -1, 0, 1], gy: [-1, -2, -1, 0, 0, 0, 1, 2, 1], divisor: 4 },
+    prewitt: { gx: [-1, 0, 1, -1, 0, 1, -1, 0, 1], gy: [-1, -1, -1, 0, 0, 0, 1, 1, 1], divisor: 3 },
+    scharr:  { gx: [-3, 0, 3, -10, 0, 10, -3, 0, 3], gy: [-3, -10, -3, 0, 0, 0, 3, 10, 3], divisor: 16 },
+  };
+
   private async generateNormalMap(source: string, settings: MapSettings): Promise<Buffer> {
     const strength = settings.normalStrength || 2.0;
-    
-    // Load source image and convert to grayscale for height data
+    const method = settings.normalMethod || 'sobel';
+    const kernel = TextureGeneratorEngine.NORMAL_KERNELS[method] ?? TextureGeneratorEngine.NORMAL_KERNELS.sobel;
+    const smoothing = Math.max(0, Math.min(3, settings.normalSmoothing ?? 0));
+    const fineDetail = !!settings.normalFineDetail;
+    const invertY = !!settings.invertY;
+
     const image = sharp(source);
     const { width, height } = await image.metadata();
-    
+
     if (!width || !height) {
       throw new Error('Invalid image dimensions');
     }
 
-    // Convert to grayscale (height map)
-    const heightData = await image
-      .grayscale()
-      .raw()
-      .toBuffer();
+    // Optional pre-blur to suppress source noise before extracting gradients
+    // (sharp requires a sigma >= 0.3; smaller settings are treated as "off").
+    let grayscalePipeline = image.clone().grayscale();
+    if (smoothing >= 0.3) grayscalePipeline = grayscalePipeline.blur(smoothing);
+    const heightData = await grayscalePipeline.raw().toBuffer();
 
-    // Calculate normals using Sobel operator
+    // Fine-detail pass: a small-radius high-pass (raw minus a tightly blurred
+    // baseline) captures crevice-scale luminance variation the base 3x3
+    // kernel is too coarse to see — the same high-pass principle already
+    // used by generateCavityMap. Blended additively into the gradients below
+    // rather than replacing them, so it adds micro-bump without altering the
+    // overall large-scale shape of the normal map.
+    let fineData: Buffer | null = null;
+    if (fineDetail) {
+      const rawUnblurred = await image.clone().grayscale().raw().toBuffer();
+      const tightBlur = await image.clone().grayscale().blur(1.2).raw().toBuffer();
+      fineData = Buffer.alloc(width * height);
+      for (let i = 0; i < rawUnblurred.length; i++) {
+        fineData[i] = rawUnblurred[i] - tightBlur[i] + 128;
+      }
+    }
+
+    const sample = (buf: Buffer, x: number, y: number): number => {
+      const wx = (x + width) % width;
+      const wy = (y + height) % height;
+      return buf[wy * width + wx];
+    };
+
     const normalData = Buffer.alloc(width * height * 4);
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const idx = y * width + x;
-        const outIdx = idx * 4;
+        const outIdx = (y * width + x) * 4;
 
-        // Sample neighboring pixels (with wrapping for edges)
-        const left = heightData[y * width + ((x - 1 + width) % width)];
-        const right = heightData[y * width + ((x + 1) % width)];
-        const top = heightData[((y - 1 + height) % height) * width + x];
-        const bottom = heightData[((y + 1) % height) * width + x];
+        let gx = 0;
+        let gy = 0;
+        let k = 0;
+        for (let ky = -1; ky <= 1; ky++) {
+          for (let kx = -1; kx <= 1; kx++) {
+            const v = sample(heightData, x + kx, y + ky);
+            gx += v * kernel.gx[k];
+            gy += v * kernel.gy[k];
+            k++;
+          }
+        }
 
-        // Calculate gradients
-        const dx = (right - left) / 255.0 * strength;
-        const dy = (bottom - top) / 255.0 * strength;
+        let dx = (gx / kernel.divisor) / 255.0 * strength;
+        let dy = (gy / kernel.divisor) / 255.0 * strength;
+
+        if (fineData) {
+          // Same 3x3 gradient applied to the high-pass detail layer, scaled
+          // down so it augments rather than overwhelms the base normal.
+          let fgx = 0;
+          let fgy = 0;
+          k = 0;
+          for (let ky = -1; ky <= 1; ky++) {
+            for (let kx = -1; kx <= 1; kx++) {
+              const v = sample(fineData, x + kx, y + ky);
+              fgx += v * kernel.gx[k];
+              fgy += v * kernel.gy[k];
+              k++;
+            }
+          }
+          dx += (fgx / kernel.divisor) / 255.0 * strength * 0.5;
+          dy += (fgy / kernel.divisor) / 255.0 * strength * 0.5;
+        }
+
         const dz = 1.0;
-
-        // Normalize
         const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
         const nx = (dx / len * 0.5 + 0.5) * 255;
-        const ny = (dy / len * 0.5 + 0.5) * 255;
+        let ny = (dy / len * 0.5 + 0.5) * 255;
         const nz = (dz / len * 0.5 + 0.5) * 255;
+        if (invertY) ny = 255 - ny;
 
-        // Store as RGB (normal map)
-        normalData[outIdx] = Math.floor(nx);
-        normalData[outIdx + 1] = Math.floor(ny);
-        normalData[outIdx + 2] = Math.floor(nz);
+        normalData[outIdx] = Math.max(0, Math.min(255, Math.floor(nx)));
+        normalData[outIdx + 1] = Math.max(0, Math.min(255, Math.floor(ny)));
+        normalData[outIdx + 2] = Math.max(0, Math.min(255, Math.floor(nz)));
         normalData[outIdx + 3] = 255; // Alpha
       }
     }
@@ -722,14 +791,46 @@ export class TextureGeneratorEngine {
   }
 
   /**
-   * Generate specular map from diffuse
+   * Generate a real Fallout 4 "Smooth Spec" texture from the diffuse source.
+   * FO4's vanilla (non-PBR) material shader reads this exact texture slot as
+   * RGB = tinted specular reflectance color, Alpha = smoothness/gloss — it is
+   * NOT a plain grayscale dimming of the diffuse. Both channels are computed
+   * per-pixel here rather than filled with a placeholder:
+   *   - RGB: the source color dimmed toward black by `specularIntensity`,
+   *     preserving hue/saturation the way a real specular tint derived from
+   *     albedo would (metals keep colored highlights, dielectrics go neutral).
+   *   - Alpha: per-pixel luminance remapped into [glossMin, glossMax] —
+   *     brighter/cleaner areas of the source typically read as smoother, so
+   *     luminance drives gloss the same way generateRoughnessMap already
+   *     drives roughness from luminance (inverse relationship, same technique).
    */
   private async generateSpecularMap(source: string, settings: MapSettings): Promise<Buffer> {
-    return sharp(source)
-      .grayscale()
-      .linear(0.5, 0.3) // Reduce intensity
-      .png()
-      .toBuffer();
+    const intensity = Math.max(0, Math.min(1, settings.specularIntensity ?? 0.35));
+    const glossMin = Math.max(0, Math.min(1, settings.glossMin ?? 0.1));
+    const glossMax = Math.max(0, Math.min(1, settings.glossMax ?? 0.6));
+
+    const image = sharp(source);
+    const { width, height } = await image.metadata();
+    if (!width || !height) throw new Error('Invalid image dimensions');
+
+    const rgb = await image.clone().removeAlpha().toColourspace('srgb').raw().toBuffer({ resolveWithObject: true });
+    const channels = rgb.info.channels;
+    const rgbData = rgb.data;
+    const luminance = await image.clone().grayscale().raw().toBuffer();
+
+    const out = Buffer.alloc(width * height * 4);
+    for (let i = 0; i < width * height; i++) {
+      const srcIdx = i * channels;
+      const outIdx = i * 4;
+      out[outIdx] = Math.round(rgbData[srcIdx] * intensity);
+      out[outIdx + 1] = Math.round(rgbData[srcIdx + 1] * intensity);
+      out[outIdx + 2] = Math.round(rgbData[srcIdx + 2] * intensity);
+      const lum = luminance[i] / 255;
+      const gloss = glossMax - lum * (glossMax - glossMin);
+      out[outIdx + 3] = Math.max(0, Math.min(255, Math.round(gloss * 255)));
+    }
+
+    return sharp(out, { raw: { width, height, channels: 4 } }).png().toBuffer();
   }
 
   /**

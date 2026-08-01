@@ -2,6 +2,38 @@
 
 ## [5.5.0] — 2026-07-28
 
+### Localization — 12 Languages (In Progress)
+
+- Added full UI translation infrastructure and real (non-placeholder) translations across English, Spanish, French, German, Russian, Simplified Chinese, Brazilian Portuguese, Japanese, Korean, Italian, Polish, and Turkish
+- Fully localized: Home Dashboard, FO4 Mod Journey Hub, FO4 System & Diagnostics Hub, FO4 Knowledge Hub, FO4 What's New, FO4 Mod Builder Hub, FO4 Runtime Hub, FO4 Packaging & Release Hub, FO4 Automation Orchestrator, FO4 Setup Wizards Hub, FO4 External Integrations Hub, and the remaining un-translated Settings sections (AnythingLLM, Support, Credits)
+- Larger platforms (AI Chat, Textures & Materials, Creation Kit Hub, and others) are not yet localized — this is an ongoing pass, not complete
+
+### Texture Enhancer — Real Output, Not Placeholders
+
+- Fixed weak/under-detailed normal map generation: replaced a single flat gradient tap with real per-method 3×3 kernels (Sobel/Prewitt/Scharr), configurable strength/smoothing, and fine-detail high-pass injection
+- Added genuine specular map generation — the pipeline had a UI toggle for it but no actual implementation existed
+- Fixed .bgsm material export: the specular texture slot was being filled from the metallic map instead of the real specular map; the greyscale-palette field was incorrectly populated from the roughness map; wired real height→displacement mapping; a .bgsm is no longer written at all if there's no real specular/metallic data to put in it
+- Added a persistent, per-surface-preset learning loop — rating or discarding an enhancement result now measurably shifts future defaults for that surface type
+
+### New Tool Integrations
+
+- Added Sniff (NIF Batch Patcher, by zilav) as an auto-detected External Tools Hub integration, plus deep how-to-use coverage in Mossy's knowledge base for 17 additional professional tools (MO2, Vortex, LOOT, Wrye Bash, BethINI, BAE, GIMP, Photopea, PhotoDemon, NVIDIA Texture Tools, NifSkope, UnWrap3, NifUtilsSuite, Spin3D, UModel, Autodesk FBX Converter, iClone)
+- Added Cathedral Assets Optimizer as a recognized External Tools Hub integration. BA2 packing failures caused by Archive2's real duplicate-filename limitation (same-named files across different subfolders — common in any mod past a trivial size) now surface a clear explanation and point to CAO, which handles this correctly
+- Added a "Create a blank dummy plugin…" option to CK Tools Hub → Previsbines & PRP — saves a fresh copy of a minimal blank .esp for use as the active file during precombine/previs generation, so previs data lands in a clean patch instead of your real plugin
+
+### Reliability Fixes
+
+- Fixed a process leak in CK Crash Prevention's Live Monitor: its 3-second polling loop had no protection against overlapping calls, so a single slow poll (e.g. intercepted by antivirus) could cause dozens of orphaned processes to pile up and drive CPU to 100%. Polls are now deduplicated with a hard timeout
+- Fixed Full Mod Scan (CK Crash Prevention) hanging indefinitely on real-world mods with thousands of files: the scan previously ran fully synchronously with no yielding, blocking the entire app for its whole duration. It now yields periodically and reports live progress instead of a static spinner — verified against a real 2,566-file mod that never completed in 10 minutes before the fix and now finishes in under a minute
+- Fixed the ESP/plugin parser (Asset Analysis Hub → Mining Dashboard) failing on essentially any real Fallout 4 plugin: it had no handling for GRUP record groups — the structure virtually every real record is actually organized under — or for zlib-compressed records, causing it to misread the file and crash. Rewrote the group/record walker with correct GRUP semantics, added compressed-record decompression, and added defensive realignment so one malformed record can no longer cascade into failing the rest of the file. Verified against a real mod's plugin that previously failed 100% of the time
+
+### Vault-Tec Creative Director (local-only, dev tooling)
+
+- Fixed the Handoff panel: queued projects were never rendered as interactive cards, making the entire queue workflow unreachable
+- Fixed VR Lab "send to lab" to also search the pending queue, not just completed projects
+- Added stalled-request detection (pending 2+ hours with no report) with a clear warning and re-submit option in the UI
+- Built out the previously-missing "Personal R&D Network" REST backend (port 8767) with real LLM-generated, sandboxed analysis scripts, closing a gap where the panel showed "Offline Mode" even though the client already expected this service to exist
+
 ### Onboarding & Tutorial — Full Accuracy Overhaul
 
 - Fixed a first-run bug where Voice Setup could never appear: its visibility check ran at mount time before onboarding had completed, so it always evaluated false. Voice Setup now correctly re-triggers right after onboarding finishes (if not already completed).

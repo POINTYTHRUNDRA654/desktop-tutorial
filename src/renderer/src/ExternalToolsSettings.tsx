@@ -56,6 +56,8 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           photoDemonPath: s.photoDemonPath || '',
           unWrap3Path: s.unWrap3Path || '',
           nifUtilsSuitePath: s.nifUtilsSuitePath || '',
+          sniffPath: s.sniffPath || '',
+          caoPath: s.caoPath || '',
           nvidiaOmniversePath: s.nvidiaOmniversePath || '',
           spin3dPath: s.spin3dPath || '',
           nvidiaCanvasPath: s.nvidiaCanvasPath || '',
@@ -457,6 +459,8 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
         'photodemon': 'photoDemonPath',
         'unwrap3': 'unWrap3Path',
         'nifutils': 'nifUtilsSuitePath',
+        'sniff': 'sniffPath',
+        'cathedral assets optimizer': 'caoPath',
         'omniverse': 'nvidiaOmniversePath',
         'spin3d': 'spin3dPath',
         'nvidia canvas': 'nvidiaCanvasPath',
@@ -1277,6 +1281,40 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
               <button onClick={() => browsePath('nifUtilsSuitePath', 'NifUtilsSuite')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
               <button onClick={() => testLaunch(draft.nifUtilsSuitePath, 'NifUtilsSuite')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
               <button onClick={() => aiLaunchTest('nifutils', 'NifUtilsSuite')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
+            </div>
+          </div>
+
+          {/* Sniff */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Wrench className="w-5 h-5 text-amber-600" />
+              <div>
+                <div className="text-sm font-bold text-white">Sniff <span className="text-amber-400 font-normal text-xs">by zilav (MIT License)</span></div>
+                <p className="text-[11px] text-slate-500">Batch NIF patcher from the xEdit toolset — tangent/binormal regen, texture path search &amp; replace, NIF↔JSON conversion, material/transform tweaks, LOD node and string-rename operations. Portable tool, no installer.</p>
+              </div>
+            </div>
+            <input value={draft.sniffPath || ''} onChange={(e) => handleChange('sniffPath', e.target.value)} placeholder="C:\\Path\\To\\Sniff.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => browsePath('sniffPath', 'Sniff')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+              <button onClick={() => testLaunch(draft.sniffPath, 'Sniff')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+              <button onClick={() => aiLaunchTest('sniff', 'Sniff')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
+            </div>
+          </div>
+
+          {/* Cathedral Assets Optimizer */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Wrench className="w-5 h-5 text-amber-600" />
+              <div>
+                <div className="text-sm font-bold text-white">Cathedral Assets Optimizer <span className="text-amber-400 font-normal text-xs">by G.E.C.K. Team</span></div>
+                <p className="text-[11px] text-slate-500">Batch BSA/BA2 packing, texture compression/resizing, and mesh/animation optimization with per-game profiles. Handles real-world duplicate-filename cases across subfolders that raw Archive2 rejects outright — the recommended packer for anything beyond a trivial mod.</p>
+              </div>
+            </div>
+            <input value={draft.caoPath || ''} onChange={(e) => handleChange('caoPath', e.target.value)} placeholder="C:\\Path\\To\\Cathedral_Assets_Optimizer.exe" className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white" />
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => browsePath('caoPath', 'Cathedral Assets Optimizer')} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-[11px] font-bold flex items-center gap-1"><FolderOpen className="w-3 h-3" /> Browse</button>
+              <button onClick={() => testLaunch(draft.caoPath, 'Cathedral Assets Optimizer')} className="px-3 py-1 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 rounded text-[11px] font-bold flex items-center gap-1"><Play className="w-3 h-3" /> Test Launch</button>
+              <button onClick={() => aiLaunchTest('cathedral assets optimizer', 'Cathedral Assets Optimizer')} className="px-3 py-1 bg-sky-700 hover:bg-sky-600 border border-sky-500 rounded text-[11px] font-bold flex items-center gap-1"><Zap className="w-3 h-3" /> AI Launch Test</button>
             </div>
           </div>
 

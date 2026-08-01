@@ -11,6 +11,7 @@ import {
   Package, Network, Maximize2, ChevronRight, RefreshCw,
   CheckCircle2, Zap, ExternalLink, Play,
 } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const MO2Extension = React.lazy(() =>
   import('./MO2Extension').then((m) => ({ default: m.MO2Extension }))
@@ -45,18 +46,18 @@ type DetectedProgram = {
   version?: string;
 };
 
-const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
-  { id: 'mo2',     icon: Package,   label: 'MO2 Integration', sublabel: 'Mod Organizer 2' },
-  { id: 'comfyui', icon: Network,   label: 'ComfyUI',         sublabel: 'AI Image Generation' },
-  { id: 'upscayl', icon: Maximize2, label: 'Upscayl',         sublabel: 'AI Upscaling' },
+const TAB_META: { id: HubTab; icon: React.ComponentType<{ className?: string }>; fallbackLabel: string; fallbackSublabel: string }[] = [
+  { id: 'mo2',     icon: Package,   fallbackLabel: 'MO2 Integration', fallbackSublabel: 'Mod Organizer 2' },
+  { id: 'comfyui', icon: Network,   fallbackLabel: 'ComfyUI',         fallbackSublabel: 'AI Image Generation' },
+  { id: 'upscayl', icon: Maximize2, fallbackLabel: 'Upscayl',         fallbackSublabel: 'AI Upscaling' },
 ];
 
-const TOOL_INFO = [
+const TOOL_INFO_META = [
   {
     id: 'mo2',
     name: 'Mod Organizer 2 (MO2)',
-    desc: 'The industry-standard mod manager for Fallout 4. Mossy reads your MO2 profile to understand your active mod list and load order. Install: Nexus Mod Manager page or official GitHub.',
-    fo4tips: [
+    fallbackDesc: 'The industry-standard mod manager for Fallout 4. Mossy reads your MO2 profile to understand your active mod list and load order. Install: Nexus Mod Manager page or official GitHub.',
+    fallbackTips: [
       'Use separate MO2 profiles for different playthroughs or testing configurations.',
       'Enable "Manageable" mode in MO2 settings to allow Mossy to read your active plugin list.',
       'MO2 virtual file system (VFS) is transparent to the game — files in MO2 override order matches load order priority.',
@@ -66,8 +67,8 @@ const TOOL_INFO = [
   {
     id: 'comfyui',
     name: 'ComfyUI',
-    desc: 'Node-based AI image generation. Use for creating concept art, texture references, NPC portraits, and promotional artwork for your mods. Requires a GPU with at least 6 GB VRAM.',
-    fo4tips: [
+    fallbackDesc: 'Node-based AI image generation. Use for creating concept art, texture references, NPC portraits, and promotional artwork for your mods. Requires a GPU with at least 6 GB VRAM.',
+    fallbackTips: [
       "Use ComfyUI's img2img workflow to generate texture variations from existing in-game screenshots.",
       'ControlNet pose conditioning helps create accurate character reference art matching FO4 skeleton proportions.',
       'Export AI-generated art at 4096x4096 minimum for texture use — then downscale and compress to DDS via the Textures & Materials hub.',
@@ -77,8 +78,8 @@ const TOOL_INFO = [
   {
     id: 'upscayl',
     name: 'Upscayl',
-    desc: 'Free, open-source AI upscaler using Real-ESRGAN models. Ideal for upscaling low-res vanilla textures, reference photos, and UI elements before DDS conversion.',
-    fo4tips: [
+    fallbackDesc: 'Free, open-source AI upscaler using Real-ESRGAN models. Ideal for upscaling low-res vanilla textures, reference photos, and UI elements before DDS conversion.',
+    fallbackTips: [
       'Use RealESRGAN-x4plus for general texture upscaling. The result still needs compression to BC1/BC3/BC5/BC7 after upscaling.',
       'For face/portrait textures, use ESRGAN face models to preserve fine skin detail before re-exporting to FaceGen.',
       'Upscale vanilla 512x512 textures to 2048x2048 max — going higher than 4x the original yields diminishing returns for in-game use.',
@@ -102,6 +103,8 @@ const AUTO_CONNECT_TOOLS: AutoConnectTool[] = [
   { id: 'comfyui',      label: 'ComfyUI',                   match: ['comfyui', 'comfy'],                             category: 'ai',          installUrl: 'https://github.com/comfyanonymous/ComfyUI' },
   { id: 'upscayl',      label: 'Upscayl',                   match: ['upscayl'],                                      category: 'ai',          installUrl: 'https://upscayl.org/' },
   { id: 'iclone8',      label: 'iClone 8 (Animation)',      match: ['iclone', 'reallusion'],                         category: 'editor',      installUrl: 'https://www.reallusion.com/iclone/' },
+  { id: 'sniff',        label: 'Sniff (NIF Batch Patcher)', match: ['sniff'],                                        category: 'utility' },
+  { id: 'cao',          label: 'Cathedral Assets Optimizer', match: ['cathedral assets optimizer', 'cathedral_assets_optimizer'], category: 'utility' },
 ];
 
 const SETTINGS_AUTO_MAP: Array<{ key: string; match: string[] }> = [
@@ -116,9 +119,11 @@ const SETTINGS_AUTO_MAP: Array<{ key: string; match: string[] }> = [
   { key: 'upscaylPath',      match: ['upscayl'] },
   { key: 'vortexPath',       match: ['vortex'] },
   { key: 'wryeBashPath',     match: ['wrye bash', 'wryebash'] },
+  { key: 'sniffPath',        match: ['sniff'] },
+  { key: 'caoPath',          match: ['cathedral assets optimizer', 'cathedral_assets_optimizer'] },
 ];
 
-const CATEGORY_LABELS: Record<AutoConnectTool['category'], string> = {
+const CATEGORY_FALLBACK_LABELS: Record<AutoConnectTool['category'], string> = {
   'mod-manager': 'Mod Manager',
   'editor':      'Editor / Tool',
   'ai':          'AI / GPU',
@@ -196,18 +201,40 @@ const autoRegisterToolPaths = async (bridge: any, installedPrograms: DetectedPro
   window.dispatchEvent(new CustomEvent('mossy-settings-updated', { detail: { ...settings, ...updates } }));
 };
 
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading...</div>}>
-    {children}
-  </Suspense>
-);
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">{t('common.loading', 'Loading…')}</div>}>
+      {children}
+    </Suspense>
+  );
+};
 
 // Component
 
 const ExternalToolsHub: React.FC = () => {
+  const { t } = useI18n();
+  const TAB_DEFS = TAB_META.map((tab) => ({
+    ...tab,
+    label: t(`externalToolsHub.tabs.${tab.id}.label`, tab.fallbackLabel),
+    sublabel: t(`externalToolsHub.tabs.${tab.id}.sublabel`, tab.fallbackSublabel),
+  }));
+  const TOOL_INFO = TOOL_INFO_META.map((tool) => ({
+    ...tool,
+    desc: t(`externalToolsHub.toolInfo.${tool.id}.desc`, tool.fallbackDesc),
+    fo4tips: tool.fallbackTips.map((tip, i) => t(`externalToolsHub.toolInfo.${tool.id}.tips.${i}`, tip)),
+  }));
+  const CATEGORY_KEY_MAP: Record<AutoConnectTool['category'], string> = {
+    'mod-manager': 'modManager', 'editor': 'editor', 'ai': 'ai', 'utility': 'utility',
+  };
+  const CATEGORY_LABELS: Record<AutoConnectTool['category'], string> = Object.fromEntries(
+    (Object.keys(CATEGORY_FALLBACK_LABELS) as AutoConnectTool['category'][]).map((cat) => [
+      cat, t(`externalToolsHub.categories.${CATEGORY_KEY_MAP[cat]}`, CATEGORY_FALLBACK_LABELS[cat]),
+    ])
+  ) as Record<AutoConnectTool['category'], string>;
   const [activeTab, setActiveTab]       = useState<HubTab>('mo2');
   const [autoConnectTools, setAutoConnectTools] = useState<AutoConnectStatus[]>(
-    AUTO_CONNECT_TOOLS.map((t) => ({ ...t, installed: false, running: false }))
+    AUTO_CONNECT_TOOLS.map((tool) => ({ ...tool, installed: false, running: false }))
   );
   const [scanningAutoConnect, setScanningAutoConnect] = useState(false);
   const [comfyOnline, setComfyOnline]   = useState(false);
@@ -215,7 +242,7 @@ const ExternalToolsHub: React.FC = () => {
   // Restore last tab
   useEffect(() => {
     const saved = sessionStorage.getItem('ext_hub_tab') as HubTab | null;
-    if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
+    if (saved && TAB_DEFS.some((tab) => tab.id === saved)) setActiveTab(saved);
   }, []);
   useEffect(() => { sessionStorage.setItem('ext_hub_tab', activeTab); }, [activeTab]);
 
@@ -256,7 +283,7 @@ const ExternalToolsHub: React.FC = () => {
       );
       const runningHaystack = [
         ...(runningProcesses ?? []).map((proc: any) => `${proc?.name || ''} ${proc?.windowTitle || ''}`.toLowerCase()),
-        ...activeTools.map((t: any) => `${t?.name || ''} ${t?.path || ''}`.toLowerCase()),
+        ...activeTools.map((tool: any) => `${tool?.name || ''} ${tool?.path || ''}`.toLowerCase()),
       ];
 
       setAutoConnectTools(
@@ -298,17 +325,17 @@ const ExternalToolsHub: React.FC = () => {
     else window.open(url, '_blank');
   };
 
-  const info = TOOL_INFO.find((t) => t.id === activeTab);
+  const info = TOOL_INFO.find((tool) => tool.id === activeTab);
 
-  const installedCount = autoConnectTools.filter((t) => t.installed).length;
-  const runningCount   = autoConnectTools.filter((t) => t.running).length;
+  const installedCount = autoConnectTools.filter((tool) => tool.installed).length;
+  const runningCount   = autoConnectTools.filter((tool) => tool.running).length;
   const totalCount     = autoConnectTools.length;
 
   // Group by category preserving order
   const categoryOrder: AutoConnectTool['category'][] = ['mod-manager', 'editor', 'utility', 'ai'];
   const toolsByCategory: Record<string, AutoConnectStatus[]> = {};
   for (const cat of categoryOrder) {
-    toolsByCategory[cat] = autoConnectTools.filter((t) => t.category === cat);
+    toolsByCategory[cat] = autoConnectTools.filter((tool) => tool.category === cat);
   }
 
   return (
@@ -322,19 +349,19 @@ const ExternalToolsHub: React.FC = () => {
               <Package className="h-5 w-5 text-emerald-300" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white tracking-tight">FO4 External Integrations Hub</h1>
-              <p className="text-xs text-slate-400">MO2 · ComfyUI · Upscayl workflows plus setup-tool auto-connect</p>
+              <h1 className="text-xl font-black text-white tracking-tight">{t('externalToolsHub.title', 'FO4 External Integrations Hub')}</h1>
+              <p className="text-xs text-slate-400">{t('externalToolsHub.subtitle', 'MO2 · ComfyUI · Upscayl workflows plus setup-tool auto-connect')}</p>
             </div>
           </div>
           {/* Summary stats */}
           <div className="flex items-center gap-2 text-xs flex-shrink-0">
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
               <CheckCircle2 className="h-3 w-3" />
-              {installedCount}/{totalCount} installed
+              {t('externalToolsHub.installedCount', '{installed}/{total} installed').replace('{installed}', String(installedCount)).replace('{total}', String(totalCount))}
             </div>
             <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border ${runningCount > 0 ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-300' : 'bg-slate-800/60 border-slate-700 text-slate-500'}`}>
               <Zap className="h-3 w-3" />
-              {runningCount} live
+              {t('externalToolsHub.liveCount', '{n} live').replace('{n}', String(runningCount))}
             </div>
           </div>
         </div>
@@ -382,9 +409,9 @@ const ExternalToolsHub: React.FC = () => {
         <div className="mt-4 rounded-lg border border-cyan-700/20 bg-cyan-950/10 p-3 text-xs">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
-              <p className="text-slate-200 font-semibold">Auto-connect desktop tools</p>
+              <p className="text-slate-200 font-semibold">{t('externalToolsHub.autoConnect.heading', 'Auto-connect desktop tools')}</p>
               <p className="text-slate-400 mt-0.5">
-                Mossy scans your system for every tool in the FO4 modding pipeline. Launch detected tools directly or get install links for missing ones.
+                {t('externalToolsHub.autoConnect.description', 'Mossy scans your system for every tool in the FO4 modding pipeline. Launch detected tools directly or get install links for missing ones.')}
               </p>
             </div>
             <button
@@ -393,7 +420,7 @@ const ExternalToolsHub: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20 transition-colors flex-shrink-0"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${scanningAutoConnect ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('externalToolsHub.autoConnect.refresh', 'Refresh')}
             </button>
           </div>
 
@@ -417,11 +444,11 @@ const ExternalToolsHub: React.FC = () => {
                       <div className="text-slate-200 font-medium text-[11px] truncate">{tool.label}</div>
                       <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                         <span className={`rounded-full px-1.5 text-[9px] font-semibold border ${CATEGORY_COLOR[tool.category]}`}>
-                          {tool.installed ? 'Installed' : 'Not detected'}
+                          {tool.installed ? t('externalToolsHub.installed', 'Installed') : t('externalToolsHub.notDetected', 'Not detected')}
                         </span>
                         {tool.running && (
                           <span className="rounded-full px-1.5 text-[9px] font-semibold border bg-cyan-500/15 text-cyan-200 border-cyan-500/30">
-                            Live
+                            {t('externalToolsHub.live', 'Live')}
                           </span>
                         )}
                       </div>
@@ -430,7 +457,7 @@ const ExternalToolsHub: React.FC = () => {
                       {tool.installed && tool.path && (
                         <button
                           onClick={() => void launchTool(tool)}
-                          title={`Launch ${tool.label}`}
+                          title={t('externalToolsHub.launchTooltip', 'Launch {label}').replace('{label}', tool.label)}
                           className="p-1 rounded hover:bg-emerald-500/20 text-slate-500 hover:text-emerald-300 transition-colors"
                         >
                           <Play className="h-3 w-3" />
@@ -439,7 +466,7 @@ const ExternalToolsHub: React.FC = () => {
                       {!tool.installed && tool.installUrl && (
                         <button
                           onClick={() => openInstallPage(tool.installUrl)}
-                          title={`Get ${tool.label}`}
+                          title={t('externalToolsHub.getTooltip', 'Get {label}').replace('{label}', tool.label)}
                           className="p-1 rounded hover:bg-cyan-500/20 text-slate-600 hover:text-cyan-300 transition-colors"
                         >
                           <ExternalLink className="h-3 w-3" />

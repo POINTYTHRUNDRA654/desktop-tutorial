@@ -143,7 +143,47 @@
       },
       "credits": {
         "title": "Credits & Acknowledgments",
-        "desc": "View the open-source projects and tools that power Mossy."
+        "desc": "View the open-source projects and tools that power Mossy.",
+        "builtWithLove": "Built with Love on Amazing Open-Source Software",
+        "intro": "Mossy stands on the shoulders of giants. Every feature you use is powered by dedicated developers and vibrant communities. Click below to see the full searchable credits, licenses, and attributions for all tools and frameworks.",
+        "viewFull": "View Full Credits & Licenses",
+        "coreFramework": "Core Framework",
+        "electron": "Cross-platform desktop framework (MIT)",
+        "react": "UI library by Meta (MIT)",
+        "typescript": "Typed JavaScript by Microsoft (Apache 2.0)",
+        "vite": "Next-gen build tool (MIT)",
+        "aiMl": "AI & Machine Learning",
+        "groq": "Fast LLM inference (Apache 2.0)",
+        "openaiSdk": "ChatGPT integration (Apache 2.0)",
+        "ollama": "Local LLM runtime (MIT)",
+        "pytorch": "ML framework by Meta (BSD)",
+        "numpy": "Numerical computing (BSD 3-Clause)",
+        "krea": "AI image, video & 3D generation (Commercial / krea.ai)",
+        "uiDesign": "UI & Design",
+        "tailwind": "Utility-first CSS (MIT)",
+        "lucide": "Icon library (ISC)",
+        "reactMarkdown": "Markdown renderer (MIT)",
+        "recharts": "Charts library (MIT)",
+        "moddingTools": "Modding Tools (separate downloads)",
+        "blender": "3D modeling (GPL 2.0)",
+        "pynifly": "NIF import/export for Blender by BadDogSkyrim (MIT)",
+        "xedit": "Plugin editor by ElminsterAU (GPL 2.0)",
+        "creationKit": "Official Bethesda modding tool",
+        "nifskope": "NIF mesh & texture viewer by hexabits (GPL 3.0)",
+        "mo2": "Mod manager by Tannin42 / MO2 Team (GPL 3.0)",
+        "vortex": "Mod manager by Nexus Mods",
+        "f4se": "Fallout 4 Script Extender by ianpatt & behippo",
+        "loot": "Load Order Optimisation Tool (GPL 3.0)",
+        "bodyslide": "Body morphing by ousnius & Caliente (MIT)",
+        "bae": "Bethesda Archive Extractor by jonwd7",
+        "gimp": "GNU Image Manipulation Program (GPL 3.0)",
+        "umodel": "Unreal Engine asset viewer by Gildor",
+        "andMore": "...and 100+ more dependencies. Click",
+        "andMoreSuffix": "above for the complete searchable list with version numbers and license links.",
+        "licenseCompliance": "License Compliance",
+        "complianceIntro": "Mossy respects all open-source licenses. Our LICENSE and CREDITS.md files are included in your installation folder and this app bundle for transparency and attribution.",
+        "foundIssue": "Found a license issue?",
+        "reportGithub": "Report it on GitHub"
       },
       "internet": {
         "description": "Probes every search provider Mossy uses (Fallout Wiki, Fandom, DuckDuckGo, Wikipedia) and shows which ones are reachable right now.",
@@ -156,6 +196,18 @@
         "empty": "Empty",
         "troubleshootTitle": "Troubleshooting DNS failures:",
         "sampleResultFrom": "Sample result from"
+      },
+      "step3c": {
+        "title": "Step 3c: AnythingLLM — RAG Knowledge Engine",
+        "desc": "Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search."
+      },
+      "support": {
+        "title": "Support the Developer",
+        "desc": "Help keep Mossy.Space and the FO4 Advanced AI project alive.",
+        "intro": "Mossy.Space is a free, passion-driven project. If it's helped your modding workflow, consider supporting continued development — every contribution helps keep the lights on.",
+        "patreonDesc": "Monthly membership & exclusive updates",
+        "coffeeDesc": "One-time tip, any amount",
+        "thankYou": "Thank you for using Mossy.Space. Your support means everything."
       }
     }
   },
@@ -304,5 +356,593 @@
     "tutorTip": "Tutor Tip",
     "openLastLocation": "Open last location",
     "openLastLocationTitle": "(Optional) Open last saved location if available"
+  },
+  "common": {
+    "loading": "Loading…",
+    "loadingModule": "Loading module…"
+  },
+  "journeyHub": {
+    "title": "FO4 Mod Journey Hub",
+    "subtitle": "First Success · Mod Projects · Roadmaps · Mod Browser",
+    "tabs": {
+      "firstSuccess": {
+        "label": "First Success",
+        "sublabel": "Onboarding wins"
+      },
+      "projects": {
+        "label": "Mod Projects",
+        "sublabel": "Project workspace"
+      },
+      "roadmaps": {
+        "label": "Roadmaps",
+        "sublabel": "Plan progression"
+      },
+      "mods": {
+        "label": "Mod Browser",
+        "sublabel": "Discover mods"
+      }
+    }
+  },
+  "systemHub": {
+    "title": "FO4 System & Diagnostics Hub",
+    "subtitle": "Diagnostics · Capabilities · Local AI Engine · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher",
+    "tabs": {
+      "diagnostics": {
+        "label": "Diagnostics",
+        "sublabel": "Troubleshoot tools"
+      },
+      "capabilities": {
+        "label": "Capabilities",
+        "sublabel": "Local AI/runtime"
+      },
+      "localAi": {
+        "label": "Local AI Engine",
+        "sublabel": "KoboldCPP + models"
+      },
+      "security": {
+        "label": "Whitelist & Blacklist",
+        "sublabel": "Safety rules"
+      },
+      "vault": {
+        "label": "Asset Vault",
+        "sublabel": "Manifest + verification"
+      },
+      "support": {
+        "label": "Support Mossy",
+        "sublabel": "Support links"
+      },
+      "backup": {
+        "label": "Backup Manager",
+        "sublabel": "Snapshots & git"
+      },
+      "watcher": {
+        "label": "File Watcher",
+        "sublabel": "Live file tracking"
+      }
+    }
+  },
+  "knowledgeHub": {
+    "title": "FO4 Knowledge Hub",
+    "subtitle": "Quick Reference · Semantic Search · Community Learning · Vanilla Assets",
+    "tabs": {
+      "reference": {
+        "label": "Quick Reference",
+        "sublabel": "Papyrus · FormIDs · Hotkeys"
+      },
+      "search": {
+        "label": "Knowledge Search",
+        "sublabel": "Semantic search · Ollama"
+      },
+      "community": {
+        "label": "Community Learning",
+        "sublabel": "Tips · Shared knowledge"
+      },
+      "vanilla": {
+        "label": "Vanilla Assets",
+        "sublabel": "Browse · Copy · Reference"
+      },
+      "rag": {
+        "label": "RAG Search",
+        "sublabel": "AnythingLLM · Vector DB"
+      }
+    }
+  },
+  "whatsNew": {
+    "backToMossy": "Back to Mossy",
+    "eyebrow": "FO4 Release Notes",
+    "title": "FO4 What's New in Mossy",
+    "versionLine": "v{version} — Fallout 4 modding updates in this release.",
+    "fallbackNotice": "Fallback Notice",
+    "fallbackText": "Current version {requested} has no dedicated changelog section yet. Showing latest available notes from {resolved}.",
+    "unknownVersion": "unknown version",
+    "highlights": "Highlights",
+    "updated": "Updated",
+    "loadingChangelog": "Loading changelog notes...",
+    "noHighlights": "No changelog highlights are available yet for this build.",
+    "releaseHighlights": "Release Highlights",
+    "workflowTips": "FO4 Workflow Tips",
+    "tip1": "Use the sidebar to jump quickly between FO4 hubs (CK, Plugin, Asset, Runtime, and Packaging).",
+    "tip2": "Press Ctrl+K to search routes, hubs, and tools by Fallout 4 workflow intent.",
+    "tip3": "After updates, run your normal verify loop (load order, assets, packaging) before publishing a mod build.",
+    "stayInLoop": "Stay in the Loop",
+    "stayInLoopText": "We'll surface new releases here instead of layering them over your workflow. You can always revisit this page from the sidebar.",
+    "dontAutoOpen": "Don't auto-open this page again",
+    "continueToDashboard": "Continue to Dashboard"
+  },
+  "modBuilderHub": {
+    "title": "FO4 Mod Builder Hub",
+    "subtitle": "Blueprint · Workshop · Devtools · Scribe — complete Fallout 4 mod creation workflow",
+    "keysHint": "Keys 1–5 · drag tabs to reorder",
+    "tabTitle": "{label} (key {key}) — drag to reorder",
+    "tabs": {
+      "blueprint": {
+        "label": "Blueprint",
+        "sublabel": "Mod architecture planner"
+      },
+      "workshop": {
+        "label": "Workshop",
+        "sublabel": "File browser · Compile"
+      },
+      "devtools": {
+        "label": "Devtools",
+        "sublabel": "Papyrus · xEdit · Snippets"
+      },
+      "scribe": {
+        "label": "Scribe",
+        "sublabel": "Documentation generator"
+      },
+      "creator": {
+        "label": "Project Creator",
+        "sublabel": "New mod scaffold"
+      }
+    }
+  },
+  "runtimeHub": {
+    "title": "FO4 Runtime Hub",
+    "subtitle": "Live Synapse · Desktop Bridge · Holodeck testing workflows",
+    "bridgeOnline": "Bridge Online",
+    "bridgeOffline": "Bridge Offline",
+    "aiActive": "AI Active",
+    "aiPartial": "AI Partial",
+    "aiRelay": "AI Relay",
+    "aiOffline": "AI Offline",
+    "blenderLinked": "Blender Linked",
+    "tabs": {
+      "live": {
+        "label": "Live Synapse",
+        "sublabel": "Voice + live assist"
+      },
+      "bridge": {
+        "label": "Desktop Bridge",
+        "sublabel": "App integration"
+      },
+      "testing": {
+        "label": "Holodeck",
+        "sublabel": "Scenario testing"
+      }
+    }
+  },
+  "packagingHub": {
+    "eyebrow": "Mossy Tutor • Packaging",
+    "title": "FO4 Packaging & Release Hub",
+    "subtitle": "Complete workflow for packaging, conflict analysis, comparison, FOMOD installers, and release. Follow the steps in order for best results.",
+    "workflowProgress": "Workflow Progress",
+    "stepsVisited": "{visited} / {total} steps visited",
+    "flowTitle": "Flow (Read in Order)",
+    "flow1": "Manage BA2 archives (pack, extract, merge)",
+    "flow2": "Run the packaging checklist",
+    "flow3": "Check for conflicts with other mods",
+    "flow4": "Compare with similar mods for compatibility",
+    "flow5": "Build your FOMOD installer",
+    "flow6": "Export, write release notes, and publish",
+    "stepPill": "Step {step}: {title}",
+    "advancedTools": "Advanced Tools",
+    "visited": "Visited",
+    "sections": {
+      "ba2": {
+        "title": "Step 0: BA2 Archive Manager",
+        "shortTitle": "BA2 Archive Manager",
+        "desc": "List, extract, pack, and merge BA2 archives before packaging."
+      },
+      "checklist": {
+        "title": "Step 1: Packaging Checklist",
+        "shortTitle": "Packaging Checklist",
+        "desc": "Verify paths, archives, plugin sanity, and release readiness."
+      },
+      "conflicts": {
+        "title": "Step 2: Conflict Analysis",
+        "shortTitle": "Conflict Analysis",
+        "desc": "Visualize record conflicts between your mod and others."
+      },
+      "comparison": {
+        "title": "Step 3: Mod Comparison",
+        "shortTitle": "Mod Comparison",
+        "desc": "Compare your mod with similar mods for compatibility."
+      },
+      "assembler": {
+        "title": "Step 4: FOMOD Installer (Assembler)",
+        "shortTitle": "FOMOD Installer (Assembler)",
+        "desc": "Build and export a FOMOD installer for your release package."
+      },
+      "export": {
+        "title": "Step 5: Export & Release",
+        "shortTitle": "Export & Release",
+        "desc": "Build your release zip, write release notes, and publish to Nexus or Bethesda.net."
+      },
+      "conflictResolver": {
+        "title": "Conflict Resolver",
+        "desc": "Resolve plugin record conflicts and generate patch recommendations."
+      },
+      "conflictGraph": {
+        "title": "Conflict Dependency Graph",
+        "desc": "Visualize mod conflict relationships as an interactive dependency graph."
+      },
+      "bethelUploader": {
+        "title": "Mod Auto-Enhancer",
+        "desc": "Drag in a mod, automatically enhance its textures, and download the enhanced package — a local pipeline, not a Bethesda.net uploader."
+      }
+    }
+  },
+  "automationOrchestrator": {
+    "title": "FO4 Automation Orchestrator",
+    "running": "RUNNING",
+    "stopped": "STOPPED",
+    "refreshTooltip": "Refresh",
+    "resetStatsTooltip": "Reset all run statistics",
+    "stopEngine": "Stop Engine",
+    "startEngine": "Start Engine",
+    "stats": {
+      "rulesActive": {
+        "label": "Rules Active",
+        "sub": "enabled / total"
+      },
+      "fileWatchers": {
+        "label": "File Watchers",
+        "sub": "paths monitored"
+      },
+      "intervals": {
+        "label": "Intervals",
+        "sub": "process + schedule"
+      },
+      "totalRuns": {
+        "label": "Total Runs",
+        "sub": "since last reset"
+      }
+    },
+    "tabs": {
+      "rules": "Rules ({n})",
+      "activity": "Activity"
+    },
+    "triggers": {
+      "file-change": "File Watch",
+      "process-start": "Process Start",
+      "process-stop": "Process Stop",
+      "schedule": "Scheduled",
+      "manual": "Manual"
+    },
+    "actions": {
+      "scan-conflicts": "Conflict Scan",
+      "scan-duplicates": "Duplicate Scan",
+      "validate-load-order": "Load Order Validate",
+      "compile-papyrus": "Papyrus Compile",
+      "pack-ba2": "BA2 Pack",
+      "validate-hkx": "HKX Validate",
+      "start-log-monitor": "Log Monitor",
+      "track-ck-session": "CK Session Tracker",
+      "validate-f4se": "F4SE Validate",
+      "nightly-backup": "Nightly Backup",
+      "run-maintenance": "Daily Maintenance",
+      "sync-cosmos-pipeline": "Cosmos Pipeline Sync"
+    },
+    "showingDisabled": "Showing disabled",
+    "hidingDisabled": "Hiding disabled",
+    "lastRefresh": "Last refresh: {time}",
+    "noRulesMatch": "No rules match the current filter.",
+    "engineSchedules": "Engine Schedules",
+    "dailyMaintenance": "Daily maintenance:",
+    "weeklyDeepScan": "Weekly deep scan:",
+    "off": "Off",
+    "liveFeedHint": "Live feed — rules fire events here in real time. Max {max} entries kept.",
+    "clear": "Clear",
+    "loadingEngine": "Loading automation engine…",
+    "apiUnavailable": "Automation API unavailable — ensure you are running the packaged app.",
+    "activityEmpty": "No activity yet — events appear here as rules fire.",
+    "manualTag": "manual",
+    "scheduledTag": "scheduled",
+    "runsCount": "{n}× runs",
+    "triggerManually": "Trigger manually",
+    "disableRule": "Disable rule",
+    "enableRule": "Enable rule",
+    "never": "Never",
+    "justNow": "Just now",
+    "minutesAgo": "{m}m ago",
+    "hoursAgo": "{h}h ago",
+    "daysAgo": "{d}d ago",
+    "filters": {
+      "all": "All triggers"
+    }
+  },
+  "externalToolsHub": {
+    "title": "FO4 External Integrations Hub",
+    "subtitle": "MO2 · ComfyUI · Upscayl workflows plus setup-tool auto-connect",
+    "tabs": {
+      "mo2": {
+        "label": "MO2 Integration",
+        "sublabel": "Mod Organizer 2"
+      },
+      "comfyui": {
+        "label": "ComfyUI",
+        "sublabel": "AI Image Generation"
+      },
+      "upscayl": {
+        "label": "Upscayl",
+        "sublabel": "AI Upscaling"
+      }
+    },
+    "toolInfo": {
+      "mo2": {
+        "desc": "The industry-standard mod manager for Fallout 4. Mossy reads your MO2 profile to understand your active mod list and load order. Install: Nexus Mod Manager page or official GitHub.",
+        "tips": {
+          "0": "Use separate MO2 profiles for different playthroughs or testing configurations.",
+          "1": "Enable \"Manageable\" mode in MO2 settings to allow Mossy to read your active plugin list.",
+          "2": "MO2 virtual file system (VFS) is transparent to the game — files in MO2 override order matches load order priority.",
+          "3": "Use the \"Conflicts\" tab in MO2 to see file-level asset conflicts before plugin-level conflicts."
+        }
+      },
+      "comfyui": {
+        "desc": "Node-based AI image generation. Use for creating concept art, texture references, NPC portraits, and promotional artwork for your mods. Requires a GPU with at least 6 GB VRAM.",
+        "tips": {
+          "0": "Use ComfyUI's img2img workflow to generate texture variations from existing in-game screenshots.",
+          "1": "ControlNet pose conditioning helps create accurate character reference art matching FO4 skeleton proportions.",
+          "2": "Export AI-generated art at 4096x4096 minimum for texture use — then downscale and compress to DDS via the Textures & Materials hub.",
+          "3": "Stable Diffusion fine-tunes (LoRAs) trained on Fallout concept art can improve consistency of generated assets."
+        }
+      },
+      "upscayl": {
+        "desc": "Free, open-source AI upscaler using Real-ESRGAN models. Ideal for upscaling low-res vanilla textures, reference photos, and UI elements before DDS conversion.",
+        "tips": {
+          "0": "Use RealESRGAN-x4plus for general texture upscaling. The result still needs compression to BC1/BC3/BC5/BC7 after upscaling.",
+          "1": "For face/portrait textures, use ESRGAN face models to preserve fine skin detail before re-exporting to FaceGen.",
+          "2": "Upscale vanilla 512x512 textures to 2048x2048 max — going higher than 4x the original yields diminishing returns for in-game use.",
+          "3": "After upscaling, always run through a normal map bake (xNormal or Substance Painter) to reconstruct lost surface detail as normals."
+        }
+      }
+    },
+    "categories": {
+      "modManager": "Mod Manager",
+      "editor": "Editor / Tool",
+      "ai": "AI / GPU",
+      "utility": "Utility"
+    },
+    "installedCount": "{installed}/{total} installed",
+    "liveCount": "{n} live",
+    "autoConnect": {
+      "heading": "Auto-connect desktop tools",
+      "description": "Mossy scans your system for every tool in the FO4 modding pipeline. Launch detected tools directly or get install links for missing ones.",
+      "refresh": "Refresh"
+    },
+    "installed": "Installed",
+    "notDetected": "Not detected",
+    "live": "Live",
+    "launchTooltip": "Launch {label}",
+    "getTooltip": "Get {label}"
+  },
+  "wizardsHub": {
+    "versionBadge": {
+      "og": "OG  1.10.163",
+      "ng": "NG  1.10.984+",
+      "ae": "AE / Creations"
+    },
+    "eyebrow": "Mossy Tutor · FO4 Setup Wizards",
+    "title": "FO4 Setup Wizards Hub",
+    "subtitle": "The complete Fallout 4 modding setup flow — from tool install through crash triage, quest authoring, packaging, and previs patching. Work through the steps in order, or jump to any section you need.",
+    "gameVersion": "Game Version",
+    "badges": {
+      "core": "Core",
+      "triage": "Triage"
+    },
+    "sections": {
+      "platforms": {
+        "title": "Choose a Platform",
+        "subtitle": "Identify your goal and pick the right wizard",
+        "desc": "Start here. The platform map shows every major FO4 modding workflow and links you directly to the wizard that matches what you are trying to do — scripting, textures, animations, settlements, quests, or load order."
+      },
+      "install": {
+        "title": "Install Wizard",
+        "subtitle": "F4SE, xEdit, SS2, PRP, and patching prerequisites",
+        "desc": "Install and verify every core tool: F4SE (Script Extender), xEdit/FO4Edit, Sim Settlements 2 dependencies, the PRP previs toolkit, and patch-building workflow. Complete this before any content wizard."
+      },
+      "crashTriage": {
+        "title": "Crash & Bug Triage",
+        "subtitle": "CTD / infinite load / broken saves troubleshooting",
+        "desc": "Step-by-step diagnosis for crash-to-desktop, infinite loading screen, broken save games, and other instability. Use this any time your game stops working — it walks you through isolation, log reading, and fix verification."
+      },
+      "ckQuest": {
+        "title": "CK Quest & Dialogue",
+        "subtitle": "Creation Kit quest authoring, Papyrus compile + test loop",
+        "desc": "Guided workflow for Creation Kit quest creation, dialogue setup, Papyrus script compilation, and the safe test loop. Covers CK crash prevention, editor setup, and how to verify your quest works before shipping."
+      },
+      "packaging": {
+        "title": "Packaging & Release",
+        "subtitle": "BA2 packaging, folder structure, versioning, and release checks",
+        "desc": "BA2 archive packaging, folder structure validation, versioning, Nexus / Bethesda.net upload preparation, and final release sanity checks. Run this before uploading any mod."
+      },
+      "prpPatch": {
+        "title": "PRP Patch Builder",
+        "subtitle": "Generate PRP compatibility patch target + README",
+        "desc": "Generate a PRP previs/precombine compatibility patch plan, README template, and verification checklist. Run this only after your mod is stable and you are ready to create or contribute a PRP patch for your worldspace edits."
+      }
+    },
+    "packagingCard": {
+      "whatThisCovers": "What this covers",
+      "item1": "BA2 archive creation — Archive2, BSArch, BSArchPro workflows",
+      "item2": "Mod folder structure — Data layout, plugin naming, texture/mesh paths",
+      "item3": "FOMOD installer creation for multi-option mod packaging",
+      "item4": "Version tagging and changelog preparation",
+      "item5": "Nexus upload checklist and Bethesda.net Creations upload flow",
+      "item6": "Final stability and conflict verification before release",
+      "openHub": "Open Packaging & Release Hub",
+      "ba2QuickTool": "BA2 Manager (quick tool)",
+      "footerNote": "The Packaging Hub contains the full BA2 workflow, FOMOD builder, conflict resolver, and mod comparison tools."
+    },
+    "versionOptions": {
+      "og": "1.10.163 — pre–Next-Gen patch (April 2024)",
+      "ng": "1.10.984+ — Next-Gen / current Steam default",
+      "ae": "Creations Menu / Anniversary Edition content"
+    },
+    "stepLabel": "Step {step}: {title}",
+    "setupProgress": "Setup Progress",
+    "progressCounts": "{done} completed · {started} started · {remaining} remaining",
+    "situational": "Situational",
+    "recommendedFlow": {
+      "heading": "Recommended flow",
+      "step12": "Start with {b1}Choose a Platform{/b1} then complete the {b2}Install Wizard{/b2} for every tool you will use.",
+      "step34": "{b1}Crash Triage{/b1} and {b2}CK Quest{/b2} are situational — use them when you hit those workflows.",
+      "step56": "Run {b1}Packaging{/b1} before uploading. Run {b2}PRP Patch Builder{/b2} only if your mod edits worldspaces."
+    },
+    "footerTip": "Your progress is saved automatically. Steps marked complete in each wizard are remembered across sessions. Use the {b1}Ask Mossy{/b1} button at any time if you get stuck — Mossy knows your current wizard context."
+  },
+  "home": {
+    "greeting": {
+      "initializing": "Initializing Link...",
+      "morning": "CORE INITIALIZED. GOOD MORNING.",
+      "afternoon": "CORE INITIALIZED. GOOD AFTERNOON.",
+      "evening": "CORE INITIALIZED. GOOD EVENING."
+    },
+    "help": "Help",
+    "uplinkSynced": "UPLINK SYNCED",
+    "uplinkRequired": "UPLINK REQUIRED",
+    "activeProject": "Active Project",
+    "unnamedProject": "Unnamed Project",
+    "open": "Open",
+    "health": {
+      "electron": {
+        "label": "Electron",
+        "detail": "window.electron.api availability"
+      },
+      "storage": {
+        "label": "Storage",
+        "detail": "localStorage read/write"
+      },
+      "vault": {
+        "label": "Vault ({n})",
+        "detail": "Knowledge Vault items"
+      },
+      "wizard": {
+        "label": "Wizard",
+        "detail": "Install Wizard progress state"
+      },
+      "mic": {
+        "label": "Mic ({state})",
+        "detail": "Microphone permission"
+      },
+      "tts": {
+        "label": "TTS ({n})",
+        "detail": "speechSynthesis voices"
+      }
+    },
+    "panel": {
+      "description": "The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 23 platforms are accessible from the sidebar on the left.",
+      "verify1": "Confirm health badges render and reflect your environment.",
+      "verify2": "Open System Hub and return back without navigation errors.",
+      "loop1": "Run Setup Wizards once to detect tools and set up paths.",
+      "loop2": "Open AI Chat and confirm you can send a message and receive a response.",
+      "loop3": "Open Runtime Hub → Desktop Bridge and confirm ONLINE if you use local features.",
+      "trouble1": "If Electron shows WARN/BAD, you may be running web mode or preload failed.",
+      "trouble2": "If Mic/TTS show WARN, check permissions in your OS and retry.",
+      "trouble3": "If Vault shows 0, open FO4 Knowledge Hub and run the indexer.",
+      "shortcuts": {
+        "aiChat": "AI Chat",
+        "setupWizards": "Setup Wizards",
+        "systemHub": "System Hub",
+        "knowledgeHub": "FO4 Knowledge Hub",
+        "journeyHub": "FO4 Mod Journey Hub"
+      }
+    },
+    "quickHubAccess": "Quick Hub Access",
+    "hubs": {
+      "chat": {
+        "title": "AI Chat",
+        "subtitle": "Ask Mossy anything"
+      },
+      "journeyHub": {
+        "title": "FO4 Mod Journey Hub",
+        "subtitle": "Projects · Roadmaps"
+      },
+      "ckTools": {
+        "title": "Creation Kit Hub",
+        "subtitle": "CK · Scripts · Crash Fix"
+      },
+      "pluginTools": {
+        "title": "FO4 Plugin & Load Order Hub",
+        "subtitle": "xEdit · Load Order · PRP"
+      },
+      "textures": {
+        "title": "Textures & Materials",
+        "subtitle": "DDS · PBR · BC formats"
+      },
+      "assetAnalysis": {
+        "title": "FO4 Asset Analysis Hub",
+        "subtitle": "Scan · Dedupe · Mining"
+      },
+      "modBuilder": {
+        "title": "FO4 Mod Builder Hub",
+        "subtitle": "Blueprint · Workshop · Docs"
+      },
+      "packaging": {
+        "title": "Packaging & Release",
+        "subtitle": "BA2 · FOMOD · Checklist"
+      },
+      "guides": {
+        "title": "Guides Hub",
+        "subtitle": "Animation · Quests · LOD"
+      },
+      "knowledgeHub": {
+        "title": "FO4 Knowledge Hub",
+        "subtitle": "Docs · Search · Reference"
+      },
+      "systemHub": {
+        "title": "System Hub",
+        "subtitle": "Diagnostics · Security"
+      },
+      "runtimeHub": {
+        "title": "Runtime Hub",
+        "subtitle": "Live · Bridge · Holodeck"
+      }
+    },
+    "whereToStart": "Fallout 4 Modding — Where to Start",
+    "steps": {
+      "setupWizards": {
+        "title": "Run Setup Wizards",
+        "body": "Detect F4SE, xEdit, MO2/Vortex, Creation Kit, and other tools. Mossy customizes her advice to what is actually installed."
+      },
+      "modGoal": {
+        "title": "Pick a Modding Goal",
+        "body": "Open FO4 Mod Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal."
+      },
+      "loadOrder": {
+        "title": "Know the Load Order Rules",
+        "body": "Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate."
+      },
+      "assetPipeline": {
+        "title": "Learn the Asset Pipeline",
+        "body": "Textures use BC formats (BC1/BC3/BC7). Meshes are NIF files with Havok collision. BA2 archives hold compressed assets. Textures Hub and Guides Hub cover all of this."
+      },
+      "gameStable": {
+        "title": "Keep Your Game Stable",
+        "body": "First identify your game version: OG (1.10.163), NG (1.10.980–984), or AE/1.11.x (1.11.191+). Then install the matching stack: F4SE + Address Library + X-Cell. Avoid deprecated AWKCR/DEF_UI — use ECO/NEO and FallUI instead. Use Creation Kit Hub for crash prevention monitoring."
+      },
+      "buildPackage": {
+        "title": "Build & Package Your Mod",
+        "body": "Use FO4 Mod Builder Hub to draft architecture, work in Workshop, build scripts in Devtools, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer."
+      }
+    },
+    "stepBadge": "STEP {n}",
+    "tagline": "The neural link is active and monitoring your workspace",
+    "support": {
+      "message": "Mossy.Space is free & open — if it's helped your modding, consider supporting development",
+      "patreon": "Patreon",
+      "coffee": "Buy Me a Coffee"
+    }
   }
 }

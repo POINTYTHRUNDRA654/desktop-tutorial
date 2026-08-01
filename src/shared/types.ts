@@ -602,6 +602,8 @@ export interface Settings {
   photoDemonPath?: string;
   unWrap3Path?: string;
   nifUtilsSuitePath?: string;
+  sniffPath?: string;
+  caoPath?: string;
   nvidiaOmniversePath?: string;
   spin3dPath?: string;
   nvidiaCanvasPath?: string;
@@ -1042,6 +1044,8 @@ export const DEFAULT_SETTINGS: Settings = {
   photoDemonPath: '',
   unWrap3Path: '',
   nifUtilsSuitePath: '',
+  sniffPath: '',
+  caoPath: '',
   nvidiaOmniversePath: '',
   spin3dPath: '',
   nvidiaCanvasPath: '',

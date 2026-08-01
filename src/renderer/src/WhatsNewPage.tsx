@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Sparkles } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import packageJson from '../../../package.json';
+import { useI18n } from './i18n';
 
 interface WhatsNewPageProps {
   onDismiss?: () => void;
@@ -20,6 +21,7 @@ interface WhatsNewEntry {
 }
 
 const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -104,9 +106,11 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                 <Sparkles className="h-6 w-6 text-emerald-300" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">FO4 Release Notes</p>
-                <h1 className="text-3xl font-black text-white">FO4 What's New in Mossy</h1>
-                <p className="text-sm text-emerald-100/70">v{packageJson.version} — Fallout 4 modding updates in this release.</p>
+                <p className="text-xs uppercase tracking-[0.35em] text-emerald-300">{t('whatsNew.eyebrow', 'FO4 Release Notes')}</p>
+                <h1 className="text-3xl font-black text-white">{t('whatsNew.title', "FO4 What's New in Mossy")}</h1>
+                <p className="text-sm text-emerald-100/70">
+                  {t('whatsNew.versionLine', 'v{version} — Fallout 4 modding updates in this release.').replace('{version}', packageJson.version)}
+                </p>
               </div>
             </div>
             <button
@@ -115,37 +119,44 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
               className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/20"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Mossy
+              {t('whatsNew.backToMossy', 'Back to Mossy')}
             </button>
           </div>
 
-          {fallbackInfo?.used && (
-            <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">Fallback Notice</p>
-              <p className="mt-1 text-sm">
-                Current version <strong>{fallbackInfo.requestedVersion}</strong> has no dedicated changelog section yet.
-                Showing latest available notes from <strong>{fallbackInfo.resolvedVersion || 'unknown version'}</strong>.
-              </p>
-            </div>
-          )}
+          {fallbackInfo?.used && (() => {
+            const template = t(
+              'whatsNew.fallbackText',
+              'Current version {requested} has no dedicated changelog section yet. Showing latest available notes from {resolved}.'
+            );
+            const [before, afterRequested] = template.split('{requested}');
+            const [middle, after] = afterRequested.split('{resolved}');
+            return (
+              <div className="mt-6 rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-amber-100">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">{t('whatsNew.fallbackNotice', 'Fallback Notice')}</p>
+                <p className="mt-1 text-sm">
+                  {before}<strong>{fallbackInfo.requestedVersion}</strong>{middle}<strong>{fallbackInfo.resolvedVersion || t('whatsNew.unknownVersion', 'unknown version')}</strong>{after}
+                </p>
+              </div>
+            );
+          })()}
 
           <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <section className="rounded-3xl border border-emerald-500/20 bg-black/40 p-6 shadow-2xl shadow-emerald-900/30">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-emerald-200">Highlights</h2>
+                <h2 className="text-lg font-semibold text-emerald-200">{t('whatsNew.highlights', 'Highlights')}</h2>
                 <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-emerald-200">
-                  Updated
+                  {t('whatsNew.updated', 'Updated')}
                 </span>
               </div>
               <div className="mt-6 grid gap-4">
                 {loading && (
                   <div className="rounded-2xl border border-emerald-500/20 bg-black/30 p-4 text-sm text-emerald-200/80">
-                    Loading changelog notes...
+                    {t('whatsNew.loadingChangelog', 'Loading changelog notes...')}
                   </div>
                 )}
                 {!loading && features.length === 0 && (
                   <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                    No changelog highlights are available yet for this build.
+                    {t('whatsNew.noHighlights', 'No changelog highlights are available yet for this build.')}
                   </div>
                 )}
                 {features.map((feature, index) => (
@@ -164,7 +175,7 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
               </div>
               {!loading && highlights.length > 0 && (
                 <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-black/30 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">Release Highlights</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">{t('whatsNew.releaseHighlights', 'Release Highlights')}</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-emerald-100/80">
                     {highlights.map((line, index) => (
                       <li key={index}>{line}</li>
@@ -176,19 +187,18 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
 
             <section className="space-y-6">
               <div className="rounded-3xl border border-emerald-500/20 bg-black/50 p-6">
-                <h2 className="text-lg font-semibold text-emerald-200">FO4 Workflow Tips</h2>
+                <h2 className="text-lg font-semibold text-emerald-200">{t('whatsNew.workflowTips', 'FO4 Workflow Tips')}</h2>
                 <ul className="mt-4 space-y-3 text-sm text-emerald-100/70">
-                  <li>Use the sidebar to jump quickly between FO4 hubs (CK, Plugin, Asset, Runtime, and Packaging).</li>
-                  <li>Press Ctrl+K to search routes, hubs, and tools by Fallout 4 workflow intent.</li>
-                  <li>After updates, run your normal verify loop (load order, assets, packaging) before publishing a mod build.</li>
+                  <li>{t('whatsNew.tip1', 'Use the sidebar to jump quickly between FO4 hubs (CK, Plugin, Asset, Runtime, and Packaging).')}</li>
+                  <li>{t('whatsNew.tip2', 'Press Ctrl+K to search routes, hubs, and tools by Fallout 4 workflow intent.')}</li>
+                  <li>{t('whatsNew.tip3', 'After updates, run your normal verify loop (load order, assets, packaging) before publishing a mod build.')}</li>
                 </ul>
               </div>
 
               <div className="rounded-3xl border border-emerald-500/20 bg-black/50 p-6">
-                <h2 className="text-lg font-semibold text-emerald-200">Stay in the Loop</h2>
+                <h2 className="text-lg font-semibold text-emerald-200">{t('whatsNew.stayInLoop', 'Stay in the Loop')}</h2>
                 <p className="mt-3 text-sm text-emerald-100/70">
-                  We'll surface new releases here instead of layering them over your workflow.
-                  You can always revisit this page from the sidebar.
+                  {t('whatsNew.stayInLoopText', "We'll surface new releases here instead of layering them over your workflow. You can always revisit this page from the sidebar.")}
                 </p>
                 <label className="mt-4 flex items-center gap-2 text-sm text-emerald-100/80">
                   <input
@@ -197,14 +207,14 @@ const WhatsNewPage: React.FC<WhatsNewPageProps> = ({ onDismiss }) => {
                     onChange={(e) => setDontShowAgain(e.target.checked)}
                     className="h-4 w-4 rounded border-emerald-500/40 bg-black text-emerald-400 focus:ring-emerald-400"
                   />
-                  Don't auto-open this page again
+                  {t('whatsNew.dontAutoOpen', "Don't auto-open this page again")}
                 </label>
                 <button
                   type="button"
                   onClick={handleBack}
                   className="mt-5 w-full rounded-2xl bg-emerald-500/80 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-emerald-400"
                 >
-                  Continue to Dashboard
+                  {t('whatsNew.continueToDashboard', 'Continue to Dashboard')}
                 </button>
               </div>
             </section>

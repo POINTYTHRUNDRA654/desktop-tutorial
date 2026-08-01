@@ -107,6 +107,7 @@ import { ddsConverter, TextureFormat as DdsTextureFormat } from '../mining/ddsCo
 import { Phase2MiningManager, Phase2EngineName } from '../mining/phase2MiningManager';
 import { formatFO4KnowledgeBaseForAI } from '../shared/FO4KnowledgeBase';
 import { writeBgsmFile, BgsmWriteInput } from './bgsmWriter';
+import { recordOutcome as recordEnhancerOutcome, getLearnedStats as getEnhancerLearnedStats, resetLearning as resetEnhancerLearning } from './textureEnhancerLearning';
 import sharp from 'sharp';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
@@ -11962,10 +11963,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           .map((line) => line.trim())
           .filter((line) => line.startsWith('- '));
 
+        // No artificial cap here — a real release's changelog can legitimately have more
+        // than 24 bullets, and silently dropping the rest previously made new entries
+        // invisible in What's New without any indication anything was cut.
         const features = bulletLines
           .map(toFeature)
-          .filter(Boolean)
-          .slice(0, 24);
+          .filter(Boolean);
 
         parsedEntries.push({
           id: `whats-new-${version}`,
@@ -16607,6 +16610,11 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     id: string;
     title: string;
     brief: string;
+    // True for projects seeded via creative-director:submit-custom-project (a real
+    // user brief) — suppresses the mandatory "must connect to Mossy Industries canon"
+    // instructions that otherwise get injected into every agent prompt, so a
+    // user-commissioned idea doesn't get hijacked by unrelated self-generated lore.
+    isCustom?: boolean;
     status: 'in_progress' | 'awaiting_approval' | 'done';
     phase: CdPhase;
     phaseOutputs: {
@@ -16654,6 +16662,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     id: string;
     title: string;
     summary: string;
+    // The project's REAL original brief (not the completion summary) — needed so
+    // creative-director:reopen-project can plan a revision around what the user
+    // actually asked for instead of accidentally using `summary` (which, for an
+    // incomplete project, is just the "[Section N skipped...]" status message).
+    brief?: string;
+    isCustom?: boolean;
     outputDir: string;
     manifestPath: string;
     completedAt: number;
@@ -18540,8 +18554,28 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   }
 
+  // A model refusing a prompt outright ("I'm sorry, I can't help with that") is short,
+  // has no FO4/markdown structure, and reads nothing like the structured design output
+  // every CD role is instructed to produce. Treating it as valid content silently
+  // corrupts a build section (it gets saved as the section's file with no error) —
+  // callers must instead fall through to the next backend or fail the attempt so the
+  // existing 5-failure retry/skip logic in the tick loop can handle it honestly.
+  function cdIsLikelyRefusal(text: string): boolean {
+    const t = text.trim();
+    if (t.length === 0 || t.length > 400) return false; // real design output is always longer
+    // Groq/Ollama models commonly emit typographic apostrophes (’ U+2019) rather than
+    // the straight ASCII ' — observed in production: "I'm sorry, but I can't fulfill
+    // that request." slipped through undetected because the apostrophe was ’, not ',
+    // and a literal '?' in the regex only matches the straight quote. Normalize both
+    // curly quote variants to straight ASCII before matching so this can't recur.
+    const norm = t.replace(/[‘’]/g, "'");
+    return /\b(i'?m sorry|i cannot|i can'?t|i am unable|i won'?t|as an ai|i'm not able to)\b.{0,80}\b(help|assist|comply|do that|with that|fulfill|generate|create)\b/i.test(norm)
+      || /^(sorry,|i apologize)/i.test(norm);
+  }
+
   async function cdCallAgent(systemPrompt: string, userPrompt: string, maxTokens = 8192): Promise<string> {
     const s = loadSettings();
+    let sawRefusal = false;
     // "Allow Network Access" governs external/cloud providers only — local
     // Ollama (127.0.0.1) and local KoboldCpp further below still work when disabled.
     const networkAllowed = s?.privacySettings?.allowNetworkAccess !== false;
@@ -18576,7 +18610,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           if (res.ok) {
             const json: any = await res.json().catch(() => ({}));
             const text = json?.choices?.[0]?.message?.content;
-            if (text) return String(text);
+            if (text && !cdIsLikelyRefusal(text)) return String(text);
+            if (text) sawRefusal = true;
           }
         } catch { /* fall through to Ollama */ } finally { clearTimeout(timeout); }
       }
@@ -18606,7 +18641,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (ollamaRes.ok) {
         const json: any = await ollamaRes.json().catch(() => ({}));
         const text = json?.message?.content;
-        if (text) return String(text);
+        if (text && !cdIsLikelyRefusal(text)) return String(text);
+        if (text) sawRefusal = true;
       }
     } catch (err) {
       console.warn('[CreativeDirector] Ollama unavailable, falling back to Groq cloud:', err);
@@ -18640,14 +18676,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
               signal: controller.signal,
             });
             const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok && json?.text) return String(json.text);
+            if (res.ok && json?.ok && json?.text) {
+              if (!cdIsLikelyRefusal(json.text)) return String(json.text);
+              sawRefusal = true;
+            }
           } catch { /* fall through to direct SDK / Kobold */ } finally { clearTimeout(timeout); }
         }
         if (apiKey) {
           const { default: Groq } = await import('groq-sdk');
           const client = new Groq({ apiKey });
           const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
-          if (text) return text;
+          if (text && !cdIsLikelyRefusal(text)) return text;
+          if (text) sawRefusal = true;
         }
       }
     } catch (err) {
@@ -18671,12 +18711,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (res.ok) {
         const json: any = await res.json().catch(() => ({}));
         const text = json?.choices?.[0]?.message?.content;
-        if (text) return String(text);
+        if (text && !cdIsLikelyRefusal(text)) return String(text);
+        if (text) sawRefusal = true;
       }
     } catch (err) {
       console.warn('[CreativeDirector] Local KoboldCpp fallback failed:', err);
     }
 
+    if (sawRefusal) {
+      throw new Error('Every available AI backend refused this prompt (safety filter) — will retry; if this repeats, the prompt may need rephrasing.');
+    }
     throw new Error('No AI backend available - configure a Groq API key or start KoboldCpp (Local Capabilities panel).');
   }
 
@@ -18713,7 +18757,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           if (res.ok) {
             const json: any = await res.json().catch(() => ({}));
             const text = json?.choices?.[0]?.message?.content;
-            if (text) return String(text);
+            if (text && !cdIsLikelyRefusal(text)) return String(text);
           }
         } catch { /* fall through to Groq */ } finally { clearTimeout(timeout); }
       }
@@ -18747,7 +18791,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (res.ok) {
         const json: any = await res.json().catch(() => ({}));
         const text = json?.message?.content;
-        if (text) return String(text);
+        if (text && !cdIsLikelyRefusal(text)) return String(text);
       }
     } catch (err) {
       console.warn('[CreativeDirector] Local specialist model unavailable, falling back to Groq:', err);
@@ -18778,21 +18822,23 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
               signal: controller.signal,
             });
             const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok && json?.text) return String(json.text);
+            if (res.ok && json?.ok && json?.text && !cdIsLikelyRefusal(json.text)) return String(json.text);
           } catch { /* fall through */ } finally { clearTimeout(timeout); }
         }
         if (apiKey) {
           const { default: Groq } = await import('groq-sdk');
           const client = new Groq({ apiKey });
           const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
-          if (text) return text;
+          if (text && !cdIsLikelyRefusal(text)) return text;
         }
       }
     } catch (err) {
       console.warn('[CreativeDirector] Groq high-quality path failed, falling back to Ollama:', err);
     }
 
-    // FALLBACK: local Ollama (whatever model is configured)
+    // FALLBACK: local Ollama (whatever model is configured) — cdCallAgent has its
+    // own refusal detection, so if every source here only turned up a refusal,
+    // that path will throw honestly rather than silently accepting it.
     return cdCallAgent(systemPrompt, userPrompt, maxTokens);
   }
 
@@ -18808,7 +18854,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   async function cdCompilePapyrus(scriptContent: string, tmpDir: string): Promise<{ attempted: boolean; compiled: boolean; detail: string }> {
     const s = loadSettings();
-    const compilerPath = String(s?.papyrusCompilerPath || '').trim();
+    let compilerPath = String(s?.papyrusCompilerPath || '').trim();
+    const fo4 = String(s?.fallout4Path || '').trim();
+    if ((!compilerPath || !fs.existsSync(compilerPath)) && fo4) {
+      const guess = path.join(fo4, 'Papyrus Compiler', 'PapyrusCompiler.exe');
+      if (fs.existsSync(guess)) compilerPath = guess;
+    }
     if (!compilerPath || !fs.existsSync(compilerPath)) {
       return { attempted: false, compiled: false, detail: 'No PapyrusCompiler.exe configured - script was not verified. Set it in Settings before relying on this output.' };
     }
@@ -18819,9 +18870,25 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       const scriptPath = path.join(tmpDir, scriptFileName);
       fs.writeFileSync(scriptPath, scriptContent, 'utf-8');
 
+      // Real compilation of anything beyond a trivial script (extends Quest, calls
+      // Game.*, etc.) requires the vanilla base-script import paths and the FO4 flags
+      // file — without these the compiler can't resolve base types and every script
+      // fails regardless of whether it's actually correct. Mirrors the working
+      // creative-director:compile-scripts handler's args.
+      const imports: string[] = [tmpDir];
+      if (fo4) {
+        for (const sub of ['Data/Scripts/Source/Base', 'Data/Scripts/Source/User', 'Data/Source/Scripts']) {
+          const p = path.join(fo4, sub);
+          if (fs.existsSync(p)) imports.push(p);
+        }
+      }
+      const extraImports = String(s?.papyrusImportPaths || '').trim();
+      if (extraImports) imports.push(...extraImports.split(';').map((p) => p.trim()).filter(Boolean));
+
+      const args = [scriptPath, `-i=${imports.join(';')}`, `-o=${tmpDir}`, '-f=Institute_Papyrus_Flags.flg', '-op', '-q'];
       const result = await new Promise<{ exitCode: number; stdout: string; stderr: string }>((resolve) => {
         try {
-          const child = spawn(compilerPath, [scriptPath, '-q'], { cwd: tmpDir, shell: false, windowsHide: true });
+          const child = spawn(compilerPath, args, { cwd: path.dirname(compilerPath), shell: false, windowsHide: true });
           let stdout = '';
           let stderr = '';
           child.stdout?.on('data', (d) => { stdout += d.toString(); });
@@ -18833,7 +18900,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         }
       });
 
-      const compiled = result.exitCode === 0;
+      const pexPath = path.join(tmpDir, (scriptNameMatch ? scriptNameMatch[1] : 'CdGeneratedScript') + '.pex');
+      const compiled = result.exitCode === 0 && fs.existsSync(pexPath);
       return {
         attempted: true,
         compiled,
@@ -19238,6 +19306,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       id: project.id,
       title: project.title,
       summary,
+      brief: project.brief,
+      isCustom: project.isCustom,
       outputDir,
       manifestPath,
       completedAt: Date.now(),
@@ -19343,43 +19413,63 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       // ── Build phase-specific instruction ───────────────────────────────────
       let instruction = '';
 
+      // User-commissioned custom projects (isCustom) must be built as the user's own
+      // idea, not force-fit into the self-generated Mossy Industries canon — that
+      // canon block and its "must connect" instructions are skipped for those.
+      const cdLoreBlock = project.isCustom ? '' : `${MOSSY_INDUSTRIES_LORE}\n\n`;
+
       if (project.phase === 'planning') {
         const revisionCount = project.turns.filter(t => t.agent === 'reviewer').length;
         const lastReview = [...project.turns].reverse().find(t => t.agent === 'reviewer');
+        // Owner feedback from creative-director:reject-plan — was being captured into
+        // phaseOutputs.rejectionFeedback but never actually read anywhere, so a user
+        // rejecting a plan with specific notes silently got the exact same plan again.
+        // Consume it once (into ownerFeedbackBlock) then clear it so it doesn't leak
+        // into unrelated later revisions.
+        const ownerFeedback = project.phaseOutputs.rejectionFeedback;
+        const ownerFeedbackBlock = ownerFeedback
+          ? `═══ OWNER REJECTED THE PREVIOUS PLAN — HIGHEST PRIORITY FEEDBACK (address ALL of it) ═══\n${ownerFeedback.slice(0, 2000)}\n═══════════════════════════════════════════════════════════════\n\n`
+          : '';
+        if (ownerFeedback) project.phaseOutputs.rejectionFeedback = undefined;
         instruction =
-          `${MOSSY_INDUSTRIES_LORE}\n\n` +
+          cdLoreBlock +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
+          ownerFeedbackBlock +
           (revisionCount > 0 && lastReview
             ? `This is revision attempt #${revisionCount + 1}. The reviewer sent it back:\n\n` +
               `=== REVIEWER FEEDBACK ===\n${lastReview.message.slice(0, 1500)}\n=== END FEEDBACK ===\n\n` +
               `Address ALL issues above, then output a complete revised plan.\n\n`
             : `${buildCDGameDataBlock()}\n\nThis is your FIRST plan. Stay within the scope limits.\n\n`) +
-          `REMEMBER: This mod must connect to Mossy Industries canon above.\n` +
+          (project.isCustom
+            ? `REMEMBER: This must be a faithful realization of the BRIEF above — do not substitute unrelated lore or concepts.\n`
+            : `REMEMBER: This mod must connect to Mossy Industries canon above.\n`) +
           `Write the complete plan using the exact headings from your instructions.`;
       }
 
       else if (project.phase === 'reviewing') {
         const lastPlan = [...project.turns].reverse().find(t => t.agent === 'planner');
         instruction =
-          `${MOSSY_INDUSTRIES_LORE}\n\n` +
+          cdLoreBlock +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
           `=== PLAN TO REVIEW ===\n${(lastPlan?.message || '(no plan found)').slice(0, 3000)}\n=== END PLAN ===\n\n` +
           `Review this plan strictly. Check scope, feasibility, EditorID conventions, missing pieces,\n` +
-          `AND verify the mod connects to Mossy Industries lore correctly per the canon above.\n` +
+          (project.isCustom
+            ? `AND verify the plan actually matches the user's BRIEF above (not a substituted concept).\n`
+            : `AND verify the mod connects to Mossy Industries lore correctly per the canon above.\n`) +
           `Output exactly: "## Review Result: APPROVED" or "## Review Result: NEEDS_REVISION" as the first heading.`;
       }
 
       else if (project.phase === 'analyzing') {
         const lastPlan = [...project.turns].reverse().find(t => t.agent === 'planner');
         instruction =
-          `${MOSSY_INDUSTRIES_LORE}\n\n` +
+          cdLoreBlock +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
           `${buildCDGameDataBlock()}\n\n` +
           `=== APPROVED PLAN ===\n${(lastPlan?.message || project.phaseOutputs.plan || '').slice(0, 3000)}\n=== END PLAN ===\n\n` +
           `Verify every record reference against real FO4 game data above.\n` +
           `When listing textures, meshes, or materials — copy exact paths from the catalog above.\n` +
           `Build the Verified Reference Table, confirm the location, and list NPC templates.\n` +
-          `Also confirm the Mossy Industries connection is lore-consistent.\n` +
+          (project.isCustom ? '' : `Also confirm the Mossy Industries connection is lore-consistent.\n`) +
           `End your reply with the exact line: ## ANALYSIS COMPLETE`;
       }
 
@@ -19520,7 +19610,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         }
 
         const commonContext =
-          `${MOSSY_INDUSTRIES_LORE}\n\n` +
+          cdLoreBlock +
           `PROJECT: ${project.title}\nBRIEF: ${project.brief}\n\n` +
           `=== APPROVED PLAN ===\n${(project.phaseOutputs.plan || '').slice(0, 1500)}\n=== END PLAN ===\n\n` +
           `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 2000)}\n=== END REFERENCE ===\n\n`;
@@ -19535,13 +19625,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `## Worldspace Decision\n` +
             `State: new WRLD record OR cell cluster in existing worldspace (e.g. Commonwealth). Be explicit.\n\n` +
             `## Cell Registry\n` +
-            `Table with 6+ cells minimum: | # | Cell EditorID | Cell Name | Type (Int/Ext) | Size | Key Contents | Connects To |\n\n` +
+            `Table with 4+ cells minimum: | # | Cell EditorID | Cell Name | Type (Int/Ext) | Size | Key Contents | Connects To |\n\n` +
             `## Encounter Zone Design (ECZN)\n` +
             `Table: | ECZN EditorID | Owner Cell | Min Level | Max Level | Resets | Reset Hrs |\n` +
-            `(One ECZN per cell cluster or major area — minimum 2 entries)\n\n` +
+            `(One ECZN per cell cluster or major area — minimum 1 entry. Write this section BEFORE Key Area Descriptions — do not skip it to save room.)\n\n` +
             `## Location Records (LCTN)\n` +
             `Table: | LCTN EditorID | Display Name | Parent LCTN | Associated Cells |\n` +
-            `(One LCTN per named area — minimum 2 entries)\n\n` +
+            `(One LCTN per named area — minimum 1 entry. Write this section BEFORE Key Area Descriptions — do not skip it to save room.)\n\n` +
             `## Key Area Descriptions\n` +
             `For each named location: describe what the player finds, Mossy Industries elements, storytelling hooks.\n\n` +
             `## Vanilla Asset Catalog\n` +
@@ -19565,11 +19655,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `YOUR TASK (Section 2/12 — Faction & Reputation System): Design EVERY faction and the full reputation system.\n\n` +
             `REQUIRED OUTPUT (all headings mandatory):\n` +
             `## Faction Records (FACT) — table: EditorID, display name, type, alignment, initial player rank\n` +
-            `## Faction Rank Tables — for EACH faction: all rank numbers, male/female rank names, min rep value\n` +
             `## Reputation Globals (GLOB) — table: EditorID, short name, type, initial value, purpose\n` +
+            `(Write GLOB immediately after Faction Records, not at the end — it must not get cut for space.)\n` +
+            `## Faction Rank Tables — for EACH faction: all rank numbers, male/female rank names, min rep value\n` +
             `## Faction Relationships — table: faction A vs B, combat modifier, notes\n` +
             `## Reputation Mechanics — table: action, faction, rep change, notes\n` +
-            `## Dialogue Condition Examples — 5+ real Papyrus condition blocks using reputation GLOBs\n` +
+            `## Dialogue Condition Examples — 3+ real Papyrus condition blocks using reputation GLOBs\n` +
             `## FACT JSON Block — valid JSON with all FACT records\n\n` +
             `End with: ## FACTION DESIGN COMPLETE`;
         } else if (sectionIdx === 2) {
@@ -19691,7 +19782,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `## Crafting Recipes (COBJ) — table: EditorID | Output | Workbench | Components | Perk | Conditions\n` +
             `## Keywords (KYWRD) — only if new keywords needed\n` +
             `## Item JSON Block — valid JSON with all item records\n\n` +
-            `MINIMUM COUNTS: 3+ WEAP, 5+ ARMO, 10+ MISC, 5+ COBJ recipes.\n` +
+            `MINIMUM COUNTS: 2+ WEAP, 3+ ARMO, 6+ MISC, 3+ COBJ recipes.\n` +
             `Use REAL vanilla base template EditorIDs. Mossy Industries aesthetic: organic/botanical.\n` +
             `All component names must be real FO4 EditorIDs (Steel, Circuitry, FiberOptics, etc.).\n\n` +
             `End with: ## ITEMS COMPLETE`;
@@ -19720,13 +19811,28 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           const scriptNames = [...(scriptsOutput.matchAll(/## Script:\s*(\S+\.psc)/gi))].map(m => m[1]);
           const loreCtx = (project.phaseOutputs.loreContent || '').slice(0, 600);
           const itemCtx = (project.phaseOutputs.itemDesign || '').slice(0, 600);
+          // CRITICAL: without these, the record builder never sees the worldspace/cell
+          // decision, quest design, NPC roster, or faction design that earlier sections
+          // already committed to — it ends up inventing generic placeholders (e.g.
+          // defaulting every CELL to the vanilla Commonwealth worldspace) instead of
+          // using the actual EditorIDs and structure decided earlier in this same build.
+          const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 1800);
+          const mainQuestCtx = (project.phaseOutputs.mainQuestline || '').slice(0, 1200);
+          const sideQuestCtx = (project.phaseOutputs.sideQuests || '').slice(0, 800);
+          const npcCtx = (project.phaseOutputs.npcRoster || '').slice(0, 1200);
+          const factionCtx = (project.phaseOutputs.factionDesign || '').slice(0, 800);
           instruction =
             commonContext + failNote +
+            `=== WORLD DESIGN (use this EXACT worldspace/cell EditorIDs — do not invent your own) ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+            `=== MAIN QUESTLINE (build QUST/DIAL/INFO from THIS, not a substitute) ===\n${mainQuestCtx}\n=== END MAIN QUESTLINE ===\n\n` +
+            `=== SIDE QUESTS ===\n${sideQuestCtx}\n=== END SIDE QUESTS ===\n\n` +
+            `=== NPC ROSTER (use these EXACT NPCs) ===\n${npcCtx}\n=== END NPCs ===\n\n` +
+            `=== FACTION DESIGN ===\n${factionCtx}\n=== END FACTIONS ===\n\n` +
             `=== LORE CONTENT SUMMARY ===\n${loreCtx}\n=== END LORE ===\n\n` +
             `=== ITEMS SUMMARY ===\n${itemCtx}\n=== END ITEMS ===\n\n` +
             `Script Writer produced these .psc files: ${scriptNames.length > 0 ? scriptNames.join(', ') : 'see transcript'}\n\n` +
             `YOUR TASK (Section 10/12 — ESP Records JSON): Write the COMPLETE xEdit-compatible JSON for this DLC.\n` +
-            `Include EVERY record designed in sections 1–8. Reference scripts by NAME ONLY in Scripts[].\n\n` +
+            `Include EVERY record designed in sections 1–8 — use the EXACT worldspace/cell/quest/NPC/faction EditorIDs from the context above, never generic placeholders. Reference scripts by NAME ONLY in Scripts[].\n\n` +
             `MINIMUM RECORD COUNTS:\n` +
             `5+ QUST | 8+ NPC_ | 10+ DIAL | 4+ INFO per NPC | 10+ BOOK (holotapes) | 10+ BOOK (IsNote) | 5+ TERM | 10+ CELL\n` +
             `3+ WEAP | 5+ ARMO | 10+ MISC | 5+ COBJ | 2+ FACT | 3+ GLOB | 1+ LCTN | 1+ ECZN\n\n` +
@@ -19787,14 +19893,14 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (World & Location Design):\n' +
             '• ## Worldspace Decision heading present with clear new-WRLD vs cell-cluster decision\n' +
-            '• ## Cell Registry table has 6+ rows (EditorID, name, type, size, contents, connections)\n' +
-            '• ## Encounter Zone Design section present (table or list of ECZN EditorIDs with levels)\n' +
-            '• ## Location Records section present (table or list of LCTN EditorIDs)\n' +
+            '• ## Cell Registry table has 4+ rows (EditorID, name, type, size, contents, connections)\n' +
+            '• ## Encounter Zone Design section present (table or list of ECZN EditorIDs with levels) — at least 1 entry\n' +
+            '• ## Location Records section present (table or list of LCTN EditorIDs) — at least 1 entry\n' +
             '• ## Key Area Descriptions section present with at least 2 location descriptions\n' +
             '• ## Vanilla Asset Catalog section present\n' +
             '• ```concept-art JSON block present with 3+ entries\n' +
             '• Ends with: ## WORLD DESIGN COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 6 cells | no ECZN section | no LCTN section | no concept-art block | no completion marker';
+            'AUTO-FAIL: fewer than 4 cells | no ECZN section | no LCTN section | no concept-art block | no completion marker';
         } else if (sectionIdx === 1) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Faction & Reputation System):\n' +
@@ -19803,7 +19909,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             '• ## Reputation Globals table with GLOB EditorIDs for each faction\n' +
             '• ## Faction Relationships table present\n' +
             '• ## Reputation Mechanics table with specific actions and rep changes\n' +
-            '• ## Dialogue Condition Examples has 5+ real Papyrus condition blocks\n' +
+            '• ## Dialogue Condition Examples has 3+ real Papyrus condition blocks\n' +
             '• ```json FACT JSON block present and valid\n' +
             '• Ends with: ## FACTION DESIGN COMPLETE\n\n' +
             'AUTO-FAIL: fewer than 2 factions | no GLOB records | no condition examples | no completion marker';
@@ -19872,15 +19978,15 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         } else if (sectionIdx === 7) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Items & Equipment):\n' +
-            '• ## Weapons table with 3+ WEAP records (EditorID, stats, keywords)\n' +
-            '• ## Armor table with 5+ ARMO records (EditorID, slot, DR/ER/RR, keywords)\n' +
-            '• ## Misc Items table with 10+ MISC records\n' +
-            '• ## Crafting Recipes with 5+ COBJ records referencing real vanilla components\n' +
+            '• ## Weapons table with 2+ WEAP records (EditorID, stats, keywords)\n' +
+            '• ## Armor table with 3+ ARMO records (EditorID, slot, DR/ER/RR, keywords)\n' +
+            '• ## Misc Items table with 6+ MISC records\n' +
+            '• ## Crafting Recipes with 3+ COBJ records referencing real vanilla components\n' +
             '• ## Item JSON Block present and valid JSON\n' +
             '• All FormIDs are "[GENERATE]"\n' +
             '• All keywords are real FO4 KYWRD EditorIDs\n' +
             '• Ends with: ## ITEMS COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 3 weapons | fewer than 5 armor | fewer than 10 misc | no recipes | invented keyword EditorIDs | no completion marker';
+            'AUTO-FAIL: fewer than 2 weapons | fewer than 3 armor | fewer than 6 misc | no recipes | invented keyword EditorIDs | no completion marker';
         } else if (sectionIdx === 8) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Papyrus Scripts):\n' +
@@ -19952,7 +20058,15 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       // completion cap mid-response, which the verifier then correctly reported as
       // "missing" content that was actually just cut off. Only Ollama/Inkling can use
       // a bigger budget; the Groq path clamps back down to its real 8192 hard cap.
-      const verboseSectionBudget = (project.phase === 'building' && (project.buildSectionIdx === 5 || project.buildSectionIdx === 6))
+      // World & Location Design (idx 0) has the same problem — REQUIRED OUTPUT is
+      // Worldspace Decision + a 6+ row Cell Registry + an ECZN table + an LCTN table +
+      // prose Key Area Descriptions + a Vanilla Asset Catalog + Concept Art Prompts JSON,
+      // comparably large to sections 5/6. Observed in production: it consistently reached
+      // "## WORLD DESIGN COMPLETE" (including the trailing concept-art JSON) while
+      // silently dropping the ECZN/LCTN tables and under-filling the Cell Registry to
+      // fit inside the standard budget — the same truncation-under-pressure failure
+      // mode sections 5/6 already had fixed, just not extended to this section.
+      const verboseSectionBudget = (project.phase === 'building' && [0, 5, 6].includes(project.buildSectionIdx))
         ? 16384
         : 8192;
       const message = specialistRoles.has(role)
@@ -20194,6 +20308,51 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         totalNames: raw.total_names,
         source: raw.source,
       };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // ── User commissions a specific project directly — previously the only ways to start
+  // a project were the Director self-generating an unrelated Mossy Industries DLC concept,
+  // or re-queuing a revision of an already-completed project. This lets a user hand the
+  // team a concrete brief (e.g. from the World Design tab) and have the team actually work
+  // on THAT idea instead of inventing its own.
+  registerHandler('creative-director:submit-custom-project', async (_event, payload: { title: string; brief: string; worldDesign?: string }) => {
+    try {
+      const rawTitle = String(payload?.title || '').trim().slice(0, 120) || 'Untitled Project';
+      const briefText = String(payload?.brief || '').trim().slice(0, 4000);
+      if (!briefText) return { success: false, error: 'A brief is required.' };
+      if (cdTeamState.currentProject) {
+        return { success: false, error: `The AI Team is already working on "${cdTeamState.currentProject.title}". Wait for it to reach the approval gate (or finish) before submitting a new project.` };
+      }
+
+      // Custom user-commissioned projects keep the title the user actually typed —
+      // do NOT force "by Mossy Industries" branding onto an unrelated idea.
+      const title = rawTitle;
+      const project: CdProject = {
+        id: `cdproj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        brief: briefText,
+        isCustom: true,
+        status: 'in_progress',
+        phase: 'planning',
+        phaseOutputs: payload?.worldDesign ? { worldDesign: String(payload.worldDesign).slice(0, 4000) } : {},
+        buildSectionIdx: 0,
+        buildVerified: false,
+        turns: [{
+          agent: 'director',
+          message: `New user-commissioned project: ${title}\n\nBrief: ${briefText}`,
+          timestamp: Date.now(),
+        }],
+        createdAt: Date.now(), updatedAt: Date.now(),
+      };
+
+      cdTeamState.currentProject = project;
+      cdTeamState.enabled = true;
+      saveCdTeamState();
+      void runCreativeDirectorTick();
+      return { success: true, projectTitle: project.title };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
@@ -20490,14 +20649,20 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
       }
 
       const newId = `cdproj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      // Stamp "by Mossy Industries" on older projects that predate the branding
-      const revisedTitle = completed.title.toLowerCase().includes('mossy industries')
+      // Stamp "by Mossy Industries" on older projects that predate the branding —
+      // but never on a user-commissioned custom project, which keeps its own title.
+      const revisedTitle = completed.isCustom || completed.title.toLowerCase().includes('mossy industries')
         ? completed.title
         : `${completed.title} by Mossy Industries`;
       const project: CdProject = {
         id: newId,
         title: revisedTitle,
-        brief: completed.summary || `Revision of: ${revisedTitle}`,
+        // MUST use the real original brief, not `summary` — for an incomplete
+        // project, summary is just the "[Section N skipped...]" status message,
+        // which would otherwise become the "creative brief" the team plans a
+        // revision around, silently replacing what the user actually asked for.
+        brief: completed.brief || completed.summary || `Revision of: ${revisedTitle}`,
+        isCustom: completed.isCustom,
         status: 'in_progress',
         phase: 'planning',
         phaseOutputs: {},
@@ -20551,6 +20716,22 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
     }
   });
 
+  // ── Discard the in-flight project only — leaves completed history and queue
+  // untouched. For when the current project went sideways (e.g. a revision that
+  // lost the real brief) and the user wants to back out and resubmit clean,
+  // without reset-all's much heavier "wipe everything" blast radius.
+  registerHandler('creative-director:discard-current-project', async () => {
+    try {
+      if (!cdTeamState.currentProject) return { success: true, discarded: false };
+      const title = cdTeamState.currentProject.title;
+      cdTeamState.currentProject = null;
+      saveCdTeamState();
+      return { success: true, discarded: true, title };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // ── Reset — wipe ALL team state: current project, completed list, queue ───────
   registerHandler('creative-director:reset-all', async () => {
     try {
@@ -20585,7 +20766,24 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
         if (fs.existsSync(specPath)) {
           try {
             const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
-            return { success: true, status: spec.status === 'approved' ? 'passed' : 'pending', report: null, bugTicket: null };
+            if (spec.status === 'approved') {
+              return { success: true, status: 'passed', report: null, bugTicket: null };
+            }
+            // A spec that's been sitting unpicked-up for a long time with no report at all
+            // usually means the orchestrator isn't running (or Unity is failing silently) —
+            // this exact scenario went unnoticed for over a week (2026-07-21 to 2026-07-30)
+            // because "pending" looks identical to "actively being tested" in the UI. Surface
+            // it honestly once it's been stuck well past how long a real run ever takes.
+            const STALL_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours — real runs take seconds to minutes
+            const createdAt = typeof spec.created_at === 'string' ? Date.parse(spec.created_at) : NaN;
+            const pendingMs = isFinite(createdAt) ? Date.now() - createdAt : 0;
+            if (pendingMs > STALL_THRESHOLD_MS) {
+              return {
+                success: true, status: 'stalled', report: null, bugTicket: null,
+                pendingSinceIso: spec.created_at, pendingHours: Math.round(pendingMs / 3_600_000 * 10) / 10,
+              };
+            }
+            return { success: true, status: 'pending', report: null, bugTicket: null };
           } catch { /* fall through */ }
         }
         return { success: true, status: 'not_submitted', report: null, bugTicket: null };
@@ -20613,7 +20811,13 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
   // ── Virtual World — re-submit a project spec to the VR lab for re-testing ────
   registerHandler('creative-director:vr-send-to-lab', async (_event, projectId: string) => {
     try {
-      const completed = cdTeamState.completedProjects.find(p => p.id === projectId);
+      // A project sent back for revision is spliced out of completedProjects and
+      // held inside the pending queue entry's own completedProject snapshot (see
+      // reopen-project below) — the Handoff panel still renders a card for it
+      // (with a working Re-test/Send button), so it must be resolvable from
+      // either list, not just the completed one.
+      const completed = cdTeamState.completedProjects.find(p => p.id === projectId)
+        ?? cdTeamState.pendingQueue.find(e => e.completedProject.id === projectId)?.completedProject;
       if (!completed) return { success: false, error: 'Project not found' };
       if (!completed.questId) return { success: false, error: 'No VR spec for this project. Re-finalize to generate one.' };
       if (!fs.existsSync(VR_LAB_SPECS_PATH)) return { success: false, error: 'Virtual World lab not found at ' + VR_LAB_SPECS_PATH };
@@ -28920,6 +29124,47 @@ end.
     } catch (e: any) { return { success: false, error: e?.message }; }
   });
 
+  // ── ck:create-blank-plugin — copy a blank .esp template to a user-chosen path ──
+  // 'empty'  → a plain blank plugin (Fallout4.esm master only, no records) for general use.
+  // 'previs' → same structure, intended as the dummy active plugin during precombine/previs
+  //            generation so previs data lands in a clean patch instead of your real ESP.
+  // Always copies — the bundled template itself is never touched or returned as a live path.
+  registerHandler('ck:create-blank-plugin', async (_event, variant: 'empty' | 'previs') => {
+    try {
+      const templateFile = variant === 'previs' ? 'PrevisGen.esp' : 'EmptyPlugin.esp';
+      const exeDir = path.dirname(process.execPath);
+      const candidates = [
+        path.join(exeDir, 'resources', 'plugin-templates', templateFile),                   // installed path
+        path.join(app.getAppPath(), '..', 'plugin-templates', templateFile),                 // asar-adjacent
+        path.join(app.getAppPath(), '..', '..', 'resources', 'plugin-templates', templateFile), // dev layout
+        path.join(process.cwd(), 'resources', 'plugin-templates', templateFile),
+      ];
+      const templatePath = candidates.find(p => { try { return fs.existsSync(p); } catch { return false; } });
+      if (!templatePath) {
+        const tried = candidates.join('\n  ');
+        return { success: false, error: `Blank plugin template not found. Looked in:\n  ${tried}` };
+      }
+
+      const defaultName = variant === 'previs' ? 'PrevisGen.esp' : 'NewPlugin.esp';
+      const result = await dialog.showSaveDialog({
+        title: variant === 'previs' ? 'Save Blank Previs-Generation Plugin As…' : 'Save Blank Plugin As…',
+        defaultPath: defaultName,
+        filters: [{ name: 'Fallout 4 Plugin', extensions: ['esp'] }],
+      });
+      if (result.canceled || !result.filePath) return { success: false, error: 'Cancelled.' };
+
+      // Guard: never let the destination resolve back onto the bundled template itself.
+      if (path.resolve(result.filePath) === path.resolve(templatePath)) {
+        return { success: false, error: 'Destination cannot be the template file itself — choose a different name or folder.' };
+      }
+
+      fs.copyFileSync(templatePath, result.filePath);
+      return { success: true, path: result.filePath };
+    } catch (e: any) {
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
   // ── ck:launch-previs-workflow — orchestrate the full PJM Scripts workflow ──────
   // mode 'check'    → xEdit + FO4Check_Previsbines.pas (run first, find issues)
   // mode 'generate' → GeneratePrevisibines.bat (run after check completes)
@@ -29658,7 +29903,13 @@ end.
         }
       }
       if (pipeline?.normal?.enabled) {
-        await tryGenerate('normal', 'normal', { normalStrength: pipeline.normal.strength });
+        await tryGenerate('normal', 'normal', {
+          normalStrength: pipeline.normal.strength,
+          normalMethod: pipeline.normal.method,
+          normalSmoothing: pipeline.normal.smoothing,
+          normalFineDetail: pipeline.normal.fineDetail,
+          invertY: pipeline.normal.invertY,
+        });
       }
       if (pipeline?.roughness?.enabled) {
         const base = pipeline.roughness.base ?? 0.5;
@@ -29672,6 +29923,13 @@ end.
         const metallicValue = pipeline.metallic.mode === 'zero' ? 0 : (pipeline.metallic.base ?? 0);
         await tryGenerate('metallic', 'metallic', { metallicValue });
       }
+      if (pipeline?.specular?.enabled) {
+        await tryGenerate('specular', 'specular', {
+          specularIntensity: pipeline.specular.intensity,
+          glossMin: pipeline.specular.glossMin,
+          glossMax: pipeline.specular.glossMax,
+        });
+      }
       if (pipeline?.ao?.enabled) {
         await tryGenerate('ao', 'ao', { aoIntensity: pipeline.ao.strength ?? 0.5 });
       }
@@ -29683,13 +29941,11 @@ end.
       }
       // Real DDS conversion (texconv.exe/nvcompress.exe) when requested —
       // every map above is generated as PNG; convert in place if the user
-      // asked for .dds output rather than silently staying PNG. Runs BEFORE
-      // the BGSM stage so the material file can reference the final texture
-      // paths the game will actually load.
+      // asked for .dds output rather than silently staying PNG.
       let note: string | undefined;
       if ((params.outputFormat === 'dds' || params.outputFormat === 'both') && Object.keys(outputs).length > 0) {
         const DDS_FORMAT_BY_MAP: Record<string, DdsTextureFormat> = {
-          albedo: 'DDS_DXT1', normal: 'DDS_BC5', roughness: 'DDS_BC7', metallic: 'DDS_BC7', ao: 'DDS_BC7', cavity: 'DDS_BC7', height: 'DDS_UNCOMPRESSED',
+          albedo: 'DDS_DXT1', normal: 'DDS_BC5', roughness: 'DDS_BC7', metallic: 'DDS_BC7', specular: 'DDS_BC7', ao: 'DDS_BC7', cavity: 'DDS_BC7', height: 'DDS_UNCOMPRESSED',
         };
         for (const [key, pngPath] of Object.entries(outputs)) {
           if (!pngPath.endsWith('.png')) continue;
@@ -29705,26 +29961,6 @@ end.
           } else {
             errors.push(`${key} DDS conversion: ${conv.error || 'failed'} — kept PNG output`);
           }
-        }
-      }
-
-      if (pipeline?.bgsm?.enabled) {
-        // Prefer the DDS path when one was produced above; otherwise reference the PNG.
-        const texFor = (key: string) => outputs[`${key}Dds`] || (outputs[key]?.endsWith('.dds') ? outputs[key] : outputs[key]);
-        const bgsmPath = path.join(outDir, `${baseName}.bgsm`);
-        try {
-          writeBgsmFile({
-            sDiffuseTexture: texFor('albedo') || '',
-            sNormalTexture: texFor('normal') || '',
-            sGreyscaleTexture: texFor('roughness') || '',
-            sSmoothSpecTexture: texFor('metallic') || '',
-            bSpecularEnabled: true,
-            sf2: { pbr: !!pipeline.bgsm.pbrMode },
-          } as any, bgsmPath);
-          outputs.bgsm = bgsmPath;
-          note = `Wrote a real binary .bgsm referencing the generated maps — open it in the BGSM Editor for fine-tuning.`;
-        } catch (err: any) {
-          errors.push(`bgsm: ${err?.message || err}`);
         }
       }
 
@@ -29788,8 +30024,44 @@ end.
     };
   });
 
+  // Texture Enhancer learning loop: record whether a job's output was kept or
+  // discarded (with an optional 1-5 rating), fold "kept" jobs' numeric pipeline
+  // settings into a persistent per-surface running average, and hand back the
+  // current learned stats so the renderer can blend them into surface preset
+  // defaults on future runs. See textureEnhancerLearning.ts for the aggregation.
+  registerHandler('texture-enhancer:record-outcome', async (_event, params: {
+    surface: string; pipeline: Record<string, any>; outcome: 'kept' | 'discarded'; rating?: number;
+  }) => {
+    try {
+      if (!params?.surface || !params?.pipeline || (params.outcome !== 'kept' && params.outcome !== 'discarded')) {
+        return { success: false, error: 'Missing surface, pipeline, or a valid outcome.' };
+      }
+      recordEnhancerOutcome(params);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
+  });
+
+  registerHandler('texture-enhancer:get-learned-stats', async () => {
+    try {
+      return { success: true, stats: getEnhancerLearnedStats() };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err), stats: {} };
+    }
+  });
+
+  registerHandler('texture-enhancer:reset-learning', async (_event, params?: { surface?: string }) => {
+    try {
+      resetEnhancerLearning(params?.surface);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
+  });
+
   // Asset Validator Handlers
-  registerHandler('asset-validator:validate-mod', async (_event, modPath: string) => {
+  registerHandler('asset-validator:validate-mod', async (event, modPath: string) => {
     try {
       const validation = IpcValidation.isValidFilePath(modPath);
       if (!validation.valid) return IpcResponseBuilder.error(validation.error ?? "Validation error", IpcErrorCode.EINVAL);
@@ -29802,8 +30074,15 @@ end.
       let totalSize = 0;
       const fileTypes: Record<string, number> = {};
       const startTime = Date.now();
+      let lastProgressSent = 0;
 
-      const scanDir = (dir: string, depth = 0): void => {
+      // Scans recursively but yields to the event loop every 40 files so a large mod
+      // (thousands of files, especially under real-time AV scanning which can add
+      // significant per-file latency) never blocks the main process — and every other
+      // IPC-backed feature in the app — for the full duration of the scan. Also emits
+      // live progress so the renderer isn't stuck showing a static "Scanning…" spinner
+      // with no feedback for minutes at a time.
+      const scanDir = async (dir: string, depth = 0): Promise<void> => {
         if (depth > 8) return;
         try {
           const files = fs.readdirSync(dir);
@@ -29812,12 +30091,24 @@ end.
             try {
               const stat = fs.statSync(filePath);
               if (stat.isDirectory()) {
-                scanDir(filePath, depth + 1);
+                await scanDir(filePath, depth + 1);
               } else {
                 filesScanned++;
                 totalSize += stat.size;
                 const ext = path.extname(file).toLowerCase();
                 fileTypes[ext] = (fileTypes[ext] || 0) + 1;
+
+                if (filesScanned - lastProgressSent >= 40) {
+                  lastProgressSent = filesScanned;
+                  try {
+                    event.sender.send('asset-validator:scan-progress', {
+                      modPath, filesScanned, elapsedMs: Date.now() - startTime,
+                    });
+                  } catch { /* window may have closed */ }
+                  // Yield to the event loop so this scan never fully blocks the main
+                  // process (and every other IPC-backed feature) for its whole duration.
+                  await new Promise((resolve) => setImmediate(resolve));
+                }
 
                 // DDS texture validation
                 if (ext === '.dds') {
@@ -29891,7 +30182,7 @@ end.
         }
       };
 
-      scanDir(modPath);
+      await scanDir(modPath);
       const scanTime = Date.now() - startTime;
 
       // Calculate compliance score

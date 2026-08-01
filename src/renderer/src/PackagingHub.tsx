@@ -23,11 +23,13 @@ import ConflictResolver from './ConflictResolver';
 import { ConflictGraph } from './ConflictGraph';
 import { BethelUploader } from './BethelUploader';
 import ReleaseExportPanel from './ReleaseExportPanel';
+import { useI18n } from './i18n';
 
 type HubSection = {
   id: string;
   step?: number;
   title: string;
+  shortTitle?: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   content: React.ReactNode;
@@ -36,6 +38,7 @@ type HubSection = {
 const WORKFLOW_STEPS = ['ba2', 'checklist', 'conflicts', 'comparison', 'assembler', 'export'];
 
 const PackagingHub: React.FC = () => {
+  const { t } = useI18n();
   const [expandedSection, setExpandedSection] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('section') || 'checklist';
@@ -76,69 +79,75 @@ const PackagingHub: React.FC = () => {
     {
       id: 'ba2',
       step: 0,
-      title: 'Step 0: BA2 Archive Manager',
-      description: 'List, extract, pack, and merge BA2 archives before packaging.',
+      title: t('packagingHub.sections.ba2.title', 'Step 0: BA2 Archive Manager'),
+      shortTitle: t('packagingHub.sections.ba2.shortTitle', 'BA2 Archive Manager'),
+      description: t('packagingHub.sections.ba2.desc', 'List, extract, pack, and merge BA2 archives before packaging.'),
       icon: Database,
       content: <BA2Manager />,
     },
     {
       id: 'checklist',
       step: 1,
-      title: 'Step 1: Packaging Checklist',
-      description: 'Verify paths, archives, plugin sanity, and release readiness.',
+      title: t('packagingHub.sections.checklist.title', 'Step 1: Packaging Checklist'),
+      shortTitle: t('packagingHub.sections.checklist.shortTitle', 'Packaging Checklist'),
+      description: t('packagingHub.sections.checklist.desc', 'Verify paths, archives, plugin sanity, and release readiness.'),
       icon: Archive,
       content: <PackagingReleaseWizard embedded />,
     },
     {
       id: 'conflicts',
       step: 2,
-      title: 'Step 2: Conflict Analysis',
-      description: 'Visualize record conflicts between your mod and others.',
+      title: t('packagingHub.sections.conflicts.title', 'Step 2: Conflict Analysis'),
+      shortTitle: t('packagingHub.sections.conflicts.shortTitle', 'Conflict Analysis'),
+      description: t('packagingHub.sections.conflicts.desc', 'Visualize record conflicts between your mod and others.'),
       icon: Search,
       content: <ModConflictVisualizer embedded />,
     },
     {
       id: 'comparison',
       step: 3,
-      title: 'Step 3: Mod Comparison',
-      description: 'Compare your mod with similar mods for compatibility.',
+      title: t('packagingHub.sections.comparison.title', 'Step 3: Mod Comparison'),
+      shortTitle: t('packagingHub.sections.comparison.shortTitle', 'Mod Comparison'),
+      description: t('packagingHub.sections.comparison.desc', 'Compare your mod with similar mods for compatibility.'),
       icon: GitCompare,
       content: <ModComparisonTool embedded />,
     },
     {
       id: 'assembler',
       step: 4,
-      title: 'Step 4: FOMOD Installer (Assembler)',
-      description: 'Build and export a FOMOD installer for your release package.',
+      title: t('packagingHub.sections.assembler.title', 'Step 4: FOMOD Installer (Assembler)'),
+      shortTitle: t('packagingHub.sections.assembler.shortTitle', 'FOMOD Installer (Assembler)'),
+      description: t('packagingHub.sections.assembler.desc', 'Build and export a FOMOD installer for your release package.'),
       icon: Package,
       content: <TheAssembler embedded />,
     },
     {
       id: 'export',
       step: 5,
-      title: 'Step 5: Export & Release',
-      description: 'Build your release zip, write release notes, and publish to Nexus or Bethesda.net.',
+      title: t('packagingHub.sections.export.title', 'Step 5: Export & Release'),
+      shortTitle: t('packagingHub.sections.export.shortTitle', 'Export & Release'),
+      description: t('packagingHub.sections.export.desc', 'Build your release zip, write release notes, and publish to Nexus or Bethesda.net.'),
       icon: Rocket,
       content: <ReleaseExportPanel />,
     },
     {
       id: 'conflict-resolver',
-      title: 'Conflict Resolver',
-      description: 'Resolve plugin record conflicts and generate patch recommendations.',
+      title: t('packagingHub.sections.conflictResolver.title', 'Conflict Resolver'),
+      description: t('packagingHub.sections.conflictResolver.desc', 'Resolve plugin record conflicts and generate patch recommendations.'),
       icon: Layers,
       content: <ConflictResolver embedded />,
     },
     {
       id: 'conflict-graph',
-      title: 'Conflict Dependency Graph',
-      description: 'Visualize mod conflict relationships as an interactive dependency graph.',
+      title: t('packagingHub.sections.conflictGraph.title', 'Conflict Dependency Graph'),
+      description: t('packagingHub.sections.conflictGraph.desc', 'Visualize mod conflict relationships as an interactive dependency graph.'),
       icon: GitBranch,
       content: <ConflictGraph />,
     },
     {
       id: 'bethel-uploader',
-      title: 'Mod Auto-Enhancer',
-      description: 'Drag in a mod, automatically enhance its textures, and download the enhanced package — a local pipeline, not a Bethesda.net uploader.',
+      title: t('packagingHub.sections.bethelUploader.title', 'Mod Auto-Enhancer'),
+      description: t('packagingHub.sections.bethelUploader.desc', 'Drag in a mod, automatically enhance its textures, and download the enhanced package — a local pipeline, not a Bethesda.net uploader.'),
       icon: Upload,
       content: <BethelUploader />,
     },
@@ -153,18 +162,20 @@ const PackagingHub: React.FC = () => {
 
         {/* Header */}
         <div className="flex flex-col gap-3 mb-6">
-          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor • Packaging</div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">FO4 Packaging &amp; Release Hub</h1>
+          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">{t('packagingHub.eyebrow', 'Mossy Tutor • Packaging')}</div>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">{t('packagingHub.title', 'FO4 Packaging & Release Hub')}</h1>
           <p className="text-sm font-medium text-slate-300 max-w-2xl">
-            Complete workflow for packaging, conflict analysis, comparison, FOMOD installers, and release. Follow the steps in order for best results.
+            {t('packagingHub.subtitle', 'Complete workflow for packaging, conflict analysis, comparison, FOMOD installers, and release. Follow the steps in order for best results.')}
           </p>
         </div>
 
         {/* Workflow Progress Strip */}
         <div className="mb-6 rounded-xl border border-emerald-700/30 bg-emerald-900/10 p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-black tracking-widest uppercase text-slate-300">Workflow Progress</div>
-            <div className="text-xs font-mono text-emerald-400">{visitedWorkflowCount} / {WORKFLOW_STEPS.length} steps visited</div>
+            <div className="text-xs font-black tracking-widest uppercase text-slate-300">{t('packagingHub.workflowProgress', 'Workflow Progress')}</div>
+            <div className="text-xs font-mono text-emerald-400">
+              {t('packagingHub.stepsVisited', '{visited} / {total} steps visited').replace('{visited}', String(visitedWorkflowCount)).replace('{total}', String(WORKFLOW_STEPS.length))}
+            </div>
           </div>
 
           {/* Progress bar */}
@@ -195,7 +206,7 @@ const PackagingHub: React.FC = () => {
                   ) : (
                     <Circle className="w-3 h-3" />
                   )}
-                  Step {s.step}: {s.title.replace(/^Step \d+: /, '')}
+                  {t('packagingHub.stepPill', 'Step {step}: {title}').replace('{step}', String(s.step)).replace('{title}', s.shortTitle || s.title)}
                 </button>
               );
             })}
@@ -204,14 +215,14 @@ const PackagingHub: React.FC = () => {
 
         {/* Flow Reference */}
         <div className="mb-6 rounded-lg border border-slate-700/40 bg-slate-900/30 p-4 text-xs font-medium text-slate-300">
-          <div className="font-bold text-slate-200 mb-2">Flow (Read in Order)</div>
+          <div className="font-bold text-slate-200 mb-2">{t('packagingHub.flowTitle', 'Flow (Read in Order)')}</div>
           <ol className="list-decimal list-inside space-y-1 text-slate-300">
-            <li>Manage BA2 archives (pack, extract, merge)</li>
-            <li>Run the packaging checklist</li>
-            <li>Check for conflicts with other mods</li>
-            <li>Compare with similar mods for compatibility</li>
-            <li>Build your FOMOD installer</li>
-            <li>Export, write release notes, and publish</li>
+            <li>{t('packagingHub.flow1', 'Manage BA2 archives (pack, extract, merge)')}</li>
+            <li>{t('packagingHub.flow2', 'Run the packaging checklist')}</li>
+            <li>{t('packagingHub.flow3', 'Check for conflicts with other mods')}</li>
+            <li>{t('packagingHub.flow4', 'Compare with similar mods for compatibility')}</li>
+            <li>{t('packagingHub.flow5', 'Build your FOMOD installer')}</li>
+            <li>{t('packagingHub.flow6', 'Export, write release notes, and publish')}</li>
           </ol>
         </div>
 
@@ -250,7 +261,7 @@ const PackagingHub: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     {visited && !isExpanded && (
-                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Visited</span>
+                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">{t('packagingHub.visited', 'Visited')}</span>
                     )}
                     {isExpanded ? (
                       <ChevronUp className="w-4 h-4 text-emerald-300" />
@@ -272,7 +283,7 @@ const PackagingHub: React.FC = () => {
 
         {/* Advanced Tools */}
         <div className="mb-4">
-          <div className="text-[10px] font-mono tracking-[0.3em] text-slate-500 uppercase mb-3">Advanced Tools</div>
+          <div className="text-[10px] font-mono tracking-[0.3em] text-slate-500 uppercase mb-3">{t('packagingHub.advancedTools', 'Advanced Tools')}</div>
           <div className="space-y-3">
             {advancedSections.map((section) => {
               const isExpanded = expandedSection === section.id;
