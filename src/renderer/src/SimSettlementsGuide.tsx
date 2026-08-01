@@ -630,6 +630,19 @@ export default function SimSettlementsGuide({ embedded = false }: { embedded?: b
         </div>
       )}
 
+      <div className="mb-6 rounded-lg border-2 border-red-500 bg-red-950/40 p-4 flex items-start gap-3">
+        <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-black text-red-300 uppercase tracking-wide">Sim Settlements 2 does not allow AI-created content</p>
+          <p className="text-xs text-red-200/90 mt-1">
+            This applies to the Creator path below (addons, units/loadouts, toolkits): the SS2 team does not accept content
+            created with AI tools, including Mossy, for submission. Player setup and core-concepts content is unaffected —
+            this warning is only about creating and submitting your own SS2 addon content. Verify the current policy
+            directly with the SS2 team/Discord before publishing anything.
+          </p>
+        </div>
+      </div>
+
       <div className="mb-6 bg-[#001a00] border border-[#00ff00] rounded p-4 text-xs text-[#00d000]">
         <p className="font-bold text-[#00ff00]">Flow (Read in Order)</p>
         <ol className="list-decimal list-inside mt-2 space-y-1 text-[#008000]">

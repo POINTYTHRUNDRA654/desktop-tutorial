@@ -1458,6 +1458,15 @@ const electronAPI = {
     return ipcRenderer.invoke('ck:launch-previs-workflow', pluginPath, xeditPath, mode);
   },
 
+  /**
+   * Copy a bundled blank-plugin template to a user-chosen destination via a native Save dialog.
+   * 'empty' = generic blank .esp. 'previs' = dummy active plugin for precombine/previs generation.
+   * Always a copy — never returns or modifies the bundled template file itself.
+   */
+  ckCreateBlankPlugin: (variant: 'empty' | 'previs'): Promise<{ success: boolean; path?: string; error?: string }> => {
+    return ipcRenderer.invoke('ck:create-blank-plugin', variant);
+  },
+
   /** Strip existing precombine data from a plugin before regeneration (FO4RemovePrecombines.pas). */
   ckCleanPluginPrecombines: (pluginPath: string, xeditPath: string): Promise<{ success: boolean; message?: string; error?: string }> => {
     return ipcRenderer.invoke('ck:clean-plugin-precombines', pluginPath, xeditPath);
@@ -1932,6 +1941,17 @@ const electronAPI = {
    */
   assetValidatorValidateMod: (modPath: string, depth: 'quick' | 'standard' | 'deep'): Promise<any> => {
     return ipcRenderer.invoke('asset-validator:validate-mod', modPath, depth);
+  },
+
+  /**
+   * Asset Validator: subscribe to live progress during a full mod scan (large mods —
+   * thousands of files — can take a while, especially under real-time AV scanning).
+   * @returns unsubscribe function
+   */
+  onAssetValidatorScanProgress: (callback: (data: { modPath: string; filesScanned: number; elapsedMs: number }) => void): (() => void) => {
+    const subscription = (_event: any, data: { modPath: string; filesScanned: number; elapsedMs: number }) => callback(data);
+    ipcRenderer.on('asset-validator:scan-progress', subscription);
+    return () => ipcRenderer.removeListener('asset-validator:scan-progress', subscription);
   },
 
   /**
@@ -3674,6 +3694,8 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:get-state'),
     setEnabled: (enabled: boolean): Promise<any> =>
       ipcRenderer.invoke('creative-director:set-enabled', enabled),
+    submitCustomProject: (payload: { title: string; brief: string; worldDesign?: string }): Promise<any> =>
+      ipcRenderer.invoke('creative-director:submit-custom-project', payload),
     revealOutput: (outputDir: string): Promise<any> =>
       ipcRenderer.invoke('creative-director:reveal-output', outputDir),
     listAssets: (relativePath: string): Promise<any> =>
@@ -3696,12 +3718,14 @@ const electronAPI = {
       ipcRenderer.invoke('creative-director:sd-status', sdUrl),
     generateConceptArt: (params: { prompt: string; negativePrompt?: string; width?: number; height?: number; steps?: number; cfgScale?: number; sdUrl?: string }): Promise<{ success: boolean; imageData?: string; error?: string }> =>
       ipcRenderer.invoke('creative-director:generate-concept-art', params),
-    vrStatus: (questId: string): Promise<{ success: boolean; status: string; report: any; bugTicket: any; error?: string }> =>
+    vrStatus: (questId: string): Promise<{ success: boolean; status: string; report: any; bugTicket: any; pendingSinceIso?: string; pendingHours?: number; error?: string }> =>
       ipcRenderer.invoke('creative-director:vr-status', questId),
     vrSendToLab: (projectId: string): Promise<{ success: boolean; questId?: string; error?: string }> =>
       ipcRenderer.invoke('creative-director:vr-send-to-lab', projectId),
     resetAll: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('creative-director:reset-all'),
+    discardCurrentProject: (): Promise<{ success: boolean; discarded?: boolean; title?: string; error?: string }> =>
+      ipcRenderer.invoke('creative-director:discard-current-project'),
     launchIClone: (): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('creative-director:launch-iclone'),
     readAnimationDirection: (outputDir: string): Promise<{ success: boolean; data: any; error?: string }> =>

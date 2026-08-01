@@ -134,7 +134,47 @@
       },
       "credits": {
         "title": "Podziękowania",
-        "desc": "Zobacz projekty open source i narzędzia, które napędzają Mossy."
+        "desc": "Zobacz projekty open source i narzędzia, które napędzają Mossy.",
+        "builtWithLove": "Stworzone z Miłością na Wspaniałym Oprogramowaniu Open-Source",
+        "intro": "Mossy stoi na ramionach gigantów. Każda funkcja, z której korzystasz, jest napędzana przez oddanych deweloperów i tętniące życiem społeczności. Kliknij poniżej, aby zobaczyć pełne, przeszukiwalne podziękowania, licencje i atrybucje dla wszystkich narzędzi i frameworków.",
+        "viewFull": "Zobacz Pełne Podziękowania i Licencje",
+        "coreFramework": "Podstawowy Framework",
+        "electron": "Wieloplatformowy framework desktopowy (MIT)",
+        "react": "Biblioteka UI od Meta (MIT)",
+        "typescript": "TypeScript od Microsoft (Apache 2.0)",
+        "vite": "Narzędzie do budowania nowej generacji (MIT)",
+        "aiMl": "AI i Uczenie Maszynowe",
+        "groq": "Szybkie wnioskowanie LLM (Apache 2.0)",
+        "openaiSdk": "Integracja ChatGPT (Apache 2.0)",
+        "ollama": "Lokalne środowisko uruchomieniowe LLM (MIT)",
+        "pytorch": "Framework ML od Meta (BSD)",
+        "numpy": "Obliczenia numeryczne (BSD 3-Clause)",
+        "krea": "Generowanie obrazów, wideo i 3D przez AI (Komercyjne / krea.ai)",
+        "uiDesign": "UI i Design",
+        "tailwind": "CSS utility-first (MIT)",
+        "lucide": "Biblioteka ikon (ISC)",
+        "reactMarkdown": "Renderer Markdown (MIT)",
+        "recharts": "Biblioteka wykresów (MIT)",
+        "moddingTools": "Narzędzia do Moddingu (osobne pobrania)",
+        "blender": "Modelowanie 3D (GPL 2.0)",
+        "pynifly": "Import/eksport NIF dla Blendera od BadDogSkyrim (MIT)",
+        "xedit": "Edytor wtyczek od ElminsterAU (GPL 2.0)",
+        "creationKit": "Oficjalne narzędzie do moddingu Bethesda",
+        "nifskope": "Przeglądarka siatek i tekstur NIF od hexabits (GPL 3.0)",
+        "mo2": "Menedżer modów od Tannin42 / Zespołu MO2 (GPL 3.0)",
+        "vortex": "Menedżer modów od Nexus Mods",
+        "f4se": "Fallout 4 Script Extender od ianpatt i behippo",
+        "loot": "Narzędzie Optymalizacji Kolejności Ładowania (GPL 3.0)",
+        "bodyslide": "Morfowanie ciała od ousnius i Caliente (MIT)",
+        "bae": "Bethesda Archive Extractor od jonwd7",
+        "gimp": "Program do Manipulacji Obrazami GNU (GPL 3.0)",
+        "umodel": "Przeglądarka zasobów Unreal Engine od Gildora",
+        "andMore": "...i ponad 100 innych zależności. Kliknij",
+        "andMoreSuffix": "powyżej, aby zobaczyć pełną, przeszukiwalną listę z numerami wersji i linkami do licencji.",
+        "licenseCompliance": "Zgodność Licencji",
+        "complianceIntro": "Mossy szanuje wszystkie licencje open-source. Nasze pliki LICENSE i CREDITS.md są dołączone do folderu instalacyjnego i tego pakietu aplikacji dla przejrzystości i atrybucji.",
+        "foundIssue": "Znalazłeś problem z licencją?",
+        "reportGithub": "Zgłoś to na GitHubie"
       },
       "internet": {
         "description": "Sprawdza wszystkich dostawców wyszukiwania używanych przez Mossy i pokazuje, którzy są teraz osiągalni.",
@@ -147,6 +187,18 @@
         "empty": "Puste",
         "troubleshootTitle": "Rozwiązywanie problemów z DNS:",
         "sampleResultFrom": "Przykładowy wynik od"
+      },
+      "step3c": {
+        "title": "Krok 3c: AnythingLLM — Silnik Wiedzy RAG",
+        "desc": "Wyszukiwanie dokumentów oparte na wektorach do wyszukiwania semantycznego w Skarbcu Pamięci i Centrum Wiedzy."
+      },
+      "support": {
+        "title": "Wesprzyj Dewelopera",
+        "desc": "Pomóż utrzymać Mossy.Space i projekt FO4 Advanced AI przy życiu.",
+        "intro": "Mossy.Space to darmowy projekt napędzany pasją. Jeśli pomógł w Twoim procesie moddingu, rozważ wsparcie dalszego rozwoju — każdy wkład pomaga utrzymać projekt.",
+        "patreonDesc": "Miesięczne członkostwo i ekskluzywne aktualizacje",
+        "coffeeDesc": "Jednorazowy napiwek, dowolna kwota",
+        "thankYou": "Dziękujemy za korzystanie z Mossy.Space. Twoje wsparcie znaczy wszystko."
       }
     }
   },
@@ -295,5 +347,593 @@
     "tutorTip": "Wskazówka Tutora",
     "openLastLocation": "Otwórz ostatnią lokalizację",
     "openLastLocationTitle": "(Opcjonalne) Otwórz ostatnio zapisaną lokalizację, jeśli jest dostępna"
+  },
+  "common": {
+    "loading": "Ładowanie…",
+    "loadingModule": "Ładowanie modułu…"
+  },
+  "journeyHub": {
+    "title": "Centrum Postępów Modów FO4",
+    "subtitle": "Pierwszy Sukces · Projekty Modów · Mapy Drogowe · Przeglądarka Modów",
+    "tabs": {
+      "firstSuccess": {
+        "label": "Pierwszy Sukces",
+        "sublabel": "Sukcesy wdrożeniowe"
+      },
+      "projects": {
+        "label": "Projekty Modów",
+        "sublabel": "Obszar roboczy projektu"
+      },
+      "roadmaps": {
+        "label": "Mapy Drogowe",
+        "sublabel": "Planowanie postępów"
+      },
+      "mods": {
+        "label": "Przeglądarka Modów",
+        "sublabel": "Odkrywaj mody"
+      }
+    }
+  },
+  "systemHub": {
+    "title": "Centrum Systemu i Diagnostyki FO4",
+    "subtitle": "Diagnostyka · Możliwości · Lokalny silnik AI · Biała i czarna lista · Skarbiec zasobów · Wsparcie · Menedżer kopii zapasowych · Obserwator plików",
+    "tabs": {
+      "diagnostics": {
+        "label": "Diagnostyka",
+        "sublabel": "Rozwiązywanie problemów"
+      },
+      "capabilities": {
+        "label": "Możliwości",
+        "sublabel": "Lokalne AI/środowisko"
+      },
+      "localAi": {
+        "label": "Lokalny silnik AI",
+        "sublabel": "KoboldCPP + modele"
+      },
+      "security": {
+        "label": "Biała i czarna lista",
+        "sublabel": "Zasady bezpieczeństwa"
+      },
+      "vault": {
+        "label": "Skarbiec zasobów",
+        "sublabel": "Manifest + weryfikacja"
+      },
+      "support": {
+        "label": "Wesprzyj Mossy",
+        "sublabel": "Linki wsparcia"
+      },
+      "backup": {
+        "label": "Menedżer kopii zapasowych",
+        "sublabel": "Migawki i git"
+      },
+      "watcher": {
+        "label": "Obserwator plików",
+        "sublabel": "Śledzenie na żywo"
+      }
+    }
+  },
+  "knowledgeHub": {
+    "title": "Centrum Wiedzy FO4",
+    "subtitle": "Szybkie Odniesienie · Wyszukiwanie Semantyczne · Nauka Społecznościowa · Zasoby Vanilla",
+    "tabs": {
+      "reference": {
+        "label": "Szybkie Odniesienie",
+        "sublabel": "Papyrus · FormID · Skróty"
+      },
+      "search": {
+        "label": "Wyszukiwanie Wiedzy",
+        "sublabel": "Wyszukiwanie semantyczne · Ollama"
+      },
+      "community": {
+        "label": "Nauka Społecznościowa",
+        "sublabel": "Wskazówki · Wspólna wiedza"
+      },
+      "vanilla": {
+        "label": "Zasoby Vanilla",
+        "sublabel": "Przeglądaj · Kopiuj · Odniesienie"
+      },
+      "rag": {
+        "label": "Wyszukiwanie RAG",
+        "sublabel": "AnythingLLM · Baza wektorowa"
+      }
+    }
+  },
+  "whatsNew": {
+    "backToMossy": "Powrót do Mossy",
+    "eyebrow": "Informacje o Wydaniu FO4",
+    "title": "Nowości FO4 w Mossy",
+    "versionLine": "v{version} — aktualizacje moddingu Fallout 4 w tym wydaniu.",
+    "fallbackNotice": "Powiadomienie Zastępcze",
+    "fallbackText": "Bieżąca wersja {requested} nie ma jeszcze dedykowanej sekcji dziennika zmian. Wyświetlane są najnowsze dostępne notatki z {resolved}.",
+    "unknownVersion": "nieznana wersja",
+    "highlights": "Najważniejsze Informacje",
+    "updated": "Zaktualizowano",
+    "loadingChangelog": "Ładowanie dziennika zmian...",
+    "noHighlights": "Dla tej wersji nie ma jeszcze dostępnych najważniejszych informacji.",
+    "releaseHighlights": "Najważniejsze Informacje o Wydaniu",
+    "workflowTips": "Wskazówki dot. Przepływu Pracy FO4",
+    "tip1": "Użyj paska bocznego, aby szybko przełączać się między centrami FO4 (CK, wtyczki, zasoby, środowisko uruchomieniowe i pakowanie).",
+    "tip2": "Naciśnij Ctrl+K, aby wyszukiwać trasy, centra i narzędzia zgodnie z Twoim przepływem pracy w Fallout 4.",
+    "tip3": "Po aktualizacjach uruchom standardową pętlę weryfikacji (kolejność ładowania, zasoby, pakowanie) przed opublikowaniem kompilacji moda.",
+    "stayInLoop": "Bądź na Bieżąco",
+    "stayInLoopText": "Nowe wydania będą wyświetlane tutaj zamiast przerywać Twój przepływ pracy. Zawsze możesz wrócić do tej strony z paska bocznego.",
+    "dontAutoOpen": "Nie otwieraj już automatycznie tej strony",
+    "continueToDashboard": "Przejdź do Panelu"
+  },
+  "modBuilderHub": {
+    "title": "Centrum Tworzenia Modów FO4",
+    "subtitle": "Blueprint · Workshop · Devtools · Scribe — kompletny przepływ tworzenia modów Fallout 4",
+    "keysHint": "Klawisze 1–5 · przeciągnij karty, aby zmienić kolejność",
+    "tabTitle": "{label} (klawisz {key}) — przeciągnij, aby zmienić kolejność",
+    "tabs": {
+      "blueprint": {
+        "label": "Blueprint",
+        "sublabel": "Planer architektury moda"
+      },
+      "workshop": {
+        "label": "Workshop",
+        "sublabel": "Przeglądarka plików · Kompilacja"
+      },
+      "devtools": {
+        "label": "Devtools",
+        "sublabel": "Papyrus · xEdit · Fragmenty kodu"
+      },
+      "scribe": {
+        "label": "Scribe",
+        "sublabel": "Generator dokumentacji"
+      },
+      "creator": {
+        "label": "Kreator Projektu",
+        "sublabel": "Nowy szkielet moda"
+      }
+    }
+  },
+  "runtimeHub": {
+    "title": "Centrum Środowiska Uruchomieniowego FO4",
+    "subtitle": "Live Synapse · Desktop Bridge · Przepływy testowe Holodeck",
+    "bridgeOnline": "Bridge Online",
+    "bridgeOffline": "Bridge Offline",
+    "aiActive": "AI Aktywne",
+    "aiPartial": "AI Częściowe",
+    "aiRelay": "AI Przekaźnik",
+    "aiOffline": "AI Offline",
+    "blenderLinked": "Blender Połączony",
+    "tabs": {
+      "live": {
+        "label": "Live Synapse",
+        "sublabel": "Głos + pomoc na żywo"
+      },
+      "bridge": {
+        "label": "Desktop Bridge",
+        "sublabel": "Integracja aplikacji"
+      },
+      "testing": {
+        "label": "Holodeck",
+        "sublabel": "Testowanie scenariuszy"
+      }
+    }
+  },
+  "packagingHub": {
+    "eyebrow": "Mossy Tutor • Pakowanie",
+    "title": "Centrum Pakowania i Wydania FO4",
+    "subtitle": "Kompletny przepływ pracy dla pakowania, analizy konfliktów, porównywania, instalatorów FOMOD i wydania. Wykonuj kroki po kolei, aby uzyskać najlepsze wyniki.",
+    "workflowProgress": "Postęp Przepływu Pracy",
+    "stepsVisited": "Odwiedzono {visited} / {total} kroków",
+    "flowTitle": "Przepływ (czytaj w kolejności)",
+    "flow1": "Zarządzaj archiwami BA2 (pakuj, wypakuj, scalaj)",
+    "flow2": "Uruchom listę kontrolną pakowania",
+    "flow3": "Sprawdź konflikty z innymi modami",
+    "flow4": "Porównaj z podobnymi modami pod kątem kompatybilności",
+    "flow5": "Zbuduj instalator FOMOD",
+    "flow6": "Eksportuj, napisz notatki wydania i opublikuj",
+    "stepPill": "Krok {step}: {title}",
+    "advancedTools": "Narzędzia Zaawansowane",
+    "visited": "Odwiedzone",
+    "sections": {
+      "ba2": {
+        "title": "Krok 0: Menedżer Archiwów BA2",
+        "shortTitle": "Menedżer Archiwów BA2",
+        "desc": "Wyświetlaj, wypakowuj, pakuj i scalaj archiwa BA2 przed pakowaniem."
+      },
+      "checklist": {
+        "title": "Krok 1: Lista Kontrolna Pakowania",
+        "shortTitle": "Lista Kontrolna Pakowania",
+        "desc": "Zweryfikuj ścieżki, archiwa, integralność wtyczki i gotowość do wydania."
+      },
+      "conflicts": {
+        "title": "Krok 2: Analiza Konfliktów",
+        "shortTitle": "Analiza Konfliktów",
+        "desc": "Wizualizuj konflikty rekordów między twoim modem a innymi."
+      },
+      "comparison": {
+        "title": "Krok 3: Porównanie Modów",
+        "shortTitle": "Porównanie Modów",
+        "desc": "Porównaj swój mod z podobnymi modami pod kątem kompatybilności."
+      },
+      "assembler": {
+        "title": "Krok 4: Instalator FOMOD (Asembler)",
+        "shortTitle": "Instalator FOMOD (Asembler)",
+        "desc": "Zbuduj i eksportuj instalator FOMOD dla swojego pakietu wydania."
+      },
+      "export": {
+        "title": "Krok 5: Eksport i Wydanie",
+        "shortTitle": "Eksport i Wydanie",
+        "desc": "Zbuduj archiwum zip wydania, napisz notatki wydania i opublikuj na Nexus lub Bethesda.net."
+      },
+      "conflictResolver": {
+        "title": "Rozwiązywacz Konfliktów",
+        "desc": "Rozwiązuj konflikty rekordów wtyczek i generuj rekomendacje poprawek."
+      },
+      "conflictGraph": {
+        "title": "Graf Zależności Konfliktów",
+        "desc": "Wizualizuj relacje konfliktów modów jako interaktywny graf zależności."
+      },
+      "bethelUploader": {
+        "title": "Auto-Ulepszacz Modów",
+        "desc": "Przeciągnij mod, automatycznie ulepsz jego tekstury i pobierz ulepszony pakiet — lokalny proces, a nie przesyłanie na Bethesda.net."
+      }
+    }
+  },
+  "automationOrchestrator": {
+    "title": "Orkiestrator Automatyzacji FO4",
+    "running": "URUCHOMIONY",
+    "stopped": "ZATRZYMANY",
+    "refreshTooltip": "Odśwież",
+    "resetStatsTooltip": "Zresetuj wszystkie statystyki uruchomień",
+    "stopEngine": "Zatrzymaj Silnik",
+    "startEngine": "Uruchom Silnik",
+    "stats": {
+      "rulesActive": {
+        "label": "Aktywne Reguły",
+        "sub": "włączone / łącznie"
+      },
+      "fileWatchers": {
+        "label": "Obserwatory Plików",
+        "sub": "monitorowane ścieżki"
+      },
+      "intervals": {
+        "label": "Interwały",
+        "sub": "proces + harmonogram"
+      },
+      "totalRuns": {
+        "label": "Łączna Liczba Uruchomień",
+        "sub": "od ostatniego resetu"
+      }
+    },
+    "tabs": {
+      "rules": "Reguły ({n})",
+      "activity": "Aktywność"
+    },
+    "triggers": {
+      "file-change": "Obserwacja Pliku",
+      "process-start": "Start Procesu",
+      "process-stop": "Zatrzymanie Procesu",
+      "schedule": "Zaplanowane",
+      "manual": "Ręczne"
+    },
+    "actions": {
+      "scan-conflicts": "Skan Konfliktów",
+      "scan-duplicates": "Skan Duplikatów",
+      "validate-load-order": "Weryfikuj Kolejność Ładowania",
+      "compile-papyrus": "Kompiluj Papyrus",
+      "pack-ba2": "Pakuj BA2",
+      "validate-hkx": "Weryfikuj HKX",
+      "start-log-monitor": "Monitor Logów",
+      "track-ck-session": "Tropiciel Sesji CK",
+      "validate-f4se": "Weryfikuj F4SE",
+      "nightly-backup": "Kopia Zapasowa Nocna",
+      "run-maintenance": "Codzienna Konserwacja",
+      "sync-cosmos-pipeline": "Synchronizacja Pipeline Cosmos"
+    },
+    "showingDisabled": "Pokaż wyłączone",
+    "hidingDisabled": "Ukryj wyłączone",
+    "lastRefresh": "Ostatnie odświeżenie: {time}",
+    "noRulesMatch": "Żadna reguła nie pasuje do bieżącego filtra.",
+    "engineSchedules": "Harmonogramy Silnika",
+    "dailyMaintenance": "Codzienna konserwacja:",
+    "weeklyDeepScan": "Cotygodniowy głęboki skan:",
+    "off": "Wyłączony",
+    "liveFeedHint": "Podgląd na żywo — reguły uruchamiają tutaj zdarzenia w czasie rzeczywistym. Przechowywanych jest maksymalnie {max} wpisów.",
+    "clear": "Wyczyść",
+    "loadingEngine": "Ładowanie silnika automatyzacji…",
+    "apiUnavailable": "API automatyzacji niedostępne — upewnij się, że uruchomiono spakowaną aplikację.",
+    "activityEmpty": "Brak aktywności — zdarzenia pojawią się tutaj, gdy reguły zostaną uruchomione.",
+    "manualTag": "ręcznie",
+    "scheduledTag": "zaplanowane",
+    "runsCount": "{n}× uruchomień",
+    "triggerManually": "Uruchom ręcznie",
+    "disableRule": "Wyłącz regułę",
+    "enableRule": "Włącz regułę",
+    "never": "Nigdy",
+    "justNow": "Przed chwilą",
+    "minutesAgo": "{m} min temu",
+    "hoursAgo": "{h} godz. temu",
+    "daysAgo": "{d} dni temu",
+    "filters": {
+      "all": "Wszystkie wyzwalacze"
+    }
+  },
+  "externalToolsHub": {
+    "title": "Centrum Integracji Zewnętrznych FO4",
+    "subtitle": "Przepływy MO2 · ComfyUI · Upscayl oraz automatyczne łączenie narzędzi",
+    "tabs": {
+      "mo2": {
+        "label": "Integracja MO2",
+        "sublabel": "Mod Organizer 2"
+      },
+      "comfyui": {
+        "label": "ComfyUI",
+        "sublabel": "Generowanie Obrazów AI"
+      },
+      "upscayl": {
+        "label": "Upscayl",
+        "sublabel": "Skalowanie AI"
+      }
+    },
+    "toolInfo": {
+      "mo2": {
+        "desc": "Standardowy w branży menedżer modów dla Fallout 4. Mossy odczytuje twój profil MO2, aby zrozumieć listę aktywnych modów i kolejność ładowania. Instalacja: strona Nexus Mod Manager lub oficjalny GitHub.",
+        "tips": {
+          "0": "Używaj oddzielnych profili MO2 dla różnych rozgrywek lub konfiguracji testowych.",
+          "1": "Włącz tryb \"Manageable\" w ustawieniach MO2, aby Mossy mogła odczytać listę aktywnych wtyczek.",
+          "2": "Wirtualny system plików (VFS) MO2 jest przezroczysty dla gry — kolejność nadpisywania plików w MO2 odpowiada priorytetowi kolejności ładowania.",
+          "3": "Użyj karty \"Conflicts\" w MO2, aby zobaczyć konflikty zasobów na poziomie plików przed konfliktami na poziomie wtyczek."
+        }
+      },
+      "comfyui": {
+        "desc": "Generowanie obrazów AI oparte na węzłach. Używaj do tworzenia concept artu, referencji tekstur, portretów NPC i grafik promocyjnych dla swoich modów. Wymaga GPU z co najmniej 6 GB VRAM.",
+        "tips": {
+          "0": "Użyj przepływu img2img ComfyUI, aby generować warianty tekstur z istniejących zrzutów ekranu z gry.",
+          "1": "Warunkowanie pozy ControlNet pomaga tworzyć dokładną referencyjną grafikę postaci zgodną z proporcjami szkieletu FO4.",
+          "2": "Eksportuj grafikę wygenerowaną przez AI w rozdzielczości co najmniej 4096x4096 do użytku jako tekstura — następnie zmniejsz i skompresuj do DDS za pomocą centrum Tekstury i Materiały.",
+          "3": "Dostrajanie Stable Diffusion (LoRA) wytrenowane na concept arcie Fallout może poprawić spójność generowanych zasobów."
+        }
+      },
+      "upscayl": {
+        "desc": "Darmowy, open-source'owy skaler AI wykorzystujący modele Real-ESRGAN. Idealny do skalowania niskorozdzielczych tekstur vanilla, zdjęć referencyjnych i elementów UI przed konwersją do DDS.",
+        "tips": {
+          "0": "Użyj RealESRGAN-x4plus do ogólnego skalowania tekstur. Wynik nadal wymaga kompresji do BC1/BC3/BC5/BC7 po skalowaniu.",
+          "1": "W przypadku tekstur twarzy/portretów użyj modeli twarzy ESRGAN, aby zachować drobne detale skóry przed ponownym eksportem do FaceGen.",
+          "2": "Skaluj tekstury vanilla 512x512 maksymalnie do 2048x2048 — przekroczenie 4-krotności oryginału daje malejące korzyści przy użyciu w grze.",
+          "3": "Po skalowaniu zawsze wykonaj wypalanie mapy normalnych (xNormal lub Substance Painter), aby odtworzyć utracone detale powierzchni jako normalne."
+        }
+      }
+    },
+    "categories": {
+      "modManager": "Menedżer Modów",
+      "editor": "Edytor / Narzędzie",
+      "ai": "AI / GPU",
+      "utility": "Narzędzie"
+    },
+    "installedCount": "Zainstalowano {installed}/{total}",
+    "liveCount": "{n} aktywnych",
+    "autoConnect": {
+      "heading": "Automatyczne łączenie narzędzi desktopowych",
+      "description": "Mossy skanuje twój system w poszukiwaniu każdego narzędzia w potoku moddingu FO4. Uruchamiaj wykryte narzędzia bezpośrednio lub pobierz linki instalacyjne dla brakujących.",
+      "refresh": "Odśwież"
+    },
+    "installed": "Zainstalowano",
+    "notDetected": "Nie wykryto",
+    "live": "Aktywne",
+    "launchTooltip": "Uruchom {label}",
+    "getTooltip": "Pobierz {label}"
+  },
+  "wizardsHub": {
+    "versionBadge": {
+      "og": "OG  1.10.163",
+      "ng": "NG  1.10.984+",
+      "ae": "AE / Creations"
+    },
+    "eyebrow": "Mossy Tutor · Kreatory Konfiguracji FO4",
+    "title": "Centrum Kreatorów Konfiguracji FO4",
+    "subtitle": "Kompletny proces konfiguracji moddingu Fallout 4 — od instalacji narzędzi, przez diagnozowanie awarii, tworzenie questów, pakowanie, po łatanie previs. Wykonuj kroki po kolei lub przejdź do dowolnej potrzebnej sekcji.",
+    "gameVersion": "Wersja Gry",
+    "badges": {
+      "core": "Podstawowy",
+      "triage": "Diagnoza"
+    },
+    "sections": {
+      "platforms": {
+        "title": "Wybierz Platformę",
+        "subtitle": "Określ swój cel i wybierz odpowiedni kreator",
+        "desc": "Zacznij tutaj. Mapa platform pokazuje każdy główny przepływ pracy moddingu FO4 i łączy cię bezpośrednio z kreatorem odpowiadającym temu, co próbujesz zrobić — skrypty, tekstury, animacje, osady, questy lub kolejność ładowania."
+      },
+      "install": {
+        "title": "Kreator Instalacji",
+        "subtitle": "F4SE, xEdit, SS2, PRP i wymagania wstępne łatania",
+        "desc": "Zainstaluj i zweryfikuj każde podstawowe narzędzie: F4SE (Script Extender), xEdit/FO4Edit, zależności Sim Settlements 2, zestaw narzędzi PRP previs oraz proces tworzenia łatek. Ukończ to przed jakimkolwiek kreatorem treści."
+      },
+      "crashTriage": {
+        "title": "Diagnostyka Awarii i Błędów",
+        "subtitle": "Rozwiązywanie problemów z CTD / nieskończonym ładowaniem / uszkodzonymi zapisami",
+        "desc": "Diagnostyka krok po kroku dla awarii do pulpitu, nieskończonego ekranu ładowania, uszkodzonych zapisów gry i innej niestabilności. Używaj tego zawsze, gdy gra przestaje działać — przeprowadzi cię przez izolację, odczyt logów i weryfikację poprawek."
+      },
+      "ckQuest": {
+        "title": "Quest i Dialog CK",
+        "subtitle": "Tworzenie questów w Creation Kit, kompilacja Papyrus + pętla testowa",
+        "desc": "Prowadzony przepływ pracy do tworzenia questów w Creation Kit, konfiguracji dialogów, kompilacji skryptów Papyrus i bezpiecznej pętli testowej. Obejmuje zapobieganie awariom CK, konfigurację edytora i sposób weryfikacji działania questa przed wydaniem."
+      },
+      "packaging": {
+        "title": "Pakowanie i Wydanie",
+        "subtitle": "Pakowanie BA2, struktura folderów, wersjonowanie i kontrole wydania",
+        "desc": "Pakowanie archiwów BA2, walidacja struktury folderów, wersjonowanie, przygotowanie do przesłania na Nexus / Bethesda.net oraz końcowe kontrole poprawności przed wydaniem. Uruchom to przed przesłaniem jakiegokolwiek moda."
+      },
+      "prpPatch": {
+        "title": "Kreator Łatek PRP",
+        "subtitle": "Generuj cel łatki kompatybilności PRP + README",
+        "desc": "Wygeneruj plan łatki kompatybilności previs/precombine PRP, szablon README i listę kontrolną weryfikacji. Uruchom to tylko wtedy, gdy twój mod jest stabilny i jesteś gotów stworzyć lub wnieść wkład w łatkę PRP dla swoich edycji worldspace."
+      }
+    },
+    "packagingCard": {
+      "whatThisCovers": "Co to obejmuje",
+      "item1": "Tworzenie archiwów BA2 — przepływy pracy Archive2, BSArch, BSArchPro",
+      "item2": "Struktura folderów moda — układ Data, nazewnictwo wtyczek, ścieżki tekstur/siatek",
+      "item3": "Tworzenie instalatora FOMOD do pakowania modów z wieloma opcjami",
+      "item4": "Znakowanie wersji i przygotowanie dziennika zmian",
+      "item5": "Lista kontrolna przesyłania na Nexus i proces przesyłania Bethesda.net Creations",
+      "item6": "Końcowa weryfikacja stabilności i konfliktów przed wydaniem",
+      "openHub": "Otwórz Centrum Pakowania i Wydania",
+      "ba2QuickTool": "Menedżer BA2 (szybkie narzędzie)",
+      "footerNote": "Centrum Pakowania zawiera pełny przepływ pracy BA2, kreator FOMOD, rozwiązywacz konfliktów i narzędzia do porównywania modów."
+    },
+    "versionOptions": {
+      "og": "1.10.163 — patch sprzed Next-Gen (kwiecień 2024)",
+      "ng": "1.10.984+ — Next-Gen / obecny domyślny na Steam",
+      "ae": "Zawartość menu Creations / edycji rocznicowej"
+    },
+    "stepLabel": "Krok {step}: {title}",
+    "setupProgress": "Postęp Konfiguracji",
+    "progressCounts": "Ukończono {done} · rozpoczęto {started} · pozostało {remaining}",
+    "situational": "Sytuacyjny",
+    "recommendedFlow": {
+      "heading": "Zalecany przepływ",
+      "step12": "Zacznij od {b1}Wyboru Platformy{/b1}, a następnie ukończ {b2}Kreator Instalacji{/b2} dla każdego narzędzia, którego będziesz używać.",
+      "step34": "{b1}Diagnostyka Awarii{/b1} i {b2}Quest CK{/b2} są sytuacyjne — używaj ich, gdy napotkasz te przepływy pracy.",
+      "step56": "Uruchom {b1}Pakowanie{/b1} przed przesłaniem. Uruchom {b2}Kreator Łatek PRP{/b2} tylko wtedy, gdy twój mod edytuje worldspace'y."
+    },
+    "footerTip": "Twój postęp jest zapisywany automatycznie. Kroki oznaczone jako ukończone w każdym kreatorze są zapamiętywane między sesjami. Użyj przycisku {b1}Zapytaj Mossy{/b1} w dowolnym momencie, jeśli utkniesz — Mossy zna kontekst twojego obecnego kreatora."
+  },
+  "home": {
+    "greeting": {
+      "initializing": "Inicjalizacja Łącza...",
+      "morning": "RDZEŃ ZAINICJOWANY. DZIEŃ DOBRY.",
+      "afternoon": "RDZEŃ ZAINICJOWANY. DOBRE POPOŁUDNIE.",
+      "evening": "RDZEŃ ZAINICJOWANY. DOBRY WIECZÓR."
+    },
+    "help": "Pomoc",
+    "uplinkSynced": "ŁĄCZE ZSYNCHRONIZOWANE",
+    "uplinkRequired": "WYMAGANE ŁĄCZE",
+    "activeProject": "Aktywny Projekt",
+    "unnamedProject": "Projekt Bez Nazwy",
+    "open": "Otwórz",
+    "health": {
+      "electron": {
+        "label": "Electron",
+        "detail": "dostępność window.electron.api"
+      },
+      "storage": {
+        "label": "Pamięć",
+        "detail": "odczyt/zapis localStorage"
+      },
+      "vault": {
+        "label": "Skarbiec ({n})",
+        "detail": "elementy Skarbca Wiedzy"
+      },
+      "wizard": {
+        "label": "Kreator",
+        "detail": "stan postępu Kreatora Instalacji"
+      },
+      "mic": {
+        "label": "Mikrofon ({state})",
+        "detail": "uprawnienie mikrofonu"
+      },
+      "tts": {
+        "label": "TTS ({n})",
+        "detail": "głosy speechSynthesis"
+      }
+    },
+    "panel": {
+      "description": "Nexus to Twój panel główny: pokazuje sygnały stanu (Electron, pamięć, mostek, mikrofon/TTS) i pomaga zachować orientację. Wszystkie 23 platformy są dostępne z paska bocznego po lewej stronie.",
+      "verify1": "Potwierdź, że odznaki stanu renderują się i odzwierciedlają Twoje środowisko.",
+      "verify2": "Otwórz System Hub i wróć bez błędów nawigacji.",
+      "loop1": "Uruchom Kreatory Konfiguracji raz, aby wykryć narzędzia i skonfigurować ścieżki.",
+      "loop2": "Otwórz AI Chat i potwierdź, że możesz wysłać wiadomość i otrzymać odpowiedź.",
+      "loop3": "Otwórz Runtime Hub → Desktop Bridge i potwierdź ONLINE, jeśli używasz funkcji lokalnych.",
+      "trouble1": "Jeśli Electron pokazuje WARN/BAD, możesz być w trybie webowym lub preload się nie powiódł.",
+      "trouble2": "Jeśli Mic/TTS pokazują WARN, sprawdź uprawnienia w swoim systemie operacyjnym i spróbuj ponownie.",
+      "trouble3": "Jeśli Skarbiec pokazuje 0, otwórz Centrum Wiedzy FO4 i uruchom indekser.",
+      "shortcuts": {
+        "aiChat": "AI Chat",
+        "setupWizards": "Kreatory Konfiguracji",
+        "systemHub": "System Hub",
+        "knowledgeHub": "Centrum Wiedzy FO4",
+        "journeyHub": "Centrum Podróży Modów FO4"
+      }
+    },
+    "quickHubAccess": "Szybki Dostęp do Centrów",
+    "hubs": {
+      "chat": {
+        "title": "AI Chat",
+        "subtitle": "Zapytaj Mossy o cokolwiek"
+      },
+      "journeyHub": {
+        "title": "Centrum Podróży Modów FO4",
+        "subtitle": "Projekty · Plany działania"
+      },
+      "ckTools": {
+        "title": "Centrum Creation Kit",
+        "subtitle": "CK · Skrypty · Naprawa awarii"
+      },
+      "pluginTools": {
+        "title": "Centrum Wtyczek i Kolejności Ładowania FO4",
+        "subtitle": "xEdit · Kolejność ładowania · PRP"
+      },
+      "textures": {
+        "title": "Tekstury i Materiały",
+        "subtitle": "Formaty DDS · PBR · BC"
+      },
+      "assetAnalysis": {
+        "title": "Centrum Analizy Zasobów FO4",
+        "subtitle": "Skanowanie · Deduplikacja · Wydobywanie"
+      },
+      "modBuilder": {
+        "title": "Centrum Budowy Modów FO4",
+        "subtitle": "Plan · Warsztat · Dokumentacja"
+      },
+      "packaging": {
+        "title": "Pakowanie i Wydanie",
+        "subtitle": "BA2 · FOMOD · Lista kontrolna"
+      },
+      "guides": {
+        "title": "Centrum Poradników",
+        "subtitle": "Animacja · Questy · LOD"
+      },
+      "knowledgeHub": {
+        "title": "Centrum Wiedzy FO4",
+        "subtitle": "Dokumenty · Wyszukiwanie · Odniesienie"
+      },
+      "systemHub": {
+        "title": "System Hub",
+        "subtitle": "Diagnostyka · Bezpieczeństwo"
+      },
+      "runtimeHub": {
+        "title": "Centrum Runtime",
+        "subtitle": "Na żywo · Mostek · Holodeck"
+      }
+    },
+    "whereToStart": "Modding Fallout 4 — Od Czego Zacząć",
+    "steps": {
+      "setupWizards": {
+        "title": "Uruchom Kreatory Konfiguracji",
+        "body": "Wykryj F4SE, xEdit, MO2/Vortex, Creation Kit i inne narzędzia. Mossy dostosowuje swoje porady do tego, co jest faktycznie zainstalowane."
+      },
+      "modGoal": {
+        "title": "Wybierz Cel Moddingu",
+        "body": "Otwórz Centrum Podróży Modów FO4 → Plany działania i wygeneruj plan krok po kroku. Niezależnie od tego, czy dodajesz broń, questy czy worldspace'y — zacznij od jasnego celu."
+      },
+      "loadOrder": {
+        "title": "Poznaj Zasady Kolejności Ładowania",
+        "body": "Fallout 4 ma limit 255 wtyczek (ESM+ESP+ESL). Wtyczki oznaczone jako ESL współdzielą pulę 2048 FormID. Użyj Centrum Wtyczek i Kolejności Ładowania FO4 do zarządzania i weryfikacji."
+      },
+      "assetPipeline": {
+        "title": "Poznaj Potok Zasobów",
+        "body": "Tekstury używają formatów BC (BC1/BC3/BC7). Siatki to pliki NIF z kolizją Havok. Archiwa BA2 przechowują skompresowane zasoby. Centrum Tekstur i Centrum Poradników obejmują to wszystko."
+      },
+      "gameStable": {
+        "title": "Utrzymuj Stabilność Gry",
+        "body": "Najpierw zidentyfikuj swoją wersję gry: OG (1.10.163), NG (1.10.980–984) lub AE/1.11.x (1.11.191+). Następnie zainstaluj odpowiedni stos: F4SE + Address Library + X-Cell. Unikaj przestarzałych AWKCR/DEF_UI — zamiast tego użyj ECO/NEO i FallUI. Użyj Centrum Creation Kit do monitorowania zapobiegania awariom."
+      },
+      "buildPackage": {
+        "title": "Zbuduj i Zapakuj Swojego Moda",
+        "body": "Użyj Centrum Budowy Modów FO4, aby zaprojektować architekturę, pracować w Warsztacie, budować skrypty w Devtools i dokumentować w Scribe. Następnie przejdź do Pakowania i Wydania, aby utworzyć BA2 i zbudować instalator FOMOD."
+      }
+    },
+    "stepBadge": "KROK {n}",
+    "tagline": "Łącze neuronowe jest aktywne i monitoruje Twój obszar roboczy",
+    "support": {
+      "message": "Mossy.Space jest darmowy i otwarty — jeśli pomógł w Twoim moddingu, rozważ wsparcie rozwoju",
+      "patreon": "Patreon",
+      "coffee": "Postaw mi Kawę"
+    }
   }
 }

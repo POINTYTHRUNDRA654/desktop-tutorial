@@ -234,6 +234,7 @@ const PluginInspectorPanel: React.FC = () => {
   const [previsPlugin, setPrevisPlugin] = useState('');
   const [previsStep,   setPrevisStep]   = useState<'idle'|'checking'|'generating'>('idle');
   const [previsMsg,    setPrevisMsg]    = useState('');
+  const [blankPluginBusy, setBlankPluginBusy] = useState(false);
   const [dataDirInput, setDataDirInput] = useState('');
   const [xeditPathInput, setXeditPathInput] = useState('');
 
@@ -317,6 +318,23 @@ const PluginInspectorPanel: React.FC = () => {
       setPrevisMsg(r?.message ?? (r?.success ? 'Launched.' : r?.error ?? 'Failed.'));
     } catch (e: any) { setPrevisMsg(e?.message ?? 'Error.'); }
     finally { setPrevisStep('idle'); }
+  };
+
+  // Copies the bundled blank/dummy plugin template to a user-chosen path (native Save dialog)
+  // and drops the result straight into the previs plugin field — never touches the template itself.
+  const createBlankPrevisPlugin = async () => {
+    const a = api(); if (!a?.ckCreateBlankPlugin) { setPrevisMsg('Blank plugin API not available — ensure you are running the packaged app.'); return; }
+    setBlankPluginBusy(true); setPrevisMsg('');
+    try {
+      const r = await a.ckCreateBlankPlugin('previs');
+      if (r?.success && r.path) {
+        setPrevisPlugin(r.path);
+        setPrevisMsg(`Created blank previs plugin at ${r.path}`);
+      } else if (r?.error && r.error !== 'Cancelled.') {
+        setPrevisMsg(r.error);
+      }
+    } catch (e: any) { setPrevisMsg(e?.message ?? 'Error.'); }
+    finally { setBlankPluginBusy(false); }
   };
 
   // ── Plugin type label from flags ────────────────────────────────────────────
@@ -823,6 +841,12 @@ const PluginInspectorPanel: React.FC = () => {
                 <FolderOpen className="h-3.5 w-3.5" />
               </button>
             </div>
+            <button onClick={createBlankPrevisPlugin} disabled={blankPluginBusy}
+              title="Save a copy of a blank dummy plugin to use as the active file during generation — keeps previs data out of your real ESP."
+              className="w-full py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-800 text-[11px] font-semibold text-slate-300 disabled:opacity-60 transition-colors flex items-center justify-center gap-1.5">
+              {blankPluginBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <FolderOpen className="h-3 w-3" />}
+              No plugin yet? Create a blank dummy plugin…
+            </button>
             <div className="flex gap-2">
               <button onClick={() => runPrevis('check')} disabled={previsStep !== 'idle' || !previsPlugin.trim()}
                 className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-xs font-bold text-white disabled:opacity-60 transition-colors flex items-center justify-center gap-2">

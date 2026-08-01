@@ -172,7 +172,17 @@ export const BA2Manager: React.FC = () => {
         toast.success(`Packed ${data.fileCount} files into ${data.output}`);
       } else {
         const text = await response.text();
-        toast.error(`Pack failed: ${text}`);
+        if (/duplicate/i.test(text)) {
+          toast.error(
+            'Pack failed: Archive2 refuses to pack same-named files from different subfolders (e.g. two ' +
+            '"*.bgsm" files sharing a name in different Materials\\ folders). This is a real Archive2 limitation, ' +
+            'not something Mossy can work around — Cathedral Assets Optimizer (Settings → External Tools) handles ' +
+            'this correctly and is the community-standard packer once a mod outgrows a trivial folder structure.',
+            { duration: 12000 }
+          );
+        } else {
+          toast.error(`Pack failed: ${text}`);
+        }
       }
     } catch (error) {
       console.error('BA2 packing failed:', error);

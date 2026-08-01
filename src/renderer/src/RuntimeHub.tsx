@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Gamepad2, Monitor, Radio, Brain } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const VoiceChat = React.lazy(() => import('./VoiceChat'));
 const DesktopBridge = React.lazy(() => import('./DesktopBridge'));
@@ -7,33 +8,43 @@ const Holodeck = React.lazy(() => import('./Holodeck'));
 
 type RuntimeTab = 'live' | 'bridge' | 'testing';
 
-const tabs: Array<{
+const TAB_META: Array<{
   id: RuntimeTab;
-  label: string;
-  sublabel: string;
+  key: string;
+  fallbackLabel: string;
+  fallbackSublabel: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: 'live',    label: 'Live Synapse',   sublabel: 'Voice + live assist', icon: Radio },
-  { id: 'bridge',  label: 'Desktop Bridge', sublabel: 'App integration',     icon: Monitor },
-  { id: 'testing', label: 'Holodeck',       sublabel: 'Scenario testing',    icon: Gamepad2 },
+  { id: 'live',    key: 'live',    fallbackLabel: 'Live Synapse',   fallbackSublabel: 'Voice + live assist', icon: Radio },
+  { id: 'bridge',  key: 'bridge',  fallbackLabel: 'Desktop Bridge', fallbackSublabel: 'App integration',     icon: Monitor },
+  { id: 'testing', key: 'testing', fallbackLabel: 'Holodeck',       fallbackSublabel: 'Scenario testing',    icon: Gamepad2 },
 ];
 
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Suspense
-    fallback={
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-400 rounded-full animate-spin" />
-          Loading module…
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-slate-600 border-t-emerald-400 rounded-full animate-spin" />
+            {t('common.loadingModule', 'Loading module…')}
+          </div>
         </div>
-      </div>
-    }
-  >
-    {children}
-  </Suspense>
-);
+      }
+    >
+      {children}
+    </Suspense>
+  );
+};
 
 const RuntimeHub: React.FC = () => {
+  const { t } = useI18n();
+  const tabs = TAB_META.map((tab) => ({
+    ...tab,
+    label: t(`runtimeHub.tabs.${tab.key}.label`, tab.fallbackLabel),
+    sublabel: t(`runtimeHub.tabs.${tab.key}.sublabel`, tab.fallbackSublabel),
+  }));
   const [activeTab, setActiveTab] = useState<RuntimeTab>('live');
   const [bridgeOnline, setBridgeOnline] = useState(false);
   const [blenderLinked, setBlenderLinked] = useState(false);
@@ -47,7 +58,7 @@ const RuntimeHub: React.FC = () => {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('runtime_hub_tab') as RuntimeTab | null;
-      if (saved && tabs.some((t) => t.id === saved)) setActiveTab(saved);
+      if (saved && tabs.some((tab) => tab.id === saved)) setActiveTab(saved);
     } catch { /* sandbox may block */ }
   }, []);
 
@@ -120,9 +131,9 @@ const RuntimeHub: React.FC = () => {
         {/* ── Title row + live status chips ── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">FO4 Runtime Hub</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">{t('runtimeHub.title', 'FO4 Runtime Hub')}</h1>
             <p className="text-xs text-slate-400 mt-1">
-              Live Synapse · Desktop Bridge · Holodeck testing workflows
+              {t('runtimeHub.subtitle', 'Live Synapse · Desktop Bridge · Holodeck testing workflows')}
             </p>
           </div>
 
@@ -142,7 +153,7 @@ const RuntimeHub: React.FC = () => {
                     : 'bg-slate-600'
                 }`}
               />
-              Bridge {bridgeOnline ? 'Online' : 'Offline'}
+              {bridgeOnline ? t('runtimeHub.bridgeOnline', 'Bridge Online') : t('runtimeHub.bridgeOffline', 'Bridge Offline')}
             </span>
 
             {/* F4AI pipeline chip — always visible, reflects real pipeline state */}
@@ -160,10 +171,10 @@ const RuntimeHub: React.FC = () => {
                 offline: 'bg-slate-600',
               };
               const labels: Record<string, string> = {
-                active:  'AI Active',
-                partial: 'AI Partial',
-                relay:   'AI Relay',
-                offline: 'AI Offline',
+                active:  t('runtimeHub.aiActive', 'AI Active'),
+                partial: t('runtimeHub.aiPartial', 'AI Partial'),
+                relay:   t('runtimeHub.aiRelay', 'AI Relay'),
+                offline: t('runtimeHub.aiOffline', 'AI Offline'),
               };
               return (
                 <span
@@ -181,7 +192,7 @@ const RuntimeHub: React.FC = () => {
             {blenderLinked && (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-orange-700/60 text-orange-300 bg-orange-900/20 text-[10px] font-mono font-bold uppercase tracking-widest">
                 <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shadow-[0_0_5px_#fb923c] animate-pulse flex-shrink-0" />
-                Blender Linked
+                {t('runtimeHub.blenderLinked', 'Blender Linked')}
               </span>
             )}
           </div>

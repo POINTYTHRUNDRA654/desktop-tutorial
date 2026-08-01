@@ -5,6 +5,7 @@ import { useLive } from './LiveContext';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 import packageJson from '../../../package.json';
+import { useI18n } from './i18n';
 
 interface Insight {
   id: string;
@@ -44,7 +45,8 @@ const HealthBadge: React.FC<{
 };
 
 const TheNexus: React.FC = () => {
-  const [greeting, setGreeting] = useState("Initializing Link...");
+  const { t } = useI18n();
+  const [greeting, setGreeting] = useState(t('home.greeting.initializing', 'Initializing Link...'));
   const [activeProject, setActiveProject] = useState<{ name?: string; description?: string } | null>(null);
   const [bridgeStatus, setBridgeStatus] = useState(false);
   const [health, setHealth] = useState(() => ({
@@ -65,9 +67,9 @@ const TheNexus: React.FC = () => {
   useEffect(() => {
     // 1. Time-based Greeting
     const hour = new Date().getHours();
-    if (hour < 12) setGreeting("CORE INITIALIZED. GOOD MORNING.");
-    else if (hour < 18) setGreeting("CORE INITIALIZED. GOOD AFTERNOON.");
-    else setGreeting("CORE INITIALIZED. GOOD EVENING.");
+    if (hour < 12) setGreeting(t('home.greeting.morning', 'CORE INITIALIZED. GOOD MORNING.'));
+    else if (hour < 18) setGreeting(t('home.greeting.afternoon', 'CORE INITIALIZED. GOOD AFTERNOON.'));
+    else setGreeting(t('home.greeting.evening', 'CORE INITIALIZED. GOOD EVENING.'));
 
     // 2. Load Local State
     const savedProject = localStorage.getItem('mossy_project');
@@ -215,10 +217,10 @@ const TheNexus: React.FC = () => {
               to="/knowledge-hub"
               className="px-3 py-2 border border-emerald-500/30 text-[10px] font-black uppercase tracking-widest text-emerald-300 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors"
             >
-              Help
+              {t('home.help', 'Help')}
             </Link>
             <div className={`px-4 py-2 border rounded-full text-[10px] font-bold tracking-widest transition-all ${bridgeStatus ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
-              {bridgeStatus ? 'UPLINK SYNCED' : 'UPLINK REQUIRED'}
+              {bridgeStatus ? t('home.uplinkSynced', 'UPLINK SYNCED') : t('home.uplinkRequired', 'UPLINK REQUIRED')}
             </div>
           </div>
         </div>
@@ -228,14 +230,14 @@ const TheNexus: React.FC = () => {
           <div className="flex items-center gap-3 mb-6 px-4 py-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5">
             <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Active Project</span>
-              <p className="text-sm font-bold text-white truncate">{activeProject.name ?? 'Unnamed Project'}</p>
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{t('home.activeProject', 'Active Project')}</span>
+              <p className="text-sm font-bold text-white truncate">{activeProject.name ?? t('home.unnamedProject', 'Unnamed Project')}</p>
               {activeProject.description && (
                 <p className="text-xs text-slate-400 truncate">{activeProject.description}</p>
               )}
             </div>
             <Link to="/journey-hub" className="shrink-0 px-3 py-1 text-[10px] font-bold text-emerald-300 border border-emerald-500/30 rounded hover:bg-emerald-500/10 transition-colors uppercase tracking-wider">
-              Open
+              {t('home.open', 'Open')}
             </Link>
           </div>
         )}
@@ -243,154 +245,154 @@ const TheNexus: React.FC = () => {
         {/* Quick Health Strip */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-10">
           <div className="flex flex-wrap items-center gap-2">
-            <HealthBadge icon={Zap} label="Electron" status={health.electron} detail="window.electron.api availability" />
-            <HealthBadge icon={Wrench} label="Storage" status={health.storage} detail="localStorage read/write" />
-            <HealthBadge icon={Database} label={`Vault (${health.vaultCount})`} status={health.vault} detail="Knowledge Vault items" />
-            <HealthBadge icon={Wrench} label="Wizard" status={health.wizard} detail="Install Wizard progress state" />
-            <HealthBadge icon={Mic} label={`Mic (${health.micState})`} status={health.mic} detail="Microphone permission" />
-            <HealthBadge icon={Volume2} label={`TTS (${health.ttsCount})`} status={health.tts} detail="speechSynthesis voices" />
+            <HealthBadge icon={Zap} label={t('home.health.electron.label', 'Electron')} status={health.electron} detail={t('home.health.electron.detail', 'window.electron.api availability')} />
+            <HealthBadge icon={Wrench} label={t('home.health.storage.label', 'Storage')} status={health.storage} detail={t('home.health.storage.detail', 'localStorage read/write')} />
+            <HealthBadge icon={Database} label={t('home.health.vault.label', 'Vault ({n})').replace('{n}', String(health.vaultCount))} status={health.vault} detail={t('home.health.vault.detail', 'Knowledge Vault items')} />
+            <HealthBadge icon={Wrench} label={t('home.health.wizard.label', 'Wizard')} status={health.wizard} detail={t('home.health.wizard.detail', 'Install Wizard progress state')} />
+            <HealthBadge icon={Mic} label={t('home.health.mic.label', 'Mic ({state})').replace('{state}', health.micState)} status={health.mic} detail={t('home.health.mic.detail', 'Microphone permission')} />
+            <HealthBadge icon={Volume2} label={t('home.health.tts.label', 'TTS ({n})').replace('{n}', String(health.ttsCount))} status={health.tts} detail={t('home.health.tts.detail', 'speechSynthesis voices')} />
           </div>
         </div>
 
         <ToolsInstallVerifyPanel
           accentClassName="text-emerald-300"
-          description="The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 23 platforms are accessible from the sidebar on the left."
+          description={t('home.panel.description', 'The Nexus is your home dashboard: it shows health signals (Electron, storage, bridge, mic/tts) and keeps you oriented. All 23 platforms are accessible from the sidebar on the left.')}
           tools={[]}
           verify={[
-            'Confirm health badges render and reflect your environment.',
-            'Open System Hub and return back without navigation errors.',
+            t('home.panel.verify1', 'Confirm health badges render and reflect your environment.'),
+            t('home.panel.verify2', 'Open System Hub and return back without navigation errors.'),
           ]}
           firstTestLoop={[
-            'Run Setup Wizards once to detect tools and set up paths.',
-            'Open AI Chat and confirm you can send a message and receive a response.',
-            'Open Runtime Hub → Desktop Bridge and confirm ONLINE if you use local features.',
+            t('home.panel.loop1', 'Run Setup Wizards once to detect tools and set up paths.'),
+            t('home.panel.loop2', 'Open AI Chat and confirm you can send a message and receive a response.'),
+            t('home.panel.loop3', 'Open Runtime Hub → Desktop Bridge and confirm ONLINE if you use local features.'),
           ]}
           troubleshooting={[
-            'If Electron shows WARN/BAD, you may be running web mode or preload failed.',
-            'If Mic/TTS show WARN, check permissions in your OS and retry.',
-            'If Vault shows 0, open FO4 Knowledge Hub and run the indexer.',
+            t('home.panel.trouble1', 'If Electron shows WARN/BAD, you may be running web mode or preload failed.'),
+            t('home.panel.trouble2', 'If Mic/TTS show WARN, check permissions in your OS and retry.'),
+            t('home.panel.trouble3', 'If Vault shows 0, open FO4 Knowledge Hub and run the indexer.'),
           ]}
           shortcuts={[
-            { label: 'AI Chat', to: '/chat' },
-            { label: 'Setup Wizards', to: '/wizards' },
-            { label: 'System Hub', to: '/system-hub' },
-            { label: 'FO4 Knowledge Hub', to: '/knowledge-hub' },
-            { label: 'FO4 Mod Journey Hub', to: '/journey-hub' },
+            { label: t('home.panel.shortcuts.aiChat', 'AI Chat'), to: '/chat' },
+            { label: t('home.panel.shortcuts.setupWizards', 'Setup Wizards'), to: '/wizards' },
+            { label: t('home.panel.shortcuts.systemHub', 'System Hub'), to: '/system-hub' },
+            { label: t('home.panel.shortcuts.knowledgeHub', 'FO4 Knowledge Hub'), to: '/knowledge-hub' },
+            { label: t('home.panel.shortcuts.journeyHub', 'FO4 Mod Journey Hub'), to: '/journey-hub' },
           ]}
         />
 
         {/* Hub Navigation Grid */}
         <div className="mb-8">
-          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Quick Hub Access</h2>
+          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">{t('home.quickHubAccess', 'Quick Hub Access')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <Link to="/chat" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
-              <span className="font-bold">AI Chat</span>
-              <span className="text-slate-500 text-[9px]">Ask Mossy anything</span>
+              <span className="font-bold">{t('home.hubs.chat.title', 'AI Chat')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.chat.subtitle', 'Ask Mossy anything')}</span>
             </Link>
             <Link to="/journey-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Sparkles size={20} className="text-emerald-400" />
-              <span className="font-bold">FO4 Mod Journey Hub</span>
-              <span className="text-slate-500 text-[9px]">Projects · Roadmaps</span>
+              <span className="font-bold">{t('home.hubs.journeyHub.title', 'FO4 Mod Journey Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.journeyHub.subtitle', 'Projects · Roadmaps')}</span>
             </Link>
             <Link to="/ck-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Code size={20} className="text-emerald-400" />
-              <span className="font-bold">Creation Kit Hub</span>
-              <span className="text-slate-500 text-[9px]">CK · Scripts · Crash Fix</span>
+              <span className="font-bold">{t('home.hubs.ckTools.title', 'Creation Kit Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.ckTools.subtitle', 'CK · Scripts · Crash Fix')}</span>
             </Link>
             <Link to="/plugin-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Database size={20} className="text-emerald-400" />
-              <span className="font-bold">FO4 Plugin &amp; Load Order Hub</span>
-              <span className="text-slate-500 text-[9px]">xEdit · Load Order · PRP</span>
+              <span className="font-bold">{t('home.hubs.pluginTools.title', 'FO4 Plugin & Load Order Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.pluginTools.subtitle', 'xEdit · Load Order · PRP')}</span>
             </Link>
             <Link to="/textures" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Layers size={20} className="text-emerald-400" />
-              <span className="font-bold">Textures & Materials</span>
-              <span className="text-slate-500 text-[9px]">DDS · PBR · BC formats</span>
+              <span className="font-bold">{t('home.hubs.textures.title', 'Textures & Materials')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.textures.subtitle', 'DDS · PBR · BC formats')}</span>
             </Link>
             <Link to="/asset-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Binary size={20} className="text-emerald-400" />
-              <span className="font-bold">FO4 Asset Analysis Hub</span>
-              <span className="text-slate-500 text-[9px]">Scan · Dedupe · Mining</span>
+              <span className="font-bold">{t('home.hubs.assetAnalysis.title', 'FO4 Asset Analysis Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.assetAnalysis.subtitle', 'Scan · Dedupe · Mining')}</span>
             </Link>
             <Link to="/mod-builder" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Hammer size={20} className="text-emerald-400" />
-              <span className="font-bold">FO4 Mod Builder Hub</span>
-              <span className="text-slate-500 text-[9px]">Blueprint · Workshop · Docs</span>
+              <span className="font-bold">{t('home.hubs.modBuilder.title', 'FO4 Mod Builder Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.modBuilder.subtitle', 'Blueprint · Workshop · Docs')}</span>
             </Link>
             <Link to="/packaging-release" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Archive size={20} className="text-emerald-400" />
-              <span className="font-bold">Packaging & Release</span>
-              <span className="text-slate-500 text-[9px]">BA2 · FOMOD · Checklist</span>
+              <span className="font-bold">{t('home.hubs.packaging.title', 'Packaging & Release')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.packaging.subtitle', 'BA2 · FOMOD · Checklist')}</span>
             </Link>
             <Link to="/guides-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <BookOpen size={20} className="text-emerald-400" />
-              <span className="font-bold">Guides Hub</span>
-              <span className="text-slate-500 text-[9px]">Animation · Quests · LOD</span>
+              <span className="font-bold">{t('home.hubs.guides.title', 'Guides Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.guides.subtitle', 'Animation · Quests · LOD')}</span>
             </Link>
             <Link to="/knowledge-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
-              <span className="font-bold">FO4 Knowledge Hub</span>
-              <span className="text-slate-500 text-[9px]">Docs · Search · Reference</span>
+              <span className="font-bold">{t('home.hubs.knowledgeHub.title', 'FO4 Knowledge Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.knowledgeHub.subtitle', 'Docs · Search · Reference')}</span>
             </Link>
             <Link to="/system-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <ShieldCheck size={20} className="text-emerald-400" />
-              <span className="font-bold">System Hub</span>
-              <span className="text-slate-500 text-[9px]">Diagnostics · Security</span>
+              <span className="font-bold">{t('home.hubs.systemHub.title', 'System Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.systemHub.subtitle', 'Diagnostics · Security')}</span>
             </Link>
             <Link to="/runtime-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Radio size={20} className="text-emerald-400" />
-              <span className="font-bold">Runtime Hub</span>
-              <span className="text-slate-500 text-[9px]">Live · Bridge · Holodeck</span>
+              <span className="font-bold">{t('home.hubs.runtimeHub.title', 'Runtime Hub')}</span>
+              <span className="text-slate-500 text-[9px]">{t('home.hubs.runtimeHub.subtitle', 'Live · Bridge · Holodeck')}</span>
             </Link>
           </div>
         </div>
 
         {/* FO4 New User Tips */}
         <div className="mb-10">
-          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">Fallout 4 Modding — Where to Start</h2>
+          <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">{t('home.whereToStart', 'Fallout 4 Modding — Where to Start')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               {
                 icon: Settings,
                 step: '1',
-                title: 'Run Setup Wizards',
-                body: 'Detect F4SE, xEdit, MO2/Vortex, Creation Kit, and other tools. Mossy customizes her advice to what is actually installed.',
+                title: t('home.steps.setupWizards.title', 'Run Setup Wizards'),
+                body: t('home.steps.setupWizards.body', 'Detect F4SE, xEdit, MO2/Vortex, Creation Kit, and other tools. Mossy customizes her advice to what is actually installed.'),
                 to: '/wizards',
               },
               {
                 icon: Target,
                 step: '2',
-                title: 'Pick a Modding Goal',
-                body: 'Open FO4 Mod Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal.',
+                title: t('home.steps.modGoal.title', 'Pick a Modding Goal'),
+                body: t('home.steps.modGoal.body', 'Open FO4 Mod Journey Hub → Roadmaps and generate a step-by-step plan. Whether you are adding weapons, quests, or worldspaces — start with a clear goal.'),
                 to: '/journey-hub',
               },
               {
                 icon: Package,
                 step: '3',
-                title: 'Know the Load Order Rules',
-                body: 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate.',
+                title: t('home.steps.loadOrder.title', 'Know the Load Order Rules'),
+                body: t('home.steps.loadOrder.body', 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate.'),
                 to: '/plugin-tools',
               },
               {
                 icon: Star,
                 step: '4',
-                title: 'Learn the Asset Pipeline',
-                body: 'Textures use BC formats (BC1/BC3/BC7). Meshes are NIF files with Havok collision. BA2 archives hold compressed assets. Textures Hub and Guides Hub cover all of this.',
+                title: t('home.steps.assetPipeline.title', 'Learn the Asset Pipeline'),
+                body: t('home.steps.assetPipeline.body', 'Textures use BC formats (BC1/BC3/BC7). Meshes are NIF files with Havok collision. BA2 archives hold compressed assets. Textures Hub and Guides Hub cover all of this.'),
                 to: '/textures',
               },
               {
                 icon: ShieldCheck,
                 step: '5',
-                title: 'Keep Your Game Stable',
-                body: 'First identify your game version: OG (1.10.163), NG (1.10.980–984), or AE/1.11.x (1.11.191+). Then install the matching stack: F4SE + Address Library + X-Cell. Avoid deprecated AWKCR/DEF_UI — use ECO/NEO and FallUI instead. Use Creation Kit Hub for crash prevention monitoring.',
+                title: t('home.steps.gameStable.title', 'Keep Your Game Stable'),
+                body: t('home.steps.gameStable.body', 'First identify your game version: OG (1.10.163), NG (1.10.980–984), or AE/1.11.x (1.11.191+). Then install the matching stack: F4SE + Address Library + X-Cell. Avoid deprecated AWKCR/DEF_UI — use ECO/NEO and FallUI instead. Use Creation Kit Hub for crash prevention monitoring.'),
                 to: '/ck-tools',
               },
               {
                 icon: BookOpen,
                 step: '6',
-                title: 'Build & Package Your Mod',
-                body: 'Use FO4 Mod Builder Hub to draft architecture, work in Workshop, build scripts in Devtools, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer.',
+                title: t('home.steps.buildPackage.title', 'Build & Package Your Mod'),
+                body: t('home.steps.buildPackage.body', 'Use FO4 Mod Builder Hub to draft architecture, work in Workshop, build scripts in Devtools, and document in Scribe. Then go to Packaging & Release to create a BA2 and build your FOMOD installer.'),
                 to: '/mod-builder',
               },
             ].map(({ icon: Icon, step, title, body, to }) => (
@@ -400,7 +402,7 @@ const TheNexus: React.FC = () => {
                 className="p-4 border border-slate-700/60 rounded-lg hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group"
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">STEP {step}</span>
+                  <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">{t('home.stepBadge', 'STEP {n}').replace('{n}', step)}</span>
                   <Icon className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-sm font-bold text-white mb-1">{title}</div>
@@ -420,7 +422,7 @@ const TheNexus: React.FC = () => {
                 {greeting}
               </div>
               <p className="text-emerald-400/70 text-xs font-bold tracking-widest uppercase italic">
-                The neural link is active and monitoring your workspace
+                {t('home.tagline', 'The neural link is active and monitoring your workspace')}
               </p>
             </div>
           </div>
@@ -432,7 +434,7 @@ const TheNexus: React.FC = () => {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2 text-slate-300">
                 <Heart className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="text-xs font-semibold">Mossy.Space is free &amp; open — if it's helped your modding, consider supporting development</span>
+                <span className="text-xs font-semibold">{t('home.support.message', "Mossy.Space is free & open — if it's helped your modding, consider supporting development")}</span>
               </div>
               <div className="flex gap-2 shrink-0">
                 <button
@@ -440,14 +442,14 @@ const TheNexus: React.FC = () => {
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-orange-500/40 bg-orange-900/20 hover:bg-orange-900/40 hover:border-orange-500/60 transition-all text-xs font-bold text-orange-200"
                 >
                   <Star className="w-3.5 h-3.5 text-orange-400" />
-                  Patreon
+                  {t('home.support.patreon', 'Patreon')}
                 </button>
                 <button
                   onClick={() => void openExternal('https://buymeacoffee.com/tundra654')}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-yellow-500/40 bg-yellow-900/20 hover:bg-yellow-900/40 hover:border-yellow-500/60 transition-all text-xs font-bold text-yellow-200"
                 >
                   <Coffee className="w-3.5 h-3.5 text-yellow-400" />
-                  Buy Me a Coffee
+                  {t('home.support.coffee', 'Buy Me a Coffee')}
                 </button>
               </div>
             </div>

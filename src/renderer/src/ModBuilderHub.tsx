@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { DraftingCompass, Hammer, Code, Feather, FolderPlus, GripVertical } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const TheBlueprint = React.lazy(() => import('./TheBlueprint'));
 const Workshop = React.lazy(() => import('./Workshop'));
@@ -23,21 +24,22 @@ const ProjectCreator = React.lazy(() =>
 
 type HubTab = 'blueprint' | 'workshop' | 'devtools' | 'scribe' | 'creator';
 
-const TAB_DEFS: {
+const TAB_META: {
     id: HubTab;
+    key: string;
     icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    sublabel: string;
+    fallbackLabel: string;
+    fallbackSublabel: string;
     shortcut: string;
 }[] = [
-    { id: 'blueprint', icon: DraftingCompass, label: 'Blueprint',       sublabel: 'Mod architecture planner',    shortcut: '1' },
-    { id: 'workshop',  icon: Hammer,          label: 'Workshop',         sublabel: 'File browser · Compile',      shortcut: '2' },
-    { id: 'devtools',  icon: Code,            label: 'Devtools',         sublabel: 'Papyrus · xEdit · Snippets',  shortcut: '3' },
-    { id: 'scribe',    icon: Feather,         label: 'Scribe',           sublabel: 'Documentation generator',     shortcut: '4' },
-    { id: 'creator',   icon: FolderPlus,      label: 'Project Creator',  sublabel: 'New mod scaffold',            shortcut: '5' },
+    { id: 'blueprint', key: 'blueprint', icon: DraftingCompass, fallbackLabel: 'Blueprint',       fallbackSublabel: 'Mod architecture planner',    shortcut: '1' },
+    { id: 'workshop',  key: 'workshop',  icon: Hammer,          fallbackLabel: 'Workshop',         fallbackSublabel: 'File browser · Compile',      shortcut: '2' },
+    { id: 'devtools',  key: 'devtools',  icon: Code,            fallbackLabel: 'Devtools',         fallbackSublabel: 'Papyrus · xEdit · Snippets',  shortcut: '3' },
+    { id: 'scribe',    key: 'scribe',    icon: Feather,         fallbackLabel: 'Scribe',           fallbackSublabel: 'Documentation generator',     shortcut: '4' },
+    { id: 'creator',   key: 'creator',   icon: FolderPlus,      fallbackLabel: 'Project Creator',  fallbackSublabel: 'New mod scaffold',            shortcut: '5' },
 ];
 
-const ALL_TAB_IDS: HubTab[] = TAB_DEFS.map(t => t.id);
+const ALL_TAB_IDS: HubTab[] = TAB_META.map(tab => tab.id);
 const TAB_ORDER_KEY = 'builder_hub_tab_order';
 const ACTIVE_TAB_KEY = 'builder_hub_tab';
 
@@ -58,19 +60,28 @@ function loadTabOrder(): HubTab[] {
 /**
  * PanelLoader — Suspense wrapper for lazy-loaded tabs.
  */
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <Suspense
-        fallback={
-            <div className="flex items-center justify-center h-64 text-slate-400 text-sm font-mono">
-                Loading…
-            </div>
-        }
-    >
-        {children}
-    </Suspense>
-);
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { t } = useI18n();
+    return (
+        <Suspense
+            fallback={
+                <div className="flex items-center justify-center h-64 text-slate-400 text-sm font-mono">
+                    {t('common.loading', 'Loading…')}
+                </div>
+            }
+        >
+            {children}
+        </Suspense>
+    );
+};
 
 const ModBuilderHub: React.FC = () => {
+    const { t } = useI18n();
+    const TAB_DEFS = TAB_META.map((tab) => ({
+        ...tab,
+        label: t(`modBuilderHub.tabs.${tab.key}.label`, tab.fallbackLabel),
+        sublabel: t(`modBuilderHub.tabs.${tab.key}.sublabel`, tab.fallbackSublabel),
+    }));
     const [activeTab, setActiveTab] = useState<HubTab>('blueprint');
     const [tabOrder, setTabOrder] = useState<HubTab[]>(loadTabOrder);
 
@@ -146,7 +157,8 @@ const ModBuilderHub: React.FC = () => {
     };
 
     // Ordered tab definitions (preserves all metadata)
-    const orderedTabs = tabOrder.map(id => TAB_DEFS.find(t => t.id === id)!);
+    const orderedTabs = tabOrder.map(id => TAB_DEFS.find(tab => tab.id === id)!);
+    const tabTitleTemplate = t('modBuilderHub.tabTitle', '{label} (key {key}) — drag to reorder');
 
     return (
         <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
@@ -158,14 +170,14 @@ const ModBuilderHub: React.FC = () => {
                             <Hammer className="h-5 w-5 text-amber-300" />
                         </div>
                         <div>
-                            <h1 className="text-xl font-black text-white tracking-tight">FO4 Mod Builder Hub</h1>
+                            <h1 className="text-xl font-black text-white tracking-tight">{t('modBuilderHub.title', 'FO4 Mod Builder Hub')}</h1>
                             <p className="text-xs text-slate-400">
-                                Blueprint · Workshop · Devtools · Scribe — complete Fallout 4 mod creation workflow
+                                {t('modBuilderHub.subtitle', 'Blueprint · Workshop · Devtools · Scribe — complete Fallout 4 mod creation workflow')}
                             </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="hidden md:block text-[10px] text-slate-600 font-mono">Keys 1–5 · drag tabs to reorder</span>
+                        <span className="hidden md:block text-[10px] text-slate-600 font-mono">{t('modBuilderHub.keysHint', 'Keys 1–5 · drag tabs to reorder')}</span>
                         <span className="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-[10px] text-amber-400 font-mono">v2.5.0</span>
                     </div>
                 </div>
@@ -193,7 +205,7 @@ const ModBuilderHub: React.FC = () => {
                                     }
                                     ${isDragTarget ? 'ring-2 ring-amber-400/60 ring-inset' : ''}
                                 `}
-                                title={`${tab.label} (key ${idx + 1}) — drag to reorder`}
+                                title={tabTitleTemplate.replace('{label}', tab.label).replace('{key}', String(idx + 1))}
                             >
                                 <GripVertical className="w-3 h-3 opacity-0 group-hover:opacity-30 transition-opacity shrink-0" />
                                 <tab.icon className="h-3.5 w-3.5" />

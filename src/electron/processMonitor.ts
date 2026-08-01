@@ -4,6 +4,13 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// Guards against overlapping `tasklist` invocations. Multiple callers (CK Crash Prevention's
+// live monitor, External Tools Hub, chat context, etc.) can request this concurrently; without
+// dedupe + a hard timeout, a single slow/AV-intercepted `tasklist` call causes every subsequent
+// poll tick to spawn its own orphaned cmd.exe/tasklist.exe/conhost.exe that never gets cleaned up.
+let inFlight: Promise<RunningProcess[]> | null = null;
+const TASKLIST_TIMEOUT_MS = 8000;
+
 export interface RunningProcess {
   name: string;
   pid: number;
@@ -51,12 +58,20 @@ const MODDING_TOOLS = [
  * Get a list of running processes that match our modding tools list
  */
 export async function getRunningModdingTools(): Promise<RunningProcess[]> {
+  if (inFlight) return inFlight;
+  inFlight = runTasklist().finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+async function runTasklist(): Promise<RunningProcess[]> {
   try {
     // Windows tasklist command
     // /V provides window titles
     // /FO CSV provides comma-separated values for easier parsing
     // /NH removes column headers
-    const { stdout } = await execAsync('tasklist /V /FO CSV /NH');
+    // timeout: kills the child process if it hangs (e.g. AV intercepting the new process
+    // launch) instead of leaving an orphaned cmd.exe/tasklist.exe/conhost.exe behind forever.
+    const { stdout } = await execAsync('tasklist /V /FO CSV /NH', { timeout: TASKLIST_TIMEOUT_MS });
 
     const lines = stdout.split('\r\n').filter(line => line.trim().length > 0);
     const runningTools: RunningProcess[] = [];

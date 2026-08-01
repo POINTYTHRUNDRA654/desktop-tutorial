@@ -91,6 +91,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [ckProcesses, setCkProcesses] = useState<any[]>([]);
   const [monitorError, setMonitorError] = useState('');
   const monitorRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
 
   // Post-crash state
   const [selectedLogPath, setSelectedLogPath] = useState('');
@@ -109,6 +110,19 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   const [modScanError, setModScanError] = useState('');
   const [modScanReport, setModScanReport] = useState<ModValidationReport | null>(null);
   const [modAutoFixBusy, setModAutoFixBusy] = useState(false);
+  const [modScanProgress, setModScanProgress] = useState<{ filesScanned: number; elapsedMs: number } | null>(null);
+
+  // Large mods (thousands of files) can take a while to scan, especially under
+  // real-time antivirus scanning. Show live file-count progress instead of a
+  // static spinner so a long scan never looks hung.
+  useEffect(() => {
+    const a = api();
+    if (!a?.onAssetValidatorScanProgress) return;
+    const unsubscribe = a.onAssetValidatorScanProgress((data: { filesScanned: number; elapsedMs: number }) => {
+      setModScanProgress({ filesScanned: data.filesScanned, elapsedMs: data.elapsedMs });
+    });
+    return unsubscribe;
+  }, []);
 
   const unwrapModReport = (raw: any): ModValidationReport | null => {
     if (!raw) return null;
@@ -319,6 +333,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
     setModScanBusy(true);
     setModScanError('');
     setModScanReport(null);
+    setModScanProgress(null);
 
     try {
       let scanTarget = rawPath;
@@ -372,6 +387,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       toast.error(`Mod scan failed: ${msg}`);
     } finally {
       setModScanBusy(false);
+      setModScanProgress(null);
     }
   };
 
@@ -500,8 +516,13 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
   // ── Live Monitor ──────────────────────────────────────
 
   const pollCKProcesses = async () => {
+    // Guard against overlapping polls — if a previous tasklist call is still in flight
+    // (e.g. AV scanning intercepting the new process launch), skip this tick rather than
+    // stacking another one on top of it.
+    if (pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
     const a = api();
-    if (!a?.getRunningProcesses) return;
+    if (!a?.getRunningProcesses) { pollInFlightRef.current = false; return; }
     try {
       const rawProcs = await a.getRunningProcesses();
       const procs: any[] = (rawProcs as any)?.data ?? (Array.isArray(rawProcs) ? rawProcs : []);
@@ -511,6 +532,7 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
       });
       setCkProcesses(ck);
     } catch (e) { /* silent poll failure */ }
+    finally { pollInFlightRef.current = false; }
   };
 
   const startMonitoring = async () => {
@@ -710,7 +732,9 @@ const CKCrashPrevention: React.FC<Props> = ({ onClose }) => {
                   disabled={modScanBusy}
                   className="flex-1 rounded bg-blue-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-60 flex items-center justify-center gap-2"
                 >
-                  {modScanBusy ? <><RefreshCw className="w-4 h-4 animate-spin" /> Scanning…</> : <><Shield className="w-4 h-4" /> Scan Mod Package</>}
+                  {modScanBusy
+                    ? <><RefreshCw className="w-4 h-4 animate-spin" /> {modScanProgress ? `Scanning… (${modScanProgress.filesScanned} files, ${Math.round(modScanProgress.elapsedMs / 1000)}s)` : 'Scanning…'}</>
+                    : <><Shield className="w-4 h-4" /> Scan Mod Package</>}
                 </button>
                 <button
                   onClick={runAutoFix}

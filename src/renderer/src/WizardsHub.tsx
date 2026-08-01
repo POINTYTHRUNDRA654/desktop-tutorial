@@ -19,6 +19,7 @@ import { PRPPatchBuilderWizard } from './PRPPatchBuilderWizard';
 import CrashTriageWizard from './CrashTriageWizard';
 import CKQuestDialogueWizard from './CKQuestDialogueWizard';
 import { Link } from 'react-router-dom';
+import { useI18n } from './i18n';
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,22 @@ type HubSection = {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+/** Splits a translated template containing {bN}...{/bN} tokens into text + <b> nodes. */
+function splitBold(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const regex = /\{b\d+\}(.*?)\{\/b\d+\}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push(<b key={key++}>{match[1]}</b>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 const safeParse = <T,>(raw: string | null, fallback: T): T => {
   if (!raw) return fallback;
   try { return JSON.parse(raw) as T; } catch { return fallback; }
@@ -76,12 +93,14 @@ function wizardProgress(storageKey: string): { checked: number; total: number } 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
 const VersionBadge: React.FC<{ version: FO4Version }> = ({ version }) => {
-  const map: Record<FO4Version, { label: string; cls: string }> = {
-    og:  { label: 'OG  1.10.163', cls: 'text-amber-300 border-amber-500/40 bg-amber-900/10' },
-    ng:  { label: 'NG  1.10.984+', cls: 'text-sky-300 border-sky-500/40 bg-sky-900/10' },
-    ae:  { label: 'AE / Creations', cls: 'text-purple-300 border-purple-500/40 bg-purple-900/10' },
+  const { t } = useI18n();
+  const map: Record<FO4Version, { fallbackLabel: string; cls: string }> = {
+    og:  { fallbackLabel: 'OG  1.10.163', cls: 'text-amber-300 border-amber-500/40 bg-amber-900/10' },
+    ng:  { fallbackLabel: 'NG  1.10.984+', cls: 'text-sky-300 border-sky-500/40 bg-sky-900/10' },
+    ae:  { fallbackLabel: 'AE / Creations', cls: 'text-purple-300 border-purple-500/40 bg-purple-900/10' },
   };
-  const { label, cls } = map[version];
+  const { fallbackLabel, cls } = map[version];
+  const label = t(`wizardsHub.versionBadge.${version}`, fallbackLabel);
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border ${cls}`}>
       {label}
@@ -127,6 +146,7 @@ const WIZARD_STORAGE: Record<SectionId, string | null> = {
 };
 
 const WizardsHub: React.FC = () => {
+  const { t } = useI18n();
   const [expandedSection, setExpandedSection] = useState<SectionId | ''>(() => {
     const stored = safeParse<{ expanded?: string }>(localStorage.getItem(STORAGE_KEY_HUB), {});
     return (stored.expanded as SectionId) || 'platforms';
@@ -177,9 +197,9 @@ const WizardsHub: React.FC = () => {
     {
       id: 'platforms',
       stepNum: 1,
-      title: 'Choose a Platform',
-      subtitle: 'Identify your goal and pick the right wizard',
-      description: 'Start here. The platform map shows every major FO4 modding workflow and links you directly to the wizard that matches what you are trying to do — scripting, textures, animations, settlements, quests, or load order.',
+      title: t('wizardsHub.sections.platforms.title', 'Choose a Platform'),
+      subtitle: t('wizardsHub.sections.platforms.subtitle', 'Identify your goal and pick the right wizard'),
+      description: t('wizardsHub.sections.platforms.desc', 'Start here. The platform map shows every major FO4 modding workflow and links you directly to the wizard that matches what you are trying to do — scripting, textures, animations, settlements, quests, or load order.'),
       icon: Compass,
       content: <PlatformsHub embedded />,
       estimatedTime: '2 min',
@@ -187,34 +207,34 @@ const WizardsHub: React.FC = () => {
     {
       id: 'install',
       stepNum: 2,
-      title: 'Install Wizard',
-      subtitle: 'F4SE, xEdit, SS2, PRP, and patching prerequisites',
-      description: 'Install and verify every core tool: F4SE (Script Extender), xEdit/FO4Edit, Sim Settlements 2 dependencies, the PRP previs toolkit, and patch-building workflow. Complete this before any content wizard.',
+      title: t('wizardsHub.sections.install.title', 'Install Wizard'),
+      subtitle: t('wizardsHub.sections.install.subtitle', 'F4SE, xEdit, SS2, PRP, and patching prerequisites'),
+      description: t('wizardsHub.sections.install.desc', 'Install and verify every core tool: F4SE (Script Extender), xEdit/FO4Edit, Sim Settlements 2 dependencies, the PRP previs toolkit, and patch-building workflow. Complete this before any content wizard.'),
       icon: Wrench,
       content: <InstallWizard embedded />,
       storageKey: 'mossy_install_wizard_state_v1',
       estimatedTime: '15–45 min',
-      badge: 'Core',
+      badge: t('wizardsHub.badges.core', 'Core'),
     },
     {
       id: 'crash-triage',
       stepNum: 3,
-      title: 'Crash & Bug Triage',
-      subtitle: 'CTD / infinite load / broken saves troubleshooting',
-      description: 'Step-by-step diagnosis for crash-to-desktop, infinite loading screen, broken save games, and other instability. Use this any time your game stops working — it walks you through isolation, log reading, and fix verification.',
+      title: t('wizardsHub.sections.crashTriage.title', 'Crash & Bug Triage'),
+      subtitle: t('wizardsHub.sections.crashTriage.subtitle', 'CTD / infinite load / broken saves troubleshooting'),
+      description: t('wizardsHub.sections.crashTriage.desc', 'Step-by-step diagnosis for crash-to-desktop, infinite loading screen, broken save games, and other instability. Use this any time your game stops working — it walks you through isolation, log reading, and fix verification.'),
       icon: Bug,
       content: <CrashTriageWizard embedded />,
       storageKey: 'mossy_crash_triage_state_v1',
       estimatedTime: '10–30 min',
-      badge: 'Triage',
+      badge: t('wizardsHub.badges.triage', 'Triage'),
       optional: true,
     },
     {
       id: 'ck-quest',
       stepNum: 4,
-      title: 'CK Quest & Dialogue',
-      subtitle: 'Creation Kit quest authoring, Papyrus compile + test loop',
-      description: 'Guided workflow for Creation Kit quest creation, dialogue setup, Papyrus script compilation, and the safe test loop. Covers CK crash prevention, editor setup, and how to verify your quest works before shipping.',
+      title: t('wizardsHub.sections.ckQuest.title', 'CK Quest & Dialogue'),
+      subtitle: t('wizardsHub.sections.ckQuest.subtitle', 'Creation Kit quest authoring, Papyrus compile + test loop'),
+      description: t('wizardsHub.sections.ckQuest.desc', 'Guided workflow for Creation Kit quest creation, dialogue setup, Papyrus script compilation, and the safe test loop. Covers CK crash prevention, editor setup, and how to verify your quest works before shipping.'),
       icon: ScrollText,
       content: <CKQuestDialogueWizard embedded />,
       storageKey: 'mossy_ck_quest_dialogue_state_v1',
@@ -224,21 +244,21 @@ const WizardsHub: React.FC = () => {
     {
       id: 'packaging',
       stepNum: 5,
-      title: 'Packaging & Release',
-      subtitle: 'BA2 packaging, folder structure, versioning, and release checks',
-      description: 'BA2 archive packaging, folder structure validation, versioning, Nexus / Bethesda.net upload preparation, and final release sanity checks. Run this before uploading any mod.',
+      title: t('wizardsHub.sections.packaging.title', 'Packaging & Release'),
+      subtitle: t('wizardsHub.sections.packaging.subtitle', 'BA2 packaging, folder structure, versioning, and release checks'),
+      description: t('wizardsHub.sections.packaging.desc', 'BA2 archive packaging, folder structure validation, versioning, Nexus / Bethesda.net upload preparation, and final release sanity checks. Run this before uploading any mod.'),
       icon: Archive,
       content: (
         <div className="p-4 space-y-4">
           <div className="rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-4 text-sm text-slate-300">
-            <div className="font-bold text-slate-200 mb-2">What this covers</div>
+            <div className="font-bold text-slate-200 mb-2">{t('wizardsHub.packagingCard.whatThisCovers', 'What this covers')}</div>
             <ul className="space-y-1.5 text-xs">
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />BA2 archive creation — Archive2, BSArch, BSArchPro workflows</li>
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />Mod folder structure — Data layout, plugin naming, texture/mesh paths</li>
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />FOMOD installer creation for multi-option mod packaging</li>
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />Version tagging and changelog preparation</li>
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />Nexus upload checklist and Bethesda.net Creations upload flow</li>
-              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />Final stability and conflict verification before release</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item1', 'BA2 archive creation — Archive2, BSArch, BSArchPro workflows')}</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item2', 'Mod folder structure — Data layout, plugin naming, texture/mesh paths')}</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item3', 'FOMOD installer creation for multi-option mod packaging')}</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item4', 'Version tagging and changelog preparation')}</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item5', 'Nexus upload checklist and Bethesda.net Creations upload flow')}</li>
+              <li className="flex items-start gap-2"><ChevronRight className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" />{t('wizardsHub.packagingCard.item6', 'Final stability and conflict verification before release')}</li>
             </ul>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -247,18 +267,18 @@ const WizardsHub: React.FC = () => {
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-emerald-700/20 border border-emerald-600/40 text-emerald-200 text-sm font-black hover:bg-emerald-700/30 transition-colors"
             >
               <Archive className="w-4 h-4" />
-              Open Packaging & Release Hub
+              {t('wizardsHub.packagingCard.openHub', 'Open Packaging & Release Hub')}
             </Link>
             <Link
               to="/tools/ba2-manager"
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 text-sm font-black hover:bg-slate-800 transition-colors"
             >
               <Zap className="w-4 h-4" />
-              BA2 Manager (quick tool)
+              {t('wizardsHub.packagingCard.ba2QuickTool', 'BA2 Manager (quick tool)')}
             </Link>
           </div>
           <div className="text-[11px] text-slate-500">
-            The Packaging Hub contains the full BA2 workflow, FOMOD builder, conflict resolver, and mod comparison tools.
+            {t('wizardsHub.packagingCard.footerNote', 'The Packaging Hub contains the full BA2 workflow, FOMOD builder, conflict resolver, and mod comparison tools.')}
           </div>
         </div>
       ),
@@ -268,9 +288,9 @@ const WizardsHub: React.FC = () => {
     {
       id: 'prp-patch',
       stepNum: 6,
-      title: 'PRP Patch Builder',
-      subtitle: 'Generate PRP compatibility patch target + README',
-      description: 'Generate a PRP previs/precombine compatibility patch plan, README template, and verification checklist. Run this only after your mod is stable and you are ready to create or contribute a PRP patch for your worldspace edits.',
+      title: t('wizardsHub.sections.prpPatch.title', 'PRP Patch Builder'),
+      subtitle: t('wizardsHub.sections.prpPatch.subtitle', 'Generate PRP compatibility patch target + README'),
+      description: t('wizardsHub.sections.prpPatch.desc', 'Generate a PRP previs/precombine compatibility patch plan, README template, and verification checklist. Run this only after your mod is stable and you are ready to create or contribute a PRP patch for your worldspace edits.'),
       icon: GitMerge,
       content: <PRPPatchBuilderWizard embedded />,
       storageKey: 'mossy_prp_patch_builder_state_v1',
@@ -285,10 +305,13 @@ const WizardsHub: React.FC = () => {
   const progressPct = Math.round((startedCount / sections.length) * 100);
 
   const versionOptions: Array<{ id: FO4Version; label: string; note: string }> = [
-    { id: 'og',  label: 'OG',  note: '1.10.163 — pre–Next-Gen patch (April 2024)' },
-    { id: 'ng',  label: 'NG',  note: '1.10.984+ — Next-Gen / current Steam default' },
-    { id: 'ae',  label: 'AE',  note: 'Creations Menu / Anniversary Edition content' },
+    { id: 'og',  label: 'OG',  note: t('wizardsHub.versionOptions.og', '1.10.163 — pre–Next-Gen patch (April 2024)') },
+    { id: 'ng',  label: 'NG',  note: t('wizardsHub.versionOptions.ng', '1.10.984+ — Next-Gen / current Steam default') },
+    { id: 'ae',  label: 'AE',  note: t('wizardsHub.versionOptions.ae', 'Creations Menu / Anniversary Edition content') },
   ];
+
+  const stepLabel = (stepNum: number, title: string) =>
+    t('wizardsHub.stepLabel', 'Step {step}: {title}').replace('{step}', String(stepNum)).replace('{title}', title);
 
   return (
     <div className="min-h-full bg-[#0b0f0b] text-slate-100 p-6 md:p-10">
@@ -296,17 +319,17 @@ const WizardsHub: React.FC = () => {
 
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="flex flex-col gap-3 mb-6">
-          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">Mossy Tutor · FO4 Setup Wizards</div>
+          <div className="text-[10px] font-mono tracking-[0.3em] text-emerald-400/70 uppercase">{t('wizardsHub.eyebrow', 'Mossy Tutor · FO4 Setup Wizards')}</div>
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">FO4 Setup Wizards Hub</h1>
+              <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white">{t('wizardsHub.title', 'FO4 Setup Wizards Hub')}</h1>
               <p className="text-sm font-medium text-slate-400 max-w-2xl mt-2">
-                The complete Fallout 4 modding setup flow — from tool install through crash triage, quest authoring, packaging, and previs patching. Work through the steps in order, or jump to any section you need.
+                {t('wizardsHub.subtitle', 'The complete Fallout 4 modding setup flow — from tool install through crash triage, quest authoring, packaging, and previs patching. Work through the steps in order, or jump to any section you need.')}
               </p>
             </div>
             {/* Game version selector */}
             <div className="shrink-0">
-              <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">Game Version</div>
+              <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1">{t('wizardsHub.gameVersion', 'Game Version')}</div>
               <div className="flex gap-1.5">
                 {versionOptions.map(v => (
                   <button
@@ -332,9 +355,12 @@ const WizardsHub: React.FC = () => {
         <div className="mb-6 rounded-xl border border-slate-800 bg-black/30 p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs font-bold text-slate-300">
-              Setup Progress
+              {t('wizardsHub.setupProgress', 'Setup Progress')}
               <span className="ml-2 text-slate-500 font-normal">
-                {doneCount} completed · {startedCount} started · {sections.length - startedCount} remaining
+                {t('wizardsHub.progressCounts', '{done} completed · {started} started · {remaining} remaining')
+                  .replace('{done}', String(doneCount))
+                  .replace('{started}', String(startedCount))
+                  .replace('{remaining}', String(sections.length - startedCount))}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -358,7 +384,7 @@ const WizardsHub: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => toggleSection(s.id)}
-                    title={`Step ${s.stepNum}: ${s.title}`}
+                    title={stepLabel(s.stepNum, s.title)}
                     className="flex items-center gap-1.5 group"
                   >
                     <StepDot state={state} stepNum={s.stepNum} />
@@ -381,19 +407,19 @@ const WizardsHub: React.FC = () => {
 
         {/* ── Flow hint ─────────────────────────────────────────────── */}
         <div className="mb-6 rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-4 text-xs font-medium text-slate-300">
-          <div className="font-bold text-slate-200 mb-1.5">Recommended flow</div>
+          <div className="font-bold text-slate-200 mb-1.5">{t('wizardsHub.recommendedFlow.heading', 'Recommended flow')}</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="flex items-start gap-1.5">
               <span className="text-emerald-400 font-black">1–2</span>
-              <span>Start with <b>Choose a Platform</b> then complete the <b>Install Wizard</b> for every tool you will use.</span>
+              <span>{splitBold(t('wizardsHub.recommendedFlow.step12', 'Start with {b1}Choose a Platform{/b1} then complete the {b2}Install Wizard{/b2} for every tool you will use.'))}</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="text-amber-400 font-black">3–4</span>
-              <span><b>Crash Triage</b> and <b>CK Quest</b> are situational — use them when you hit those workflows.</span>
+              <span>{splitBold(t('wizardsHub.recommendedFlow.step34', '{b1}Crash Triage{/b1} and {b2}CK Quest{/b2} are situational — use them when you hit those workflows.'))}</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="text-sky-400 font-black">5–6</span>
-              <span>Run <b>Packaging</b> before uploading. Run <b>PRP Patch Builder</b> only if your mod edits worldspaces.</span>
+              <span>{splitBold(t('wizardsHub.recommendedFlow.step56', 'Run {b1}Packaging{/b1} before uploading. Run {b2}PRP Patch Builder{/b2} only if your mod edits worldspaces.'))}</span>
             </div>
           </div>
         </div>
@@ -435,7 +461,7 @@ const WizardsHub: React.FC = () => {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-black text-white">
-                          Step {section.stepNum}: {section.title}
+                          {stepLabel(section.stepNum, section.title)}
                         </span>
                         {section.badge && (
                           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200 border border-emerald-500/30 bg-emerald-900/10 px-2 py-0.5 rounded">
@@ -444,7 +470,7 @@ const WizardsHub: React.FC = () => {
                         )}
                         {section.optional && (
                           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-700 px-2 py-0.5 rounded">
-                            Situational
+                            {t('wizardsHub.situational', 'Situational')}
                           </span>
                         )}
                       </div>
@@ -499,8 +525,7 @@ const WizardsHub: React.FC = () => {
         <div className="mt-8 flex items-start gap-3 text-[11px] text-slate-500">
           <Circle className="w-3 h-3 text-slate-700 mt-0.5 shrink-0" />
           <span>
-            Your progress is saved automatically. Steps marked complete in each wizard are remembered across sessions.
-            Use the <b>Ask Mossy</b> button at any time if you get stuck — Mossy knows your current wizard context.
+            {splitBold(t('wizardsHub.footerTip', 'Your progress is saved automatically. Steps marked complete in each wizard are remembered across sessions. Use the {b1}Ask Mossy{/b1} button at any time if you get stuck — Mossy knows your current wizard context.'))}
           </span>
         </div>
 

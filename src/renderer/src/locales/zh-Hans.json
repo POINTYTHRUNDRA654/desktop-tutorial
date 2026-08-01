@@ -134,7 +134,47 @@
       },
       "credits": {
         "title": "致谢",
-        "desc": "查看驱动Mossy的开源项目和工具。"
+        "desc": "查看驱动Mossy的开源项目和工具。",
+        "builtWithLove": "用心打造，基于出色的开源软件",
+        "intro": "Mossy 站在巨人的肩膀上。您使用的每一项功能都由敬业的开发者和活跃的社区提供支持。点击下方查看所有工具和框架的完整可搜索致谢、许可证和署名。",
+        "viewFull": "查看完整致谢与许可证",
+        "coreFramework": "核心框架",
+        "electron": "跨平台桌面框架 (MIT)",
+        "react": "Meta 的 UI 库 (MIT)",
+        "typescript": "微软的类型化 JavaScript (Apache 2.0)",
+        "vite": "新一代构建工具 (MIT)",
+        "aiMl": "AI 与机器学习",
+        "groq": "快速 LLM 推理 (Apache 2.0)",
+        "openaiSdk": "ChatGPT 集成 (Apache 2.0)",
+        "ollama": "本地 LLM 运行时 (MIT)",
+        "pytorch": "Meta 的 ML 框架 (BSD)",
+        "numpy": "数值计算 (BSD 3-Clause)",
+        "krea": "AI 图像、视频与 3D 生成（商业版 / krea.ai）",
+        "uiDesign": "UI 与设计",
+        "tailwind": "实用优先 CSS (MIT)",
+        "lucide": "图标库 (ISC)",
+        "reactMarkdown": "Markdown 渲染器 (MIT)",
+        "recharts": "图表库 (MIT)",
+        "moddingTools": "模组制作工具（单独下载）",
+        "blender": "3D 建模 (GPL 2.0)",
+        "pynifly": "BadDogSkyrim 制作的 Blender NIF 导入/导出 (MIT)",
+        "xedit": "ElminsterAU 制作的插件编辑器 (GPL 2.0)",
+        "creationKit": "Bethesda 官方模组制作工具",
+        "nifskope": "hexabits 制作的 NIF 网格与纹理查看器 (GPL 3.0)",
+        "mo2": "Tannin42 / MO2 团队制作的模组管理器 (GPL 3.0)",
+        "vortex": "Nexus Mods 制作的模组管理器",
+        "f4se": "ianpatt 和 behippo 制作的 Fallout 4 脚本扩展器",
+        "loot": "加载顺序优化工具 (GPL 3.0)",
+        "bodyslide": "ousnius 和 Caliente 制作的体型塑形工具 (MIT)",
+        "bae": "jonwd7 制作的 Bethesda 存档提取器",
+        "gimp": "GNU 图像处理程序 (GPL 3.0)",
+        "umodel": "Gildor 制作的虚幻引擎资源查看器",
+        "andMore": "……以及 100 多个其他依赖项。点击",
+        "andMoreSuffix": "上方查看包含版本号和许可证链接的完整可搜索列表。",
+        "licenseCompliance": "许可证合规性",
+        "complianceIntro": "Mossy 尊重所有开源许可证。我们的 LICENSE 和 CREDITS.md 文件已包含在您的安装文件夹和此应用程序包中，以确保透明度和署名。",
+        "foundIssue": "发现许可证问题？",
+        "reportGithub": "在 GitHub 上报告"
       },
       "internet": {
         "description": "探测Mossy使用的所有搜索提供商（Fallout Wiki、Fandom、DuckDuckGo、Wikipedia），显示哪些当前可访问。",
@@ -147,6 +187,18 @@
         "empty": "空",
         "troubleshootTitle": "DNS故障排查：",
         "sampleResultFrom": "来自以下提供商的示例结果"
+      },
+      "step3c": {
+        "title": "步骤 3c：AnythingLLM — RAG 知识引擎",
+        "desc": "为记忆库和知识中心的语义搜索提供基于向量的文档检索。"
+      },
+      "support": {
+        "title": "支持开发者",
+        "desc": "帮助 Mossy.Space 和 FO4 Advanced AI 项目持续运营。",
+        "intro": "Mossy.Space 是一个由热情驱动的免费项目。如果它帮助了您的模组制作工作流程，请考虑支持持续开发——每一份贡献都有助于维持项目运转。",
+        "patreonDesc": "月度会员和独家更新",
+        "coffeeDesc": "一次性打赏，任意金额",
+        "thankYou": "感谢您使用 Mossy.Space。您的支持意味着一切。"
       }
     }
   },
@@ -295,5 +347,593 @@
     "tutorTip": "提示",
     "openLastLocation": "打开上次位置",
     "openLastLocationTitle": "（可选）若可用，打开上次保存的位置"
+  },
+  "common": {
+    "loading": "加载中…",
+    "loadingModule": "正在加载模块…"
+  },
+  "journeyHub": {
+    "title": "FO4 模组历程中心",
+    "subtitle": "首次成功 · 模组项目 · 路线图 · 模组浏览器",
+    "tabs": {
+      "firstSuccess": {
+        "label": "首次成功",
+        "sublabel": "新手引导成果"
+      },
+      "projects": {
+        "label": "模组项目",
+        "sublabel": "项目工作区"
+      },
+      "roadmaps": {
+        "label": "路线图",
+        "sublabel": "规划进度"
+      },
+      "mods": {
+        "label": "模组浏览器",
+        "sublabel": "发现模组"
+      }
+    }
+  },
+  "systemHub": {
+    "title": "FO4 系统与诊断中心",
+    "subtitle": "诊断 · 功能 · 本地 AI 引擎 · 白名单与黑名单 · 资产库 · 支持 · 备份管理器 · 文件监视器",
+    "tabs": {
+      "diagnostics": {
+        "label": "诊断",
+        "sublabel": "排查工具问题"
+      },
+      "capabilities": {
+        "label": "功能",
+        "sublabel": "本地 AI/运行时"
+      },
+      "localAi": {
+        "label": "本地 AI 引擎",
+        "sublabel": "KoboldCPP + 模型"
+      },
+      "security": {
+        "label": "白名单与黑名单",
+        "sublabel": "安全规则"
+      },
+      "vault": {
+        "label": "资产库",
+        "sublabel": "清单与验证"
+      },
+      "support": {
+        "label": "支持 Mossy",
+        "sublabel": "支持链接"
+      },
+      "backup": {
+        "label": "备份管理器",
+        "sublabel": "快照与 git"
+      },
+      "watcher": {
+        "label": "文件监视器",
+        "sublabel": "实时文件跟踪"
+      }
+    }
+  },
+  "knowledgeHub": {
+    "title": "FO4 知识中心",
+    "subtitle": "快速参考 · 语义搜索 · 社区学习 · 原版资产",
+    "tabs": {
+      "reference": {
+        "label": "快速参考",
+        "sublabel": "Papyrus · FormID · 快捷键"
+      },
+      "search": {
+        "label": "知识搜索",
+        "sublabel": "语义搜索 · Ollama"
+      },
+      "community": {
+        "label": "社区学习",
+        "sublabel": "技巧 · 共享知识"
+      },
+      "vanilla": {
+        "label": "原版资产",
+        "sublabel": "浏览 · 复制 · 参考"
+      },
+      "rag": {
+        "label": "RAG 搜索",
+        "sublabel": "AnythingLLM · 向量数据库"
+      }
+    }
+  },
+  "whatsNew": {
+    "backToMossy": "返回 Mossy",
+    "eyebrow": "FO4 发行说明",
+    "title": "Mossy 中的 FO4 新功能",
+    "versionLine": "v{version} — 此版本中的 Fallout 4 模组更新。",
+    "fallbackNotice": "回退提示",
+    "fallbackText": "当前版本 {requested} 尚无专属更新日志部分。正在显示来自 {resolved} 的最新可用说明。",
+    "unknownVersion": "未知版本",
+    "highlights": "亮点",
+    "updated": "已更新",
+    "loadingChangelog": "正在加载更新日志...",
+    "noHighlights": "此版本暂无可用的更新亮点。",
+    "releaseHighlights": "版本亮点",
+    "workflowTips": "FO4 工作流提示",
+    "tip1": "使用侧边栏在 FO4 中心之间快速切换（CK、插件、资产、运行时和打包）。",
+    "tip2": "按 Ctrl+K 根据你的 Fallout 4 工作流意图搜索路由、中心和工具。",
+    "tip3": "更新后，在发布模组构建之前运行正常的验证流程（加载顺序、资产、打包）。",
+    "stayInLoop": "保持关注",
+    "stayInLoopText": "我们会在此处显示新版本，而不会打断你的工作流程。你可以随时从侧边栏重新访问此页面。",
+    "dontAutoOpen": "不再自动打开此页面",
+    "continueToDashboard": "继续前往仪表盘"
+  },
+  "modBuilderHub": {
+    "title": "FO4 模组构建中心",
+    "subtitle": "Blueprint · Workshop · Devtools · Scribe — 完整的 Fallout 4 模组创建工作流",
+    "keysHint": "按键 1–5 · 拖动标签页可重新排序",
+    "tabTitle": "{label}（按键 {key}）— 拖动以重新排序",
+    "tabs": {
+      "blueprint": {
+        "label": "Blueprint",
+        "sublabel": "模组架构规划器"
+      },
+      "workshop": {
+        "label": "Workshop",
+        "sublabel": "文件浏览器 · 编译"
+      },
+      "devtools": {
+        "label": "Devtools",
+        "sublabel": "Papyrus · xEdit · 代码片段"
+      },
+      "scribe": {
+        "label": "Scribe",
+        "sublabel": "文档生成器"
+      },
+      "creator": {
+        "label": "项目创建器",
+        "sublabel": "新建模组脚手架"
+      }
+    }
+  },
+  "runtimeHub": {
+    "title": "FO4 运行时中心",
+    "subtitle": "Live Synapse · Desktop Bridge · Holodeck 测试工作流",
+    "bridgeOnline": "Bridge 在线",
+    "bridgeOffline": "Bridge 离线",
+    "aiActive": "AI 活跃",
+    "aiPartial": "AI 部分可用",
+    "aiRelay": "AI 中继",
+    "aiOffline": "AI 离线",
+    "blenderLinked": "Blender 已连接",
+    "tabs": {
+      "live": {
+        "label": "Live Synapse",
+        "sublabel": "语音 + 实时协助"
+      },
+      "bridge": {
+        "label": "Desktop Bridge",
+        "sublabel": "应用集成"
+      },
+      "testing": {
+        "label": "Holodeck",
+        "sublabel": "场景测试"
+      }
+    }
+  },
+  "packagingHub": {
+    "eyebrow": "Mossy 导师 • 打包",
+    "title": "FO4 打包与发布中心",
+    "subtitle": "打包、冲突分析、比较、FOMOD 安装程序和发布的完整工作流程。按顺序完成步骤以获得最佳效果。",
+    "workflowProgress": "工作流程进度",
+    "stepsVisited": "已访问 {visited} / {total} 个步骤",
+    "flowTitle": "流程（按顺序阅读）",
+    "flow1": "管理 BA2 存档（打包、提取、合并）",
+    "flow2": "运行打包检查清单",
+    "flow3": "检查与其他模组的冲突",
+    "flow4": "与类似模组比较兼容性",
+    "flow5": "构建您的 FOMOD 安装程序",
+    "flow6": "导出、撰写发布说明并发布",
+    "stepPill": "第 {step} 步：{title}",
+    "advancedTools": "高级工具",
+    "visited": "已访问",
+    "sections": {
+      "ba2": {
+        "title": "第 0 步：BA2 存档管理器",
+        "shortTitle": "BA2 存档管理器",
+        "desc": "在打包前列出、提取、打包和合并 BA2 存档。"
+      },
+      "checklist": {
+        "title": "第 1 步：打包检查清单",
+        "shortTitle": "打包检查清单",
+        "desc": "验证路径、存档、插件完整性和发布准备情况。"
+      },
+      "conflicts": {
+        "title": "第 2 步：冲突分析",
+        "shortTitle": "冲突分析",
+        "desc": "可视化您的模组与其他模组之间的记录冲突。"
+      },
+      "comparison": {
+        "title": "第 3 步：模组比较",
+        "shortTitle": "模组比较",
+        "desc": "将您的模组与类似模组比较以检查兼容性。"
+      },
+      "assembler": {
+        "title": "第 4 步：FOMOD 安装程序（组装器）",
+        "shortTitle": "FOMOD 安装程序（组装器）",
+        "desc": "为您的发布包构建并导出 FOMOD 安装程序。"
+      },
+      "export": {
+        "title": "第 5 步：导出与发布",
+        "shortTitle": "导出与发布",
+        "desc": "构建发布压缩包，撰写发布说明，并发布到 Nexus 或 Bethesda.net。"
+      },
+      "conflictResolver": {
+        "title": "冲突解决器",
+        "desc": "解决插件记录冲突并生成补丁建议。"
+      },
+      "conflictGraph": {
+        "title": "冲突依赖关系图",
+        "desc": "以交互式依赖关系图可视化模组冲突关系。"
+      },
+      "bethelUploader": {
+        "title": "模组自动增强器",
+        "desc": "拖入一个模组，自动增强其纹理，然后下载增强后的包——这是本地流程，而非 Bethesda.net 上传器。"
+      }
+    }
+  },
+  "automationOrchestrator": {
+    "title": "FO4 自动化编排器",
+    "running": "运行中",
+    "stopped": "已停止",
+    "refreshTooltip": "刷新",
+    "resetStatsTooltip": "重置所有运行统计信息",
+    "stopEngine": "停止引擎",
+    "startEngine": "启动引擎",
+    "stats": {
+      "rulesActive": {
+        "label": "活动规则",
+        "sub": "已启用 / 总数"
+      },
+      "fileWatchers": {
+        "label": "文件监视器",
+        "sub": "已监控路径"
+      },
+      "intervals": {
+        "label": "间隔",
+        "sub": "进程 + 计划"
+      },
+      "totalRuns": {
+        "label": "总运行次数",
+        "sub": "自上次重置以来"
+      }
+    },
+    "tabs": {
+      "rules": "规则 ({n})",
+      "activity": "活动"
+    },
+    "triggers": {
+      "file-change": "文件监视",
+      "process-start": "进程启动",
+      "process-stop": "进程停止",
+      "schedule": "计划",
+      "manual": "手动"
+    },
+    "actions": {
+      "scan-conflicts": "冲突扫描",
+      "scan-duplicates": "重复项扫描",
+      "validate-load-order": "加载顺序验证",
+      "compile-papyrus": "Papyrus 编译",
+      "pack-ba2": "BA2 打包",
+      "validate-hkx": "HKX 验证",
+      "start-log-monitor": "日志监视器",
+      "track-ck-session": "CK 会话跟踪器",
+      "validate-f4se": "F4SE 验证",
+      "nightly-backup": "每夜备份",
+      "run-maintenance": "每日维护",
+      "sync-cosmos-pipeline": "Cosmos 管道同步"
+    },
+    "showingDisabled": "显示已禁用项",
+    "hidingDisabled": "隐藏已禁用项",
+    "lastRefresh": "上次刷新：{time}",
+    "noRulesMatch": "没有规则符合当前过滤条件。",
+    "engineSchedules": "引擎计划",
+    "dailyMaintenance": "每日维护：",
+    "weeklyDeepScan": "每周深度扫描：",
+    "off": "关闭",
+    "liveFeedHint": "实时动态 — 规则会在此实时触发事件。最多保留 {max} 条记录。",
+    "clear": "清除",
+    "loadingEngine": "正在加载自动化引擎…",
+    "apiUnavailable": "自动化 API 不可用 — 请确保您正在运行打包后的应用程序。",
+    "activityEmpty": "暂无活动 — 规则触发后事件将显示在此处。",
+    "manualTag": "手动",
+    "scheduledTag": "已计划",
+    "runsCount": "运行 {n} 次",
+    "triggerManually": "手动触发",
+    "disableRule": "禁用规则",
+    "enableRule": "启用规则",
+    "never": "从未",
+    "justNow": "刚刚",
+    "minutesAgo": "{m} 分钟前",
+    "hoursAgo": "{h} 小时前",
+    "daysAgo": "{d} 天前",
+    "filters": {
+      "all": "所有触发器"
+    }
+  },
+  "externalToolsHub": {
+    "title": "FO4 外部集成中心",
+    "subtitle": "MO2 · ComfyUI · Upscayl 工作流程，外加工具自动连接",
+    "tabs": {
+      "mo2": {
+        "label": "MO2 集成",
+        "sublabel": "Mod Organizer 2"
+      },
+      "comfyui": {
+        "label": "ComfyUI",
+        "sublabel": "AI 图像生成"
+      },
+      "upscayl": {
+        "label": "Upscayl",
+        "sublabel": "AI 放大"
+      }
+    },
+    "toolInfo": {
+      "mo2": {
+        "desc": "Fallout 4 的行业标准模组管理器。Mossy 会读取您的 MO2 配置文件以了解您的活动模组列表和加载顺序。安装：Nexus Mod Manager 页面或官方 GitHub。",
+        "tips": {
+          "0": "为不同的游戏进程或测试配置使用独立的 MO2 配置文件。",
+          "1": "在 MO2 设置中启用\"Manageable\"模式，以便 Mossy 读取您的活动插件列表。",
+          "2": "MO2 虚拟文件系统 (VFS) 对游戏透明——MO2 中的文件覆盖顺序与加载顺序优先级一致。",
+          "3": "使用 MO2 中的\"Conflicts\"选项卡，在插件级冲突之前查看文件级资源冲突。"
+        }
+      },
+      "comfyui": {
+        "desc": "基于节点的 AI 图像生成。用于为您的模组创建概念艺术、纹理参考、NPC 肖像和宣传艺术作品。需要至少 6 GB 显存的 GPU。",
+        "tips": {
+          "0": "使用 ComfyUI 的 img2img 工作流程从现有游戏内截图生成纹理变体。",
+          "1": "ControlNet 姿势调节有助于创建符合 FO4 骨骼比例的准确角色参考艺术。",
+          "2": "以至少 4096x4096 导出 AI 生成的艺术作品用于纹理——然后通过纹理与材质中心缩小并压缩为 DDS。",
+          "3": "基于 Fallout 概念艺术训练的 Stable Diffusion 微调模型 (LoRA) 可以提高生成资源的一致性。"
+        }
+      },
+      "upscayl": {
+        "desc": "使用 Real-ESRGAN 模型的免费开源 AI 放大工具。非常适合在 DDS 转换前放大低分辨率原版纹理、参考照片和 UI 元素。",
+        "tips": {
+          "0": "使用 RealESRGAN-x4plus 进行常规纹理放大。放大后的结果仍需压缩为 BC1/BC3/BC5/BC7。",
+          "1": "对于面部/肖像纹理，使用 ESRGAN 面部模型以在重新导出到 FaceGen 之前保留精细的皮肤细节。",
+          "2": "将原版 512x512 纹理最多放大到 2048x2048——超过原始尺寸的 4 倍在游戏内使用时收益递减。",
+          "3": "放大后，始终进行法线贴图烘焙（xNormal 或 Substance Painter），以将丢失的表面细节重建为法线。"
+        }
+      }
+    },
+    "categories": {
+      "modManager": "模组管理器",
+      "editor": "编辑器 / 工具",
+      "ai": "AI / GPU",
+      "utility": "实用工具"
+    },
+    "installedCount": "已安装 {installed}/{total}",
+    "liveCount": "{n} 个运行中",
+    "autoConnect": {
+      "heading": "自动连接桌面工具",
+      "description": "Mossy 会扫描您的系统，查找 FO4 模组制作流程中的每个工具。直接启动检测到的工具，或为缺失的工具获取安装链接。",
+      "refresh": "刷新"
+    },
+    "installed": "已安装",
+    "notDetected": "未检测到",
+    "live": "运行中",
+    "launchTooltip": "启动 {label}",
+    "getTooltip": "获取 {label}"
+  },
+  "wizardsHub": {
+    "versionBadge": {
+      "og": "原版 1.10.163",
+      "ng": "新一代 1.10.984+",
+      "ae": "AE / 创意工坊"
+    },
+    "eyebrow": "Mossy 导师 · FO4 设置向导",
+    "title": "FO4 设置向导中心",
+    "subtitle": "完整的 Fallout 4 模组制作设置流程——从工具安装到崩溃诊断、任务编写、打包和 previs 修补。按顺序完成步骤，或跳转到您需要的任何部分。",
+    "gameVersion": "游戏版本",
+    "badges": {
+      "core": "核心",
+      "triage": "诊断"
+    },
+    "sections": {
+      "platforms": {
+        "title": "选择平台",
+        "subtitle": "明确您的目标并选择合适的向导",
+        "desc": "从这里开始。平台地图展示了每一个主要的 FO4 模组制作工作流程，并直接链接到与您想做的事情匹配的向导——脚本编写、纹理、动画、定居点、任务或加载顺序。"
+      },
+      "install": {
+        "title": "安装向导",
+        "subtitle": "F4SE、xEdit、SS2、PRP 及修补先决条件",
+        "desc": "安装并验证每个核心工具：F4SE（脚本扩展器）、xEdit/FO4Edit、Sim Settlements 2 依赖项、PRP previs 工具包和补丁构建流程。在使用任何内容向导之前完成此步骤。"
+      },
+      "crashTriage": {
+        "title": "崩溃与错误诊断",
+        "subtitle": "CTD / 无限加载 / 存档损坏故障排除",
+        "desc": "针对崩溃到桌面、无限加载屏幕、存档损坏和其他不稳定情况的分步诊断。每当您的游戏停止运行时使用此功能——它将引导您完成隔离、日志读取和修复验证。"
+      },
+      "ckQuest": {
+        "title": "CK 任务与对话",
+        "subtitle": "Creation Kit 任务创作、Papyrus 编译 + 测试循环",
+        "desc": "Creation Kit 任务创建、对话设置、Papyrus 脚本编译和安全测试循环的引导式工作流程。涵盖 CK 崩溃预防、编辑器设置以及如何在发布前验证您的任务是否正常运行。"
+      },
+      "packaging": {
+        "title": "打包与发布",
+        "subtitle": "BA2 打包、文件夹结构、版本控制和发布检查",
+        "desc": "BA2 存档打包、文件夹结构验证、版本控制、Nexus / Bethesda.net 上传准备以及最终发布健全性检查。在上传任何模组之前运行此步骤。"
+      },
+      "prpPatch": {
+        "title": "PRP 补丁构建器",
+        "subtitle": "生成 PRP 兼容性补丁目标 + README",
+        "desc": "生成 PRP previs/precombine 兼容性补丁计划、README 模板和验证清单。仅在您的模组稳定并且您准备好为世界空间编辑创建或贡献 PRP 补丁后运行此步骤。"
+      }
+    },
+    "packagingCard": {
+      "whatThisCovers": "此步骤涵盖内容",
+      "item1": "BA2 存档创建——Archive2、BSArch、BSArchPro 工作流程",
+      "item2": "模组文件夹结构——Data 布局、插件命名、纹理/网格路径",
+      "item3": "为多选项模组打包创建 FOMOD 安装程序",
+      "item4": "版本标记和更新日志准备",
+      "item5": "Nexus 上传清单和 Bethesda.net Creations 上传流程",
+      "item6": "发布前的最终稳定性和冲突验证",
+      "openHub": "打开打包与发布中心",
+      "ba2QuickTool": "BA2 管理器（快速工具）",
+      "footerNote": "打包中心包含完整的 BA2 工作流程、FOMOD 构建器、冲突解决器和模组比较工具。"
+    },
+    "versionOptions": {
+      "og": "1.10.163 — 次世代补丁之前版本（2024年4月）",
+      "ng": "1.10.984+ — 次世代 / 当前 Steam 默认版本",
+      "ae": "创意菜单 / 周年纪念版内容"
+    },
+    "stepLabel": "第 {step} 步：{title}",
+    "setupProgress": "设置进度",
+    "progressCounts": "已完成 {done} · 已开始 {started} · 剩余 {remaining}",
+    "situational": "视情况而定",
+    "recommendedFlow": {
+      "heading": "推荐流程",
+      "step12": "从{b1}选择平台{/b1}开始，然后完成您将使用的每个工具的{b2}安装向导{/b2}。",
+      "step34": "{b1}崩溃诊断{/b1}和{b2}CK 任务{/b2}视情况而定——在遇到这些工作流程时使用它们。",
+      "step56": "在上传前运行{b1}打包{/b1}。仅当您的模组编辑世界空间时才运行{b2}PRP 补丁构建器{/b2}。"
+    },
+    "footerTip": "您的进度会自动保存。每个向导中标记为完成的步骤会在会话之间被记住。如果遇到困难，随时使用{b1}询问 Mossy{/b1}按钮——Mossy 了解您当前的向导上下文。"
+  },
+  "home": {
+    "greeting": {
+      "initializing": "正在初始化连接…",
+      "morning": "核心已初始化。早上好。",
+      "afternoon": "核心已初始化。下午好。",
+      "evening": "核心已初始化。晚上好。"
+    },
+    "help": "帮助",
+    "uplinkSynced": "上行链路已同步",
+    "uplinkRequired": "需要上行链路",
+    "activeProject": "活动项目",
+    "unnamedProject": "未命名项目",
+    "open": "打开",
+    "health": {
+      "electron": {
+        "label": "Electron",
+        "detail": "window.electron.api 可用性"
+      },
+      "storage": {
+        "label": "存储",
+        "detail": "localStorage 读写"
+      },
+      "vault": {
+        "label": "知识库 ({n})",
+        "detail": "知识库项目"
+      },
+      "wizard": {
+        "label": "向导",
+        "detail": "安装向导进度状态"
+      },
+      "mic": {
+        "label": "麦克风 ({state})",
+        "detail": "麦克风权限"
+      },
+      "tts": {
+        "label": "TTS ({n})",
+        "detail": "speechSynthesis 语音"
+      }
+    },
+    "panel": {
+      "description": "Nexus 是您的主控面板：它显示健康信号（Electron、存储、桥接、麦克风/TTS）并帮助您保持方向感。所有 23 个平台均可从左侧边栏访问。",
+      "verify1": "确认健康徽章正常渲染并反映您的环境。",
+      "verify2": "打开系统中心并返回，不出现导航错误。",
+      "loop1": "运行一次设置向导以检测工具并设置路径。",
+      "loop2": "打开 AI 聊天并确认您可以发送消息并收到回复。",
+      "loop3": "打开运行时中心 → 桌面桥接，如果使用本地功能，确认状态为在线。",
+      "trouble1": "如果 Electron 显示 WARN/BAD，您可能正在运行网页模式，或预加载失败。",
+      "trouble2": "如果麦克风/TTS 显示 WARN，请检查操作系统中的权限并重试。",
+      "trouble3": "如果知识库显示 0，请打开 FO4 知识中心并运行索引器。",
+      "shortcuts": {
+        "aiChat": "AI 聊天",
+        "setupWizards": "设置向导",
+        "systemHub": "系统中心",
+        "knowledgeHub": "FO4 知识中心",
+        "journeyHub": "FO4 模组历程中心"
+      }
+    },
+    "quickHubAccess": "快速中心访问",
+    "hubs": {
+      "chat": {
+        "title": "AI 聊天",
+        "subtitle": "向 Mossy 询问任何问题"
+      },
+      "journeyHub": {
+        "title": "FO4 模组历程中心",
+        "subtitle": "项目 · 路线图"
+      },
+      "ckTools": {
+        "title": "Creation Kit 中心",
+        "subtitle": "CK · 脚本 · 崩溃修复"
+      },
+      "pluginTools": {
+        "title": "FO4 插件与加载顺序中心",
+        "subtitle": "xEdit · 加载顺序 · PRP"
+      },
+      "textures": {
+        "title": "纹理与材质",
+        "subtitle": "DDS · PBR · BC 格式"
+      },
+      "assetAnalysis": {
+        "title": "FO4 资源分析中心",
+        "subtitle": "扫描 · 去重 · 挖掘"
+      },
+      "modBuilder": {
+        "title": "FO4 模组构建中心",
+        "subtitle": "蓝图 · 工作坊 · 文档"
+      },
+      "packaging": {
+        "title": "打包与发布",
+        "subtitle": "BA2 · FOMOD · 检查清单"
+      },
+      "guides": {
+        "title": "指南中心",
+        "subtitle": "动画 · 任务 · LOD"
+      },
+      "knowledgeHub": {
+        "title": "FO4 知识中心",
+        "subtitle": "文档 · 搜索 · 参考"
+      },
+      "systemHub": {
+        "title": "系统中心",
+        "subtitle": "诊断 · 安全"
+      },
+      "runtimeHub": {
+        "title": "运行时中心",
+        "subtitle": "实时 · 桥接 · 全息甲板"
+      }
+    },
+    "whereToStart": "Fallout 4 模组制作——从何开始",
+    "steps": {
+      "setupWizards": {
+        "title": "运行设置向导",
+        "body": "检测 F4SE、xEdit、MO2/Vortex、Creation Kit 及其他工具。Mossy 会根据实际安装的内容定制建议。"
+      },
+      "modGoal": {
+        "title": "选择模组制作目标",
+        "body": "打开 FO4 模组历程中心 → 路线图，生成分步计划。无论您是添加武器、任务还是世界空间——从一个明确的目标开始。"
+      },
+      "loadOrder": {
+        "title": "了解加载顺序规则",
+        "body": "Fallout 4 有 255 个插件上限（ESM+ESP+ESL）。标记为 ESL 的插件共享 2,048 个 FormID 池。使用 FO4 插件与加载顺序中心进行管理和验证。"
+      },
+      "assetPipeline": {
+        "title": "学习资源管线",
+        "body": "纹理使用 BC 格式（BC1/BC3/BC7）。网格是带有 Havok 碰撞的 NIF 文件。BA2 存档保存压缩后的资源。纹理中心和指南中心涵盖了所有这些内容。"
+      },
+      "gameStable": {
+        "title": "保持游戏稳定",
+        "body": "首先确定您的游戏版本：原版 (1.10.163)、次世代 (1.10.980–984) 或 AE/1.11.x (1.11.191+)。然后安装匹配的组合：F4SE + Address Library + X-Cell。避免使用已弃用的 AWKCR/DEF_UI——改用 ECO/NEO 和 FallUI。使用 Creation Kit 中心进行崩溃预防监控。"
+      },
+      "buildPackage": {
+        "title": "构建并打包您的模组",
+        "body": "使用 FO4 模组构建中心起草架构、在工作坊中工作、在开发工具中构建脚本，并在 Scribe 中编写文档。然后前往打包与发布，创建 BA2 并构建您的 FOMOD 安装程序。"
+      }
+    },
+    "stepBadge": "第 {n} 步",
+    "tagline": "神经链接处于活动状态，正在监控您的工作区",
+    "support": {
+      "message": "Mossy.Space 是免费开放的——如果它对您的模组制作有所帮助，请考虑支持开发",
+      "patreon": "Patreon",
+      "coffee": "请我喝杯咖啡"
+    }
   }
 }
