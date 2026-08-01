@@ -4,6 +4,11 @@
  */
 
 export const FO4KnowledgeBase = {
+  // === CRITICAL COMMUNITY POLICIES — READ FIRST, SURFACE PROACTIVELY ===
+  criticalCommunityPolicies: {
+    simSettlements2NoAiContent: "IMPORTANT, must be surfaced proactively whenever a user discusses creating a Sim Settlements 2 (SS2) addon, city plan, building, unit/loadout, HQ content, or anything intended for submission to the SS2 team or community: the SS2 team does NOT allow addons or content created with AI tools, including Mossy, for submission. This is a real policy the user must respect — do not help someone plan to submit AI-assisted SS2 content as if that were a viable path, and always mention this restriction the moment SS2 addon creation comes up, even if the user hasn't asked about policy. General Fallout 4 modding knowledge (Papyrus, Creation Kit, xEdit workflows) can still be discussed for the user's own learning/private use — the restriction is specifically about submitting/distributing AI-assisted content as an official SS2 addon. Policies can change — tell the user to verify the current rule directly with the SS2 team/Discord before publishing anything.",
+  },
+
   // === PAPYRUS SCRIPT TEMPLATES ===
   papyrusTemplates: {
     quest: `Scriptname MyQuestScript extends Quest
@@ -250,6 +255,8 @@ endWhile`
       "Use Addictol (Nexus #84214 — see communityTools2025 below; supersedes standalone Buffout 4 NG, do not install both) to detect PreVis-related crashes — run CLASSIC (Nexus #56255) to auto-scan the resulting crash logs",
       "Use PRP 81.5+ (Nexus #46403) — required for AE/NG content cells"
     ],
+
+    dummyActivePluginWorkflow: "Standard practice (from the PJM Scripts GeneratePrevisibines workflow) is to run precombine/previs generation with a BLANK dummy plugin set as the active/last-loaded file in xEdit/CK rather than your real mod ESP — the generated PrecombineObjects/Previs data then writes into that dummy plugin instead of getting baked directly into your mod, so you can inspect it, merge it in deliberately, or ship it as a separate previs patch. Mossy's CK Tools Hub → Previsbines & PRP tab has a 'Create a blank dummy plugin…' button (Step 3) that saves a fresh copy of a minimal blank .esp (Fallout4.esm master, zero records) to a path you choose — it always writes a new copy, never the bundled template itself, so the template stays reusable.",
 
     prpIsAFixButAlsoANewConflictSurface: "IMPORTANT nuance verified from PRP's own real documentation: PRP fixes vanilla's broken precombine/previs by regenerating it GLOBALLY across the whole game's cells — real, measured performance impact is significant (a similar targeted tool for just downtown Boston alone recovers roughly 10-20 FPS on average, giving a concrete sense of scale for why this matters). But that global regeneration is exactly WHY 'PRP compatibility patches' exist as their own real, common category on Nexus (see loadOrderRules above) — PRP's regenerated precombined mesh for a cell assumes a SPECIFIC set of objects in that cell; ANY other mod that also edits objects in that same cell (adds/removes/moves anything) now conflicts with PRP's own regenerated data, the identical mechanism as any precombine conflict, just with PRP itself as one side of it. This means PRP isn't a 'fire and forget' fix a mod author can just recommend blindly — a worldspace-editing mod (settlement overhauls, new NPCs placed in existing cells, cleaning mods, etc.) needs to actively check whether it conflicts with PRP's specific cell coverage and, if so, either ship its own PRP-compatible patch or clearly document the incompatibility, exactly the same 'is my mod actually compatible with the current stability-stack default' discipline documented elsewhere in this knowledge base.",
     bUseCombinedObjectsGlobalEscapeHatch: "Verified real, specific, previously-undocumented INI setting directly relevant to everything above: bUseCombinedObjects (hidden by default, must be added under [General] in Fallout4.ini/Fallout4Custom.ini) — 1 (the real default even though hidden) keeps precombine active game-wide, 0 disables precombine CHECKING GLOBALLY across every cell in the game at once, not per-cell. Real, measured cost: 20-30 FPS lost in dense areas like downtown Boston, confirmed directly from player reports — this is a genuinely severe, blunt-instrument tradeoff, not a minor setting. WHY a mod would need this: dense vegetation/forest overhaul mods (a real, documented example: Commonwealth Conifers Redux) add new static tree/plant objects scattered across a huge number of vanilla cells throughout the ENTIRE game world — regenerating precombine individually for every single affected cell is impractical at that scale, so bUseCombinedObjects=0 is the practical (if costly) alternative to a full precombine regen pass. IMPORTANT distinction from Scrap Everything/settlement-scrapping mods above: those do NOT need this INI setting — they disable precombine through their OWN in-plugin mechanism scoped to specific settlement cells only, which is why a settlement-scrapping mod and a global vegetation overhaul solve structurally the same underlying problem (new/changed objects breaking precombine) via two different techniques suited to their different scope (few specific cells vs. the whole world)."
@@ -592,6 +599,174 @@ end.`
       type: "Desktop Application",
       purpose: "Texture map generator. Converts diffuse images into normal, displacement, specular, and AO maps.",
       status: "Professional Material Authoring Tool"
+    },
+    sniff: {
+      type: "Desktop Application (portable, no installer)",
+      author: "zilav (MIT License) — same developer ecosystem as xEdit/FO4Edit; commonly distributed alongside xEdit builds.",
+      purpose: "Batch NIF (mesh) patcher for Fallout 4/FO3/FNV/Oblivion. Applies one configured operation across many .nif files at once instead of hand-editing each in NifSkope.",
+      keyOperations: [
+        "Update Tangents and Binormals — recomputes missing/stale tangent-space data (fixes broken normal-map lighting after a mesh edit)",
+        "Search and Replace Assets — batch-rewrites texture/asset paths referenced inside NIFs (e.g. retargeting 'textures\\old\\' to 'textures\\new\\' across an entire mesh folder after a texture reorganization)",
+        "Convert to/from JSON — round-trips a NIF's block structure to JSON and back, useful for scripted/programmatic edits or diffing two NIFs' data",
+        "Universal Tweaker — walks every block of a chosen type (e.g. NiMaterialProperty) and sets a specific property path (e.g. Alpha) to a value across all matching files",
+        "Universal Fixer — applies a saved fix (sourced from a reference/log file) across a batch of NIFs",
+        "Adjust Transformation — bulk position/rotation/scale adjustment by node name",
+        "Rename Strings — batch find-and-replace of string data embedded in NIFs",
+        "Add NiLODNode (Proc plugin) — moves NiTriStrips/NiTriShape geometry under a NiLODNode (adding one if missing), for TES4/FO3/FNV LOD setups",
+      ],
+      whenToUse: "Reach for Sniff instead of NifSkope when the same fix needs to be applied to dozens or hundreds of meshes at once (e.g. a texture path rename after reorganizing a mod's folder structure, or regenerating tangents after a batch mesh export) — NifSkope remains the right tool for one-off, interactive single-file edits.",
+      status: "Community Utility — NIF Batch Processing Tool",
+      credit: "Created by zilav, released under the MIT License. Credit zilav when referencing or recommending Sniff."
+    },
+
+    cathedralAssetsOptimizer: {
+      type: "Desktop Application (Qt-based GUI, per-game profile system)",
+      author: "G.E.C.K. Team",
+      purpose: "Batch BSA/BA2 packing plus texture, mesh, and animation optimization, driven by per-game profiles (FO4/SSE/TES5) that bundle the underlying Archive2/BSArch, texture-compression, and mesh-optimization steps into one pass.",
+      keyOperations: [
+        "BSA/BA2 creation — packs a mod's loose files into an archive, with real handling for cases raw Archive2 chokes on",
+        "Texture compression/resizing — batch-converts and downsizes textures against a configured target format/resolution",
+        "Mesh optimization/resave — batch NIF resave and optional headpart handling",
+        "Animation optimization",
+      ],
+      knownRealAdvantageOverRawArchive2: "Verified directly in this session: raw Archive2 aborts an entire pack job with 'Skipped duplicate file' errors when a mod has multiple same-named files (e.g. two different subfolders each containing a file named the same .bgsm) — a common, easy-to-hit situation in any mod with more than a handful of asset folders. CAO's packing pipeline is the community-standard workaround and is what most mod authors reach for once a mod outgrows a trivial folder structure.",
+      whenToUse: "Use CAO instead of Mossy's built-in BA2 packer (which currently shells out to raw Archive2) whenever a full-mod pack fails with duplicate-filename errors, or as the default packer for any mod past a small/simple scale. Mossy's Packaging & Release → BA2 Archive Manager can still be used for quick single-folder packs or for extract/list operations.",
+      status: "Community Utility — Batch Asset Optimization & Packing Tool",
+      credit: "Developed and maintained by the G.E.C.K. Team. Credit the G.E.C.K. Team when referencing or recommending Cathedral Assets Optimizer."
+    },
+
+    // === MOD MANAGERS ===
+    modOrganizer2: {
+      type: "Desktop Application",
+      purpose: "The standard FO4 mod manager. Installs each mod into its own isolated folder and merges them at runtime through a virtual file system (VFS) — the real Data folder stays untouched.",
+      howToUse: [
+        "Left pane lists installed mods top-to-bottom — order here is the install/override priority (lower entries win file conflicts), separate from plugin load order in the right pane",
+        "Drag-and-drop an archive onto MO2, or use 'Install Mod' — FOMOD-packaged mods launch their installer wizard automatically",
+        "Always launch Fallout 4/F4SE/xEdit/other tools THROUGH MO2's 'Run' dropdown (or its executables list), not directly — launching outside MO2 bypasses the VFS and the tool sees an empty/vanilla Data folder",
+        "The 'Conflicts' tab on a mod's properties shows exactly which other mods it overwrites or is overwritten by, at the file level",
+        "Create separate profiles (top toolbar) to maintain independent mod lists/load orders for different playthroughs without reinstalling anything"
+      ],
+      vfsCaveat: "See modManagerDeploymentModels below — any external tool that scans the Data folder directly (not launched through MO2) will not see MO2-managed mods at all.",
+      status: "Industry-Standard Mod Manager"
+    },
+    vortex: {
+      type: "Desktop Application",
+      purpose: "Nexus Mods' official mod manager. Deploys mods by hard-linking (or copying) files directly into the real Data folder rather than a virtual file system.",
+      howToUse: [
+        "Install mods from the Nexus 'Vortex' download button (one-click) or drag-and-drop an archive into the Mods tab",
+        "The Rules system lets you set 'load after/before' relationships between mods, which Vortex uses to resolve file conflicts automatically",
+        "Deploy/Purge buttons (bottom right) apply or fully remove the current mod set from the Data folder — purge before big load-order changes if something looks stuck",
+        "Because Vortex writes into the real Data folder, external tools work on it without needing to be launched through Vortex specifically — unlike MO2's VFS requirement"
+      ],
+      status: "Official Nexus Mod Manager"
+    },
+
+    // === LOAD ORDER & PATCHING ===
+    loot: {
+      type: "Desktop Application",
+      purpose: "Load Order Optimisation Tool — automatically sorts plugins using a community-maintained masterlist of known dependency/compatibility rules, then flags problems.",
+      howToUse: [
+        "Select Fallout 4 from the game dropdown, click 'Sort Plugins' — review the proposed order, then Apply",
+        "Pay attention to its warning/error messages per plugin (missing masters, cyclic dependencies, a plugin known to need cleaning) rather than only looking at the reordering",
+        "Add your own 'User Rules' to pin a specific mod relative to another when the masterlist doesn't cover a mod-specific compatibility need — this is expected and normal, not a sign LOOT is broken",
+        "LOOT's sort is a strong baseline, not an infallible final answer — a mod-specific compatibility patch requirement (e.g. two overhauls editing the same worldspace) still needs a manual xEdit patch or a known patch mod"
+      ],
+      status: "Community-Standard Load Order Tool"
+    },
+    wryeBash: {
+      type: "Desktop Application",
+      purpose: "Multi-purpose mod management tool (Mods/Saves/INI Edits/Installers tabs) whose standout FO4 feature is the Bashed Patch — auto-merging leveled lists and other mergeable record types across many mods into one patch.",
+      howToUse: [
+        "Build a Bashed Patch after your load order is otherwise finalized: right-click the empty Bashed Patch entry in the Mods tab → Rebuild Patch, then tick which import options (leveled lists, etc.) to include",
+        "Bash Installers (its own package-manager tab) can install BAIN-structured archives directly into the real Data folder, similar in spirit to Vortex's deployment model",
+        "Bashed Patch merging is a NARROWER, more automatic alternative to a full xEdit conflict-resolution patch — see conflictResolutionPatches below for when a hand-built xEdit patch is still required instead"
+      ],
+      status: "Community Utility — Patch Merging & Mod Management"
+    },
+    bethini: {
+      type: "Desktop Application",
+      purpose: "GUI editor for Fallout4.ini / Fallout4Prefs.ini / Fallout4Custom.ini, applying vetted preset tweaks (Safe/Recommended/high-FPS-Physics-aware, etc.) instead of hand-editing INI keys.",
+      howToUse: [
+        "Point it at your Fallout 4 install/documents INI folder, pick a preset tier appropriate for your hardware, apply",
+        "Prefer it (or a mod manager's own INI-editing feature) over hand-editing where possible — see iniTweaking below on duplicate/conflicting keys silently overriding a manual edit"
+      ],
+      status: "Community Utility — INI Configuration Tool"
+    },
+
+    // === ARCHIVE / PACKAGING ===
+    bae: {
+      type: "Desktop Application",
+      purpose: "Bethesda Archive Extractor — extracts BA2 (and older BSA) archives so you can inspect or pull individual assets out of a packed mod or the vanilla game archives. Extraction only; it does not create archives (use Archive2 for that — see ba2Packaging below).",
+      howToUse: "Drag a .ba2/.bsa file onto BAE, or use File > Open, pick an output folder, extract. Useful for pulling a single vanilla mesh/texture as a reference without unpacking the entire game archive by hand.",
+      status: "Community Utility — Archive Extraction"
+    },
+
+    // === IMAGE / TEXTURE EDITING ===
+    gimp: {
+      type: "Desktop Application",
+      purpose: "Free, open-source image editor. For FO4 texture work, its main relevance is DDS export via the 'file-dds' plugin (bundled in modern GIMP builds).",
+      howToUse: "Edit the texture as a normal raster image, then File > Export As > .dds — the export dialog lets you pick the compression format (BC1 for opaque albedo, BC3 for albedo with alpha, BC5 for normal maps, BC7 for higher-fidelity/PBR maps) and whether to generate mipmaps.",
+      status: "Professional-Grade Free Image Editor"
+    },
+    photopea: {
+      type: "Browser-based Application (photopea.com) — usually run as a pinned tab or installed PWA rather than a traditional .exe",
+      purpose: "Free Photoshop-alike that runs entirely in the browser, with native .psd and .dds support — useful for texture edits on a machine without Photoshop or GIMP installed.",
+      status: "Free Browser-Based Image Editor"
+    },
+    photoDemon: {
+      type: "Desktop Application (portable, single .exe)",
+      purpose: "Lightweight, free Windows image editor. Useful for quick texture edits or batch-processing many textures identically via its macro/batch feature when a full GIMP/Photoshop session is overkill.",
+      status: "Community Utility — Lightweight Image Editor"
+    },
+    nvidiaTextureTools: {
+      type: "Desktop Application / CLI / DCC Plugin",
+      purpose: "NVIDIA's DDS compression toolkit (BC1–BC7, mipmap generation) — one of the standard texture compressors alongside Microsoft's texconv, and the same class of compressor Mossy's own DDS Converter shells out to.",
+      status: "Professional Texture Compression Toolkit"
+    },
+
+    // === MESH / UV / FORMAT CONVERSION ===
+    nifSkope: {
+      type: "Desktop Application",
+      purpose: "The standard NIF viewer/editor — shows a mesh's block tree (NiNode hierarchy, shader properties, texture set, collision) alongside a 3D render window, and lets you edit block properties directly.",
+      howToUse: [
+        "Block tree (left/top) mirrors the NIF's actual internal structure — select a block to see/edit its fields in the panel below, and to highlight the corresponding geometry in the render view",
+        "Texture paths live on the BSShaderTextureSet block under each shape's BSLightingShaderProperty — this is the most common thing modders fix here (a mesh pointing at a moved/renamed texture)",
+        "Collision, LOD data, and shader flags (e.g. specular/environment-map toggles) are all edited the same way: find the relevant block, edit its field values",
+        "Modern forks include a Spells menu with batch/sanity operations (e.g. sanitizing block order) for a single open file — for the SAME fix applied across many files at once, see Sniff above instead"
+      ],
+      status: "Industry-Standard NIF Editor"
+    },
+    unWrap3: {
+      type: "Desktop Application",
+      purpose: "Standalone UV-unwrapping tool for meshes, used when a custom mesh needs new or cleaner UVs independent of a full DCC suite like Blender or 3ds Max.",
+      status: "Community Utility — UV Mapping Tool"
+    },
+    nifUtilsSuite: {
+      type: "Desktop Application",
+      purpose: "Older community NIF utility bundle historically associated with the NifTools/NifSkope ecosystem, offering batch mesh-optimization style operations on NIF files.",
+      confidence: "Lower confidence than other entries in this list — verify its currently-supported operation set directly in the tool before advising specific steps; older NifTools-era utilities sometimes target earlier NIF versions than FO4's.",
+      status: "Community Utility — NIF Processing (verify current feature set before relying on specifics)"
+    },
+    spin3d: {
+      type: "Desktop Application",
+      purpose: "General-purpose 3D model format converter (e.g. between OBJ/3DS/FBX and similar formats) — useful as a conversion step in a mesh pipeline rather than an FO4-specific tool.",
+      status: "Community Utility — 3D Format Converter"
+    },
+    umodel: {
+      type: "Desktop Application / CLI",
+      purpose: "Primarily an Unreal Engine asset viewer/exporter (by Konstantin Nosov) — not natively an FO4/Creation-Engine tool. Its inclusion in Mossy's tool roster is likely for a specific cross-engine asset-reference workflow rather than general FO4 mesh/texture work.",
+      confidence: "Do not assume a direct FO4 use case without confirming with the user what they're using it for.",
+      status: "Utility of Uncertain FO4 Relevance — clarify intended use before advising"
+    },
+    autodeskFbxConverter: {
+      type: "Desktop Application",
+      purpose: "Legacy Autodesk utility for converting FBX files between format versions — used in Bethesda modding pipelines when a downstream tool requires an older FBX version than a modern DCC (Blender, Maya, etc.) exports by default.",
+      status: "Community Utility — FBX Version Converter"
+    },
+    iclone: {
+      type: "Desktop Application (Reallusion)",
+      purpose: "Full character animation suite. In the FO4 modding pipeline it's typically used to author or retarget custom animations, exported to FBX and brought into Blender for FO4-skeleton conforming before the normal Havok/HKX export step.",
+      status: "Professional Animation Software"
     }
   },
 

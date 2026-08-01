@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styles from './GuideStyles.module.css';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type SimSettlementsAddonToolkitsGuideProps = {
@@ -75,6 +75,18 @@ export default function SimSettlementsAddonToolkitsGuide({ embedded = false }: S
           </p>
         </div>
       )}
+
+      <div style={{ margin: '0 0 1.5rem', borderRadius: '0.5rem', border: '2px solid #ef4444', background: 'rgba(69,10,10,0.4)', padding: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+        <AlertCircle style={{ width: '1.5rem', height: '1.5rem', color: '#f87171', flexShrink: 0, marginTop: '0.125rem' }} />
+        <div>
+          <p style={{ fontSize: '0.875rem', fontWeight: 900, color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.02em', margin: 0 }}>Sim Settlements 2 does not allow AI-created content</p>
+          <p style={{ fontSize: '0.75rem', color: 'rgba(254,202,202,0.9)', marginTop: '0.25rem' }}>
+            The SS2 team does not accept addons or content created with AI tools, including Mossy, for submission. This guide
+            is general Fallout 4 modding education only — verify the current policy directly with the SS2 team/Discord before
+            publishing anything built with Mossy's help.
+          </p>
+        </div>
+      </div>
 
       <div className={styles.contentBlock}>
         <h3>Tools / Install / Verify (No Guesswork)</h3>

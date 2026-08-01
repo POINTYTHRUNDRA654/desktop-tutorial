@@ -134,7 +134,47 @@
       },
       "credits": {
         "title": "Katkılar ve Teşekkürler",
-        "desc": "Mossy'yi güçlendiren açık kaynak projelerini ve araçları görüntüleyin."
+        "desc": "Mossy'yi güçlendiren açık kaynak projelerini ve araçları görüntüleyin.",
+        "builtWithLove": "Muhteşem Açık Kaynak Yazılım Üzerine Sevgiyle Yapıldı",
+        "intro": "Mossy devlerin omuzlarında duruyor. Kullandığınız her özellik, kendini adamış geliştiriciler ve canlı topluluklar tarafından desteklenmektedir. Tüm araçlar ve çerçeveler için aranabilir tam katkı, lisans ve atıfları görmek için aşağıya tıklayın.",
+        "viewFull": "Tam Katkıları ve Lisansları Görüntüle",
+        "coreFramework": "Çekirdek Çerçeve",
+        "electron": "Platformlar arası masaüstü çerçevesi (MIT)",
+        "react": "Meta'nın UI kütüphanesi (MIT)",
+        "typescript": "Microsoft'un tipli JavaScript'i (Apache 2.0)",
+        "vite": "Yeni nesil derleme aracı (MIT)",
+        "aiMl": "AI ve Makine Öğrenmesi",
+        "groq": "Hızlı LLM çıkarımı (Apache 2.0)",
+        "openaiSdk": "ChatGPT entegrasyonu (Apache 2.0)",
+        "ollama": "Yerel LLM çalışma zamanı (MIT)",
+        "pytorch": "Meta'nın ML çerçevesi (BSD)",
+        "numpy": "Sayısal hesaplama (BSD 3-Clause)",
+        "krea": "AI görüntü, video ve 3D üretimi (Ticari / krea.ai)",
+        "uiDesign": "UI ve Tasarım",
+        "tailwind": "Utility-first CSS (MIT)",
+        "lucide": "Simge kütüphanesi (ISC)",
+        "reactMarkdown": "Markdown işleyici (MIT)",
+        "recharts": "Grafik kütüphanesi (MIT)",
+        "moddingTools": "Modlama Araçları (ayrı indirmeler)",
+        "blender": "3D modelleme (GPL 2.0)",
+        "pynifly": "BadDogSkyrim tarafından Blender için NIF içe/dışa aktarma (MIT)",
+        "xedit": "ElminsterAU tarafından eklenti düzenleyici (GPL 2.0)",
+        "creationKit": "Resmi Bethesda modlama aracı",
+        "nifskope": "hexabits tarafından NIF ağ ve doku görüntüleyici (GPL 3.0)",
+        "mo2": "Tannin42 / MO2 Ekibi tarafından mod yöneticisi (GPL 3.0)",
+        "vortex": "Nexus Mods tarafından mod yöneticisi",
+        "f4se": "ianpatt ve behippo tarafından Fallout 4 Script Extender",
+        "loot": "Yükleme Sırası Optimizasyon Aracı (GPL 3.0)",
+        "bodyslide": "ousnius ve Caliente tarafından vücut şekillendirme (MIT)",
+        "bae": "jonwd7 tarafından Bethesda Archive Extractor",
+        "gimp": "GNU Görüntü İşleme Programı (GPL 3.0)",
+        "umodel": "Gildor tarafından Unreal Engine varlık görüntüleyici",
+        "andMore": "...ve 100'den fazla ek bağımlılık. Tıklayın",
+        "andMoreSuffix": "yukarıda sürüm numaraları ve lisans bağlantıları ile birlikte tam aranabilir liste için.",
+        "licenseCompliance": "Lisans Uyumluluğu",
+        "complianceIntro": "Mossy tüm açık kaynak lisanslarına saygı duyar. LICENSE ve CREDITS.md dosyalarımız, şeffaflık ve atıf için kurulum klasörünüze ve bu uygulama paketine dahil edilmiştir.",
+        "foundIssue": "Bir lisans sorunu mu buldunuz?",
+        "reportGithub": "GitHub'da bildirin"
       },
       "internet": {
         "description": "Mossy'nin kullandığı tüm arama sağlayıcılarını araştırır ve hangilerinin şu an erişilebilir olduğunu gösterir.",
@@ -147,6 +187,18 @@
         "empty": "Boş",
         "troubleshootTitle": "DNS hatası giderme:",
         "sampleResultFrom": "Örnek sonuç kaynağı:"
+      },
+      "step3c": {
+        "title": "Adım 3c: AnythingLLM — RAG Bilgi Motoru",
+        "desc": "Memory Vault ve Knowledge Hub semantik araması için vektör tabanlı belge alma."
+      },
+      "support": {
+        "title": "Geliştiriciyi Destekle",
+        "desc": "Mossy.Space ve FO4 Advanced AI projesinin yaşamasına yardımcı olun.",
+        "intro": "Mossy.Space, tutkuyla yürütülen ücretsiz bir projedir. Modlama iş akışınıza yardımcı olduysa, sürekli geliştirmeyi desteklemeyi düşünün — her katkı projenin devamına yardımcı olur.",
+        "patreonDesc": "Aylık üyelik ve özel güncellemeler",
+        "coffeeDesc": "Tek seferlik bahşiş, herhangi bir miktar",
+        "thankYou": "Mossy.Space'i kullandığınız için teşekkür ederiz. Desteğiniz her şey demek."
       }
     }
   },
@@ -295,5 +347,593 @@
     "tutorTip": "Eğitmen İpucu",
     "openLastLocation": "Son konumu aç",
     "openLastLocationTitle": "(İsteğe bağlı) Varsa son kaydedilen konumu aç"
+  },
+  "common": {
+    "loading": "Yükleniyor…",
+    "loadingModule": "Modül yükleniyor…"
+  },
+  "journeyHub": {
+    "title": "FO4 Mod Yolculuğu Merkezi",
+    "subtitle": "İlk Başarı · Mod Projeleri · Yol Haritaları · Mod Tarayıcı",
+    "tabs": {
+      "firstSuccess": {
+        "label": "İlk Başarı",
+        "sublabel": "Başlangıç kazanımları"
+      },
+      "projects": {
+        "label": "Mod Projeleri",
+        "sublabel": "Proje çalışma alanı"
+      },
+      "roadmaps": {
+        "label": "Yol Haritaları",
+        "sublabel": "İlerlemeyi planla"
+      },
+      "mods": {
+        "label": "Mod Tarayıcı",
+        "sublabel": "Modları keşfet"
+      }
+    }
+  },
+  "systemHub": {
+    "title": "FO4 Sistem ve Tanılama Merkezi",
+    "subtitle": "Tanılama · Yetenekler · Yerel AI Motoru · Beyaz Liste ve Kara Liste · Varlık Kasası · Destek · Yedekleme Yöneticisi · Dosya İzleyici",
+    "tabs": {
+      "diagnostics": {
+        "label": "Tanılama",
+        "sublabel": "Araç sorunlarını giderme"
+      },
+      "capabilities": {
+        "label": "Yetenekler",
+        "sublabel": "Yerel AI/çalışma zamanı"
+      },
+      "localAi": {
+        "label": "Yerel AI Motoru",
+        "sublabel": "KoboldCPP + modeller"
+      },
+      "security": {
+        "label": "Beyaz Liste ve Kara Liste",
+        "sublabel": "Güvenlik kuralları"
+      },
+      "vault": {
+        "label": "Varlık Kasası",
+        "sublabel": "Manifest + doğrulama"
+      },
+      "support": {
+        "label": "Mossy'yi Destekle",
+        "sublabel": "Destek bağlantıları"
+      },
+      "backup": {
+        "label": "Yedekleme Yöneticisi",
+        "sublabel": "Anlık görüntüler ve git"
+      },
+      "watcher": {
+        "label": "Dosya İzleyici",
+        "sublabel": "Canlı dosya takibi"
+      }
+    }
+  },
+  "knowledgeHub": {
+    "title": "FO4 Bilgi Merkezi",
+    "subtitle": "Hızlı Başvuru · Anlamsal Arama · Topluluk Öğrenimi · Vanilla Varlıklar",
+    "tabs": {
+      "reference": {
+        "label": "Hızlı Başvuru",
+        "sublabel": "Papyrus · FormID · Kısayollar"
+      },
+      "search": {
+        "label": "Bilgi Arama",
+        "sublabel": "Anlamsal arama · Ollama"
+      },
+      "community": {
+        "label": "Topluluk Öğrenimi",
+        "sublabel": "İpuçları · Paylaşılan bilgi"
+      },
+      "vanilla": {
+        "label": "Vanilla Varlıklar",
+        "sublabel": "Gözat · Kopyala · Başvuru"
+      },
+      "rag": {
+        "label": "RAG Arama",
+        "sublabel": "AnythingLLM · Vektör VT"
+      }
+    }
+  },
+  "whatsNew": {
+    "backToMossy": "Mossy'ye Dön",
+    "eyebrow": "FO4 Sürüm Notları",
+    "title": "Mossy'de FO4 Yenilikleri",
+    "versionLine": "v{version} — bu sürümdeki Fallout 4 modlama güncellemeleri.",
+    "fallbackNotice": "Yedek Bildirim",
+    "fallbackText": "Mevcut sürüm {requested} için henüz özel bir değişiklik günlüğü bölümü yok. {resolved} sürümünden en son notlar gösteriliyor.",
+    "unknownVersion": "bilinmeyen sürüm",
+    "highlights": "Öne Çıkanlar",
+    "updated": "Güncellendi",
+    "loadingChangelog": "Değişiklik günlüğü yükleniyor...",
+    "noHighlights": "Bu derleme için henüz öne çıkan değişiklik yok.",
+    "releaseHighlights": "Sürüm Öne Çıkanları",
+    "workflowTips": "FO4 İş Akışı İpuçları",
+    "tip1": "FO4 merkezleri arasında hızlıca geçiş yapmak için kenar çubuğunu kullanın (CK, Eklenti, Varlık, Çalışma Zamanı ve Paketleme).",
+    "tip2": "Fallout 4 iş akışı amacınıza göre rotaları, merkezleri ve araçları aramak için Ctrl+K tuşuna basın.",
+    "tip3": "Güncellemelerden sonra, bir mod derlemesini yayınlamadan önce olağan doğrulama döngünüzü (yükleme sırası, varlıklar, paketleme) çalıştırın.",
+    "stayInLoop": "Haberdar Olun",
+    "stayInLoopText": "Yeni sürümleri iş akışınızı bölmeden burada göstereceğiz. Bu sayfayı kenar çubuğundan her zaman tekrar ziyaret edebilirsiniz.",
+    "dontAutoOpen": "Bu sayfayı bir daha otomatik açma",
+    "continueToDashboard": "Panele Devam Et"
+  },
+  "modBuilderHub": {
+    "title": "FO4 Mod Oluşturma Merkezi",
+    "subtitle": "Blueprint · Workshop · Devtools · Scribe — eksiksiz Fallout 4 mod oluşturma iş akışı",
+    "keysHint": "Tuşlar 1–5 · sekmeleri yeniden sıralamak için sürükleyin",
+    "tabTitle": "{label} (tuş {key}) — yeniden sıralamak için sürükle",
+    "tabs": {
+      "blueprint": {
+        "label": "Blueprint",
+        "sublabel": "Mod mimarisi planlayıcı"
+      },
+      "workshop": {
+        "label": "Workshop",
+        "sublabel": "Dosya tarayıcı · Derleme"
+      },
+      "devtools": {
+        "label": "Devtools",
+        "sublabel": "Papyrus · xEdit · Kod parçacıkları"
+      },
+      "scribe": {
+        "label": "Scribe",
+        "sublabel": "Dokümantasyon oluşturucu"
+      },
+      "creator": {
+        "label": "Proje Oluşturucu",
+        "sublabel": "Yeni mod iskeleti"
+      }
+    }
+  },
+  "runtimeHub": {
+    "title": "FO4 Çalışma Zamanı Merkezi",
+    "subtitle": "Live Synapse · Desktop Bridge · Holodeck test iş akışları",
+    "bridgeOnline": "Bridge Çevrimiçi",
+    "bridgeOffline": "Bridge Çevrimdışı",
+    "aiActive": "AI Aktif",
+    "aiPartial": "AI Kısmi",
+    "aiRelay": "AI Aktarım",
+    "aiOffline": "AI Çevrimdışı",
+    "blenderLinked": "Blender Bağlı",
+    "tabs": {
+      "live": {
+        "label": "Live Synapse",
+        "sublabel": "Ses + canlı yardım"
+      },
+      "bridge": {
+        "label": "Desktop Bridge",
+        "sublabel": "Uygulama entegrasyonu"
+      },
+      "testing": {
+        "label": "Holodeck",
+        "sublabel": "Senaryo testi"
+      }
+    }
+  },
+  "packagingHub": {
+    "eyebrow": "Mossy Tutor • Paketleme",
+    "title": "FO4 Paketleme ve Yayınlama Merkezi",
+    "subtitle": "Paketleme, çakışma analizi, karşılaştırma, FOMOD yükleyicileri ve yayınlama için eksiksiz iş akışı. En iyi sonuçlar için adımları sırayla izleyin.",
+    "workflowProgress": "İş Akışı İlerlemesi",
+    "stepsVisited": "{visited} / {total} adım ziyaret edildi",
+    "flowTitle": "Akış (Sırayla Okuyun)",
+    "flow1": "BA2 arşivlerini yönetin (paketleyin, çıkarın, birleştirin)",
+    "flow2": "Paketleme kontrol listesini çalıştırın",
+    "flow3": "Diğer modlarla çakışmaları kontrol edin",
+    "flow4": "Uyumluluk için benzer modlarla karşılaştırın",
+    "flow5": "FOMOD yükleyicinizi oluşturun",
+    "flow6": "Dışa aktarın, sürüm notları yazın ve yayınlayın",
+    "stepPill": "Adım {step}: {title}",
+    "advancedTools": "Gelişmiş Araçlar",
+    "visited": "Ziyaret edildi",
+    "sections": {
+      "ba2": {
+        "title": "Adım 0: BA2 Arşiv Yöneticisi",
+        "shortTitle": "BA2 Arşiv Yöneticisi",
+        "desc": "Paketlemeden önce BA2 arşivlerini listeleyin, çıkarın, paketleyin ve birleştirin."
+      },
+      "checklist": {
+        "title": "Adım 1: Paketleme Kontrol Listesi",
+        "shortTitle": "Paketleme Kontrol Listesi",
+        "desc": "Yolları, arşivleri, eklenti bütünlüğünü ve yayına hazır olma durumunu doğrulayın."
+      },
+      "conflicts": {
+        "title": "Adım 2: Çakışma Analizi",
+        "shortTitle": "Çakışma Analizi",
+        "desc": "Modunuz ile diğerleri arasındaki kayıt çakışmalarını görselleştirin."
+      },
+      "comparison": {
+        "title": "Adım 3: Mod Karşılaştırması",
+        "shortTitle": "Mod Karşılaştırması",
+        "desc": "Uyumluluk için modunuzu benzer modlarla karşılaştırın."
+      },
+      "assembler": {
+        "title": "Adım 4: FOMOD Yükleyici (Birleştirici)",
+        "shortTitle": "FOMOD Yükleyici (Birleştirici)",
+        "desc": "Yayın paketiniz için bir FOMOD yükleyici oluşturun ve dışa aktarın."
+      },
+      "export": {
+        "title": "Adım 5: Dışa Aktar ve Yayınla",
+        "shortTitle": "Dışa Aktar ve Yayınla",
+        "desc": "Yayın zip dosyanızı oluşturun, sürüm notları yazın ve Nexus veya Bethesda.net'te yayınlayın."
+      },
+      "conflictResolver": {
+        "title": "Çakışma Çözücü",
+        "desc": "Eklenti kayıt çakışmalarını çözün ve yama önerileri oluşturun."
+      },
+      "conflictGraph": {
+        "title": "Çakışma Bağımlılık Grafiği",
+        "desc": "Mod çakışma ilişkilerini etkileşimli bir bağımlılık grafiği olarak görselleştirin."
+      },
+      "bethelUploader": {
+        "title": "Mod Otomatik Geliştirici",
+        "desc": "Bir modu sürükleyin, dokularını otomatik olarak geliştirin ve geliştirilmiş paketi indirin — bu yerel bir işlem hattıdır, Bethesda.net yükleyici değildir."
+      }
+    }
+  },
+  "automationOrchestrator": {
+    "title": "FO4 Otomasyon Orkestratörü",
+    "running": "ÇALIŞIYOR",
+    "stopped": "DURDURULDU",
+    "refreshTooltip": "Yenile",
+    "resetStatsTooltip": "Tüm çalışma istatistiklerini sıfırla",
+    "stopEngine": "Motoru Durdur",
+    "startEngine": "Motoru Başlat",
+    "stats": {
+      "rulesActive": {
+        "label": "Aktif Kurallar",
+        "sub": "etkin / toplam"
+      },
+      "fileWatchers": {
+        "label": "Dosya İzleyicileri",
+        "sub": "izlenen yollar"
+      },
+      "intervals": {
+        "label": "Aralıklar",
+        "sub": "işlem + zamanlama"
+      },
+      "totalRuns": {
+        "label": "Toplam Çalışma",
+        "sub": "son sıfırlamadan beri"
+      }
+    },
+    "tabs": {
+      "rules": "Kurallar ({n})",
+      "activity": "Etkinlik"
+    },
+    "triggers": {
+      "file-change": "Dosya İzleme",
+      "process-start": "İşlem Başlangıcı",
+      "process-stop": "İşlem Durdurma",
+      "schedule": "Zamanlanmış",
+      "manual": "Manuel"
+    },
+    "actions": {
+      "scan-conflicts": "Çakışma Taraması",
+      "scan-duplicates": "Yinelenen Taraması",
+      "validate-load-order": "Yükleme Sırasını Doğrula",
+      "compile-papyrus": "Papyrus Derle",
+      "pack-ba2": "BA2 Paketle",
+      "validate-hkx": "HKX Doğrula",
+      "start-log-monitor": "Günlük İzleyici",
+      "track-ck-session": "CK Oturum İzleyici",
+      "validate-f4se": "F4SE Doğrula",
+      "nightly-backup": "Gece Yedeklemesi",
+      "run-maintenance": "Günlük Bakım",
+      "sync-cosmos-pipeline": "Cosmos Hattı Senkronizasyonu"
+    },
+    "showingDisabled": "Devre dışıları göster",
+    "hidingDisabled": "Devre dışıları gizle",
+    "lastRefresh": "Son yenileme: {time}",
+    "noRulesMatch": "Hiçbir kural mevcut filtreyle eşleşmiyor.",
+    "engineSchedules": "Motor Zamanlamaları",
+    "dailyMaintenance": "Günlük bakım:",
+    "weeklyDeepScan": "Haftalık derin tarama:",
+    "off": "Kapalı",
+    "liveFeedHint": "Canlı akış — kurallar burada gerçek zamanlı olarak olayları tetikler. En fazla {max} kayıt tutulur.",
+    "clear": "Temizle",
+    "loadingEngine": "Otomasyon motoru yükleniyor…",
+    "apiUnavailable": "Otomasyon API'si kullanılamıyor — paketlenmiş uygulamayı çalıştırdığınızdan emin olun.",
+    "activityEmpty": "Henüz etkinlik yok — kurallar tetiklendiğinde olaylar burada görünecek.",
+    "manualTag": "manuel",
+    "scheduledTag": "zamanlanmış",
+    "runsCount": "{n}× çalışma",
+    "triggerManually": "Manuel tetikle",
+    "disableRule": "Kuralı devre dışı bırak",
+    "enableRule": "Kuralı etkinleştir",
+    "never": "Asla",
+    "justNow": "Az önce",
+    "minutesAgo": "{m}dk önce",
+    "hoursAgo": "{h}sa önce",
+    "daysAgo": "{d}g önce",
+    "filters": {
+      "all": "Tüm tetikleyiciler"
+    }
+  },
+  "externalToolsHub": {
+    "title": "FO4 Harici Entegrasyonlar Merkezi",
+    "subtitle": "MO2 · ComfyUI · Upscayl iş akışları ve kurulum aracı otomatik bağlantısı",
+    "tabs": {
+      "mo2": {
+        "label": "MO2 Entegrasyonu",
+        "sublabel": "Mod Organizer 2"
+      },
+      "comfyui": {
+        "label": "ComfyUI",
+        "sublabel": "AI Görüntü Üretimi"
+      },
+      "upscayl": {
+        "label": "Upscayl",
+        "sublabel": "AI Büyütme"
+      }
+    },
+    "toolInfo": {
+      "mo2": {
+        "desc": "Fallout 4 için sektör standardı mod yöneticisi. Mossy, aktif mod listenizi ve yükleme sırasını anlamak için MO2 profilinizi okur. Kurulum: Nexus Mod Manager sayfası veya resmi GitHub.",
+        "tips": {
+          "0": "Farklı oynanışlar veya test yapılandırmaları için ayrı MO2 profilleri kullanın.",
+          "1": "Mossy'nin aktif eklenti listenizi okuyabilmesi için MO2 ayarlarında \"Manageable\" modunu etkinleştirin.",
+          "2": "MO2 sanal dosya sistemi (VFS) oyun için şeffaftır — MO2'deki dosya geçersiz kılma sırası, yükleme sırası önceliğiyle eşleşir.",
+          "3": "Eklenti düzeyi çakışmalardan önce dosya düzeyi varlık çakışmalarını görmek için MO2'deki \"Conflicts\" sekmesini kullanın."
+        }
+      },
+      "comfyui": {
+        "desc": "Düğüm tabanlı AI görüntü üretimi. Modlarınız için konsept sanat, doku referansları, NPC portreleri ve tanıtım sanatı oluşturmak için kullanın. En az 6 GB VRAM'e sahip bir GPU gerektirir.",
+        "tips": {
+          "0": "Mevcut oyun içi ekran görüntülerinden doku varyasyonları oluşturmak için ComfyUI'nin img2img iş akışını kullanın.",
+          "1": "ControlNet poz koşullandırması, FO4 iskelet oranlarına uyan doğru karakter referans sanatı oluşturmaya yardımcı olur.",
+          "2": "Doku kullanımı için AI tarafından üretilen sanatı en az 4096x4096 olarak dışa aktarın — ardından Textures & Materials merkezi aracılığıyla küçültüp DDS'e sıkıştırın.",
+          "3": "Fallout konsept sanatı üzerinde eğitilmiş Stable Diffusion ince ayarları (LoRA'lar) üretilen varlıkların tutarlılığını artırabilir."
+        }
+      },
+      "upscayl": {
+        "desc": "Real-ESRGAN modellerini kullanan ücretsiz, açık kaynaklı AI büyütme aracı. DDS dönüşümünden önce düşük çözünürlüklü vanilya dokuları, referans fotoğrafları ve UI öğelerini büyütmek için idealdir.",
+        "tips": {
+          "0": "Genel doku büyütme için RealESRGAN-x4plus kullanın. Sonuç büyütmeden sonra hâlâ BC1/BC3/BC5/BC7'ye sıkıştırma gerektirir.",
+          "1": "Yüz/portre dokuları için, FaceGen'e yeniden aktarmadan önce ince cilt detaylarını korumak amacıyla ESRGAN yüz modellerini kullanın.",
+          "2": "Vanilya 512x512 dokularını en fazla 2048x2048'e büyütün — orijinalin 4 katından fazlası oyun içi kullanım için azalan getiriler sağlar.",
+          "3": "Büyütmeden sonra, kaybolan yüzey detaylarını normaller olarak yeniden oluşturmak için her zaman bir normal harita pişirme (xNormal veya Substance Painter) işlemi yapın."
+        }
+      }
+    },
+    "categories": {
+      "modManager": "Mod Yöneticisi",
+      "editor": "Editör / Araç",
+      "ai": "AI / GPU",
+      "utility": "Yardımcı Program"
+    },
+    "installedCount": "{installed}/{total} yüklü",
+    "liveCount": "{n} canlı",
+    "autoConnect": {
+      "heading": "Masaüstü araçlarını otomatik bağla",
+      "description": "Mossy, FO4 modlama iş hattındaki her aracı sisteminizde tarar. Algılanan araçları doğrudan başlatın veya eksik olanlar için kurulum bağlantıları alın.",
+      "refresh": "Yenile"
+    },
+    "installed": "Yüklü",
+    "notDetected": "Algılanmadı",
+    "live": "Canlı",
+    "launchTooltip": "{label} başlat",
+    "getTooltip": "{label} al"
+  },
+  "wizardsHub": {
+    "versionBadge": {
+      "og": "OG  1.10.163",
+      "ng": "NG  1.10.984+",
+      "ae": "AE / Creations"
+    },
+    "eyebrow": "Mossy Tutor · FO4 Kurulum Sihirbazları",
+    "title": "FO4 Kurulum Sihirbazları Merkezi",
+    "subtitle": "Araç kurulumundan çökme teşhisi, görev yazımı, paketleme ve previs yamalamasına kadar eksiksiz Fallout 4 modlama kurulum akışı. Adımları sırayla izleyin veya ihtiyacınız olan herhangi bir bölüme atlayın.",
+    "gameVersion": "Oyun Sürümü",
+    "badges": {
+      "core": "Çekirdek",
+      "triage": "Teşhis"
+    },
+    "sections": {
+      "platforms": {
+        "title": "Bir Platform Seçin",
+        "subtitle": "Hedefinizi belirleyin ve doğru sihirbazı seçin",
+        "desc": "Buradan başlayın. Platform haritası her büyük FO4 modlama iş akışını gösterir ve sizi yapmaya çalıştığınız şeye uygun sihirbaza doğrudan bağlar — scripting, dokular, animasyonlar, yerleşimler, görevler veya yükleme sırası."
+      },
+      "install": {
+        "title": "Kurulum Sihirbazı",
+        "subtitle": "F4SE, xEdit, SS2, PRP ve yamalama ön koşulları",
+        "desc": "Her temel aracı kurun ve doğrulayın: F4SE (Script Extender), xEdit/FO4Edit, Sim Settlements 2 bağımlılıkları, PRP previs araç seti ve yama oluşturma iş akışı. Herhangi bir içerik sihirbazından önce bunu tamamlayın."
+      },
+      "crashTriage": {
+        "title": "Çökme ve Hata Teşhisi",
+        "subtitle": "CTD / sonsuz yükleme / bozuk kayıt sorun giderme",
+        "desc": "Masaüstüne çökme, sonsuz yükleme ekranı, bozuk kayıtlı oyunlar ve diğer kararsızlıklar için adım adım teşhis. Oyununuz çalışmayı her durdurduğunda bunu kullanın — sizi izolasyon, günlük okuma ve düzeltme doğrulaması boyunca yönlendirir."
+      },
+      "ckQuest": {
+        "title": "CK Görev ve Diyalog",
+        "subtitle": "Creation Kit görev yazımı, Papyrus derleme + test döngüsü",
+        "desc": "Creation Kit görev oluşturma, diyalog kurulumu, Papyrus betik derlemesi ve güvenli test döngüsü için rehberli iş akışı. CK çökme önleme, editör kurulumu ve göreviniz yayınlanmadan önce çalıştığını nasıl doğrulayacağınızı kapsar."
+      },
+      "packaging": {
+        "title": "Paketleme ve Yayınlama",
+        "subtitle": "BA2 paketleme, klasör yapısı, sürümleme ve yayın kontrolleri",
+        "desc": "BA2 arşiv paketleme, klasör yapısı doğrulama, sürümleme, Nexus / Bethesda.net yükleme hazırlığı ve son yayın sağlamlık kontrolleri. Herhangi bir modu yüklemeden önce bunu çalıştırın."
+      },
+      "prpPatch": {
+        "title": "PRP Yama Oluşturucu",
+        "subtitle": "PRP uyumluluk yaması hedefi + README oluştur",
+        "desc": "Bir PRP previs/precombine uyumluluk yaması planı, README şablonu ve doğrulama kontrol listesi oluşturun. Bunu yalnızca modunuz kararlı hale geldikten ve worldspace düzenlemeleriniz için bir PRP yaması oluşturmaya veya katkıda bulunmaya hazır olduğunuzda çalıştırın."
+      }
+    },
+    "packagingCard": {
+      "whatThisCovers": "Bu neleri kapsıyor",
+      "item1": "BA2 arşiv oluşturma — Archive2, BSArch, BSArchPro iş akışları",
+      "item2": "Mod klasör yapısı — Data düzeni, eklenti adlandırması, doku/mesh yolları",
+      "item3": "Çok seçenekli mod paketlemesi için FOMOD yükleyici oluşturma",
+      "item4": "Sürüm etiketleme ve değişiklik günlüğü hazırlığı",
+      "item5": "Nexus yükleme kontrol listesi ve Bethesda.net Creations yükleme akışı",
+      "item6": "Yayından önce son kararlılık ve çakışma doğrulaması",
+      "openHub": "Paketleme ve Yayınlama Merkezini Aç",
+      "ba2QuickTool": "BA2 Yöneticisi (hızlı araç)",
+      "footerNote": "Paketleme Merkezi, eksiksiz BA2 iş akışını, FOMOD oluşturucuyu, çakışma çözücüyü ve mod karşılaştırma araçlarını içerir."
+    },
+    "versionOptions": {
+      "og": "1.10.163 — Next-Gen öncesi yama (Nisan 2024)",
+      "ng": "1.10.984+ — Next-Gen / mevcut Steam varsayılanı",
+      "ae": "Creations Menüsü / Yıl Dönümü Sürümü içeriği"
+    },
+    "stepLabel": "Adım {step}: {title}",
+    "setupProgress": "Kurulum İlerlemesi",
+    "progressCounts": "{done} tamamlandı · {started} başlatıldı · {remaining} kaldı",
+    "situational": "Duruma Bağlı",
+    "recommendedFlow": {
+      "heading": "Önerilen akış",
+      "step12": "{b1}Bir Platform Seçin{/b1} ile başlayın, ardından kullanacağınız her araç için {b2}Kurulum Sihirbazı{/b2}nı tamamlayın.",
+      "step34": "{b1}Çökme Teşhisi{/b1} ve {b2}CK Görevi{/b2} duruma bağlıdır — bu iş akışlarıyla karşılaştığınızda kullanın.",
+      "step56": "Yüklemeden önce {b1}Paketleme{/b1}yi çalıştırın. {b2}PRP Yama Oluşturucu{/b2}yu yalnızca modunuz worldspace'leri düzenliyorsa çalıştırın."
+    },
+    "footerTip": "İlerlemeniz otomatik olarak kaydedilir. Her sihirbazda tamamlandı olarak işaretlenen adımlar oturumlar arasında hatırlanır. Takılırsanız istediğiniz zaman {b1}Mossy'ye Sor{/b1} düğmesini kullanın — Mossy mevcut sihirbaz bağlamınızı bilir."
+  },
+  "home": {
+    "greeting": {
+      "initializing": "Bağlantı Başlatılıyor...",
+      "morning": "ÇEKİRDEK BAŞLATILDI. GÜNAYDIN.",
+      "afternoon": "ÇEKİRDEK BAŞLATILDI. İYİ GÜNLER.",
+      "evening": "ÇEKİRDEK BAŞLATILDI. İYİ AKŞAMLAR."
+    },
+    "help": "Yardım",
+    "uplinkSynced": "UPLINK SENKRONİZE",
+    "uplinkRequired": "UPLINK GEREKLİ",
+    "activeProject": "Aktif Proje",
+    "unnamedProject": "İsimsiz Proje",
+    "open": "Aç",
+    "health": {
+      "electron": {
+        "label": "Electron",
+        "detail": "window.electron.api kullanılabilirliği"
+      },
+      "storage": {
+        "label": "Depolama",
+        "detail": "localStorage okuma/yazma"
+      },
+      "vault": {
+        "label": "Kasa ({n})",
+        "detail": "Bilgi Kasası öğeleri"
+      },
+      "wizard": {
+        "label": "Sihirbaz",
+        "detail": "Kurulum Sihirbazı ilerleme durumu"
+      },
+      "mic": {
+        "label": "Mikrofon ({state})",
+        "detail": "mikrofon izni"
+      },
+      "tts": {
+        "label": "TTS ({n})",
+        "detail": "speechSynthesis sesleri"
+      }
+    },
+    "panel": {
+      "description": "Nexus ana kontrol panelinizdir: sağlık sinyallerini (Electron, depolama, köprü, mikrofon/tts) gösterir ve yönünüzü kaybetmemenizi sağlar. Tüm 23 platforma sol taraftaki kenar çubuğundan erişilebilir.",
+      "verify1": "Sağlık rozetlerinin işlendiğini ve ortamınızı yansıttığını doğrulayın.",
+      "verify2": "System Hub'ı açın ve gezinme hatası olmadan geri dönün.",
+      "loop1": "Araçları algılamak ve yolları ayarlamak için Kurulum Sihirbazlarını bir kez çalıştırın.",
+      "loop2": "AI Chat'i açın ve bir mesaj gönderip yanıt alabildiğinizi doğrulayın.",
+      "loop3": "Yerel özellikler kullanıyorsanız Runtime Hub → Desktop Bridge'i açın ve ONLINE olduğunu doğrulayın.",
+      "trouble1": "Electron WARN/BAD gösteriyorsa, web modunda çalışıyor olabilirsiniz veya ön yükleme başarısız olmuş olabilir.",
+      "trouble2": "Mic/TTS WARN gösteriyorsa, işletim sisteminizdeki izinleri kontrol edin ve tekrar deneyin.",
+      "trouble3": "Kasa 0 gösteriyorsa, FO4 Bilgi Merkezi'ni açın ve dizinleyiciyi çalıştırın.",
+      "shortcuts": {
+        "aiChat": "AI Chat",
+        "setupWizards": "Kurulum Sihirbazları",
+        "systemHub": "System Hub",
+        "knowledgeHub": "FO4 Bilgi Merkezi",
+        "journeyHub": "FO4 Mod Yolculuğu Merkezi"
+      }
+    },
+    "quickHubAccess": "Hızlı Merkez Erişimi",
+    "hubs": {
+      "chat": {
+        "title": "AI Chat",
+        "subtitle": "Mossy'ye herhangi bir şey sorun"
+      },
+      "journeyHub": {
+        "title": "FO4 Mod Yolculuğu Merkezi",
+        "subtitle": "Projeler · Yol Haritaları"
+      },
+      "ckTools": {
+        "title": "Creation Kit Merkezi",
+        "subtitle": "CK · Betikler · Çökme Düzeltme"
+      },
+      "pluginTools": {
+        "title": "FO4 Eklenti ve Yükleme Sırası Merkezi",
+        "subtitle": "xEdit · Yükleme Sırası · PRP"
+      },
+      "textures": {
+        "title": "Dokular ve Malzemeler",
+        "subtitle": "DDS · PBR · BC formatları"
+      },
+      "assetAnalysis": {
+        "title": "FO4 Varlık Analizi Merkezi",
+        "subtitle": "Tarama · Yinelenen Giderme · Madencilik"
+      },
+      "modBuilder": {
+        "title": "FO4 Mod Oluşturucu Merkezi",
+        "subtitle": "Taslak · Atölye · Belgeler"
+      },
+      "packaging": {
+        "title": "Paketleme ve Yayınlama",
+        "subtitle": "BA2 · FOMOD · Kontrol Listesi"
+      },
+      "guides": {
+        "title": "Rehberler Merkezi",
+        "subtitle": "Animasyon · Görevler · LOD"
+      },
+      "knowledgeHub": {
+        "title": "FO4 Bilgi Merkezi",
+        "subtitle": "Belgeler · Arama · Referans"
+      },
+      "systemHub": {
+        "title": "System Hub",
+        "subtitle": "Teşhis · Güvenlik"
+      },
+      "runtimeHub": {
+        "title": "Runtime Merkezi",
+        "subtitle": "Canlı · Köprü · Holodeck"
+      }
+    },
+    "whereToStart": "Fallout 4 Modlama — Nereden Başlamalı",
+    "steps": {
+      "setupWizards": {
+        "title": "Kurulum Sihirbazlarını Çalıştırın",
+        "body": "F4SE, xEdit, MO2/Vortex, Creation Kit ve diğer araçları algılayın. Mossy tavsiyelerini gerçekte yüklü olana göre özelleştirir."
+      },
+      "modGoal": {
+        "title": "Bir Modlama Hedefi Seçin",
+        "body": "FO4 Mod Yolculuğu Merkezi → Yol Haritalarını açın ve adım adım bir plan oluşturun. İster silah, görev veya worldspace ekliyor olun — net bir hedefle başlayın."
+      },
+      "loadOrder": {
+        "title": "Yükleme Sırası Kurallarını Bilin",
+        "body": "Fallout 4'te 255 eklenti sınırı vardır (ESM+ESP+ESL). ESL işaretli eklentiler 2.048 FormID havuzunu paylaşır. Yönetmek ve doğrulamak için FO4 Eklenti ve Yükleme Sırası Merkezi'ni kullanın."
+      },
+      "assetPipeline": {
+        "title": "Varlık İş Hattını Öğrenin",
+        "body": "Dokular BC formatlarını kullanır (BC1/BC3/BC7). Meshler Havok çarpışmalı NIF dosyalarıdır. BA2 arşivleri sıkıştırılmış varlıkları tutar. Dokular Merkezi ve Rehberler Merkezi bunların hepsini kapsar."
+      },
+      "gameStable": {
+        "title": "Oyununuzu Kararlı Tutun",
+        "body": "Önce oyun sürümünüzü belirleyin: OG (1.10.163), NG (1.10.980–984) veya AE/1.11.x (1.11.191+). Ardından eşleşen yığını kurun: F4SE + Address Library + X-Cell. Kullanımdan kaldırılan AWKCR/DEF_UI'den kaçının — bunun yerine ECO/NEO ve FallUI kullanın. Çökme önleme izlemesi için Creation Kit Merkezi'ni kullanın."
+      },
+      "buildPackage": {
+        "title": "Modunuzu Oluşturun ve Paketleyin",
+        "body": "Mimariyi taslak haline getirmek, Workshop'ta çalışmak, Devtools'ta betikler oluşturmak ve Scribe'da belgelemek için FO4 Mod Oluşturucu Merkezi'ni kullanın. Ardından bir BA2 oluşturmak ve FOMOD yükleyicinizi derlemek için Paketleme ve Yayınlama'ya gidin."
+      }
+    },
+    "stepBadge": "ADIM {n}",
+    "tagline": "Nöral bağlantı aktif ve çalışma alanınızı izliyor",
+    "support": {
+      "message": "Mossy.Space ücretsiz ve açıktır — modlamanıza yardımcı olduysa, geliştirmeyi desteklemeyi düşünün",
+      "patreon": "Patreon",
+      "coffee": "Bana Kahve Ismarla"
+    }
   }
 }

@@ -7,6 +7,9 @@ import {
   MousePointerClick, Package, FileCode2, Database,
   ChevronRight, Loader2, Eye, EyeOff, History, Inbox
 } from 'lucide-react';
+import { useI18n } from './i18n';
+
+type TFn = (key: string, fallback: string) => string;
 
 // ─── Types ──────────────────────────────────────────────────────────────────────────────
 
@@ -55,14 +58,17 @@ interface ActivityEvent {
 
 const TRIGGER_META: Record<
   AutomationRule['trigger'],
-  { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }
+  { fallbackLabel: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }
 > = {
-  'file-change':   { label: 'File Watch',    icon: FolderSync,        color: 'text-blue-400',    bg: 'bg-blue-400/10'    },
-  'process-start': { label: 'Process Start', icon: Gamepad2,          color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-  'process-stop':  { label: 'Process Stop',  icon: XCircle,           color: 'text-red-400',     bg: 'bg-red-400/10'     },
-  'schedule':      { label: 'Scheduled',     icon: Timer,             color: 'text-purple-400',  bg: 'bg-purple-400/10'  },
-  'manual':        { label: 'Manual',        icon: MousePointerClick, color: 'text-amber-400',   bg: 'bg-amber-400/10'   },
+  'file-change':   { fallbackLabel: 'File Watch',    icon: FolderSync,        color: 'text-blue-400',    bg: 'bg-blue-400/10'    },
+  'process-start': { fallbackLabel: 'Process Start', icon: Gamepad2,          color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+  'process-stop':  { fallbackLabel: 'Process Stop',  icon: XCircle,           color: 'text-red-400',     bg: 'bg-red-400/10'     },
+  'schedule':      { fallbackLabel: 'Scheduled',     icon: Timer,             color: 'text-purple-400',  bg: 'bg-purple-400/10'  },
+  'manual':        { fallbackLabel: 'Manual',        icon: MousePointerClick, color: 'text-amber-400',   bg: 'bg-amber-400/10'   },
 };
+
+const triggerLabel = (t: TFn, trigger: AutomationRule['trigger']): string =>
+  t(`automationOrchestrator.triggers.${trigger}`, TRIGGER_META[trigger].fallbackLabel);
 
 const ACTION_LABELS: Record<string, string> = {
   'scan-conflicts':        'Conflict Scan',
@@ -79,19 +85,24 @@ const ACTION_LABELS: Record<string, string> = {
   'sync-cosmos-pipeline':  'Cosmos Pipeline Sync',
 };
 
+const actionLabel = (t: TFn, action: string): string => {
+  const fallback = ACTION_LABELS[action];
+  return fallback ? t(`automationOrchestrator.actions.${action}`, fallback) : action;
+};
+
 const MAX_ACTIVITY = 50;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────────────
 
-const fmtAgo = (ts?: number): string => {
-  if (!ts) return 'Never';
+const fmtAgo = (t: TFn, ts?: number): string => {
+  if (!ts) return t('automationOrchestrator.never', 'Never');
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return 'Just now';
+  if (s < 60) return t('automationOrchestrator.justNow', 'Just now');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('automationOrchestrator.minutesAgo', '{m}m ago').replace('{m}', String(m));
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('automationOrchestrator.hoursAgo', '{h}h ago').replace('{h}', String(h));
+  return t('automationOrchestrator.daysAgo', '{d}d ago').replace('{d}', String(Math.floor(h / 24)));
 };
 
 const fmtTime = (ts?: number): string => {
@@ -131,6 +142,7 @@ const RuleRow: React.FC<{
   onTrigger: (id: string) => Promise<void>;
   triggering: boolean;
 }> = ({ rule, statRow, onToggle, onTrigger, triggering }) => {
+  const { t } = useI18n();
   const [toggling, setToggling] = useState(false);
   const meta = TRIGGER_META[rule.trigger];
   const TIcon = meta.icon;
@@ -148,7 +160,7 @@ const RuleRow: React.FC<{
     }`}>
       <div className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium ${meta.color} ${meta.bg}`}>
         <TIcon className="w-3 h-3" />
-        <span className="hidden xl:inline">{meta.label}</span>
+        <span className="hidden xl:inline">{triggerLabel(t, rule.trigger)}</span>
       </div>
 
       <div className="flex-1 min-w-0">
@@ -159,22 +171,22 @@ const RuleRow: React.FC<{
       </div>
 
       <span className="hidden lg:block text-xs text-slate-500 font-mono bg-slate-900/50 px-2 py-0.5 rounded">
-        {ACTION_LABELS[rule.action] ?? rule.action}
+        {actionLabel(t, rule.action)}
       </span>
 
       <div className="hidden md:flex flex-col items-end gap-0.5 text-right min-w-[5rem]">
         <span className="text-xs text-slate-400 font-medium">
-          {(statRow?.runCount ?? rule.runCount ?? 0)}× runs
+          {t('automationOrchestrator.runsCount', '{n}× runs').replace('{n}', String(statRow?.runCount ?? rule.runCount ?? 0))}
         </span>
         <span className="text-xs text-slate-600">
-          {fmtAgo(statRow?.lastRun ?? rule.lastRun)}
+          {fmtAgo(t, statRow?.lastRun ?? rule.lastRun)}
         </span>
       </div>
 
       <button
         onClick={() => onTrigger(rule.id)}
         disabled={triggering || !rule.enabled}
-        title="Trigger manually"
+        title={t('automationOrchestrator.triggerManually', 'Trigger manually')}
         className="flex-shrink-0 p-1.5 rounded-lg hover:bg-amber-400/10 hover:text-amber-400 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         {triggering ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
@@ -183,7 +195,7 @@ const RuleRow: React.FC<{
       <button
         onClick={handleToggle}
         disabled={toggling}
-        title={rule.enabled ? 'Disable rule' : 'Enable rule'}
+        title={rule.enabled ? t('automationOrchestrator.disableRule', 'Disable rule') : t('automationOrchestrator.enableRule', 'Enable rule')}
         className={`flex-shrink-0 transition-colors ${toggling ? 'opacity-50' : ''}`}
       >
         {rule.enabled
@@ -198,11 +210,12 @@ const RuleRow: React.FC<{
 // ─── Activity Feed ────────────────────────────────────────────────────────────────────
 
 const ActivityFeed: React.FC<{ events: ActivityEvent[] }> = ({ events }) => {
+  const { t } = useI18n();
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-slate-600">
         <Inbox className="w-8 h-8 mb-2" />
-        <p className="text-sm">No activity yet — events appear here as rules fire.</p>
+        <p className="text-sm">{t('automationOrchestrator.activityEmpty', 'No activity yet — events appear here as rules fire.')}</p>
       </div>
     );
   }
@@ -220,10 +233,10 @@ const ActivityFeed: React.FC<{ events: ActivityEvent[] }> = ({ events }) => {
               <span className="text-xs text-slate-500 ml-2 font-mono">{ev.context.processName}</span>
             )}
             {ev.context?.manual && (
-              <span className="text-xs text-amber-400/60 ml-2">manual</span>
+              <span className="text-xs text-amber-400/60 ml-2">{t('automationOrchestrator.manualTag', 'manual')}</span>
             )}
             {ev.context?.scheduled && (
-              <span className="text-xs text-purple-400/60 ml-2">scheduled</span>
+              <span className="text-xs text-purple-400/60 ml-2">{t('automationOrchestrator.scheduledTag', 'scheduled')}</span>
             )}
           </div>
           <span className="text-xs text-slate-600 flex-shrink-0">{fmtTime(ev.timestamp)}</span>
@@ -236,6 +249,7 @@ const ActivityFeed: React.FC<{ events: ActivityEvent[] }> = ({ events }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────────────
 
 const FO4AutomationOrchestrator: React.FC = () => {
+  const { t } = useI18n();
   const [settings, setSettings]         = useState<AutomationSettings | null>(null);
   const [stats, setStats]               = useState<AutomationStats | null>(null);
   const [activity, setActivity]         = useState<ActivityEvent[]>([]);
@@ -332,7 +346,7 @@ const FO4AutomationOrchestrator: React.FC = () => {
     return (
       <div className="flex-1 flex items-center justify-center text-slate-500">
         <Loader2 className="w-6 h-6 animate-spin mr-2" />
-        Loading automation engine…
+        {t('automationOrchestrator.loadingEngine', 'Loading automation engine…')}
       </div>
     );
   }
@@ -342,7 +356,7 @@ const FO4AutomationOrchestrator: React.FC = () => {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center text-slate-500">
           <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-400" />
-          <p className="text-sm">Automation API unavailable — ensure you are running the packaged app.</p>
+          <p className="text-sm">{t('automationOrchestrator.apiUnavailable', 'Automation API unavailable — ensure you are running the packaged app.')}</p>
         </div>
       </div>
     );
@@ -355,17 +369,17 @@ const FO4AutomationOrchestrator: React.FC = () => {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className={`w-2.5 h-2.5 rounded-full ${isRunning ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-slate-600'}`} />
-            <h1 className="text-base font-bold text-slate-100">FO4 Automation Orchestrator</h1>
+            <h1 className="text-base font-bold text-slate-100">{t('automationOrchestrator.title', 'FO4 Automation Orchestrator')}</h1>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isRunning ? 'bg-emerald-400/10 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
-              {isRunning ? 'RUNNING' : 'STOPPED'}
+              {isRunning ? t('automationOrchestrator.running', 'RUNNING') : t('automationOrchestrator.stopped', 'STOPPED')}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={refresh} title="Refresh"
+            <button onClick={refresh} title={t('automationOrchestrator.refreshTooltip', 'Refresh')}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors">
               <RefreshCw className="w-4 h-4" />
             </button>
-            <button onClick={handleResetStats} title="Reset all run statistics"
+            <button onClick={handleResetStats} title={t('automationOrchestrator.resetStatsTooltip', 'Reset all run statistics')}
               className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors">
               <RotateCcw className="w-4 h-4" />
             </button>
@@ -373,13 +387,13 @@ const FO4AutomationOrchestrator: React.FC = () => {
               <button onClick={handleStop} disabled={engineBusy}
                 className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium disabled:opacity-50 transition-all">
                 {engineBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
-                Stop Engine
+                {t('automationOrchestrator.stopEngine', 'Stop Engine')}
               </button>
             ) : (
               <button onClick={handleStart} disabled={engineBusy}
                 className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-sm font-medium disabled:opacity-50 transition-all">
                 {engineBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                Start Engine
+                {t('automationOrchestrator.startEngine', 'Start Engine')}
               </button>
             )}
           </div>
@@ -389,22 +403,22 @@ const FO4AutomationOrchestrator: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard label="Rules Active"    value={`${enabledCount} / ${rules.length}`} icon={Shield}    color="text-emerald-400" sub="enabled / total" />
-          <StatCard label="File Watchers"   value={stats?.activeWatchers ?? 0}           icon={FolderSync} color="text-blue-400"    sub="paths monitored" />
-          <StatCard label="Intervals"       value={stats?.activeIntervals ?? 0}          icon={Clock}     color="text-purple-400"  sub="process + schedule" />
-          <StatCard label="Total Runs"      value={totalRuns}                            icon={BarChart2} color="text-amber-400"   sub="since last reset" />
+          <StatCard label={t('automationOrchestrator.stats.rulesActive.label', 'Rules Active')}    value={`${enabledCount} / ${rules.length}`} icon={Shield}    color="text-emerald-400" sub={t('automationOrchestrator.stats.rulesActive.sub', 'enabled / total')} />
+          <StatCard label={t('automationOrchestrator.stats.fileWatchers.label', 'File Watchers')}   value={stats?.activeWatchers ?? 0}           icon={FolderSync} color="text-blue-400"    sub={t('automationOrchestrator.stats.fileWatchers.sub', 'paths monitored')} />
+          <StatCard label={t('automationOrchestrator.stats.intervals.label', 'Intervals')}       value={stats?.activeIntervals ?? 0}          icon={Clock}     color="text-purple-400"  sub={t('automationOrchestrator.stats.intervals.sub', 'process + schedule')} />
+          <StatCard label={t('automationOrchestrator.stats.totalRuns.label', 'Total Runs')}      value={totalRuns}                            icon={BarChart2} color="text-amber-400"   sub={t('automationOrchestrator.stats.totalRuns.sub', 'since last reset')} />
         </div>
 
         <div className="flex items-center gap-1 border-b border-slate-800">
           <button onClick={() => setTab('rules')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'rules' ? 'border-blue-400 text-blue-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
             <Layers className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" />
-            Rules ({rules.length})
+            {t('automationOrchestrator.tabs.rules', 'Rules ({n})').replace('{n}', String(rules.length))}
           </button>
           <button onClick={() => setTab('activity')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === 'activity' ? 'border-amber-400 text-amber-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
             <History className="w-3.5 h-3.5 inline-block mr-1.5 -mt-0.5" />
-            Activity
+            {t('automationOrchestrator.tabs.activity', 'Activity')}
             {activity.length > 0 && (
               <span className="ml-1.5 text-xs bg-amber-400/15 text-amber-400 px-1.5 py-0.5 rounded-full">{activity.length}</span>
             )}
@@ -416,26 +430,26 @@ const FO4AutomationOrchestrator: React.FC = () => {
             <div className="flex items-center gap-3 flex-wrap">
               <select value={filterTrigger} onChange={e => setFilterTrigger(e.target.value)}
                 className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
-                <option value="all">All triggers</option>
-                <option value="file-change">File Watch</option>
-                <option value="process-start">Process Start</option>
-                <option value="process-stop">Process Stop</option>
-                <option value="schedule">Scheduled</option>
-                <option value="manual">Manual</option>
+                <option value="all">{t('automationOrchestrator.filters.all', 'All triggers')}</option>
+                <option value="file-change">{triggerLabel(t, 'file-change')}</option>
+                <option value="process-start">{triggerLabel(t, 'process-start')}</option>
+                <option value="process-stop">{triggerLabel(t, 'process-stop')}</option>
+                <option value="schedule">{triggerLabel(t, 'schedule')}</option>
+                <option value="manual">{triggerLabel(t, 'manual')}</option>
               </select>
               <button onClick={() => setShowDisabled(v => !v)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${showDisabled ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
                 {showDisabled ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                {showDisabled ? 'Showing disabled' : 'Hiding disabled'}
+                {showDisabled ? t('automationOrchestrator.showingDisabled', 'Showing disabled') : t('automationOrchestrator.hidingDisabled', 'Hiding disabled')}
               </button>
-              <span className="text-xs text-slate-600 ml-auto">Last refresh: {fmtAgo(lastRefresh)}</span>
+              <span className="text-xs text-slate-600 ml-auto">{t('automationOrchestrator.lastRefresh', 'Last refresh: {time}').replace('{time}', fmtAgo(t, lastRefresh))}</span>
             </div>
 
             <div className="space-y-2">
               {displayedRules.length === 0 ? (
                 <div className="text-center py-10 text-slate-600">
                   <Settings2 className="w-6 h-6 mx-auto mb-2" />
-                  <p className="text-sm">No rules match the current filter.</p>
+                  <p className="text-sm">{t('automationOrchestrator.noRulesMatch', 'No rules match the current filter.')}</p>
                 </div>
               ) : (
                 displayedRules.map(rule => (
@@ -455,18 +469,18 @@ const FO4AutomationOrchestrator: React.FC = () => {
               <div className="mt-4 p-4 bg-slate-800/30 border border-slate-700/40 rounded-xl">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <Timer className="w-3.5 h-3.5 text-purple-400" />
-                  Engine Schedules
+                  {t('automationOrchestrator.engineSchedules', 'Engine Schedules')}
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                   <div className="flex items-center gap-2 text-slate-400">
                     <Clock className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                    <span>Daily maintenance:</span>
+                    <span>{t('automationOrchestrator.dailyMaintenance', 'Daily maintenance:')}</span>
                     <span className="text-slate-300 font-mono ml-auto">{settings.schedules.dailyMaintenance ?? '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-slate-400">
                     <Clock className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-                    <span>Weekly deep scan:</span>
-                    <span className="text-slate-300 font-mono ml-auto">{settings.schedules.weeklyDeepScan ?? 'Off'}</span>
+                    <span>{t('automationOrchestrator.weeklyDeepScan', 'Weekly deep scan:')}</span>
+                    <span className="text-slate-300 font-mono ml-auto">{settings.schedules.weeklyDeepScan ?? t('automationOrchestrator.off', 'Off')}</span>
                   </div>
                 </div>
               </div>
@@ -478,11 +492,11 @@ const FO4AutomationOrchestrator: React.FC = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-xs text-slate-500">
-                Live feed — rules fire events here in real time. Max {MAX_ACTIVITY} entries kept.
+                {t('automationOrchestrator.liveFeedHint', 'Live feed — rules fire events here in real time. Max {max} entries kept.').replace('{max}', String(MAX_ACTIVITY))}
               </p>
               {activity.length > 0 && (
                 <button onClick={() => setActivity([])} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
-                  Clear
+                  {t('automationOrchestrator.clear', 'Clear')}
                 </button>
               )}
             </div>

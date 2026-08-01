@@ -9,8 +9,14 @@ const fs   = require('fs');
 const os   = require('os');
 
 const ROOT   = __dirname;
-const TMP    = path.join(os.tmpdir(), 'mossy-full-deploy');
-const DEST   = path.join(ROOT, 'Mossy', 'Mossy NVIDIA', 'resources', 'app.asar');
+// Optional CLI arg selects which packaged edition to deploy to, e.g.:
+//   node deploy-full.cjs "Mossy NVIDIA"
+//   node deploy-full.cjs "Mossy Universal"
+// Defaults to NVIDIA (the edition this script has always targeted) so existing
+// call sites/muscle memory keep working unchanged.
+const EDITION = process.argv[2] || 'Mossy NVIDIA';
+const TMP    = path.join(os.tmpdir(), 'mossy-full-deploy-' + EDITION.replace(/\s+/g, '-'));
+const DEST   = path.join(ROOT, 'Mossy', EDITION, 'resources', 'app.asar');
 const BACKUP = DEST + '.bak';
 // Fix minimatch CJS default-export mismatch in @electron/asar
 // minimatch v9+ exports { minimatch } but asar.js calls minimatch_1.default()
@@ -115,13 +121,29 @@ async function main() {
   // The main.ts scan handler looks here first: path.join(app.getAppPath(), '..', 'scripts', ...)
   const PYTHON_SCRIPTS = ['fo4_strings_scan.py'];
   const srcScriptsDir  = path.join(ROOT, 'scripts');
-  const destScriptsDir = path.join(ROOT, 'Mossy', 'Mossy NVIDIA', 'resources', 'scripts');
+  const destScriptsDir = path.join(ROOT, 'Mossy', EDITION, 'resources', 'scripts');
   if (!fs.existsSync(destScriptsDir)) fs.mkdirSync(destScriptsDir, { recursive: true });
   for (const script of PYTHON_SCRIPTS) {
     const src = path.join(srcScriptsDir, script);
     if (fs.existsSync(src)) {
       fs.copyFileSync(src, path.join(destScriptsDir, script));
       console.log('      copied scripts/' + script + ' → resources/scripts/');
+    }
+  }
+
+  // 5e. Copy blank-plugin ESP templates to resources/plugin-templates/ (alongside the asar).
+  // These are real disk files (not asar contents) so the "Create Blank Plugin" IPC handler
+  // can fs.copyFileSync() them straight to a user-chosen destination.
+  // The main.ts handler looks here first: path.join(app.getAppPath(), '..', 'plugin-templates', ...)
+  const PLUGIN_TEMPLATES = ['EmptyPlugin.esp', 'PrevisGen.esp'];
+  const srcTemplatesDir  = path.join(ROOT, 'resources', 'plugin-templates');
+  const destTemplatesDir = path.join(ROOT, 'Mossy', EDITION, 'resources', 'plugin-templates');
+  if (!fs.existsSync(destTemplatesDir)) fs.mkdirSync(destTemplatesDir, { recursive: true });
+  for (const tmpl of PLUGIN_TEMPLATES) {
+    const src = path.join(srcTemplatesDir, tmpl);
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, path.join(destTemplatesDir, tmpl));
+      console.log('      copied resources/plugin-templates/' + tmpl + ' → resources/plugin-templates/');
     }
   }
 
@@ -133,7 +155,7 @@ async function main() {
   console.log('\nDEPLOY COMPLETE');
   console.log('Deployed to: ' + DEST);
   console.log('Backup at:   ' + BACKUP);
-  console.log('\nClose and relaunch Mossy NVIDIA to load the new build.\n');
+  console.log('\nClose and relaunch ' + EDITION + ' to load the new build.\n');
 
   // Platform audit — run after every deploy to catch regressions immediately
   const { execSync } = require('child_process');

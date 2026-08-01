@@ -315,7 +315,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'un-wrap3': 'unWrap3Path',
                 'nifutils': 'nifUtilsSuitePath',
                 'nif utils': 'nifUtilsSuitePath',
-                'spin3d': 'spin3dPath'
+                'spin3d': 'spin3dPath',
+                'sniff': 'sniffPath',
+                'cathedral assets optimizer': 'caoPath',
+                'cao': 'caoPath'
             };
 
             const toolNameMapping: Record<string, string> = {
@@ -348,7 +351,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'photodemon': 'PhotoDemon',
                 'unwrap3': 'Unwrap3',
                 'nifutils': 'NifUtils Suite',
-                'spin3d': 'Spin3D'
+                'spin3d': 'Spin3D',
+                'sniff': 'Sniff',
+                'cathedral assets optimizer': 'Cathedral Assets Optimizer',
+                'cao': 'Cathedral Assets Optimizer'
             };
             
             const rawToolId = String(args?.toolId || '');
@@ -374,6 +380,8 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'unwrap3': ['unwrap3', 'un-wrap3'],
                 'nifutils': ['nifutils', 'nif utils'],
                 'spin3d': ['spin3d'],
+                'sniff': ['sniff'],
+                'cathedral assets optimizer': ['cathedral assets optimizer', 'cathedral_assets_optimizer', 'cao'],
                 'canvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
                 'nvidia canvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
                 'nvidiacanvas': ['nvidia canvas', 'nvidiacanvas', 'canvas', 'vita', 'vita canvas'],
@@ -786,7 +794,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         'nif utils': { key: 'nifUtilsSuitePath', displayName: 'NifUtils Suite' },
                         'spin3d': { key: 'spin3dPath', displayName: 'Spin3D' },
                         'spin 3d': { key: 'spin3dPath', displayName: 'Spin3D' },
-                        
+                        'sniff': { key: 'sniffPath', displayName: 'Sniff' },
+                        'cathedral assets optimizer': { key: 'caoPath', displayName: 'Cathedral Assets Optimizer' },
+                        'cao': { key: 'caoPath', displayName: 'Cathedral Assets Optimizer' },
+
                         // F4SE
                         'f4se': { key: 'f4sePath', displayName: 'F4SE Loader' },
                         'f4se loader': { key: 'f4sePath', displayName: 'F4SE Loader' },

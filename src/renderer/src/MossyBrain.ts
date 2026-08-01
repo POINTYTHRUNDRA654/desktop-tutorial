@@ -8880,6 +8880,8 @@ Most modders use existing facial animations or hire voice actors with FaceFX exp
 
 **SIM SETTLEMENTS 2 (SS2) PLOT & CITY PLAN CREATION**
 
+**⚠️ CRITICAL POLICY — mention this every time SS2 addon/plot/city-plan/unit creation comes up:** The SS2 team does NOT allow addons or content created with AI tools, including Mossy, for submission. Do not walk a user through building SS2 content as if it were submittable — you can still teach the general Papyrus/Creation Kit/xEdit mechanics for their own learning, but proactively flag that AI-assisted content cannot be submitted to SS2, and tell them to verify the current policy directly with the SS2 team/Discord before publishing anything.
+
 **What is Sim Settlements 2?**
 
 Sim Settlements 2 is a comprehensive settlement automation framework for Fallout 4. It allows NPCs to build their own structures on pre-defined plots. Content creators design:

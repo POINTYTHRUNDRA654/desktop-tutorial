@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { CheckCircle2, Download, Sparkles, Target } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const FirstSuccessWizard = React.lazy(() => import('./FirstSuccessWizard'));
 const ProjectHub = React.lazy(() => import('./ProjectHub'));
@@ -8,25 +9,34 @@ const ModBrowser = React.lazy(() => import('./ModBrowser'));
 
 type JourneyTab = 'first-success' | 'projects' | 'roadmaps' | 'mods';
 
-const tabs: Array<{ id: JourneyTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'first-success', label: 'First Success', sublabel: 'Onboarding wins', icon: CheckCircle2 },
-  { id: 'projects', label: 'Mod Projects', sublabel: 'Project workspace', icon: Sparkles },
-  { id: 'roadmaps', label: 'Roadmaps', sublabel: 'Plan progression', icon: Target },
-  { id: 'mods', label: 'Mod Browser', sublabel: 'Discover mods', icon: Download },
+const TAB_META: Array<{ id: JourneyTab; key: string; fallbackLabel: string; fallbackSublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'first-success', key: 'firstSuccess', fallbackLabel: 'First Success', fallbackSublabel: 'Onboarding wins', icon: CheckCircle2 },
+  { id: 'projects', key: 'projects', fallbackLabel: 'Mod Projects', fallbackSublabel: 'Project workspace', icon: Sparkles },
+  { id: 'roadmaps', key: 'roadmaps', fallbackLabel: 'Roadmaps', fallbackSublabel: 'Plan progression', icon: Target },
+  { id: 'mods', key: 'mods', fallbackLabel: 'Mod Browser', fallbackSublabel: 'Discover mods', icon: Download },
 ];
 
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading…</div>}>
-    {children}
-  </Suspense>
-);
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">{t('common.loading', 'Loading…')}</div>}>
+      {children}
+    </Suspense>
+  );
+};
 
 const JourneyHub: React.FC = () => {
+  const { t } = useI18n();
+  const tabs = TAB_META.map((tab) => ({
+    ...tab,
+    label: t(`journeyHub.tabs.${tab.key}.label`, tab.fallbackLabel),
+    sublabel: t(`journeyHub.tabs.${tab.key}.sublabel`, tab.fallbackSublabel),
+  }));
   const [activeTab, setActiveTab] = useState<JourneyTab>('projects');
 
   useEffect(() => {
     const saved = sessionStorage.getItem('journey_hub_tab') as JourneyTab | null;
-    if (saved && tabs.some((t) => t.id === saved)) setActiveTab(saved);
+    if (saved && tabs.some((tab) => tab.id === saved)) setActiveTab(saved);
   }, []);
 
   useEffect(() => {
@@ -48,8 +58,8 @@ const JourneyHub: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
-        <h1 className="text-xl font-black text-white tracking-tight">FO4 Mod Journey Hub</h1>
-        <p className="text-xs text-slate-400 mt-1">First Success · Mod Projects · Roadmaps · Mod Browser</p>
+        <h1 className="text-xl font-black text-white tracking-tight">{t('journeyHub.title', 'FO4 Mod Journey Hub')}</h1>
+        <p className="text-xs text-slate-400 mt-1">{t('journeyHub.subtitle', 'First Success · Mod Projects · Roadmaps · Mod Browser')}</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
           {tabs.map((tab, idx) => (
             <button

@@ -12,7 +12,6 @@
  *   5. Ambient Occlusion      — normal-derived screen-space AO estimate
  *   6. Cavity Map             — fine-crevice AO from high-frequency normal detail
  *   7. Height / Parallax      — luminance → displacement for FO4 POM
- *   8. BGSM Generation        — complete .bgsm pointing at all generated maps
  *
  * All processing routes through IPC to the Blender/Node backend.
  * Browser-side canvas previews are generated locally for instant feedback.
@@ -24,7 +23,7 @@ import {
   Upload, FolderOpen, Play, RefreshCw, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Eye, EyeOff, Download, Copy,
   Layers, Zap, Cpu, Droplets, Mountain, Flame, Box,
-  AlertCircle, Info, Settings, Image,
+  AlertCircle, Info, Settings, Image, Star, RotateCcw, GraduationCap,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,6 +84,12 @@ interface MetallicStage extends PipelineStage {
   threshold: number;           // saturation threshold for hue_detect
 }
 
+interface SpecularStage extends PipelineStage {
+  intensity: number;           // 0–1: RGB tint strength (how bright the specular reflectance is)
+  glossMin: number;            // 0–1: gloss (alpha) floor — dull crevices/edges
+  glossMax: number;            // 0–1: gloss (alpha) ceiling — shiniest areas
+}
+
 interface AOStage extends PipelineStage {
   quality: 'low' | 'medium' | 'high';
   radius: number;              // 1–32: sampling radius in pixels
@@ -99,14 +104,8 @@ interface CavityStage extends PipelineStage {
 
 interface HeightStage extends PipelineStage {
   source: 'luminance' | 'inverse_luminance' | 'red_channel';
-  scale: number;               // POM depth scale written into BGSM
-  bias: number;                // POM bias written into BGSM
-}
-
-interface BGSMStage extends PipelineStage {
-  pbrMode: boolean;            // bPBR = true (Community Shaders)
-  parallelOcc: boolean;        // SF2_PARALLAX_OCCLUSION (requires height)
-  materialPath: string;        // relative output path inside Data/Materials/
+  scale: number;               // POM depth scale
+  bias: number;                // POM bias
 }
 
 interface Pipeline {
@@ -114,10 +113,10 @@ interface Pipeline {
   normal:    NormalStage;
   roughness: RoughnessStage;
   metallic:  MetallicStage;
+  specular:  SpecularStage;
   ao:        AOStage;
   cavity:    CavityStage;
   height:    HeightStage;
-  bgsm:      BGSMStage;
 }
 
 interface EnhancementJob {
@@ -133,6 +132,52 @@ interface EnhancementJob {
   startTime: number;
   outputs: Partial<Record<string, string>>; // map name → output path
   error?: string;
+  pipeline: Pipeline;    // snapshot of the settings actually used, for learning feedback
+  rated?: 'kept' | 'discarded'; // set once the user has rated this job, to prevent double-recording
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Learning loop — mirrors src/electron/textureEnhancerLearning.ts's tunable
+// param list and blend logic. Kept in sync manually rather than shared across
+// the IPC boundary since main only hands back raw weighted averages; the
+// renderer owns SURFACE_PRESETS and is where the blend against a preset's
+// baseline actually happens.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LEARNABLE_PARAMS: Array<{ key: string; stage: keyof Pipeline; field: string; min: number; max: number }> = [
+  { key: 'normal.strength',    stage: 'normal',    field: 'strength',  min: 0.1, max: 5 },
+  { key: 'normal.smoothing',   stage: 'normal',    field: 'smoothing', min: 0,   max: 3 },
+  { key: 'specular.intensity', stage: 'specular',  field: 'intensity', min: 0,   max: 1 },
+  { key: 'specular.glossMin',  stage: 'specular',  field: 'glossMin',  min: 0,   max: 1 },
+  { key: 'specular.glossMax',  stage: 'specular',  field: 'glossMax',  min: 0,   max: 1 },
+  { key: 'roughness.base',     stage: 'roughness', field: 'base',      min: 0,   max: 1 },
+];
+
+interface LearnedSurfaceStats {
+  totalSamples: number;
+  keptSamples: number;
+  discardedSamples: number;
+  params: Record<string, { average: number; weight: number }>;
+}
+
+/** Blends a surface's learned per-param averages into a baseline pipeline, in place, clamped to each param's range. */
+function applyLearnedAdjustments(pipeline: Pipeline, stats: LearnedSurfaceStats | undefined): number {
+  if (!stats) return 0;
+  let applied = 0;
+  for (const p of LEARNABLE_PARAMS) {
+    const learned = stats.params[p.key];
+    if (!learned) continue;
+    // Blend factor grows with sample weight but is capped well short of 1 so a
+    // handful of ratings nudges the default rather than fully replacing it.
+    const blend = Math.min(0.75, 0.3 + learned.weight * 0.03);
+    const stage = pipeline[p.stage] as any;
+    const baseline = stage[p.field];
+    if (typeof baseline !== 'number') continue;
+    const adjusted = baseline * (1 - blend) + learned.average * blend;
+    stage[p.field] = Math.max(p.min, Math.min(p.max, adjusted));
+    applied++;
+  }
+  return applied;
 }
 
 interface InputFile {
@@ -167,11 +212,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.6, detailBoost: 0.8, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.15, luminanceInfluence: 0.3, variation: 0.05, invert: false },
       metallic:  { enabled: true, base: 1.0, mode: 'manual', threshold: 0.4 },
+      specular:  { enabled: true, intensity: 0.8, glossMin: 0.6, glossMax: 0.95 },
       ao:        { enabled: true, quality: 'high', radius: 8, strength: 0.8, bias: 0.05 },
       normal:    { enabled: true, method: 'scharr', strength: 0.6, fineDetail: true, invertY: false, smoothing: 0.5 },
       cavity:    { enabled: true, radius: 3, strength: 0.7 },
       height:    { enabled: false, source: 'luminance', scale: 5.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: true, parallelOcc: false, materialPath: '' },
     },
   },
   metal_weathered: {
@@ -182,11 +227,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.5, detailBoost: 1.4, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.55, luminanceInfluence: 0.6, variation: 0.25, invert: false },
       metallic:  { enabled: true, base: 0.8, mode: 'hue_detect', threshold: 0.35 },
+      specular:  { enabled: true, intensity: 0.5, glossMin: 0.2, glossMax: 0.6 },
       ao:        { enabled: true, quality: 'high', radius: 12, strength: 1.2, bias: 0.05 },
       normal:    { enabled: true, method: 'scharr', strength: 1.8, fineDetail: true, invertY: false, smoothing: 0.3 },
       cavity:    { enabled: true, radius: 4, strength: 1.2 },
       height:    { enabled: true, source: 'luminance', scale: 6.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: true, parallelOcc: true, materialPath: '' },
     },
   },
   metal_rusted: {
@@ -197,11 +242,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.4, detailBoost: 1.8, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.75, luminanceInfluence: 0.8, variation: 0.4, invert: false },
       metallic:  { enabled: true, base: 0.5, mode: 'hue_detect', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.3, glossMin: 0.05, glossMax: 0.35 },
       ao:        { enabled: true, quality: 'high', radius: 16, strength: 1.5, bias: 0.05 },
       normal:    { enabled: true, method: 'scharr', strength: 2.5, fineDetail: true, invertY: false, smoothing: 0.2 },
       cavity:    { enabled: true, radius: 5, strength: 1.6 },
       height:    { enabled: true, source: 'luminance', scale: 8.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: true, parallelOcc: true, materialPath: '' },
     },
   },
   concrete: {
@@ -212,11 +257,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.7, detailBoost: 1.6, colorCalibrate: true, seamless: true, seamlessBlend: 0.15 },
       roughness: { enabled: true, base: 0.92, luminanceInfluence: 0.4, variation: 0.15, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.15, glossMin: 0.02, glossMax: 0.15 },
       ao:        { enabled: true, quality: 'high', radius: 20, strength: 1.6, bias: 0.03 },
       normal:    { enabled: true, method: 'scharr', strength: 2.0, fineDetail: true, invertY: false, smoothing: 0.4 },
       cavity:    { enabled: true, radius: 6, strength: 1.8 },
       height:    { enabled: true, source: 'luminance', scale: 10.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: true, materialPath: '' },
     },
   },
   stone: {
@@ -227,11 +272,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.65, detailBoost: 1.5, colorCalibrate: true, seamless: true, seamlessBlend: 0.2 },
       roughness: { enabled: true, base: 0.95, luminanceInfluence: 0.3, variation: 0.2, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.1, glossMin: 0.02, glossMax: 0.12 },
       ao:        { enabled: true, quality: 'high', radius: 24, strength: 1.8, bias: 0.02 },
       normal:    { enabled: true, method: 'scharr', strength: 2.8, fineDetail: true, invertY: false, smoothing: 0.2 },
       cavity:    { enabled: true, radius: 7, strength: 2.0 },
       height:    { enabled: true, source: 'luminance', scale: 12.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: true, materialPath: '' },
     },
   },
   brick: {
@@ -242,11 +287,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.55, detailBoost: 1.3, colorCalibrate: true, seamless: true, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.85, luminanceInfluence: 0.5, variation: 0.25, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.15, glossMin: 0.03, glossMax: 0.18 },
       ao:        { enabled: true, quality: 'high', radius: 18, strength: 2.0, bias: 0.03 },
       normal:    { enabled: true, method: 'scharr', strength: 3.2, fineDetail: true, invertY: false, smoothing: 0.1 },
       cavity:    { enabled: true, radius: 5, strength: 1.5 },
       height:    { enabled: true, source: 'luminance', scale: 14.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: true, materialPath: '' },
     },
   },
   wood_rough: {
@@ -257,11 +302,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.5, detailBoost: 1.4, colorCalibrate: true, seamless: true, seamlessBlend: 0.15 },
       roughness: { enabled: true, base: 0.82, luminanceInfluence: 0.5, variation: 0.3, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.2, glossMin: 0.05, glossMax: 0.25 },
       ao:        { enabled: true, quality: 'medium', radius: 14, strength: 1.4, bias: 0.04 },
       normal:    { enabled: true, method: 'sobel', strength: 2.2, fineDetail: true, invertY: false, smoothing: 0.3 },
       cavity:    { enabled: true, radius: 5, strength: 1.4 },
       height:    { enabled: true, source: 'luminance', scale: 8.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: true, materialPath: '' },
     },
   },
   wood_polished: {
@@ -272,11 +317,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.6, detailBoost: 0.8, colorCalibrate: true, seamless: true, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.45, luminanceInfluence: 0.4, variation: 0.1, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.45, glossMin: 0.3, glossMax: 0.7 },
       ao:        { enabled: true, quality: 'medium', radius: 10, strength: 1.0, bias: 0.04 },
       normal:    { enabled: true, method: 'sobel', strength: 1.4, fineDetail: false, invertY: false, smoothing: 0.5 },
       cavity:    { enabled: true, radius: 3, strength: 0.8 },
       height:    { enabled: false, source: 'luminance', scale: 4.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: true, parallelOcc: false, materialPath: '' },
     },
   },
   fabric: {
@@ -287,11 +332,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.8, detailBoost: 1.2, colorCalibrate: true, seamless: true, seamlessBlend: 0.2 },
       roughness: { enabled: true, base: 0.98, luminanceInfluence: 0.2, variation: 0.08, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.1, glossMin: 0.02, glossMax: 0.1 },
       ao:        { enabled: true, quality: 'medium', radius: 6, strength: 0.9, bias: 0.06 },
       normal:    { enabled: true, method: 'prewitt', strength: 1.2, fineDetail: true, invertY: false, smoothing: 0.8 },
       cavity:    { enabled: true, radius: 2, strength: 0.6 },
       height:    { enabled: false, source: 'luminance', scale: 2.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: false, materialPath: '' },
     },
   },
   organic: {
@@ -302,11 +347,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.75, detailBoost: 1.3, colorCalibrate: true, seamless: true, seamlessBlend: 0.25 },
       roughness: { enabled: true, base: 0.95, luminanceInfluence: 0.35, variation: 0.3, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.1, glossMin: 0.02, glossMax: 0.12 },
       ao:        { enabled: true, quality: 'high', radius: 22, strength: 2.0, bias: 0.02 },
       normal:    { enabled: true, method: 'sobel', strength: 2.4, fineDetail: true, invertY: false, smoothing: 0.3 },
       cavity:    { enabled: true, radius: 6, strength: 1.6 },
       height:    { enabled: true, source: 'luminance', scale: 9.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: true, materialPath: '' },
     },
   },
   painted: {
@@ -317,11 +362,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.5, detailBoost: 1.0, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.6, luminanceInfluence: 0.5, variation: 0.2, invert: false },
       metallic:  { enabled: true, base: 0.1, mode: 'hue_detect', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.35, glossMin: 0.15, glossMax: 0.5 },
       ao:        { enabled: true, quality: 'medium', radius: 10, strength: 1.2, bias: 0.04 },
       normal:    { enabled: true, method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
       cavity:    { enabled: true, radius: 4, strength: 1.0 },
       height:    { enabled: false, source: 'luminance', scale: 4.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: true, parallelOcc: false, materialPath: '' },
     },
   },
   plastic: {
@@ -332,11 +377,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.5, detailBoost: 0.7, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
       roughness: { enabled: true, base: 0.5, luminanceInfluence: 0.3, variation: 0.08, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.4, glossMin: 0.25, glossMax: 0.65 },
       ao:        { enabled: true, quality: 'medium', radius: 8, strength: 0.8, bias: 0.05 },
       normal:    { enabled: true, method: 'sobel', strength: 0.9, fineDetail: false, invertY: false, smoothing: 0.6 },
       cavity:    { enabled: true, radius: 3, strength: 0.7 },
       height:    { enabled: false, source: 'luminance', scale: 3.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: false, materialPath: '' },
     },
   },
   leather: {
@@ -347,11 +392,11 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
       albedo:    { enabled: true, deLighting: true, deLight_strength: 0.6, detailBoost: 1.0, colorCalibrate: true, seamless: true, seamlessBlend: 0.15 },
       roughness: { enabled: true, base: 0.7, luminanceInfluence: 0.4, variation: 0.15, invert: false },
       metallic:  { enabled: true, base: 0.0, mode: 'zero', threshold: 0.5 },
+      specular:  { enabled: true, intensity: 0.3, glossMin: 0.1, glossMax: 0.4 },
       ao:        { enabled: true, quality: 'medium', radius: 10, strength: 1.1, bias: 0.04 },
       normal:    { enabled: true, method: 'scharr', strength: 1.6, fineDetail: true, invertY: false, smoothing: 0.5 },
       cavity:    { enabled: true, radius: 4, strength: 1.2 },
       height:    { enabled: false, source: 'luminance', scale: 4.0, bias: -0.5 },
-      bgsm:      { enabled: true, pbrMode: false, parallelOcc: false, materialPath: '' },
     },
   },
 };
@@ -365,10 +410,10 @@ const DEFAULT_PIPELINE: Pipeline = {
   normal:    { enabled: true,  method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
   roughness: { enabled: true,  base: 0.7, luminanceInfluence: 0.5, variation: 0.15, invert: false },
   metallic:  { enabled: false, base: 0.0, mode: 'zero', threshold: 0.5 },
+  specular:  { enabled: true,  intensity: 0.35, glossMin: 0.1, glossMax: 0.6 },
   ao:        { enabled: true,  quality: 'medium', radius: 12, strength: 1.2, bias: 0.04 },
   cavity:    { enabled: true,  radius: 4, strength: 1.0 },
   height:    { enabled: false, source: 'luminance', scale: 6.0, bias: -0.5 },
-  bgsm:      { enabled: true,  pbrMode: false, parallelOcc: false, materialPath: '' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -462,9 +507,10 @@ function ToggleRow({ label, checked, onChange, disabled }: ToggleRowProps) {
 
 interface JobCardProps {
   job: EnhancementJob;
+  onRate: (jobId: string, outcome: 'kept' | 'discarded', rating?: number) => void;
 }
 
-function JobCard({ job }: JobCardProps) {
+function JobCard({ job, onRate }: JobCardProps) {
   const statusColor = {
     queued: 'text-slate-400',
     analyzing: 'text-blue-400',
@@ -528,6 +574,36 @@ function JobCard({ job }: JobCardProps) {
           ))}
         </div>
       )}
+
+      {/* Learning feedback — teaches the surface preset what actually worked */}
+      {job.status === 'complete' && !job.rated && (
+        <div className="pt-2 border-t border-slate-700 space-y-1.5">
+          <p className="text-xs text-slate-500">Keep this result? Helps tune future defaults for this surface.</p>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map(star => (
+              <button
+                key={star}
+                title={`Rate ${star}/5 and keep`}
+                onClick={() => onRate(job.id, 'kept', star)}
+                className="text-yellow-500/70 hover:text-yellow-400 transition-colors"
+              >
+                <Star size={13} fill="currentColor" />
+              </button>
+            ))}
+            <button
+              onClick={() => onRate(job.id, 'discarded')}
+              className="ml-auto text-xs px-2 py-0.5 rounded bg-slate-700 hover:bg-red-900/40 text-slate-400 hover:text-red-300 transition-colors"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+      {job.rated && (
+        <p className="text-xs text-slate-600 pt-1 border-t border-slate-700">
+          {job.rated === 'kept' ? 'Marked kept — folded into learning.' : 'Marked discarded.'}
+        </p>
+      )}
     </div>
   );
 }
@@ -554,26 +630,76 @@ export default function TextureEnhancer() {
   const [jobs, setJobs] = useState<EnhancementJob[]>([]);
   const [running, setRunning] = useState(false);
 
+  // ── Learning loop ────────────────────────────────────────────────────────
+  const [learnedStats, setLearnedStats] = useState<Record<string, LearnedSurfaceStats>>({});
+  // Mirrors learnedStats without being a dependency of the surface-preset effect
+  // below — stats should only be *applied* when the user deliberately (re)selects
+  // a surface, never silently overwrite sliders mid-session just because a rating
+  // elsewhere refreshed the numbers.
+  const learnedStatsRef = useRef<Record<string, LearnedSurfaceStats>>({});
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Apply preset when surface changes
+  const refreshLearnedStats = useCallback(async () => {
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (!api?.invoke) return;
+    try {
+      const result = await api.invoke('texture-enhancer:get-learned-stats');
+      if (result?.success) {
+        setLearnedStats(result.stats || {});
+        learnedStatsRef.current = result.stats || {};
+      }
+    } catch { /* non-fatal — learning stats are advisory */ }
+  }, []);
+
+  useEffect(() => { refreshLearnedStats(); }, [refreshLearnedStats]);
+
+  // Apply preset when surface changes, then blend in whatever this surface has learned
+  // from past kept/discarded ratings so the starting point improves over time.
   useEffect(() => {
-    if (surface === 'auto') {
-      setPipeline(DEFAULT_PIPELINE);
-      return;
-    }
-    const preset = SURFACE_PRESETS[surface];
-    if (!preset.pipeline) return;
-    setPipeline(prev => {
-      const next = { ...prev };
-      for (const key of Object.keys(preset.pipeline) as Array<keyof Pipeline>) {
-        if (preset.pipeline[key]) {
-          (next[key] as any) = { ...(next[key] as any), ...(preset.pipeline[key] as any) };
+    const baseline = surface === 'auto' ? DEFAULT_PIPELINE : SURFACE_PRESETS[surface].pipeline;
+    const next: Pipeline = JSON.parse(JSON.stringify(DEFAULT_PIPELINE));
+    if (surface !== 'auto' && baseline) {
+      for (const key of Object.keys(baseline) as Array<keyof Pipeline>) {
+        if (baseline[key]) {
+          (next[key] as any) = { ...(next[key] as any), ...(baseline[key] as any) };
         }
       }
-      return next;
-    });
+    }
+    applyLearnedAdjustments(next, learnedStatsRef.current[surface]);
+    setPipeline(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [surface]);
+
+  async function resetLearningForSurface() {
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (!api?.invoke) return;
+    try {
+      await api.invoke('texture-enhancer:reset-learning', { surface });
+      await refreshLearnedStats();
+      toast.success(`Cleared learned data for ${SURFACE_PRESETS[surface].label}.`);
+    } catch (err: any) {
+      toast.error(`Failed to reset learning: ${err?.message ?? err}`);
+    }
+  }
+
+  async function handleRateJob(jobId: string, outcome: 'kept' | 'discarded', rating?: number) {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job || job.rated) return;
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, rated: outcome } : j));
+
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (!api?.invoke) return;
+    try {
+      await api.invoke('texture-enhancer:record-outcome', {
+        surface: job.surface, pipeline: job.pipeline, outcome, rating,
+      });
+      await refreshLearnedStats();
+      toast.success(outcome === 'kept' ? 'Thanks — folded into learning.' : 'Noted as discarded.');
+    } catch (err: any) {
+      toast.error(`Failed to record feedback: ${err?.message ?? err}`);
+    }
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function toggleStageExpand(name: string) {
@@ -644,6 +770,7 @@ export default function TextureEnhancer() {
       currentOp: 'Analysing source texture…',
       startTime: Date.now(),
       outputs: {},
+      pipeline: JSON.parse(JSON.stringify(pipeline)), // snapshot for later learning feedback
     };
 
     setJobs(prev => [newJob, ...prev]);
@@ -707,7 +834,7 @@ export default function TextureEnhancer() {
           </div>
           <div>
             <h2 className="text-sm font-bold text-slate-100">Photo-Realistic Texture Enhancement</h2>
-            <p className="text-xs text-slate-400">Detail extraction · PBR map generation · BGSM output — not an upscaler</p>
+            <p className="text-xs text-slate-400">Detail extraction · PBR map generation — not an upscaler</p>
           </div>
         </div>
       </div>
@@ -764,6 +891,25 @@ export default function TextureEnhancer() {
                 ))}
               </select>
               <p className="text-xs text-slate-500">{SURFACE_PRESETS[surface].description}</p>
+              {learnedStats[surface] && learnedStats[surface].totalSamples > 0 && (
+                <div className="flex items-center gap-1.5 pt-1 border-t border-slate-700">
+                  <GraduationCap size={11} className="text-emerald-400 flex-shrink-0" />
+                  <p className="text-xs text-slate-500 flex-1">
+                    Learned from {learnedStats[surface].totalSamples} rated job{learnedStats[surface].totalSamples === 1 ? '' : 's'}
+                    {' '}({learnedStats[surface].keptSamples} kept)
+                    {Object.keys(learnedStats[surface].params).length > 0
+                      ? ` — ${Object.keys(learnedStats[surface].params).length} setting${Object.keys(learnedStats[surface].params).length === 1 ? '' : 's'} auto-tuned`
+                      : ' — not enough kept samples yet to auto-tune'}
+                  </p>
+                  <button
+                    onClick={resetLearningForSurface}
+                    title="Reset learned data for this surface"
+                    className="text-slate-600 hover:text-red-400 transition-colors flex-shrink-0"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Quality + format */}
@@ -873,6 +1019,21 @@ export default function TextureEnhancer() {
                 )}
               </div>
 
+              {/* Specular */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2">
+                <StageHeader icon={<Flame size={12} />} title="Specular Map" subtitle="RGB tint + alpha gloss — FO4's primary shine slot"
+                  enabled={pipeline.specular.enabled} expanded={expandedStages.has('specular')}
+                  onToggleEnabled={() => toggleStageEnabled('specular')} onToggleExpanded={() => toggleStageExpand('specular')} />
+                {expandedStages.has('specular') && pipeline.specular.enabled && (
+                  <div className="pt-2 space-y-2 border-t border-slate-700">
+                    <Slider label="Specular intensity" value={pipeline.specular.intensity} min={0} max={1} step={0.01} onChange={v => updateStage('specular', { intensity: v })} />
+                    <Slider label="Gloss (min)" value={pipeline.specular.glossMin} min={0} max={1} step={0.01} onChange={v => updateStage('specular', { glossMin: v })} />
+                    <Slider label="Gloss (max)" value={pipeline.specular.glossMax} min={0} max={1} step={0.01} onChange={v => updateStage('specular', { glossMax: v })} />
+                    <p className="text-xs text-slate-600">FO4's vanilla shader reads this texture for both specular color and smoothness — required for a complete material.</p>
+                  </div>
+                )}
+              </div>
+
               {/* AO */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2">
                 <StageHeader icon={<Cpu size={12} />} title="Ambient Occlusion" subtitle="Normal-derived SSAO estimate"
@@ -931,28 +1092,6 @@ export default function TextureEnhancer() {
                   </div>
                 )}
               </div>
-
-              {/* BGSM */}
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2">
-                <StageHeader icon={<Box size={12} />} title="BGSM Generation" subtitle="Auto-generate .bgsm pointing at all outputs"
-                  enabled={pipeline.bgsm.enabled} expanded={expandedStages.has('bgsm')}
-                  onToggleEnabled={() => toggleStageEnabled('bgsm')} onToggleExpanded={() => toggleStageExpand('bgsm')} />
-                {expandedStages.has('bgsm') && pipeline.bgsm.enabled && (
-                  <div className="pt-2 space-y-2 border-t border-slate-700">
-                    <ToggleRow label="PBR mode (Community Shaders)" checked={pipeline.bgsm.pbrMode} onChange={v => updateStage('bgsm', { pbrMode: v })} />
-                    <ToggleRow label="Parallax Occlusion (requires height)" checked={pipeline.bgsm.parallelOcc} disabled={!pipeline.height.enabled} onChange={v => updateStage('bgsm', { parallelOcc: v })} />
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-1">Output path in Data/Materials/</label>
-                      <input
-                        value={pipeline.bgsm.materialPath}
-                        onChange={e => updateStage('bgsm', { materialPath: e.target.value })}
-                        placeholder="e.g. actor/character/skin"
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-green-500"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
@@ -975,7 +1114,7 @@ export default function TextureEnhancer() {
           <div className="flex-shrink-0 px-4 py-2 border-b border-slate-700/60 bg-slate-800/50 flex items-center gap-3">
             <Info size={12} className="text-slate-500 flex-shrink-0" />
             <p className="text-xs text-slate-500">
-              Outputs: <span className="text-slate-400">_d (Albedo)</span> · <span className="text-slate-400">_n (Normal BC5)</span> · <span className="text-slate-400">_s (Roughness)</span> · <span className="text-slate-400">_g (Metallic)</span> · <span className="text-slate-400">_ao (AO BC4)</span> · <span className="text-slate-400">_h (Height BC4)</span> · <span className="text-slate-400">.bgsm</span>
+              Outputs: <span className="text-slate-400">_d (Albedo)</span> · <span className="text-slate-400">_n (Normal BC5)</span> · <span className="text-slate-400">_s (Specular)</span> · <span className="text-slate-400">_rough/_metal (PBR aux)</span> · <span className="text-slate-400">_ao (AO BC4)</span> · <span className="text-slate-400">_h (Height BC4)</span>
             </p>
           </div>
 
@@ -991,7 +1130,7 @@ export default function TextureEnhancer() {
               </div>
             ) : (
               <div className="space-y-3">
-                {jobs.map(job => <JobCard key={job.id} job={job} />)}
+                {jobs.map(job => <JobCard key={job.id} job={job} onRate={handleRateJob} />)}
               </div>
             )}
           </div>
@@ -1001,12 +1140,13 @@ export default function TextureEnhancer() {
             <p className="text-xs font-semibold text-slate-400 mb-2">FO4 Output Format Guide</p>
             <div className="grid grid-cols-3 gap-1.5">
               {[
-                { map: 'Albedo (_d)', fmt: 'BC1/BC3', note: 'Opaque / Alpha' },
-                { map: 'Normal (_n)', fmt: 'BC5',     note: 'DX convention' },
-                { map: 'Roughness (_s)', fmt: 'BC7',  note: 'Specular pack' },
-                { map: 'Metallic (_g)', fmt: 'BC7',   note: 'PBR metalness' },
-                { map: 'AO (_ao)', fmt: 'BC4',        note: 'Single channel' },
-                { map: 'Height (_h)', fmt: 'BC4',     note: 'POM parallax' },
+                { map: 'Albedo (diffuse)', fmt: 'BC1/BC3', note: 'Opaque / Alpha' },
+                { map: 'Normal', fmt: 'BC5',     note: 'DX convention' },
+                { map: 'Specular', fmt: 'BC7',  note: 'RGB tint + gloss alpha' },
+                { map: 'Roughness', fmt: 'BC7',  note: 'PBR mode only' },
+                { map: 'Metallic', fmt: 'BC7',   note: 'PBR mode only' },
+                { map: 'AO', fmt: 'BC4',        note: 'Single channel' },
+                { map: 'Height', fmt: 'BC4',     note: 'POM parallax' },
               ].map(({ map, fmt, note }) => (
                 <div key={map} className="bg-slate-800 border border-slate-700 rounded px-2 py-1.5">
                   <p className="text-xs font-medium text-slate-300">{map}</p>

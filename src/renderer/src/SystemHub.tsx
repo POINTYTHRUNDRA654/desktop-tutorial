@@ -1,5 +1,6 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Container, Coffee, Gauge, ShieldCheck, Wrench, Save, Eye, BotMessageSquare } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const DiagnosticsHub = React.lazy(() => import('./DiagnosticsHub'));
 const LocalCapabilities = React.lazy(() => import('./LocalCapabilities'));
@@ -18,27 +19,36 @@ const KoboldSetup = React.lazy(() =>
 
 type SystemTab = 'diagnostics' | 'capabilities' | 'security' | 'vault' | 'support' | 'backup' | 'watcher' | 'local-ai';
 
-const tabs: Array<{ id: SystemTab; label: string; sublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'diagnostics', label: 'Diagnostics', sublabel: 'Troubleshoot tools', icon: Wrench },
-  { id: 'capabilities', label: 'Capabilities', sublabel: 'Local AI/runtime', icon: Gauge },
-  { id: 'local-ai', label: 'Local AI Engine', sublabel: 'KoboldCPP + models', icon: BotMessageSquare },
-  { id: 'security', label: 'Whitelist & Blacklist', sublabel: 'Safety rules', icon: ShieldCheck },
-  { id: 'vault', label: 'Asset Vault', sublabel: 'Manifest + verification', icon: Container },
-  { id: 'support', label: 'Support Mossy', sublabel: 'Support links', icon: Coffee },
-  { id: 'backup', label: 'Backup Manager', sublabel: 'Snapshots & git', icon: Save },
-  { id: 'watcher', label: 'File Watcher', sublabel: 'Live file tracking', icon: Eye },
+const TAB_META: Array<{ id: SystemTab; key: string; fallbackLabel: string; fallbackSublabel: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'diagnostics', key: 'diagnostics', fallbackLabel: 'Diagnostics', fallbackSublabel: 'Troubleshoot tools', icon: Wrench },
+  { id: 'capabilities', key: 'capabilities', fallbackLabel: 'Capabilities', fallbackSublabel: 'Local AI/runtime', icon: Gauge },
+  { id: 'local-ai', key: 'localAi', fallbackLabel: 'Local AI Engine', fallbackSublabel: 'KoboldCPP + models', icon: BotMessageSquare },
+  { id: 'security', key: 'security', fallbackLabel: 'Whitelist & Blacklist', fallbackSublabel: 'Safety rules', icon: ShieldCheck },
+  { id: 'vault', key: 'vault', fallbackLabel: 'Asset Vault', fallbackSublabel: 'Manifest + verification', icon: Container },
+  { id: 'support', key: 'support', fallbackLabel: 'Support Mossy', fallbackSublabel: 'Support links', icon: Coffee },
+  { id: 'backup', key: 'backup', fallbackLabel: 'Backup Manager', fallbackSublabel: 'Snapshots & git', icon: Save },
+  { id: 'watcher', key: 'watcher', fallbackLabel: 'File Watcher', fallbackSublabel: 'Live file tracking', icon: Eye },
 ];
 
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading…</div>}>
-    {children}
-  </Suspense>
-);
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64 text-slate-400 text-sm">{t('common.loading', 'Loading…')}</div>}>
+      {children}
+    </Suspense>
+  );
+};
 
 const SystemHub: React.FC = () => {
+  const { t } = useI18n();
+  const tabs = TAB_META.map((tab) => ({
+    ...tab,
+    label: t(`systemHub.tabs.${tab.key}.label`, tab.fallbackLabel),
+    sublabel: t(`systemHub.tabs.${tab.key}.sublabel`, tab.fallbackSublabel),
+  }));
   const [activeTab, setActiveTab] = useState<SystemTab>(() => {
     const saved = sessionStorage.getItem('system_hub_tab') as SystemTab | null;
-    return (saved && tabs.some((t) => t.id === saved)) ? saved : 'diagnostics';
+    return (saved && TAB_META.some((tab) => tab.id === saved)) ? saved : 'diagnostics';
   });
 
   useEffect(() => {
@@ -60,8 +70,8 @@ const SystemHub: React.FC = () => {
   return (
     <div className="h-full flex flex-col bg-[#0a0e0a] overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-slate-800/60">
-        <h1 className="text-xl font-black text-white tracking-tight">FO4 System &amp; Diagnostics Hub</h1>
-        <p className="text-xs text-slate-400 mt-1">Diagnostics · Capabilities · Local AI Engine · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher</p>
+        <h1 className="text-xl font-black text-white tracking-tight">{t('systemHub.title', 'FO4 System & Diagnostics Hub')}</h1>
+        <p className="text-xs text-slate-400 mt-1">{t('systemHub.subtitle', 'Diagnostics · Capabilities · Local AI Engine · Whitelist & Blacklist · Asset Vault · Support · Backup Manager · File Watcher')}</p>
         <div className="flex gap-1 mt-4 overflow-x-auto">
           {tabs.map((tab, idx) => (
             <button

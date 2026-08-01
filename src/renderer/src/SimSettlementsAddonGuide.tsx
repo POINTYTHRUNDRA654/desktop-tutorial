@@ -474,6 +474,18 @@ export default function SimSettlementsAddonGuide({ embedded = false }: SimSettle
         </div>
       )}
 
+      <div className="mb-6 rounded-lg border-2 border-red-500 bg-red-950/40 p-4 flex items-start gap-3">
+        <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-black text-red-300 uppercase tracking-wide">Sim Settlements 2 does not allow AI-created content</p>
+          <p className="text-xs text-red-200/90 mt-1">
+            The Sim Settlements 2 team does not accept addons or content created with AI tools, including Mossy, for submission.
+            This guide is provided as general Fallout 4 modding education only — do not submit anything built with Mossy's
+            help as an official SS2 addon. Verify the current policy directly with the SS2 team/Discord before publishing anything.
+          </p>
+        </div>
+      </div>
+
       <ToolsInstallVerifyPanel
         accentClassName="text-emerald-300"
         description="Use this page as a quick-start map. The safest first win is: CK loads SS2 masters → compile one script → ship one tiny record → test in-game."

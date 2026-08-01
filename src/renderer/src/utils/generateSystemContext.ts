@@ -167,6 +167,8 @@ export async function generateSystemContextFromStorage(query?: string): Promise<
                         (s.outfitStudioPath ? `- Outfit Studio: ${s.outfitStudioPath}\n` : "") +
                         (s.creationKitPath ? `- Creation Kit: ${s.creationKitPath}\n` : "") +
                         (s.nifSkopePath ? `- NifSkope: ${s.nifSkopePath}\n` : "") +
+                        (s.sniffPath ? `- Sniff (NIF batch patcher): ${s.sniffPath}\n` : "") +
+                        (s.caoPath ? `- Cathedral Assets Optimizer (BSA/BA2 packing & optimization): ${s.caoPath}\n` : "") +
                         (s.blenderPath ? `- Blender: ${s.blenderPath}\n` : "");
                 }
             }

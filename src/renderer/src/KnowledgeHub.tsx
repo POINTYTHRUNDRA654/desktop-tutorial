@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { Book, Bot, GitBranch, Package, Database } from 'lucide-react';
+import { useI18n } from './i18n';
 
 const QuickReference = React.lazy(() =>
   import('./QuickReference').then((m) => ({ default: m.QuickReference }))
@@ -20,32 +21,41 @@ const AnythingLLMSearch = React.lazy(() => import('./AnythingLLMSearch'));
 
 type HubTab = 'reference' | 'search' | 'community' | 'vanilla' | 'rag';
 
-const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
-  { id: 'reference', icon: Book, label: 'Quick Reference', sublabel: 'Papyrus · FormIDs · Hotkeys' },
-  { id: 'search', icon: Bot, label: 'Knowledge Search', sublabel: 'Semantic search · Ollama' },
-  { id: 'community', icon: GitBranch, label: 'Community Learning', sublabel: 'Tips · Shared knowledge' },
-  { id: 'vanilla', icon: Package, label: 'Vanilla Assets', sublabel: 'Browse · Copy · Reference' },
-  { id: 'rag', icon: Database, label: 'RAG Search', sublabel: 'AnythingLLM · Vector DB' },
+const TAB_META: { id: HubTab; key: string; icon: React.ComponentType<{ className?: string }>; fallbackLabel: string; fallbackSublabel: string }[] = [
+  { id: 'reference', key: 'reference', icon: Book, fallbackLabel: 'Quick Reference', fallbackSublabel: 'Papyrus · FormIDs · Hotkeys' },
+  { id: 'search', key: 'search', icon: Bot, fallbackLabel: 'Knowledge Search', fallbackSublabel: 'Semantic search · Ollama' },
+  { id: 'community', key: 'community', icon: GitBranch, fallbackLabel: 'Community Learning', fallbackSublabel: 'Tips · Shared knowledge' },
+  { id: 'vanilla', key: 'vanilla', icon: Package, fallbackLabel: 'Vanilla Assets', fallbackSublabel: 'Browse · Copy · Reference' },
+  { id: 'rag', key: 'rag', icon: Database, fallbackLabel: 'RAG Search', fallbackSublabel: 'AnythingLLM · Vector DB' },
 ];
 
-const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Suspense
-    fallback={
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">Loading…</div>
-    }
-  >
-    {children}
-  </Suspense>
-);
+const PanelLoader: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useI18n();
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64 text-slate-400 text-sm">{t('common.loading', 'Loading…')}</div>
+      }
+    >
+      {children}
+    </Suspense>
+  );
+};
 
 const KnowledgeHub: React.FC = () => {
+  const { t } = useI18n();
+  const TAB_DEFS = TAB_META.map((tab) => ({
+    ...tab,
+    label: t(`knowledgeHub.tabs.${tab.key}.label`, tab.fallbackLabel),
+    sublabel: t(`knowledgeHub.tabs.${tab.key}.sublabel`, tab.fallbackSublabel),
+  }));
   const [activeTab, setActiveTab] = useState<HubTab>('reference');
   const tabStorageKey = 'knowledge_hub_tab';
 
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(tabStorageKey) as HubTab | null;
-      if (saved && TAB_DEFS.some((t) => t.id === saved)) setActiveTab(saved);
+      if (saved && TAB_DEFS.some((tab) => tab.id === saved)) setActiveTab(saved);
     } catch {
       // ignore storage access failures in restricted environments
     }
@@ -80,8 +90,8 @@ const KnowledgeHub: React.FC = () => {
             <Book className="h-5 w-5 text-emerald-300" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">FO4 Knowledge Hub</h1>
-            <p className="text-xs text-slate-400">Quick Reference · Semantic Search · Community Learning · Vanilla Assets</p>
+            <h1 className="text-xl font-black text-white tracking-tight">{t('knowledgeHub.title', 'FO4 Knowledge Hub')}</h1>
+            <p className="text-xs text-slate-400">{t('knowledgeHub.subtitle', 'Quick Reference · Semantic Search · Community Learning · Vanilla Assets')}</p>
           </div>
         </div>
 

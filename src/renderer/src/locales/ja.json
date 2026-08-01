@@ -134,7 +134,47 @@
       },
       "credits": {
         "title": "クレジットと謝辞",
-        "desc": "Mossyを動かすオープンソースプロジェクトとツールを表示する。"
+        "desc": "Mossyを動かすオープンソースプロジェクトとツールを表示する。",
+        "builtWithLove": "素晴らしいオープンソースソフトウェアの上に愛を込めて作られました",
+        "intro": "Mossyは巨人の肩の上に立っています。あなたが使用するすべての機能は、献身的な開発者と活気あるコミュニティによって支えられています。すべてのツールとフレームワークの完全な検索可能なクレジット、ライセンス、帰属情報を見るには下記をクリックしてください。",
+        "viewFull": "完全なクレジット＆ライセンスを見る",
+        "coreFramework": "コアフレームワーク",
+        "electron": "クロスプラットフォームデスクトップフレームワーク（MIT）",
+        "react": "MetaによるUIライブラリ（MIT）",
+        "typescript": "MicrosoftによるTypedJavaScript（Apache 2.0）",
+        "vite": "次世代ビルドツール（MIT）",
+        "aiMl": "AI・機械学習",
+        "groq": "高速LLM推論（Apache 2.0）",
+        "openaiSdk": "ChatGPT連携（Apache 2.0）",
+        "ollama": "ローカルLLMランタイム（MIT）",
+        "pytorch": "Metaによる機械学習フレームワーク（BSD）",
+        "numpy": "数値計算（BSD 3-Clause）",
+        "krea": "AI画像・動画・3D生成（商用 / krea.ai）",
+        "uiDesign": "UI・デザイン",
+        "tailwind": "ユーティリティファーストCSS（MIT）",
+        "lucide": "アイコンライブラリ（ISC）",
+        "reactMarkdown": "Markdownレンダラー（MIT）",
+        "recharts": "チャートライブラリ（MIT）",
+        "moddingTools": "MOD制作ツール（別途ダウンロード）",
+        "blender": "3Dモデリング（GPL 2.0）",
+        "pynifly": "BadDogSkyrimによるBlender用NIFインポート/エクスポート（MIT）",
+        "xedit": "ElminsterAUによるプラグインエディター（GPL 2.0）",
+        "creationKit": "Bethesda公式MOD制作ツール",
+        "nifskope": "hexabitsによるNIFメッシュ・テクスチャビューアー（GPL 3.0）",
+        "mo2": "Tannin42／MO2チームによるMODマネージャー（GPL 3.0）",
+        "vortex": "Nexus ModsによるMODマネージャー",
+        "f4se": "ianpattとbehippoによるFallout 4 Script Extender",
+        "loot": "ロードオーダー最適化ツール（GPL 3.0）",
+        "bodyslide": "ousniusとCalienteによるボディモーフィング（MIT）",
+        "bae": "jonwd7によるBethesda Archive Extractor",
+        "gimp": "GNU画像編集プログラム（GPL 3.0）",
+        "umodel": "GildorによるUnreal Engineアセットビューアー",
+        "andMore": "…その他100以上の依存関係。クリックすると",
+        "andMoreSuffix": "上記でバージョン番号とライセンスリンク付きの完全な検索可能リストが表示されます。",
+        "licenseCompliance": "ライセンス遵守",
+        "complianceIntro": "Mossyはすべてのオープンソースライセンスを尊重します。透明性と帰属表示のため、LICENSEおよびCREDITS.mdファイルはインストールフォルダーとこのアプリバンドルに含まれています。",
+        "foundIssue": "ライセンスの問題を見つけましたか？",
+        "reportGithub": "GitHubで報告する"
       },
       "internet": {
         "description": "Mossyが使用するすべての検索プロバイダーを調査し、現在到達可能なものを表示します。",
@@ -147,6 +187,18 @@
         "empty": "空",
         "troubleshootTitle": "DNSの失敗のトラブルシューティング：",
         "sampleResultFrom": "サンプル結果（提供元："
+      },
+      "step3c": {
+        "title": "ステップ3c：AnythingLLM — RAGナレッジエンジン",
+        "desc": "Memory VaultとKnowledge Hubのセマンティック検索のためのベクトルベースのドキュメント検索。"
+      },
+      "support": {
+        "title": "開発者を支援する",
+        "desc": "Mossy.SpaceとFO4 Advanced AIプロジェクトを存続させるためにご協力ください。",
+        "intro": "Mossy.Spaceは情熱に基づく無料のプロジェクトです。あなたのMOD制作ワークフローに役立った場合は、継続的な開発を支援することをご検討ください — すべての貢献がプロジェクトの継続に役立ちます。",
+        "patreonDesc": "月額メンバーシップと限定アップデート",
+        "coffeeDesc": "一回限りのチップ、金額は自由",
+        "thankYou": "Mossy.Spaceをご利用いただきありがとうございます。あなたのサポートがすべてです。"
       }
     }
   },
@@ -295,5 +347,593 @@
     "tutorTip": "チューターのヒント",
     "openLastLocation": "最後の場所を開く",
     "openLastLocationTitle": "(オプション)利用可能な場合は最後に保存した場所を開く"
+  },
+  "common": {
+    "loading": "読み込み中…",
+    "loadingModule": "モジュールを読み込み中…"
+  },
+  "journeyHub": {
+    "title": "FO4 モッドジャーニーハブ",
+    "subtitle": "はじめての成功 · MODプロジェクト · ロードマップ · MODブラウザ",
+    "tabs": {
+      "firstSuccess": {
+        "label": "はじめての成功",
+        "sublabel": "導入時の成果"
+      },
+      "projects": {
+        "label": "MODプロジェクト",
+        "sublabel": "プロジェクト作業スペース"
+      },
+      "roadmaps": {
+        "label": "ロードマップ",
+        "sublabel": "進行計画"
+      },
+      "mods": {
+        "label": "MODブラウザ",
+        "sublabel": "MODを探す"
+      }
+    }
+  },
+  "systemHub": {
+    "title": "FO4 システム＆診断ハブ",
+    "subtitle": "診断 · 機能 · ローカルAIエンジン · ホワイトリスト＆ブラックリスト · アセットボールト · サポート · バックアップマネージャー · ファイルウォッチャー",
+    "tabs": {
+      "diagnostics": {
+        "label": "診断",
+        "sublabel": "ツールのトラブルシューティング"
+      },
+      "capabilities": {
+        "label": "機能",
+        "sublabel": "ローカルAI/ランタイム"
+      },
+      "localAi": {
+        "label": "ローカルAIエンジン",
+        "sublabel": "KoboldCPP + モデル"
+      },
+      "security": {
+        "label": "ホワイトリスト＆ブラックリスト",
+        "sublabel": "安全ルール"
+      },
+      "vault": {
+        "label": "アセットボールト",
+        "sublabel": "マニフェスト＋検証"
+      },
+      "support": {
+        "label": "Mossyを支援",
+        "sublabel": "サポートリンク"
+      },
+      "backup": {
+        "label": "バックアップマネージャー",
+        "sublabel": "スナップショット＆git"
+      },
+      "watcher": {
+        "label": "ファイルウォッチャー",
+        "sublabel": "リアルタイム追跡"
+      }
+    }
+  },
+  "knowledgeHub": {
+    "title": "FO4 ナレッジハブ",
+    "subtitle": "クイックリファレンス · セマンティック検索 · コミュニティ学習 · バニラアセット",
+    "tabs": {
+      "reference": {
+        "label": "クイックリファレンス",
+        "sublabel": "Papyrus · FormID · ショートカット"
+      },
+      "search": {
+        "label": "ナレッジ検索",
+        "sublabel": "セマンティック検索 · Ollama"
+      },
+      "community": {
+        "label": "コミュニティ学習",
+        "sublabel": "ヒント · 共有知識"
+      },
+      "vanilla": {
+        "label": "バニラアセット",
+        "sublabel": "閲覧 · コピー · 参照"
+      },
+      "rag": {
+        "label": "RAG検索",
+        "sublabel": "AnythingLLM · ベクトルDB"
+      }
+    }
+  },
+  "whatsNew": {
+    "backToMossy": "Mossyに戻る",
+    "eyebrow": "FO4 リリースノート",
+    "title": "Mossyの FO4 新機能",
+    "versionLine": "v{version} — このリリースにおける Fallout 4 MOD関連の更新内容。",
+    "fallbackNotice": "フォールバック通知",
+    "fallbackText": "現在のバージョン {requested} には専用の変更履歴セクションがまだありません。{resolved} の最新の利用可能なノートを表示しています。",
+    "unknownVersion": "不明なバージョン",
+    "highlights": "ハイライト",
+    "updated": "更新済み",
+    "loadingChangelog": "変更履歴を読み込み中...",
+    "noHighlights": "このビルドではまだ変更ハイライトが利用できません。",
+    "releaseHighlights": "リリースハイライト",
+    "workflowTips": "FO4 ワークフローのヒント",
+    "tip1": "サイドバーを使ってFO4の各ハブ（CK、プラグイン、アセット、ランタイム、パッケージング）にすばやく移動できます。",
+    "tip2": "Ctrl+K を押すと、Fallout 4 のワークフローに応じてルート、ハブ、ツールを検索できます。",
+    "tip3": "更新後は、MODビルドを公開する前にいつもの検証手順（ロード順序、アセット、パッケージング）を実行してください。",
+    "stayInLoop": "最新情報をチェック",
+    "stayInLoopText": "新しいリリースはワークフローを妨げることなく、こちらに表示されます。このページはサイドバーからいつでも再訪できます。",
+    "dontAutoOpen": "このページを今後自動的に開かない",
+    "continueToDashboard": "ダッシュボードに進む"
+  },
+  "modBuilderHub": {
+    "title": "FO4 MODビルダーハブ",
+    "subtitle": "Blueprint · Workshop · Devtools · Scribe — Fallout 4 MOD作成の完全なワークフロー",
+    "keysHint": "キー 1–5 · タブをドラッグして並べ替え",
+    "tabTitle": "{label}（キー {key}）— ドラッグして並べ替え",
+    "tabs": {
+      "blueprint": {
+        "label": "Blueprint",
+        "sublabel": "MODアーキテクチャプランナー"
+      },
+      "workshop": {
+        "label": "Workshop",
+        "sublabel": "ファイルブラウザ · コンパイル"
+      },
+      "devtools": {
+        "label": "Devtools",
+        "sublabel": "Papyrus · xEdit · スニペット"
+      },
+      "scribe": {
+        "label": "Scribe",
+        "sublabel": "ドキュメント生成"
+      },
+      "creator": {
+        "label": "プロジェクトクリエーター",
+        "sublabel": "新しいMODの雛形"
+      }
+    }
+  },
+  "runtimeHub": {
+    "title": "FO4 ランタイムハブ",
+    "subtitle": "Live Synapse · Desktop Bridge · Holodeckテストワークフロー",
+    "bridgeOnline": "Bridge オンライン",
+    "bridgeOffline": "Bridge オフライン",
+    "aiActive": "AI アクティブ",
+    "aiPartial": "AI 部分稼働",
+    "aiRelay": "AI リレー",
+    "aiOffline": "AI オフライン",
+    "blenderLinked": "Blender 接続済み",
+    "tabs": {
+      "live": {
+        "label": "Live Synapse",
+        "sublabel": "音声＋リアルタイム支援"
+      },
+      "bridge": {
+        "label": "Desktop Bridge",
+        "sublabel": "アプリ連携"
+      },
+      "testing": {
+        "label": "Holodeck",
+        "sublabel": "シナリオテスト"
+      }
+    }
+  },
+  "packagingHub": {
+    "eyebrow": "Mossy チューター • パッケージング",
+    "title": "FO4 パッケージング＆リリースハブ",
+    "subtitle": "パッケージング、コンフリクト分析、比較、FOMODインストーラー、リリースの完全なワークフロー。最良の結果を得るには手順通りに進めてください。",
+    "workflowProgress": "ワークフロー進捗",
+    "stepsVisited": "{visited} / {total} ステップ訪問済み",
+    "flowTitle": "フロー（順番に読む）",
+    "flow1": "BA2アーカイブを管理する（パック、抽出、マージ）",
+    "flow2": "パッケージングチェックリストを実行",
+    "flow3": "他のMODとのコンフリクトを確認",
+    "flow4": "互換性のため類似MODと比較",
+    "flow5": "FOMODインストーラーを構築",
+    "flow6": "エクスポートし、リリースノートを書いて公開",
+    "stepPill": "ステップ {step}：{title}",
+    "advancedTools": "高度なツール",
+    "visited": "訪問済み",
+    "sections": {
+      "ba2": {
+        "title": "ステップ0：BA2アーカイブマネージャー",
+        "shortTitle": "BA2アーカイブマネージャー",
+        "desc": "パッケージング前にBA2アーカイブを一覧表示、抽出、パック、マージします。"
+      },
+      "checklist": {
+        "title": "ステップ1：パッケージングチェックリスト",
+        "shortTitle": "パッケージングチェックリスト",
+        "desc": "パス、アーカイブ、プラグインの健全性、リリース準備状況を確認します。"
+      },
+      "conflicts": {
+        "title": "ステップ2：コンフリクト分析",
+        "shortTitle": "コンフリクト分析",
+        "desc": "あなたのMODと他のMODとのレコードコンフリクトを可視化します。"
+      },
+      "comparison": {
+        "title": "ステップ3：MOD比較",
+        "shortTitle": "MOD比較",
+        "desc": "互換性を確認するため、あなたのMODを類似のMODと比較します。"
+      },
+      "assembler": {
+        "title": "ステップ4：FOMODインストーラー（アセンブラー）",
+        "shortTitle": "FOMODインストーラー（アセンブラー）",
+        "desc": "リリースパッケージ用のFOMODインストーラーを構築してエクスポートします。"
+      },
+      "export": {
+        "title": "ステップ5：エクスポート＆リリース",
+        "shortTitle": "エクスポート＆リリース",
+        "desc": "リリースzipを構築し、リリースノートを書き、NexusまたはBethesda.netに公開します。"
+      },
+      "conflictResolver": {
+        "title": "コンフリクトリゾルバー",
+        "desc": "プラグインのレコードコンフリクトを解決し、パッチの推奨事項を生成します。"
+      },
+      "conflictGraph": {
+        "title": "コンフリクト依存関係グラフ",
+        "desc": "MODのコンフリクト関係をインタラクティブな依存関係グラフとして可視化します。"
+      },
+      "bethelUploader": {
+        "title": "MOD自動エンハンサー",
+        "desc": "MODをドラッグすると自動的にテクスチャを強化し、強化済みパッケージをダウンロードします — これはローカルパイプラインであり、Bethesda.netアップローダーではありません。"
+      }
+    }
+  },
+  "automationOrchestrator": {
+    "title": "FO4 自動化オーケストレーター",
+    "running": "実行中",
+    "stopped": "停止中",
+    "refreshTooltip": "更新",
+    "resetStatsTooltip": "すべての実行統計をリセット",
+    "stopEngine": "エンジンを停止",
+    "startEngine": "エンジンを開始",
+    "stats": {
+      "rulesActive": {
+        "label": "アクティブなルール",
+        "sub": "有効 / 合計"
+      },
+      "fileWatchers": {
+        "label": "ファイル監視",
+        "sub": "監視中のパス"
+      },
+      "intervals": {
+        "label": "インターバル",
+        "sub": "プロセス＋スケジュール"
+      },
+      "totalRuns": {
+        "label": "総実行回数",
+        "sub": "前回のリセット以降"
+      }
+    },
+    "tabs": {
+      "rules": "ルール（{n}）",
+      "activity": "アクティビティ"
+    },
+    "triggers": {
+      "file-change": "ファイル監視",
+      "process-start": "プロセス開始",
+      "process-stop": "プロセス停止",
+      "schedule": "スケジュール",
+      "manual": "手動"
+    },
+    "actions": {
+      "scan-conflicts": "コンフリクトスキャン",
+      "scan-duplicates": "重複スキャン",
+      "validate-load-order": "ロードオーダー検証",
+      "compile-papyrus": "Papyrusコンパイル",
+      "pack-ba2": "BA2パック",
+      "validate-hkx": "HKX検証",
+      "start-log-monitor": "ログモニター",
+      "track-ck-session": "CKセッショントラッカー",
+      "validate-f4se": "F4SE検証",
+      "nightly-backup": "夜間バックアップ",
+      "run-maintenance": "毎日のメンテナンス",
+      "sync-cosmos-pipeline": "Cosmosパイプライン同期"
+    },
+    "showingDisabled": "無効なものを表示",
+    "hidingDisabled": "無効なものを非表示",
+    "lastRefresh": "最終更新：{time}",
+    "noRulesMatch": "現在のフィルターに一致するルールはありません。",
+    "engineSchedules": "エンジンスケジュール",
+    "dailyMaintenance": "毎日のメンテナンス：",
+    "weeklyDeepScan": "毎週の詳細スキャン：",
+    "off": "オフ",
+    "liveFeedHint": "ライブフィード — ルールがここでリアルタイムにイベントを発生させます。最大{max}件保持されます。",
+    "clear": "クリア",
+    "loadingEngine": "自動化エンジンを読み込み中…",
+    "apiUnavailable": "自動化APIが利用できません — パッケージ化されたアプリを実行していることを確認してください。",
+    "activityEmpty": "まだアクティビティはありません — ルールが発火するとここにイベントが表示されます。",
+    "manualTag": "手動",
+    "scheduledTag": "スケジュール済み",
+    "runsCount": "{n}回実行",
+    "triggerManually": "手動でトリガー",
+    "disableRule": "ルールを無効化",
+    "enableRule": "ルールを有効化",
+    "never": "なし",
+    "justNow": "たった今",
+    "minutesAgo": "{m}分前",
+    "hoursAgo": "{h}時間前",
+    "daysAgo": "{d}日前",
+    "filters": {
+      "all": "すべてのトリガー"
+    }
+  },
+  "externalToolsHub": {
+    "title": "FO4 外部連携ハブ",
+    "subtitle": "MO2・ComfyUI・Upscayl ワークフローとツール自動接続",
+    "tabs": {
+      "mo2": {
+        "label": "MO2連携",
+        "sublabel": "Mod Organizer 2"
+      },
+      "comfyui": {
+        "label": "ComfyUI",
+        "sublabel": "AI画像生成"
+      },
+      "upscayl": {
+        "label": "Upscayl",
+        "sublabel": "AIアップスケーリング"
+      }
+    },
+    "toolInfo": {
+      "mo2": {
+        "desc": "Fallout 4の業界標準MODマネージャー。MossyはあなたのMO2プロファイルを読み取り、アクティブなMODリストとロードオーダーを把握します。インストール：Nexus Mod Managerページまたは公式GitHub。",
+        "tips": {
+          "0": "異なるプレイスルーやテスト構成には別々のMO2プロファイルを使用してください。",
+          "1": "MO2の設定で「Manageable」モードを有効にすると、Mossyがアクティブなプラグインリストを読み取れるようになります。",
+          "2": "MO2の仮想ファイルシステム（VFS）はゲームに対して透過的です — MO2内のファイル上書き順序はロードオーダーの優先順位と一致します。",
+          "3": "MO2の「Conflicts」タブを使用すると、プラグインレベルのコンフリクトの前にファイルレベルのアセットコンフリクトを確認できます。"
+        }
+      },
+      "comfyui": {
+        "desc": "ノードベースのAI画像生成。MOD用のコンセプトアート、テクスチャリファレンス、NPCポートレート、宣伝用アートワークの作成に使用します。少なくとも6GBのVRAMを搭載したGPUが必要です。",
+        "tips": {
+          "0": "ComfyUIのimg2imgワークフローを使用して、既存のゲーム内スクリーンショットからテクスチャバリエーションを生成します。",
+          "1": "ControlNetのポーズ条件付けは、FO4のスケルトン比率に合った正確なキャラクターリファレンスアートの作成に役立ちます。",
+          "2": "テクスチャ用途にはAI生成アートを最低4096x4096でエクスポートし、その後Textures & Materialsハブでダウンスケールと圧縮を行いDDSに変換します。",
+          "3": "Falloutのコンセプトアートで学習させたStable Diffusionのファインチューン（LoRA）は、生成されるアセットの一貫性を向上させることができます。"
+        }
+      },
+      "upscayl": {
+        "desc": "Real-ESRGANモデルを使用した無料のオープンソースAIアップスケーラー。DDS変換前の低解像度バニラテクスチャ、参考写真、UI要素のアップスケーリングに最適です。",
+        "tips": {
+          "0": "一般的なテクスチャアップスケーリングにはRealESRGAN-x4plusを使用します。結果はアップスケーリング後もBC1/BC3/BC5/BC7への圧縮が必要です。",
+          "1": "顔・ポートレートテクスチャには、FaceGenへの再エクスポート前に細かい肌の質感を保持するためESRGANフェイスモデルを使用してください。",
+          "2": "バニラの512x512テクスチャは最大2048x2048までアップスケールしてください — 元の4倍を超えるとゲーム内使用での収益は逓減します。",
+          "3": "アップスケーリング後は、失われた表面ディテールをノーマルとして再構築するため、常にノーマルマップベイク（xNormalまたはSubstance Painter）を実行してください。"
+        }
+      }
+    },
+    "categories": {
+      "modManager": "MODマネージャー",
+      "editor": "エディター／ツール",
+      "ai": "AI／GPU",
+      "utility": "ユーティリティ"
+    },
+    "installedCount": "{installed}/{total} インストール済み",
+    "liveCount": "{n} 稼働中",
+    "autoConnect": {
+      "heading": "デスクトップツールの自動接続",
+      "description": "MossyはFO4モッディングパイプラインのすべてのツールをシステム上でスキャンします。検出されたツールを直接起動するか、不足しているツールのインストールリンクを取得します。",
+      "refresh": "更新"
+    },
+    "installed": "インストール済み",
+    "notDetected": "未検出",
+    "live": "稼働中",
+    "launchTooltip": "{label} を起動",
+    "getTooltip": "{label} を取得"
+  },
+  "wizardsHub": {
+    "versionBadge": {
+      "og": "OG  1.10.163",
+      "ng": "NG  1.10.984+",
+      "ae": "AE / Creations"
+    },
+    "eyebrow": "Mossy チューター · FO4セットアップウィザード",
+    "title": "FO4セットアップウィザードハブ",
+    "subtitle": "ツールのインストールからクラッシュトリアージ、クエスト作成、パッケージング、previsパッチまで、Fallout 4モッディングセットアップの完全なフローです。順番に手順を進めるか、必要なセクションにジャンプしてください。",
+    "gameVersion": "ゲームバージョン",
+    "badges": {
+      "core": "コア",
+      "triage": "トリアージ"
+    },
+    "sections": {
+      "platforms": {
+        "title": "プラットフォームを選ぶ",
+        "subtitle": "目標を明確にし、適切なウィザードを選択",
+        "desc": "ここから始めましょう。プラットフォームマップは、主要なFO4モッディングワークフローすべてを示し、あなたがやろうとしていること（スクリプティング、テクスチャ、アニメーション、居住地、クエスト、ロードオーダー）に一致するウィザードに直接リンクします。"
+      },
+      "install": {
+        "title": "インストールウィザード",
+        "subtitle": "F4SE、xEdit、SS2、PRP、パッチングの前提条件",
+        "desc": "F4SE（スクリプトエクステンダー）、xEdit/FO4Edit、Sim Settlements 2の依存関係、PRP previsツールキット、パッチ構築ワークフローなど、すべてのコアツールをインストールして確認します。コンテンツウィザードの前にこれを完了してください。"
+      },
+      "crashTriage": {
+        "title": "クラッシュ＆バグトリアージ",
+        "subtitle": "CTD／無限ロード／セーブ破損のトラブルシューティング",
+        "desc": "デスクトップへのクラッシュ、無限ロード画面、セーブデータの破損、その他の不安定性に対する段階的診断。ゲームが動作しなくなったときはいつでもこれを使用してください — 分離、ログの読み取り、修正の検証を案内します。"
+      },
+      "ckQuest": {
+        "title": "CKクエスト＆ダイアログ",
+        "subtitle": "Creation Kitクエスト作成、Papyrusコンパイル＋テストループ",
+        "desc": "Creation Kitクエスト作成、ダイアログ設定、Papyrusスクリプトコンパイル、安全なテストループのためのガイド付きワークフロー。CKクラッシュ防止、エディター設定、公開前にクエストが機能することを確認する方法をカバーします。"
+      },
+      "packaging": {
+        "title": "パッケージング＆リリース",
+        "subtitle": "BA2パッケージング、フォルダ構造、バージョニング、リリースチェック",
+        "desc": "BA2アーカイブのパッケージング、フォルダ構造の検証、バージョニング、Nexus／Bethesda.netアップロードの準備、最終的なリリース前の健全性チェック。MODをアップロードする前にこれを実行してください。"
+      },
+      "prpPatch": {
+        "title": "PRPパッチビルダー",
+        "subtitle": "PRP互換性パッチターゲット＋READMEを生成",
+        "desc": "PRP previs/precombine互換性パッチプラン、READMEテンプレート、検証チェックリストを生成します。MODが安定し、ワールドスペース編集用のPRPパッチを作成または貢献する準備ができてから実行してください。"
+      }
+    },
+    "packagingCard": {
+      "whatThisCovers": "このステップの内容",
+      "item1": "BA2アーカイブ作成 — Archive2、BSArch、BSArchProワークフロー",
+      "item2": "MODフォルダ構造 — Dataレイアウト、プラグイン命名、テクスチャ／メッシュパス",
+      "item3": "複数オプションMODパッケージング用のFOMODインストーラー作成",
+      "item4": "バージョンタグ付けと変更履歴の準備",
+      "item5": "Nexusアップロードチェックリストと Bethesda.net Creationsアップロードフロー",
+      "item6": "リリース前の最終的な安定性とコンフリクトの検証",
+      "openHub": "パッケージング＆リリースハブを開く",
+      "ba2QuickTool": "BA2マネージャー（クイックツール）",
+      "footerNote": "パッケージングハブには、完全なBA2ワークフロー、FOMODビルダー、コンフリクトリゾルバー、MOD比較ツールが含まれています。"
+    },
+    "versionOptions": {
+      "og": "1.10.163 — 次世代パッチ以前（2024年4月）",
+      "ng": "1.10.984+ — 次世代／現在のSteamデフォルト",
+      "ae": "Creationsメニュー／アニバーサリーエディションコンテンツ"
+    },
+    "stepLabel": "ステップ{step}：{title}",
+    "setupProgress": "セットアップ進捗",
+    "progressCounts": "{done}完了 · {started}開始 · {remaining}残り",
+    "situational": "状況次第",
+    "recommendedFlow": {
+      "heading": "推奨フロー",
+      "step12": "{b1}プラットフォームを選ぶ{/b1}から始め、使用するすべてのツールについて{b2}インストールウィザード{/b2}を完了してください。",
+      "step34": "{b1}クラッシュトリアージ{/b1}と{b2}CKクエスト{/b2}は状況次第です — それらのワークフローに遭遇したときに使用してください。",
+      "step56": "アップロード前に{b1}パッケージング{/b1}を実行してください。MODがワールドスペースを編集する場合のみ{b2}PRPパッチビルダー{/b2}を実行してください。"
+    },
+    "footerTip": "進捗は自動的に保存されます。各ウィザードで完了とマークされたステップはセッションをまたいで記憶されます。行き詰まったらいつでも{b1}Mossyに聞く{/b1}ボタンを使用してください — Mossyは現在のウィザードのコンテキストを把握しています。"
+  },
+  "home": {
+    "greeting": {
+      "initializing": "リンクを初期化中...",
+      "morning": "コア初期化完了。おはようございます。",
+      "afternoon": "コア初期化完了。こんにちは。",
+      "evening": "コア初期化完了。こんばんは。"
+    },
+    "help": "ヘルプ",
+    "uplinkSynced": "アップリンク同期済み",
+    "uplinkRequired": "アップリンクが必要です",
+    "activeProject": "アクティブプロジェクト",
+    "unnamedProject": "無題のプロジェクト",
+    "open": "開く",
+    "health": {
+      "electron": {
+        "label": "Electron",
+        "detail": "window.electron.api の可用性"
+      },
+      "storage": {
+        "label": "ストレージ",
+        "detail": "localStorageの読み書き"
+      },
+      "vault": {
+        "label": "Vault（{n}）",
+        "detail": "Knowledge Vaultのアイテム"
+      },
+      "wizard": {
+        "label": "ウィザード",
+        "detail": "インストールウィザードの進捗状態"
+      },
+      "mic": {
+        "label": "マイク（{state}）",
+        "detail": "マイクの許可"
+      },
+      "tts": {
+        "label": "TTS（{n}）",
+        "detail": "speechSynthesisの音声"
+      }
+    },
+    "panel": {
+      "description": "Nexusはあなたのホームダッシュボードです：ヘルスシグナル（Electron、ストレージ、ブリッジ、マイク/TTS）を表示し、方向を見失わないようにします。すべての23のプラットフォームは左側のサイドバーからアクセスできます。",
+      "verify1": "ヘルスバッジがレンダリングされ、あなたの環境を反映していることを確認してください。",
+      "verify2": "System Hubを開き、ナビゲーションエラーなしで戻ってください。",
+      "loop1": "セットアップウィザードを一度実行してツールを検出し、パスを設定してください。",
+      "loop2": "AI Chatを開き、メッセージを送信して応答を受け取れることを確認してください。",
+      "loop3": "Runtime Hub → Desktop Bridgeを開き、ローカル機能を使用する場合はONLINEを確認してください。",
+      "trouble1": "ElectronがWARN/BADを表示する場合、Webモードで実行しているか、プリロードが失敗している可能性があります。",
+      "trouble2": "Mic/TTSがWARNを表示する場合、OSの権限を確認して再試行してください。",
+      "trouble3": "Vaultが0を表示する場合、FO4 Knowledge Hubを開いてインデクサーを実行してください。",
+      "shortcuts": {
+        "aiChat": "AI Chat",
+        "setupWizards": "セットアップウィザード",
+        "systemHub": "System Hub",
+        "knowledgeHub": "FO4ナレッジハブ",
+        "journeyHub": "FO4 MODジャーニーハブ"
+      }
+    },
+    "quickHubAccess": "クイックハブアクセス",
+    "hubs": {
+      "chat": {
+        "title": "AI Chat",
+        "subtitle": "Mossyに何でも聞いてください"
+      },
+      "journeyHub": {
+        "title": "FO4 MODジャーニーハブ",
+        "subtitle": "プロジェクト・ロードマップ"
+      },
+      "ckTools": {
+        "title": "Creation Kitハブ",
+        "subtitle": "CK・スクリプト・クラッシュ修正"
+      },
+      "pluginTools": {
+        "title": "FO4プラグイン＆ロードオーダーハブ",
+        "subtitle": "xEdit・ロードオーダー・PRP"
+      },
+      "textures": {
+        "title": "テクスチャ＆マテリアル",
+        "subtitle": "DDS・PBR・BC形式"
+      },
+      "assetAnalysis": {
+        "title": "FO4アセット分析ハブ",
+        "subtitle": "スキャン・重複排除・マイニング"
+      },
+      "modBuilder": {
+        "title": "FO4 MODビルダーハブ",
+        "subtitle": "ブループリント・ワークショップ・ドキュメント"
+      },
+      "packaging": {
+        "title": "パッケージング＆リリース",
+        "subtitle": "BA2・FOMOD・チェックリスト"
+      },
+      "guides": {
+        "title": "ガイドハブ",
+        "subtitle": "アニメーション・クエスト・LOD"
+      },
+      "knowledgeHub": {
+        "title": "FO4ナレッジハブ",
+        "subtitle": "ドキュメント・検索・リファレンス"
+      },
+      "systemHub": {
+        "title": "System Hub",
+        "subtitle": "診断・セキュリティ"
+      },
+      "runtimeHub": {
+        "title": "ランタイムハブ",
+        "subtitle": "ライブ・ブリッジ・ホロデッキ"
+      }
+    },
+    "whereToStart": "Fallout 4モッディング — 始め方",
+    "steps": {
+      "setupWizards": {
+        "title": "セットアップウィザードを実行",
+        "body": "F4SE、xEdit、MO2/Vortex、Creation Kit、その他のツールを検出します。Mossyは実際にインストールされているものにアドバイスをカスタマイズします。"
+      },
+      "modGoal": {
+        "title": "モッディングの目標を選ぶ",
+        "body": "FO4 MODジャーニーハブ → ロードマップを開き、段階的な計画を生成します。武器、クエスト、ワールドスペースのいずれを追加する場合でも — 明確な目標から始めてください。"
+      },
+      "loadOrder": {
+        "title": "ロードオーダーのルールを知る",
+        "body": "Fallout 4には255プラグインの上限があります（ESM+ESP+ESL）。ESLフラグ付きプラグインは2,048のFormIDプールを共有します。FO4プラグイン＆ロードオーダーハブを使用して管理・検証してください。"
+      },
+      "assetPipeline": {
+        "title": "アセットパイプラインを学ぶ",
+        "body": "テクスチャはBC形式（BC1/BC3/BC7）を使用します。メッシュはHavokコリジョン付きのNIFファイルです。BA2アーカイブは圧縮されたアセットを保持します。TexturesハブとGuidesハブがこれらすべてをカバーします。"
+      },
+      "gameStable": {
+        "title": "ゲームを安定させ続ける",
+        "body": "まずゲームバージョンを特定してください：OG（1.10.163）、NG（1.10.980–984）、またはAE/1.11.x（1.11.191+）。次に対応するスタックをインストールします：F4SE + Address Library + X-Cell。非推奨のAWKCR/DEF_UIは避け — 代わりにECO/NEOとFallUIを使用してください。クラッシュ防止モニタリングにはCreation Kitハブを使用してください。"
+      },
+      "buildPackage": {
+        "title": "MODをビルド＆パッケージング",
+        "body": "FO4 MODビルダーハブでアーキテクチャを設計し、Workshopで作業し、Devtoolsでスクリプトを構築し、Scribeでドキュメント化します。その後、Packaging & Releaseに移動してBA2を作成し、FOMODインストーラーをビルドします。"
+      }
+    },
+    "stepBadge": "ステップ{n}",
+    "tagline": "ニューラルリンクはアクティブで、あなたのワークスペースを監視しています",
+    "support": {
+      "message": "Mossy.Spaceは無料でオープンです — あなたのモッディングに役立った場合は、開発の支援をご検討ください",
+      "patreon": "Patreon",
+      "coffee": "コーヒーをおごる"
+    }
   }
 }
