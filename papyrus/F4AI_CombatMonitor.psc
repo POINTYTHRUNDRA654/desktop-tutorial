@@ -18,6 +18,7 @@ Float  Property ScanInterval      = 10.0   Auto   ; seconds between scans
 Float  Property FleeHealthDefault = 0.25   Auto   ; flee below 25% HP by default
 Bool   Property EnableCombatAI    = true   Auto
 Int    Property _loopGen          = 0      Auto Hidden  ; incremented each InitMonitor to kill stale loops
+Int    Property _activeCombatCount = 0     Auto Hidden  ; tracked combatants still needing an end-of-combat scan
 
 ; ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,13 @@ EndEvent
 Function InitMonitor()
     _loopGen += 1
     Int myGen = _loopGen
+    ; _activeCombatCount is a persisted property, but the cmbt_active_* flags
+    ; it counts live in Hydra:TempMap, which is explicitly non-persistent (see
+    ; header) — reset here so a save/load can't leave the counter stuck above
+    ; zero forever with no matching flags left to ever bring it back down,
+    ; which would permanently defeat ScanCombatants' early-out.
+    Int iZero = 0
+    _activeCombatCount = iZero
     if (EnableCombatAI)
         MonitorLoop(myGen)
     endif
@@ -53,6 +61,21 @@ EndFunction
 
 Function ScanCombatants(Int myGen)
     Actor player = Game.GetPlayer()
+
+    ; Skip the expensive radius scan entirely when nothing's happening — this
+    ; used to run unconditionally every ScanInterval regardless of activity,
+    ; which was a real, confirmed source of recurring frame lag in busy areas.
+    ; Only scan when the player is personally in combat, or we're still
+    ; tracking combatants from a fight already in progress (so a combatant
+    ; the player disengaged from still gets its "end" event and cleared
+    ; tracking flag promptly, instead of staying stuck "active" forever).
+    ; Trade-off: a fight between two NPCs the player isn't part of won't be
+    ; detected until the player also engages — acceptable, since detecting
+    ; that would require the very scan this is meant to avoid running blind.
+    if (!player.IsInCombat() && _activeCombatCount <= 0)
+        return
+    endif
+
     Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
     ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
     if (myGen != _loopGen)
@@ -91,6 +114,7 @@ Function ProcessCombatant(Actor npc)
     if (!wasActive)
         Bool bTrue = true
         Hydra:TempMap.SetValue("F4AI_T", "cmbt_active_" + npcID, bTrue as Var)
+        _activeCombatCount += 1
         OnCombatStart(npc, npcID, npcName)
     endif
 
@@ -128,6 +152,9 @@ Function OnCombatEnd(Actor npc, String npcID)
     Float fZero = 0.0
     Hydra:TempMap.SetValue("F4AI_T", "cmbt_active_" + npcID, bFalse as Var)
     Hydra:TempMap.SetValue("F4AI_T", "cmbt_lasthp_" + npcID, fZero as Var)
+    if (_activeCombatCount > 0)
+        _activeCombatCount -= 1
+    endif
     String npcName = npc.GetActorBase().GetName()
     SendCombatEvent(npc, npcID, npcName, -1.0, 0.0, "end")
     Debug.Trace("[F4AI_Combat] " + npcName + " left combat")
