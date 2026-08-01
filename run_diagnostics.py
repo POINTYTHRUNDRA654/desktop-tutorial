@@ -110,12 +110,23 @@ def check_manifest(addon_dir: Path):
     if init_path.exists():
         init_text = init_path.read_text(encoding="utf-8")
         m_manifest = re.search(r'^version\s*=\s*"([^"]+)"', content, re.MULTILINE)
-        m_bl_info  = re.search(r'"version"\s*:\s*\((\d+),\s*(\d+),\s*(\d+)\)', init_text)
+        # bl_info's version tuple is permanently a 4-tuple with a trailing
+        # release-tag string (e.g. (5, 1, 0, "alpha") -- this project's
+        # version must stay tagged "alpha" as its GitHub update mechanism).
+        # The old regex required the tuple to close right after the 3rd
+        # digit group, which never matched a 4-tuple at all, so this check
+        # was permanently disabled -- silently never catching a real
+        # manifest/bl_info version drift.
+        m_bl_info = re.search(
+            r'"version"\s*:\s*\((\d+),\s*(\d+),\s*(\d+)(?:,\s*"([^"]*)")?\)',
+            init_text,
+        )
         if m_manifest and m_bl_info:
             manifest_ver = m_manifest.group(1)
-            bl_info_ver  = (
-                f"{m_bl_info.group(1)}.{m_bl_info.group(2)}.{m_bl_info.group(3)}"
-            )
+            tag = m_bl_info.group(4)
+            bl_info_ver = f"{m_bl_info.group(1)}.{m_bl_info.group(2)}.{m_bl_info.group(3)}"
+            if tag:
+                bl_info_ver += f"-{tag}"
             if manifest_ver == bl_info_ver:
                 _ok(f"version consistent: manifest={manifest_ver}, bl_info={bl_info_ver}")
             else:

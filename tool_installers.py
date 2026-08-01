@@ -1827,7 +1827,9 @@ def install_zoedepth() -> tuple[bool, str]:
         return False, msg
 
     # Install runtime dependencies
-    _pip_install(["timm", "matplotlib"])
+    ok, msg = _pip_install(["timm", "matplotlib"])
+    if not ok:
+        return False, msg
     return True, f"ZoeDepth installed at {dest}.{_torch_install_note()}"
 
 def install_triposr() -> tuple[bool, str]:
@@ -1862,7 +1864,9 @@ def install_triposr() -> tuple[bool, str]:
         return False, msg
 
     # Install runtime dependencies
-    _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
+    ok, msg = _pip_install(["trimesh", "huggingface_hub", "einops", "omegaconf"])
+    if not ok:
+        return False, msg
     return True, f"TripoSR installed at {dest}.{_torch_install_note()}"
 
 def install_triposr_light() -> tuple[bool, str]:
@@ -1904,9 +1908,11 @@ def install_triposr_light() -> tuple[bool, str]:
 
     req_file = dest / "requirements.txt"
     if req_file.exists():
-        _pip_install_requirements(req_file)
+        ok, msg = _pip_install_requirements(req_file)
     else:
-        _pip_install(["trimesh", "einops", "omegaconf", "huggingface_hub"])
+        ok, msg = _pip_install(["trimesh", "einops", "omegaconf", "huggingface_hub"])
+    if not ok:
+        return False, msg
 
     note = _torch_install_note()
     suffix = f"  {note}" if note else ""
@@ -1944,9 +1950,11 @@ def install_hunyuan3d() -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    _pip_install(["einops", "omegaconf", "huggingface_hub",
-                  "Pillow", "rembg", "trimesh", "scipy",
-                  "imageio", "imageio-ffmpeg"])
+    ok, msg = _pip_install(["einops", "omegaconf", "huggingface_hub",
+                            "Pillow", "rembg", "trimesh", "scipy",
+                            "imageio", "imageio-ffmpeg"])
+    if not ok:
+        return False, msg
     return True, f"Hunyuan3D-2 installed at {dest}.{_torch_install_note()}"
 
 
@@ -1982,7 +1990,9 @@ def install_hymotion() -> tuple[bool, str]:
     if not ok:
         return False, msg
 
-    _pip_install(["einops", "omegaconf"])
+    ok, msg = _pip_install(["einops", "omegaconf"])
+    if not ok:
+        return False, msg
     return True, f"HY-Motion installed at {dest}.{_torch_install_note()}"
 
 
@@ -2138,6 +2148,20 @@ def install_realesrgan() -> tuple[bool, str]:
         )
 
 
+def get_rignet_dir() -> Path:
+    """Return the tools-directory path used for the RigNet (rignet-gj) clone.
+
+    Matches install_rignet()'s own destination exactly -- addon_diagnostics.py's
+    Auto-Fix step for an empty/partial RigNet clone calls this via
+    ``hasattr(tool_installers, "get_rignet_dir")`` to attempt a direct git
+    re-clone before falling back to install_rignet() itself; without this
+    function that hasattr check always failed and the direct-reclone fast
+    path was dead code (the fallback to install_rignet() still worked, just
+    slower/less directly).
+    """
+    return _ensure_tools_dir("rignet-gj")
+
+
 def install_rignet() -> tuple[bool, str]:
     """Clone the rignet-gj repository and install its pip dependencies.
 
@@ -2178,7 +2202,9 @@ def install_rignet() -> tuple[bool, str]:
     except Exception as exc:
         return False, f"RigNet clone error: {exc}"
 
-    _pip_install(["scipy", "open3d"], target_dir=_ML_LIB_DIR)
+    ok, msg = _pip_install(["scipy", "open3d"], target_dir=_ML_LIB_DIR)
+    if not ok:
+        return False, msg
     return True, f"RigNet (rignet-gj) cloned to {dest}.{_torch_install_note()}"
 
 
@@ -2222,7 +2248,9 @@ def install_motion_diffuse() -> tuple[bool, str]:
     except Exception as exc:
         return False, f"MotionDiffuse clone error: {exc}"
 
-    _pip_install(["einops", "omegaconf"])
+    ok, msg = _pip_install(["einops", "omegaconf"])
+    if not ok:
+        return False, msg
     return True, f"MotionDiffuse cloned to {dest}.{_torch_install_note()}"
 
 

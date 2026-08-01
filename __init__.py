@@ -165,8 +165,6 @@ torch_path_manager = _try_import("torch_path_manager")
 # registration-time dependency checks.  Import it here so the name exists.
 # we don't add it to `modules` because it has no register()/unregister().
 tool_installers = _try_import("tool_installers")
-dsf_importer = _try_import("dsf_importer")
-daz_animation_importer = _try_import("daz_animation_importer")
 fo4_asset_pipeline = _try_import("fo4_asset_pipeline")
 
 # External tool integration helpers
@@ -311,7 +309,6 @@ _PHASE1_MODULES = list(filter(_filter, [
     fo4_advanced_materials,
     fo4_material_browser,
     fo4_plane_thickener,
-    dsf_importer,
     advisor_helpers,
     tutorial_operators,   # MUST be before operators
     setup_operators,      # MUST be before operators
@@ -375,7 +372,6 @@ _PHASE2_MODULES = list(filter(_filter, [
     # Animation sub-systems — operators registered in Phase 2 so startup
     # is not delayed; all UI panels that reference them check registration
     # status before drawing.
-    daz_animation_importer,
     fo4_npc_animation,
     fo4_creature_animation,
     fo4_weapon_animation,
@@ -538,7 +534,7 @@ def register():
         _AI_HELPER_NAMES = [
             "hunyuan3d_helpers", "hymotion_helpers", "zoedepth_helpers",
             "realesrgan_helpers", "rignet_helpers", "instantngp_helpers",
-            "imageto3d_helpers",
+            "imageto3d_helpers", "shap_e_helpers", "point_e_helpers",
         ]
         _g = globals()
         _reimported = 0

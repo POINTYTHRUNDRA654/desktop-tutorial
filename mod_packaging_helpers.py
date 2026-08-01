@@ -191,7 +191,7 @@ class ModPackager:
     <Version>{_xml_esc(version)}</Version>
     <Description>{_xml_esc(description)}</Description>
     <Website>{_xml_esc(website)}</Website>
-    {f'<Id>{nexus_id}</Id>' if nexus_id else '<!-- <Id>your_nexus_id</Id> -->'}
+    {f'<Id>{_xml_esc(nexus_id)}</Id>' if nexus_id else '<!-- <Id>your_nexus_id</Id> -->'}
 </fomod>
 """
             # ── ModuleConfig.xml ──────────────────────────────────────────

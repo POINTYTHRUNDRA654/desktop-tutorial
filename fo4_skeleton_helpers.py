@@ -99,7 +99,13 @@ class SkeletonAlignmentWizard:
             if bone.name not in mesh_obj.vertex_groups:
                 mesh_obj.vertex_groups.new(name=bone.name)
 
-        # Use Blender's Automatic Weights for initial binding
+        # Use Blender's Automatic Weights for initial binding.
+        # parent_set() operates on ALL currently-selected objects, not just
+        # the two named here -- deselect first so any other objects the user
+        # happened to have selected in the viewport don't get silently
+        # re-parented/re-weighted alongside mesh_obj (matches the pattern
+        # already used by bind_armor_to_skeleton()/build_weapon_rig()).
+        bpy.ops.object.select_all(action='DESELECT')
         bpy.context.view_layer.objects.active = mesh_obj
         mesh_obj.select_set(True)
         armature_obj.select_set(True)

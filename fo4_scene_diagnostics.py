@@ -251,7 +251,12 @@ class SceneDiagnostics:
             results.append(CheckResult(
                 WARNING, "SCENE",
                 f"Scene unit scale is {unit_scale:.4f} (expected 1.0). "
-                "Fallout 4 uses 1 Blender Unit = 1 game unit (approx 70 cm).",
+                "This add-on's own import/export pipeline converts FO4's "
+                "native game units to Blender units at 1 BU = 69.99125 game "
+                "units (so a correctly-scaled FO4 asset reads as roughly "
+                "real-world-metre scale in the viewport, matching Blender's "
+                "native 1 BU = 1 m convention) -- a non-1.0 scene unit scale "
+                "throws that off.",
             ))
         else:
             results.append(CheckResult(OK, "SCENE", "Scene unit scale is 1.0"))

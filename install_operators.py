@@ -792,9 +792,16 @@ class FO4_OT_EnableAddon(Operator):
             result = bpy.ops.preferences.addon_enable(module=self.addon_id)
             if 'FINISHED' in result:
                 self.report({'INFO'}, f"Enabled: {self.addon_id}")
-                # Invalidate the scan cache so the panel status updates immediately
+                # Invalidate the scan cache so the panel status updates immediately.
+                # _scan_cache is a MODULE-level global in addon_integration.py,
+                # not a class attribute -- the line below used to just create
+                # an unused attribute on the class object without touching the
+                # actual cache scan_for_known_addons() reads, so this never
+                # really invalidated anything (only the 5s TTL naturally
+                # expiring did). AddonIntegrationSystem.invalidate_cache() is
+                # the real entry point for this.
                 from . import addon_integration
-                addon_integration.AddonIntegrationSystem._scan_cache = None
+                addon_integration.AddonIntegrationSystem.invalidate_cache()
                 notification_system.FO4_NotificationSystem.notify(
                     f"Add-on '{self.addon_id}' enabled ✓", 'INFO'
                 )
@@ -1216,6 +1223,16 @@ class FO4_OT_InstallDiffusers(Operator):
     def execute(self, context):
         import threading
         from . import tool_installers
+        from . import imageto3d_helpers
+
+        # Skip the pip install entirely if diffusers is already importable -
+        # otherwise every click re-runs pip (which hits the network to
+        # resolve/verify versions) even though nothing needs to change.
+        already_ok, already_msg = imageto3d_helpers.ImageTo3DHelpers.check_diffusers_installation()
+        if already_ok:
+            self.report({'INFO'}, "Diffusers already installed")
+            notification_system.FO4_NotificationSystem.notify(already_msg, 'INFO')
+            return {'FINISHED'}
 
         def _run():
             print("\n" + "=" * 60)

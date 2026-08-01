@@ -350,6 +350,8 @@ def setup_trap_flesh_material(mat) -> list:
         principled.inputs["Roughness"].default_value  = 0.25
         if "Sheen Weight" in principled.inputs:
             principled.inputs["Sheen Weight"].default_value = 0.3
+        elif "Sheen" in principled.inputs:
+            principled.inputs["Sheen"].default_value = 0.3
     actions.append("Trap flesh material ready")
     return actions
 

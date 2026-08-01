@@ -404,7 +404,7 @@ class AdvancedMeshHelpers:
     # ==================== LOD Generation ====================
     
     @staticmethod
-    def generate_lod_chain(obj, lod_levels=None):
+    def generate_lod_chain(obj, lod_levels=None, apply_lod_textures=True):
         """Generate a Fallout 4–compatible Level of Detail (LOD) mesh chain.
 
         Fallout 4 uses separate NIF files for each LOD level.  The *source*
@@ -426,23 +426,43 @@ class AdvancedMeshHelpers:
         that much more aggressive real-world reduction; still fully
         overridable via *lod_levels* for assets that need something different.
 
-        Each generated LOD object is stamped with ``fo4_mesh_type = 'LOD'``
-        so the NIF export pipeline uses the correct BSFadeNode root and
-        LOD-specific shader flags automatically.  Scale/rotation transforms
-        are applied and a UV map is ensured so the mesh is ready for
-        export straight into Creation Kit without further manual work.
+        Each generated LOD object preserves the source's own ``fo4_mesh_type``
+        (e.g. ``'VEGETATION'``) rather than being overwritten with a generic
+        ``'LOD'`` tag -- real FO4 LOD files use the same root/BSXFlags
+        conventions as their source category, and nothing downstream reads a
+        ``'LOD'`` value. Scale/rotation transforms are applied and a UV map
+        is ensured so the mesh is ready for export straight into Creation
+        Kit without further manual work.
+
+        ``apply_lod_textures`` controls whether this call downscales/shares
+        LOD textures itself (see the "Downscale textures" step below). Batch
+        callers that generate LOD chains for several source objects from the
+        same multi-mesh NIF (e.g. FO4_OT_GenerateLODAndCollision processing a
+        whole selection) should pass ``False`` here and instead call
+        ``fo4_lod_generator.create_lod_textures()`` once on the combined list
+        of every LOD object from every source — otherwise each source's
+        textures get downscaled in isolation and pieces that share a texture
+        in the source NIF (e.g. a tree trunk and its vines both using the
+        same bark diffuse) end up with duplicate separately-downscaled
+        copies instead of one shared LOD atlas, and worse, a second
+        create_lod_textures pass over an object already processed by this
+        function would re-downscale its *already-downscaled* image again.
 
         Returns: (bool success, str message, list lod_objects)
         """
         if obj.type != 'MESH':
             return False, "Object is not a mesh", []
 
-        # Stamp the source object as the full-detail (LOD0) mesh type so its
-        # NIF also uses the BSFadeNode root node required by FO4 LOD records.
-        try:
-            obj.fo4_mesh_type = 'LOD'
-        except Exception:
-            pass
+        # NOTE: the source object's own fo4_mesh_type is intentionally left
+        # untouched here. It used to be force-stamped to 'LOD' on the
+        # assumption that FO4 LOD records need a BSFadeNode root -- that's
+        # not what real files actually use (confirmed via reference-library
+        # reverse-engineering: real static/vegetation/architecture roots are
+        # plain NiNode, not BSFadeNode), and nothing in the export pipeline
+        # ever checks for fo4_mesh_type == 'LOD' anyway. Overwriting it here
+        # was clobbering the source's real category tag (e.g. 'VEGETATION'),
+        # which is what nif_roundtrip.patch_fresh_bsxflags actually needs to
+        # write the correct BSXFlags value on export.
         # Also stamp PYN_GAME so PyNifly V25.14+ always exports in FO4 format
         # when the user exports this object directly via PyNifly's own operator.
         obj["PYN_GAME"] = "FO4"
@@ -478,10 +498,13 @@ class AdvancedMeshHelpers:
                 lod_obj.data = lod_obj.data.copy()
 
             # ── FO4 LOD mesh type ──────────────────────────────────────────────
-            # Tag the object so the NIF export pipeline selects the LOD root
-            # node (BSFadeNode) and the correct shader/BSX flags for this level.
+            # Preserve the source's real category (e.g. 'VEGETATION') rather
+            # than overwriting it with a generic 'LOD' tag nothing downstream
+            # reads -- see the note above generate_lod_chain's original-object
+            # handling for why. Keeping the true type means this generated
+            # level's own export also gets the correct BSXFlags restored.
             try:
-                lod_obj.fo4_mesh_type = 'LOD'
+                lod_obj.fo4_mesh_type = getattr(obj, 'fo4_mesh_type', '') or lod_obj.fo4_mesh_type
             except Exception:
                 pass
 
@@ -523,10 +546,31 @@ class AdvancedMeshHelpers:
 
             lod_objects.append((lod_obj, stats['new_poly_count']))
 
+        # ── Downscale textures to match real FO4 LOD conventions ──────────────
+        # Real assets give their real-mesh LOD levels a dedicated, much
+        # smaller shared texture instead of the full-resolution hero one (see
+        # fo4_lod_generator.create_lod_textures for the reference-asset
+        # evidence). Without this, every LOD generated here kept pointing at
+        # the source's full-res material — saving triangle cost but none of
+        # the texture memory/bandwidth cost LODs are also meant to save.
+        # Skipped when apply_lod_textures=False — see that parameter's note
+        # above the docstring's Returns line for why a batch caller handles
+        # this itself instead.
+        tex_msg = ""
+        if apply_lod_textures:
+            try:
+                from . import fo4_lod_generator as _lodgen
+                _ok, tex_msg = _lodgen.create_lod_textures(
+                    [o for o, _ in lod_objects], scale_factor=0.25
+                )
+            except Exception as _exc:
+                tex_msg = f"Texture downscale skipped: {_exc}"
+
         message = (
             f"Generated {len(lod_objects)} LOD levels from {original_poly_count:,} polygons. "
-            f"Source object = LOD0 (full detail, fo4_mesh_type=LOD). "
-            f"Export each LOD as a separate NIF: {{name}}_LOD1.nif … {{name}}_LOD{len(lod_objects)}.nif"
+            f"Source object = LOD0 (full detail, fo4_mesh_type preserved). "
+            f"Export each LOD as a separate NIF: {{name}}_LOD1.nif … {{name}}_LOD{len(lod_objects)}.nif. "
+            f"{tex_msg}"
         )
 
         return True, message, lod_objects

@@ -187,7 +187,13 @@ def load_api_keys() -> None:
 
 def _key_update(self, context) -> None:  # noqa: ARG001
     """Auto-save API keys to disk whenever a key field is changed."""
-    save_api_keys()
+    # Every other field routes through the debounced saver so rapid
+    # property changes collapse into one write; this one called
+    # save_api_keys() directly (synchronous, immediate), so typing/pasting
+    # into the token field did a full disk write of all ~50 persisted
+    # fields on every single keystroke -- exactly the per-keystroke lag
+    # save_prefs_deferred()'s own docstring says was fixed for Blender 5.0.
+    save_api_keys_deferred()
     save_prefs_deferred()
 
 
@@ -749,9 +755,22 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
     )
 
     # ──────────────────────────────────────────────────────────────────────
-    # LLM/OpenAI fields REMOVED - ALL AI now goes through Mossy (free, local)
-    # See use_mossy_as_ai property below for enabling AI features
+    # LLM/OpenAI *API key* fields REMOVED - ALL AI now goes through Mossy
+    # (free, local). See use_mossy_as_ai property below for enabling AI
+    # features. `llm_enabled` below is a DIFFERENT, still-live concept: it's
+    # the persisted counterpart of the scene-level "Enable LLM Advisor"
+    # toggle (fo4_llm_enabled, registered in operators.py) via
+    # _make_scene_to_pref_sync -- that sync target never existed here, so
+    # the toggle worked within a session but silently reset to its default
+    # every time Blender restarted.
     # ──────────────────────────────────────────────────────────────────────
+
+    llm_enabled: bpy.props.BoolProperty(
+        name="Enable LLM Advisor",
+        default=False,
+        description="Persisted state of the scene's 'Enable LLM Advisor' toggle",
+        update=_pref_path_update,
+    )
 
     advisor_auto_monitor_enabled: bpy.props.BoolProperty(
         name="Advisor Auto-Monitor",

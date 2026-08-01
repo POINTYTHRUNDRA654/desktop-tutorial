@@ -294,36 +294,43 @@ class AnimationHelpers:
         bpy.ops.object.mode_set(mode='EDIT')
 
         edit_bones = armature.edit_bones
-        # rename the default bone that armature_add creates
+        # rename the default bone that armature_add creates. Bone names
+        # below were previously mismatched against the real canonical FO4
+        # skeleton (fo4_bone_names.py, sourced from the real HumanRace
+        # skeleton.nif) -- confirmed live: this caused vanilla-bone-name
+        # skinning to fail to deform correctly, and this addon's own
+        # fo4_npc_animation.py generators to silently no-op on Spine/COM/
+        # Pelvis/Clavicle/Toe0 keyframes since their bone-name lookups never
+        # matched. Corrected to the exact canonical strings.
         root_bone = edit_bones[0]
-        root_bone.name = "Root"
+        root_bone.name = "NPC Root [Root]"
         root_bone.head = Vector((0, 0, 0))
         root_bone.tail = Vector((0, 0, 0.1))
 
         # ── Centre of Mass ──────────────────────────────────────────────
-        com = edit_bones.new("COM [COM]")
+        com = edit_bones.new("NPC COM [COM ]")
         com.head = Vector((0, 0, 0.9))
         com.tail = Vector((0, 0, 1.0))
         com.parent = root_bone
 
         # ── Pelvis ──────────────────────────────────────────────────────
-        pelvis = edit_bones.new("NPC Pelvis [Pelvis]")
+        pelvis = edit_bones.new("NPC Pelvis [Pelv]")
         pelvis.head = Vector((0, 0, 1.0))
         pelvis.tail = Vector((0, 0, 1.1))
         pelvis.parent = com
 
         # ── Spine chain ─────────────────────────────────────────────────
-        spine = edit_bones.new("NPC Spine [Spine]")
+        spine = edit_bones.new("NPC Spine [Spn0]")
         spine.head = Vector((0, 0, 1.1))
         spine.tail = Vector((0, 0, 1.2))
         spine.parent = pelvis
 
-        spine1 = edit_bones.new("NPC Spine1 [Spine1]")
+        spine1 = edit_bones.new("NPC Spine1 [Spn1]")
         spine1.head = Vector((0, 0, 1.2))
         spine1.tail = Vector((0, 0, 1.35))
         spine1.parent = spine
 
-        spine2 = edit_bones.new("NPC Spine2 [Spine2]")
+        spine2 = edit_bones.new("NPC Spine2 [Spn2]")
         spine2.head = Vector((0, 0, 1.35))
         spine2.tail = Vector((0, 0, 1.5))
         spine2.parent = spine1
@@ -340,7 +347,7 @@ class AnimationHelpers:
         head.parent = neck
 
         # ── Left arm ────────────────────────────────────────────────────
-        l_clav = edit_bones.new("NPC L Clavicle [LClav]")
+        l_clav = edit_bones.new("NPC L Clavicle [LClv]")
         l_clav.head = Vector((0.1, 0, 1.48))
         l_clav.tail = Vector((0.3, 0, 1.46))
         l_clav.parent = spine2
@@ -361,7 +368,7 @@ class AnimationHelpers:
         l_hand.parent = l_forearm
 
         # ── Right arm ───────────────────────────────────────────────────
-        r_clav = edit_bones.new("NPC R Clavicle [RClav]")
+        r_clav = edit_bones.new("NPC R Clavicle [RClv]")
         r_clav.head = Vector((-0.1, 0, 1.48))
         r_clav.tail = Vector((-0.3, 0, 1.46))
         r_clav.parent = spine2
@@ -397,7 +404,7 @@ class AnimationHelpers:
         l_foot.tail = Vector((0.2, 0.12, 0.05))
         l_foot.parent = l_calf
 
-        l_toe = edit_bones.new("NPC L Toe0 [LToe0]")
+        l_toe = edit_bones.new("NPC L Toe0 [LToe]")
         l_toe.head = Vector((0.2, 0.12, 0.05))
         l_toe.tail = Vector((0.2, 0.2, 0.02))
         l_toe.parent = l_foot
@@ -418,7 +425,7 @@ class AnimationHelpers:
         r_foot.tail = Vector((-0.2, 0.12, 0.05))
         r_foot.parent = r_calf
 
-        r_toe = edit_bones.new("NPC R Toe0 [RToe0]")
+        r_toe = edit_bones.new("NPC R Toe0 [RToe]")
         r_toe.head = Vector((-0.2, 0.12, 0.05))
         r_toe.tail = Vector((-0.2, 0.2, 0.02))
         r_toe.parent = r_foot
@@ -513,9 +520,42 @@ class AnimationHelpers:
         armature_obj.select_set(True)
         bpy.context.view_layer.objects.active = armature_obj
 
-        # Parent with automatic weights
-        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
-        return True, "Automatic weights applied successfully"    
+        # Parent with automatic weights. Wrapped in an explicit context
+        # override (the pattern already established elsewhere in this addon
+        # for transform_apply, e.g. _apply_fo4_import_scale) since a bare
+        # call can silently no-op/cancel depending on the calling context —
+        # confirmed directly: on a real multi-piece armor rig processed
+        # object-by-object in a script, this succeeded for one piece and
+        # silently did nothing for two others (no vertex groups, no
+        # modifier, parent unchanged) while this function still returned
+        # True unconditionally, since it never checked the operator's own
+        # result.
+        try:
+            with bpy.context.temp_override(
+                active_object=armature_obj,
+                selected_objects=[mesh_obj, armature_obj],
+                selected_editable_objects=[mesh_obj, armature_obj],
+            ):
+                result = bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        except Exception as exc:
+            return False, f"parent_set(ARMATURE_AUTO) raised: {exc}"
+
+        if 'FINISHED' not in result:
+            return False, (
+                f"parent_set(ARMATURE_AUTO) returned {result}, not FINISHED — "
+                "Blender's automatic bone-heat weighting could not find a "
+                "solution for this mesh (often means it's positioned too far "
+                "from the armature's bones, or has disconnected geometry). "
+                "Reposition the mesh over the skeleton and retry, or weight "
+                "paint manually."
+            )
+        if mesh_obj.parent is not armature_obj or not mesh_obj.vertex_groups:
+            return False, (
+                "parent_set(ARMATURE_AUTO) reported FINISHED but produced no "
+                "usable result (parent/vertex groups unchanged) — treat as a "
+                "failed auto-weight and weight paint manually."
+            )
+        return True, "Automatic weights applied successfully"
     @staticmethod
     def validate_animation(armature_obj):
         """Validate armature and animation for Fallout 4"""
@@ -527,12 +567,20 @@ class AnimationHelpers:
         
         armature = armature_obj.data
         
-        # Check bone count
+        # Check bone count. NOTE: this used to also reject armatures with
+        # more than 80 total bones, citing "FO4 limit: 256" in the message
+        # (itself inconsistent with the 80 it actually checked). That
+        # comparison was a category error, not just a wrong threshold:
+        # FO4_MAX_DEFORM_BONES_PER_MESH (fo4_bone_names.py) is a PER-SHAPE
+        # deform-bone limit (how many unique bones influence one exported
+        # BSTriShape's vertices), not a total-skeleton limit -- a real full
+        # FO4 skeleton (with fingers/facial bones) routinely has well over
+        # 80 bones total and is perfectly valid. Checking the per-shape
+        # limit correctly would require knowing which mesh is being
+        # skinned to this armature, which this function isn't given.
         if len(armature.bones) == 0:
             issues.append("Armature has no bones")
-        elif len(armature.bones) > 80:  # FO4 limit: 80 deform bones per skinned mesh
-            issues.append(f"Too many bones: {len(armature.bones)} (FO4 limit: 256)")
-        
+
         # Check for root bone
         root_bones = [b for b in armature.bones if b.parent is None]
         if len(root_bones) == 0:
@@ -1517,6 +1565,14 @@ class AnimationHelpers:
             kp.interpolation = 'LINEAR'
 
         noise_mod = fcurve.modifiers.new(type='NOISE')
+        # FModifierNoise.blend_type defaults to 'REPLACE', not 'ADD' -- under
+        # REPLACE the modifier discards the base 2-keyframe curve entirely
+        # (both keyframes sit at `mid`) and the curve's evaluated value
+        # becomes just the raw noise output scaled by `strength`, centered
+        # near 0 rather than oscillating between min_strength/max_strength
+        # as intended. 'ADD' makes the noise modulate on top of the base
+        # curve instead.
+        noise_mod.blend_type = 'ADD'
         noise_mod.strength = amplitude
         noise_mod.scale = period * noise_scale
         noise_mod.phase = 0.0

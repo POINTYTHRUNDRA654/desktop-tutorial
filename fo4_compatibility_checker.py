@@ -52,10 +52,17 @@ def check_skeleton_compatibility(arm_obj) -> list:
             "message":  f"Missing FO4 skeleton bones: {missing}",
             "fix":      "Import fo4_skeleton.nif or use 'Build FO4 Skeleton' in the Armor panel",
         })
-    if len(bones) > 128:
+    # 256 is the real FO4 limit (BSSubIndexTriShape skin limit -- same
+    # constant as fo4/__init__.py's FO4_MAX_BONES_PER_MESH and
+    # fo4_scene_diagnostics.py's FO4_MAX_BONES). This used to say 128 here,
+    # which had no such backing and directly contradicted
+    # fo4_scene_diagnostics.py reporting the identical len(bones) metric as
+    # fine up to 256 -- the same armature could get an ERROR from one
+    # diagnostic tool and a clean bill of health from the other.
+    if len(bones) > 256:
         issues.append({
             "severity": "ERROR",
-            "message":  f"Too many bones: {len(bones)} (FO4 limit: 128 active)",
+            "message":  f"Too many bones: {len(bones)} (FO4 limit: 256)",
             "fix":      "Remove unused bones or split the skinned mesh",
         })
     return issues

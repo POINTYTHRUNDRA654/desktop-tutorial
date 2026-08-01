@@ -3387,8 +3387,20 @@ def route_image_to_mesh_via_mossy(image_path: str,
         with open(image_path, "rb") as fh:
             img_b64 = base64.b64encode(fh.read()).decode("utf-8")
 
+        _style_prompts = {
+            "vegetation": (
+                "Organic vegetation game asset mesh for Fallout 4 -- trunk/"
+                "stem geometry with real depth (leave leaves/foliage as "
+                "sparse alpha-cutout planes, matching how FO4's own trees "
+                "are built), low-poly, clean topology"
+            ),
+            "armor": "Hard-surface armor/prop game asset mesh for Fallout 4, low-poly, clean topology",
+            "realistic": "Detailed game asset mesh for Fallout 4, clean topology",
+        }
+        prompt = _style_prompts.get(style, "Game asset mesh for Fallout 4, low-poly, clean topology")
+
         result = mossy_link.generate_mesh(
-            prompt="Game asset mesh for Fallout 4, low-poly, clean topology",
+            prompt=prompt,
             image_base64=img_b64,
             style=style,
             timeout=timeout,
@@ -3426,6 +3438,8 @@ class FO4_OT_ImageToMeshFO4(bpy.types.Operator):
             ('lowpoly',   "Low-Poly",   "Clean low-poly — best for FO4"),
             ('realistic', "Realistic",  "Higher detail, more decimation needed"),
             ('armor',     "Armor/Hard", "Hard-surface: armor, weapons, props"),
+            ('vegetation', "Vegetation/Tree", "Organic vegetation — trunk, "
+                                              "branches, foliage"),
         ],
         default='lowpoly',
     )
@@ -3505,6 +3519,28 @@ class FO4_OT_ImageToMeshFO4(bpy.types.Operator):
         level = 'INFO' if ok else 'WARNING'
         self.report({level}, f"[{method_used}] {msg}")
 
+        # Route vegetation/tree output into the existing, already-verified
+        # vegetation pipeline (Vegetation & Landscaping panel: Smart Wind
+        # Setup, Setup Vegetation Material, Generate LOD + Collision) rather
+        # than leaving it tagged as a generic static prop. fo4_mesh_type is
+        # a real RNA EnumProperty -- must use attribute assignment, not
+        # obj["fo4_mesh_type"] = ... (bracket access silently creates an
+        # unrelated custom property the export pipeline never reads).
+        if ok and self.style == 'vegetation':
+            try:
+                new_objs[0].fo4_mesh_type = 'VEGETATION'
+            except Exception:
+                pass
+            self.report({'INFO'},
+                "Tagged as VEGETATION — use the Vegetation & Landscaping "
+                "panel's Smart Wind Setup / Setup Vegetation Material / "
+                "Generate LOD + Collision buttons next. Real FO4 tree "
+                "assets split trunk and foliage into separate shapes with "
+                "their own materials at every LOD level (verified against "
+                "TreeElmFree01.nif) -- for best results in Creation Kit, "
+                "separate this mesh into trunk/branch pieces before "
+                "exporting if the source has that much structure.")
+
         # Clean up temp OBJ
         try:
             import tempfile
@@ -3516,9 +3552,170 @@ class FO4_OT_ImageToMeshFO4(bpy.types.Operator):
         return {'FINISHED'}
 
 
+def create_plane_from_image(image_path: str, name: str = "", height: float = 2.0,
+                             cross_card: bool = True) -> tuple:
+    """Create a flat (or cross-card) alpha-cutout plane from a single image.
+
+    This is the lightweight alternative to full AI mesh reconstruction
+    (:class:`FO4_OT_ImageToMeshFO4`) for anything that's genuinely flat in
+    FO4's own conventions -- verified against the vanilla reference library
+    (see fo4_lod_generator.generate_billboard_lod): distant tree/foliage LOD
+    billboards are simple 8-vert/4-tri cross-cards, not further-decimated
+    3D geometry, and leaf cards/signage/posters are single alpha-cutout
+    quads. Going through a full AI reconstruction pipeline for this kind of
+    asset is unnecessary cost and produces bulkier, less game-accurate output.
+
+    Parameters
+    ----------
+    image_path : str
+        Source image, ideally with an alpha channel already baked in (a
+        transparent-background PNG). If the image has no alpha, the result
+        is a plain opaque rectangular card.
+    name : str
+        Base name for the created object/mesh/material. Defaults to the
+        image's filename stem.
+    height : float
+        World-space height (Blender units) of the resulting plane. Width is
+        derived from the image's own aspect ratio so it isn't stretched.
+    cross_card : bool
+        If True (default), build a cross-billboard (2 perpendicular quads,
+        8 verts / 4 tris total -- matching the verified real convention for
+        distant tree/foliage LOD billboards, so it reads correctly from
+        any horizontal viewing angle). If False, build a single flat quad
+        (matching leaf-card / signage conventions where only one viewing
+        angle actually matters).
+
+    Returns (success: bool, message: str, obj_or_None).
+    """
+    if not os.path.isfile(image_path):
+        return False, f"Image not found: {image_path}", None
+
+    base_name = name or os.path.splitext(os.path.basename(image_path))[0]
+
+    img = bpy.data.images.load(image_path, check_existing=True)
+    w, h = img.size[0], img.size[1]
+    if w == 0 or h == 0:
+        return False, f"Image '{img.name}' has zero size — reload it first", None
+
+    aspect = w / h
+    half_w = (height * aspect) * 0.5
+
+    mesh = bpy.data.meshes.new(base_name)
+    if cross_card:
+        # Two independent perpendicular quads (4 verts + 2 tris each = 8
+        # verts / 4 tris total) -- matching the verified real cross-
+        # billboard asset exactly, same geometry as generate_billboard_lod.
+        verts = [
+            (-half_w, 0.0, 0.0), (half_w, 0.0, 0.0), (half_w, 0.0, height), (-half_w, 0.0, height),
+            (0.0, -half_w, 0.0), (0.0, half_w, 0.0), (0.0, half_w, height), (0.0, -half_w, height),
+        ]
+        faces = [(0, 1, 2, 3), (4, 5, 6, 7)]
+    else:
+        verts = [(-half_w, 0.0, 0.0), (half_w, 0.0, 0.0), (half_w, 0.0, height), (-half_w, 0.0, height)]
+        faces = [(0, 1, 2, 3)]
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+
+    uv_layer = mesh.uv_layers.new(name="UVMap")
+    quad_uv = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+    for poly in mesh.polygons:
+        for corner, loop_index in enumerate(poly.loop_indices):
+            uv_layer.data[loop_index].uv = quad_uv[corner]
+
+    obj = bpy.data.objects.new(base_name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+
+    mat = bpy.data.materials.new(f"{base_name}_Mat")
+    mat.use_nodes = True
+    mat.blend_method = 'CLIP'
+    try:
+        mat.shadow_method = 'CLIP'  # removed in Blender 4.2+ (EEVEE Next)
+    except AttributeError:
+        pass
+    mat.use_backface_culling = False
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    tex_node = nodes.new('ShaderNodeTexImage')
+    tex_node.name = "Diffuse"
+    tex_node.label = "Diffuse"
+    tex_node.image = img
+    if bsdf:
+        links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+        alpha_input = bsdf.inputs.get('Alpha')
+        if alpha_input:
+            links.new(tex_node.outputs['Alpha'], alpha_input)
+    obj.data.materials.append(mat)
+
+    # fo4_mesh_type is a real RNA EnumProperty -- must use attribute
+    # assignment (obj.fo4_mesh_type = ...), not obj["fo4_mesh_type"] = ...
+    # (bracket/custom-property access silently creates an unrelated
+    # property the export pipeline never reads).
+    try:
+        obj.fo4_mesh_type = 'VEGETATION'
+    except Exception:
+        pass
+    obj["PYN_GAME"] = "FO4"
+
+    shape = "cross-card" if cross_card else "single quad"
+    return True, f"Created {shape} plane '{obj.name}' ({w}x{h} image, {height:.2f}u tall)", obj
+
+
+class FO4_OT_ImageToPlaneFO4(bpy.types.Operator):
+    """Convert an image directly to a flat FO4 alpha-cutout plane (billboard/
+    leaf-card style) -- the lightweight alternative to full AI mesh
+    reconstruction for anything genuinely flat: distant tree/foliage LOD
+    billboards, leaf cards, signage, posters."""
+
+    bl_idname  = "fo4.image_to_plane_fo4"
+    bl_label   = "Image → FO4 Plane"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: bpy.props.StringProperty(
+        name="Image", subtype='FILE_PATH',
+        description="Source image (ideally a transparent-background PNG)",
+    )
+    height: bpy.props.FloatProperty(
+        name="Height", default=2.0, min=0.01,
+        description="World-space height of the plane (Blender units); "
+                    "width is derived from the image's own aspect ratio",
+    )
+    cross_card: bpy.props.BoolProperty(
+        name="Cross-Card (2 planes)",
+        description="Build a cross-billboard (2 perpendicular quads) so it "
+                    "reads correctly from any horizontal angle -- matches "
+                    "the real FO4 tree/foliage LOD billboard convention. "
+                    "Disable for a single flat quad (leaf cards, signage)",
+        default=True,
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        path = bpy.path.abspath(self.filepath)
+        ok, msg, obj = create_plane_from_image(
+            path, height=self.height, cross_card=self.cross_card,
+        )
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+        if obj is not None:
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
 def register():
     try:
         bpy.utils.register_class(FO4_OT_ImageToMeshFO4)
+    except Exception:
+        pass
+    try:
+        bpy.utils.register_class(FO4_OT_ImageToPlaneFO4)
     except Exception:
         pass
 
@@ -3526,5 +3723,9 @@ def register():
 def unregister():
     try:
         bpy.utils.unregister_class(FO4_OT_ImageToMeshFO4)
+    except Exception:
+        pass
+    try:
+        bpy.utils.unregister_class(FO4_OT_ImageToPlaneFO4)
     except Exception:
         pass

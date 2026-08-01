@@ -614,96 +614,29 @@ def register():
         description="Display live Havok physics validation warnings",
         default=True,
     )
-    # Per-object Havok override properties (read by the Apply operator and the
-    # Niftools NIF exporter).  Registered here so operators.py and export
-    # helpers can always rely on them without a try/except.
-    bpy.types.Object.fo4_havok_motion_type = bpy.props.EnumProperty(
-        name="Motion Type",
-        description="Havok motion type for this object's bhkRigidBody",
-        items=MOTION_TYPE_ITEMS,
-        default="FIXED",
-    )
-    bpy.types.Object.fo4_havok_quality_type = bpy.props.EnumProperty(
-        name="Quality Type",
-        description="Havok simulation quality for this object's bhkRigidBody",
-        items=QUALITY_TYPE_ITEMS,
-        default="FIXED",
-    )
-    bpy.types.Object.fo4_havok_layer = bpy.props.EnumProperty(
-        name="Collision Layer",
-        description="Havok collision layer for this object's bhkCollisionObject",
-        items=LAYER_ITEMS,
-        default="1",
-    )
-    bpy.types.Object.fo4_havok_mass = bpy.props.FloatProperty(
-        name="Mass (kg)",
-        description="Rigid-body mass in kilograms (0 = FIXED / KEYFRAMED)",
-        default=0.0,
-        min=0.0,
-        soft_max=500.0,
-        precision=2,
-    )
-    bpy.types.Object.fo4_havok_friction = bpy.props.FloatProperty(
-        name="Friction",
-        description="Surface friction coefficient (0 = frictionless, 1 = maximum)",
-        default=0.8,
-        min=0.0,
-        max=1.0,
-        precision=2,
-    )
-    bpy.types.Object.fo4_havok_restitution = bpy.props.FloatProperty(
-        name="Restitution",
-        description="Bounciness / elasticity (0 = no bounce, 1 = perfectly elastic)",
-        default=0.1,
-        min=0.0,
-        max=1.0,
-        precision=2,
-    )
-    bpy.types.Object.fo4_havok_linear_damping = bpy.props.FloatProperty(
-        name="Linear Damping",
-        description="Linear velocity damping (higher = stops sliding faster)",
-        default=0.1,
-        min=0.0,
-        max=1.0,
-        precision=2,
-    )
-    bpy.types.Object.fo4_havok_angular_damping = bpy.props.FloatProperty(
-        name="Angular Damping",
-        description="Angular velocity damping (higher = stops spinning faster)",
-        default=0.05,
-        min=0.0,
-        max=1.0,
-        precision=2,
-    )
-    bpy.types.Object.fo4_physics_preset_id = bpy.props.StringProperty(
-        name="Applied Preset",
-        description="ID of the last physics preset applied to this object (informational)",
-        default="",
-    )
+    # NOTE: this used to also register a parallel set of per-object RNA
+    # EnumProperty/FloatProperty attributes (fo4_havok_motion_type,
+    # fo4_havok_quality_type, fo4_havok_layer, fo4_havok_mass,
+    # fo4_havok_friction, fo4_havok_restitution, fo4_havok_linear_damping,
+    # fo4_havok_angular_damping, fo4_physics_preset_id) -- confirmed via a
+    # full repo grep that NONE of them were ever read or written via
+    # attribute access anywhere (no panel drew them, no code referenced
+    # them), while setup_rigid_body()/validate_physics() below actually
+    # store/read the real values as plain custom ID properties
+    # (obj["fo4_havok_mass"], obj["fo4_motion_type"], etc. via obj.get()).
+    # Three of the dead RNA names (fo4_havok_mass/friction/restitution)
+    # collided with those real custom-property keys -- the exact
+    # RNA-vs-custom-property shadowing hazard documented in this project's
+    # memory (see fo4_mesh_type/fo4_collision_type). Removed entirely since
+    # nothing consumed them; the working custom-property system is
+    # unaffected by this removal.
 
 
 def unregister():
     scene_props = ("fo4_physics_preset", "fo4_physics_show_warnings")
-    object_props = (
-        "fo4_havok_motion_type",
-        "fo4_havok_quality_type",
-        "fo4_havok_layer",
-        "fo4_havok_mass",
-        "fo4_havok_friction",
-        "fo4_havok_restitution",
-        "fo4_havok_linear_damping",
-        "fo4_havok_angular_damping",
-        "fo4_physics_preset_id",
-    )
     for prop in scene_props:
         if hasattr(bpy.types.Scene, prop):
             try:
                 delattr(bpy.types.Scene, prop)
-            except Exception:
-                pass
-    for prop in object_props:
-        if hasattr(bpy.types.Object, prop):
-            try:
-                delattr(bpy.types.Object, prop)
             except Exception:
                 pass

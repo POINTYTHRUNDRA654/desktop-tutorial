@@ -116,14 +116,28 @@ class _ESPWriter:
 
     def record(self, type_code: str, formid: int,
                subrecords: bytes, flags: int = 0) -> bytes:
-        """Wrap subrecords in a record header."""
+        """Wrap subrecords in a record header.
+
+        The real Bethesda record header (confirmed byte-for-byte against
+        Fallout4.esm's TES4 record, whose first subrecord starts at file
+        offset 24) is 24 bytes total, not 20: type(4) + dataSize(4) +
+        flags(4) + formID(4) + timestamp(2) + versionControlInfo(2) +
+        internalRecordVersion/formVersion(2) + unknown(2). The previous
+        pack format (`<IIIHh`) only emitted 20 bytes -- missing the
+        trailing timestamp/versionControlInfo pair -- silently shifting
+        every subrecord after the very first record 4 bytes out of place
+        relative to what any real parser (game engine/CK/xEdit) expects,
+        making every generated ESP unusable despite no error being raised.
+        """
         assert len(type_code) == 4
         return (type_code.encode('ascii')
-                + struct.pack('<IIIHh',
+                + struct.pack('<IIIHHHH',
                               len(subrecords),   # data size
                               flags,             # record flags
                               formid,            # FormID
-                              self.FO4_VERSION,  # version
+                              0,                 # timestamp (unused for a locally-generated mod)
+                              0,                 # version control info
+                              self.FO4_VERSION,  # internal record version / form version
                               0))                # unknown
         # Note: subrecords appended by caller
 
@@ -135,12 +149,19 @@ class _ESPWriter:
     # ── Group wrapper ────────────────────────────────────────────────────
 
     def group(self, label: bytes, records: bytes, group_type: int = 0) -> bytes:
-        """GRUP wrapper: type(4) + size(4) + label(4) + groupType(4) + stamp(4)."""
+        """GRUP wrapper: type(4) + size(4) + label(4) + groupType(4) +
+        stamp(2) + unknown(2) + unknown2(4) = 24 bytes total (confirmed
+        against Fallout4.esm's real GRUP headers). The physical struct
+        pack previously only emitted 20 bytes (missing the trailing 4-byte
+        "unknown2" field) while the declared `size` field claimed 24 --
+        an internally inconsistent header that corrupts group boundaries
+        for any ESP with more than one record type/GRUP.
+        """
         size = 24 + len(records)   # 24 = GRUP header size
         return (b'GRUP'
                 + struct.pack('<I', size)
                 + label
-                + struct.pack('<IHH', group_type, 0, 0)
+                + struct.pack('<IHHI', group_type, 0, 0, 0)
                 + records)
 
 
@@ -463,10 +484,10 @@ def write_esp(output_path: str,
 # ---------------------------------------------------------------------------
 
 XEDIT_SCRIPT_TEMPLATE = '''\
-{
+{{
   Auto-generated xEdit script by Mossy FO4 Blender Addon
-  Run inside FO4Edit: Tools → Apply Script → select this file
-}
+  Run inside FO4Edit: Tools -> Apply Script -> select this file
+}}
 unit UserScript;
 
 function Initialize: Integer;

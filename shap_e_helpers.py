@@ -4,8 +4,11 @@ Text-to-3D and Image-to-3D generation using OpenAI's Shap-E
 """
 
 import atexit
+import importlib.util
 import multiprocessing
 import multiprocessing.connection  # explicit sub-module import required for type annotations
+import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -77,6 +80,23 @@ def _stop_shap_e_worker():
 
 def _shap_e_worker_main(conn: multiprocessing.connection.Connection):
     """Background worker loop that keeps heavy models off the UI thread."""
+    # shap_e has internal code paths we do not control (e.g. its CLIP
+    # embedder for image-to-3D, shap_e/models/generation/pretrained_clip.py)
+    # that fall back to its own default_cache_dir(), which is always
+    # <CWD>/shap_e_model_cache.  This worker process inherits Blender's CWD
+    # (typically Blender's own install directory, not writable without admin
+    # rights), so those paths fail with "Access is denied" even though our
+    # own load_model()/load_config() calls already pass an explicit
+    # cache_dir.  Changing CWD to the parent of _shap_e_cache_dir() makes
+    # shap_e's own internal default resolve to the exact same writable
+    # ~/.cache/shap_e_model_cache location.
+    try:
+        _cache_parent = Path.home() / ".cache"
+        _cache_parent.mkdir(parents=True, exist_ok=True)
+        os.chdir(str(_cache_parent))
+    except Exception:
+        pass
+
     while True:
         try:
             message = conn.recv()
@@ -113,6 +133,41 @@ def _shap_e_worker_main(conn: multiprocessing.connection.Connection):
         pass
 
 
+def _get_plain_worker_module():
+    """Load this file as a bare top-level 'shap_e_helpers' module.
+
+    When installed as a Blender Extension, this file is really imported as
+    e.g. 'bl_ext.user_default.blender_game_tools.shap_e_helpers' - a virtual
+    package name that only exists via Blender's own extension import hooks.
+    multiprocessing's spawn start method pickles Process targets by
+    (__module__, __qualname__) and re-imports __module__ in a bare child
+    interpreter that has none of those hooks, so spawning a worker with
+    target=_shap_e_worker_main directly used to fail with
+    "ModuleNotFoundError: No module named 'bl_ext'".
+
+    Loading a second copy of this same file under the plain name
+    'shap_e_helpers' (and making sure this file's directory is on sys.path,
+    which multiprocessing.spawn propagates to the child) gives us a function
+    reference that unpickles correctly in a bare interpreter - this is
+    exactly the "worker processes run without Blender" scenario the
+    `except ImportError: bpy = None` guard at the top of this file already
+    anticipated.
+    """
+    addon_dir = os.path.dirname(os.path.abspath(__file__))
+    if addon_dir not in sys.path:
+        sys.path.insert(0, addon_dir)
+
+    mod = sys.modules.get("shap_e_helpers")
+    if mod is not None and getattr(mod, "__file__", None) == __file__:
+        return mod
+
+    spec = importlib.util.spec_from_file_location("shap_e_helpers", __file__)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["shap_e_helpers"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _ensure_shap_e_worker() -> bool:
     """Start the Shap-E worker if needed."""
     global _SHAP_E_WORKER_PROC, _SHAP_E_WORKER_CONN
@@ -122,9 +177,10 @@ def _ensure_shap_e_worker() -> bool:
     _stop_shap_e_worker()
 
     try:
+        worker_mod = _get_plain_worker_module()
         ctx = multiprocessing.get_context("spawn")
         parent_conn, child_conn = ctx.Pipe()
-        proc = ctx.Process(target=_shap_e_worker_main, args=(child_conn,))
+        proc = ctx.Process(target=worker_mod._shap_e_worker_main, args=(child_conn,))
         proc.daemon = True
         proc.start()
         child_conn.close()
@@ -156,6 +212,22 @@ def _dispatch_shap_e_job(cmd: str, payload: Dict[str, Any]):
 atexit.register(_stop_shap_e_worker)
 
 
+def _shap_e_cache_dir() -> str:
+    """Return a writable directory for Shap-E's downloaded model weights.
+
+    shap_e.models.download.default_cache_dir() defaults to
+    ``<CWD>/shap_e_model_cache`` - inside Blender's own worker process the
+    CWD is Blender's install directory (e.g. ``D:\\Program Files\\Blender
+    Foundation\\Blender 5.1\\``), which is not writable without admin rights
+    and fails with ``[WinError 5] Access is denied``.  Use the user's home
+    cache directory instead, matching the ``~/.cache/...`` convention already
+    used for the HuggingFace cache elsewhere in this add-on.
+    """
+    d = Path.home() / ".cache" / "shap_e_model_cache"
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
 def _load_shap_e_transmitter(device, torch_module):
     """Load (or return cached) the shared Shap-E transmitter (xm).
 
@@ -170,7 +242,7 @@ def _load_shap_e_transmitter(device, torch_module):
     from shap_e.models.download import load_model
 
     print("Loading Shap-E transmitter (shared, first use or device change)…")
-    xm = load_model('transmitter', device=device)
+    xm = load_model('transmitter', device=device, cache_dir=_shap_e_cache_dir())
     xm.eval()
     if torch_module.device(device).type == 'cuda':
         xm.half()
@@ -205,8 +277,8 @@ def _load_shap_e_text_models(device):
     print("Loading Shap-E text model (first use or device change)…")
     # Load the shared transmitter first (cached after first call).
     _load_shap_e_transmitter(device, _torch)
-    model = load_model('text300M', device=device)
-    diffusion = diffusion_from_config(load_config('diffusion'))
+    model = load_model('text300M', device=device, cache_dir=_shap_e_cache_dir())
+    diffusion = diffusion_from_config(load_config('diffusion', cache_dir=_shap_e_cache_dir()))
     # Eval mode disables Dropout / BatchNorm training-time overhead.
     model.eval()
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
@@ -243,8 +315,8 @@ def _load_shap_e_image_models(device):
     print("Loading Shap-E image model (first use or device change)…")
     # Load the shared transmitter first (cached after first call).
     _load_shap_e_transmitter(device, _torch)
-    model = load_model('image300M', device=device)
-    diffusion = diffusion_from_config(load_config('diffusion'))
+    model = load_model('image300M', device=device, cache_dir=_shap_e_cache_dir())
+    diffusion = diffusion_from_config(load_config('diffusion', cache_dir=_shap_e_cache_dir()))
     # Eval mode disables Dropout / BatchNorm training-time overhead.
     model.eval()
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
@@ -590,7 +662,16 @@ For more info: https://github.com/openai/shap-e
                 return False, "Shap-E is not installed. Use the 'Auto-Install Shap-E' button to set it up."
             return False, f"Shap-E dependency missing: {str(e)}"
         except Exception as e:
-            return False, f"Generation failed: {str(e)}"
+            # str(e) can be empty for bare `assert cond` failures inside
+            # shap_e's own model code, which previously produced an
+            # unhelpful "Generation failed: " with no detail at all.  Print
+            # the full traceback to the console and fall back to repr(e) /
+            # the exception class name so there is always something to
+            # diagnose from.
+            import traceback as _tb
+            _tb.print_exc()
+            detail = str(e) or repr(e)
+            return False, f"Generation failed: {type(e).__name__}: {detail}"
     
     @staticmethod
     def generate_from_image(image_path, guidance_scale=3.0, num_inference_steps=32):
@@ -681,7 +762,16 @@ For more info: https://github.com/openai/shap-e
                 return False, "Shap-E is not installed. Use the 'Auto-Install Shap-E' button to set it up."
             return False, f"Shap-E dependency missing: {str(e)}"
         except Exception as e:
-            return False, f"Generation failed: {str(e)}"
+            # str(e) can be empty for bare `assert cond` failures inside
+            # shap_e's own model code, which previously produced an
+            # unhelpful "Generation failed: " with no detail at all.  Print
+            # the full traceback to the console and fall back to repr(e) /
+            # the exception class name so there is always something to
+            # diagnose from.
+            import traceback as _tb
+            _tb.print_exc()
+            detail = str(e) or repr(e)
+            return False, f"Generation failed: {type(e).__name__}: {detail}"
     
     @staticmethod
     def create_mesh_from_data(mesh_data, name="ShapE_Generated"):
@@ -831,12 +921,25 @@ def register():
         default=True
     )
 
+    bpy.types.Scene.fo4_shap_e_target_polys = IntProperty(
+        name="Target Triangles",
+        description=(
+            "Triangle count to decimate the raw Shap-E mesh down to after "
+            "generation (raw output is typically 100k-300k+ tris - far more "
+            "than a game-ready FO4 asset needs). Also triangulates, UV "
+            "unwraps, and adds a material slot"
+        ),
+        default=10000,
+        min=500,
+        max=65535
+    )
+
 
 def unregister():
     """Unregister Shap-E properties"""
     if bpy is None:  # pragma: no cover - only runs inside Blender
         return
-    
+
     if hasattr(bpy.types.Scene, 'fo4_shap_e_prompt'):
         del bpy.types.Scene.fo4_shap_e_prompt
     if hasattr(bpy.types.Scene, 'fo4_shap_e_image_path'):
@@ -847,5 +950,7 @@ def unregister():
         del bpy.types.Scene.fo4_shap_e_inference_steps
     if hasattr(bpy.types.Scene, 'fo4_shap_e_use_gpu'):
         del bpy.types.Scene.fo4_shap_e_use_gpu
+    if hasattr(bpy.types.Scene, 'fo4_shap_e_target_polys'):
+        del bpy.types.Scene.fo4_shap_e_target_polys
 
 

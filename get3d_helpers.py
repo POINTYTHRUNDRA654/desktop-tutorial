@@ -188,8 +188,14 @@ class GET3DHelpers:
             return False, f"File not found: {obj_path}", None
         
         try:
-            # Import OBJ file
-            bpy.ops.import_scene.obj(filepath=obj_path)
+            # Import OBJ file. bpy.ops.import_scene.obj was removed in
+            # Blender 4.0 in favor of wm.obj_import -- unconditionally
+            # calling the old name here raised AttributeError on every
+            # currently-supported Blender version this add-on targets.
+            if hasattr(bpy.ops.wm, "obj_import"):
+                bpy.ops.wm.obj_import(filepath=obj_path)
+            else:
+                bpy.ops.import_scene.obj(filepath=obj_path)
             
             # Get imported object
             imported_obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None

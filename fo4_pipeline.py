@@ -240,9 +240,24 @@ def _do_bgsm_export(obj, output_dir: str) -> tuple:
             if not mat:
                 continue
             bgsm_data = bgsm_helpers.blender_mat_to_bgsm(mat)
+            # WEAPON meshes: real weapon BGSMs (10mmPistol/CombatShotgun/
+            # Cryolator/Flamer/GaussRifle/AssaultRifleProto, verified via
+            # PyNifly) are NOT two-sided and use standard specular -- i.e.
+            # they need no extra shader-flag hints, only the pipeline's own
+            # weapon-specific origin/polycount checks (done elsewhere in the
+            # calling operator). The previous "sets weapon-specific BGSM
+            # flags" docstring overpromised; nothing to add here beyond
+            # actually writing the file (see the write_bgsm fix below).
             mat_name = mat.name.replace(" ", "_").lower()
             bgsm_path = os.path.join(output_dir, f"{mat_name}.bgsm")
-            bgsm_helpers.write_bgsm(bgsm_data, bgsm_path)
+            # write_bgsm(data) takes exactly one argument and RETURNS bytes --
+            # it never touches the filesystem itself. The old two-arg call
+            # raised a TypeError every time (silently caught below), so no
+            # .bgsm file was ever actually written by ANY pipeline that goes
+            # through this function (static/weapon/flora/full-mod).
+            raw = bgsm_helpers.write_bgsm(bgsm_data)
+            with open(bgsm_path, "wb") as f:
+                f.write(raw)
             exported.append(bgsm_path)
         if exported:
             return True, f"Exported {len(exported)} .bgsm file(s)"
@@ -506,8 +521,11 @@ class FO4_OT_PipelineWeapon(Operator):
 
         steps, warnings, errors = [], [], []
 
-        # Mark as weapon for BGSM export
-        obj["fo4_mesh_type"] = "WEAPON"
+        # Mark as weapon for BGSM export. fo4_mesh_type is a real RNA
+        # EnumProperty -- obj["fo4_mesh_type"] = ... (bracket/custom-property
+        # assignment) silently creates a separate, unrelated custom property
+        # and never touches the real value the export pipeline reads.
+        obj.fo4_mesh_type = "WEAPON"
 
         # Standard prep
         try:
@@ -569,6 +587,77 @@ class FO4_OT_PipelineWeapon(Operator):
         return {'FINISHED'} if not errors else {'CANCELLED'}
 
 
+# Real FO4 weapon connect points, verified against vanilla weapon NIFs
+# (10mmPistol, CombatShotgun, GaussRifle, Cryolator, Flamer,
+# AssaultRifleProto) via PyNifly. Parent points are attachment points FOR
+# other things (a scope attaching to P-Scope, a magazine to P-Mag, etc.);
+# the one child point is how the weapon itself attaches to a hand bone.
+_WEAPON_CONNECT_PARENTS = ["Grip", "Barrel", "Mag", "ProjectileNode", "Scope", "Casing"]
+_WEAPON_CONNECT_CHILD = "Receiver"
+
+
+class FO4_OT_CreateWeaponConnectPoints(Operator):
+    """Create the standard FO4 weapon connect-point empties on the active object.
+
+    PyNifly identifies connect points purely by Blender object name --
+    ``BSConnectPointParents::P-<name>`` / ``BSConnectPointChildren::C-<name>``
+    -- gathered from whatever is selected at export time. Without them a
+    weapon export has no attachment points for scopes/magazines/muzzle
+    devices, and no way to attach to a hand bone in-game.
+
+    Creates all 6 real parent connect points (Grip/Barrel/Mag/
+    ProjectileNode/Scope/Casing) plus the child connect point (Receiver),
+    parented to the active object at its local origin -- reposition each
+    one in the 3D viewport to match your weapon's actual grip/barrel/etc.
+    before exporting. Skips any that already exist (by name) so re-running
+    this is safe.
+    """
+    bl_idname  = "fo4.create_weapon_connect_points"
+    bl_label   = "Create Weapon Connect Points"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if obj is None or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select the weapon mesh first")
+            return {'CANCELLED'}
+
+        created = []
+        skipped = []
+
+        for name in _WEAPON_CONNECT_PARENTS:
+            full_name = f"BSConnectPointParents::P-{name}"
+            if full_name in bpy.data.objects and bpy.data.objects[full_name].parent is obj:
+                skipped.append(name)
+                continue
+            empty = bpy.data.objects.new(full_name, None)
+            empty.empty_display_type = 'ARROWS'
+            empty.empty_display_size = 0.1
+            empty.parent = obj
+            empty.location = (0.0, 0.0, 0.0)
+            context.collection.objects.link(empty)
+            created.append(name)
+
+        child_full_name = f"BSConnectPointChildren::C-{_WEAPON_CONNECT_CHILD}"
+        if child_full_name in bpy.data.objects and bpy.data.objects[child_full_name].parent is obj:
+            skipped.append(_WEAPON_CONNECT_CHILD)
+        else:
+            empty = bpy.data.objects.new(child_full_name, None)
+            empty.empty_display_type = 'SPHERE'
+            empty.empty_display_size = 0.1
+            empty.parent = obj
+            empty.location = (0.0, 0.0, 0.0)
+            context.collection.objects.link(empty)
+            created.append(_WEAPON_CONNECT_CHILD)
+
+        msg = f"Created {len(created)} connect point(s): {', '.join(created) or 'none'}"
+        if skipped:
+            msg += f" (already present: {', '.join(skipped)})"
+        msg += ". Reposition each one to match Grip/Barrel/Mag/etc. before exporting."
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
 class FO4_OT_PipelineFlora(Operator):
     """
     One-click FO4 flora / vegetation pipeline.
@@ -609,7 +698,10 @@ class FO4_OT_PipelineFlora(Operator):
             return {'CANCELLED'}
 
         steps, warnings, errors = [], [], []
-        obj["fo4_mesh_type"] = "VEGETATION"
+        # fo4_mesh_type is a real RNA EnumProperty -- must use attribute
+        # assignment (see the WEAPON case above for why bracket assignment
+        # silently no-ops on the value the export pipeline actually reads).
+        obj.fo4_mesh_type = "VEGETATION"
 
         # Standard prep
         try:
@@ -1130,6 +1222,7 @@ def _write_fomod_xml(fomod_dir: str, name: str, version: str, author: str) -> No
 _CLASSES = [
     FO4_OT_PipelineStaticMesh,
     FO4_OT_PipelineWeapon,
+    FO4_OT_CreateWeaponConnectPoints,
     FO4_OT_PipelineFlora,
     FO4_OT_PipelineNavMesh,
     FO4_OT_PipelineTRIMorphs,

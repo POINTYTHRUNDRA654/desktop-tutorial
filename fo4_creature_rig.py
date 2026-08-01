@@ -79,13 +79,30 @@ _JAW_LENGTH     = 15.0    # jaw bone length
 _LEAF_LENGTH    = 20.0    # frond length
 _TENDRIL_LEN    = 10.0
 
+# FO4 game units per Blender metre (Havok scale) — must match
+# operators._FO4_UNIT_SCALE and export_helpers._FO4_UNIT_SCALE_INV. Every
+# size constant above (and every builder's own size parameters — stem_height,
+# height, seg_length, body_length, leg_height) is documented as being in "FO4
+# game units", e.g. _STEM_LENGTH=60.0 is annotated "~86 cm, typical Mantrap".
+# _add_bone() applies this conversion centrally so every builder's bone
+# coordinates land at the correct Blender-unit size instead of being used
+# directly as raw game-unit numbers, which built a "carnivorous plant"
+# skeleton 60 Blender units (~60 real metres) tall instead of ~0.86 m —
+# confirmed directly by building one and measuring its dimensions.
+_FO4_UNIT_SCALE = 1.0 / 69.99125
+
 
 def _add_bone(arm, name: str, head: Vector, tail: Vector,
               parent_name: str = None) -> "bpy.types.EditBone":
-    """Add a bone to armature in edit mode. Returns the EditBone."""
+    """Add a bone to armature in edit mode. Returns the EditBone.
+
+    *head*/*tail* are given in FO4 game units (matching every builder's own
+    documented size parameters) and converted to Blender units here — see
+    _FO4_UNIT_SCALE's own comment for why this must not be skipped.
+    """
     b = arm.edit_bones.new(name)
-    b.head = head
-    b.tail = tail
+    b.head = head * _FO4_UNIT_SCALE
+    b.tail = tail * _FO4_UNIT_SCALE
     b.use_deform = True
     if parent_name:
         b.parent = arm.edit_bones[parent_name]
@@ -169,7 +186,7 @@ def build_carnivorous_plant(
     root = arm.edit_bones[0]
     root.name = "Root"
     root.head  = Vector((0, 0, 0))
-    root.tail  = Vector((0, 0, 2))
+    root.tail  = Vector((0, 0, 2)) * _FO4_UNIT_SCALE
 
     # ── Stem chain ────────────────────────────────────────────────────────────
     _add_bone(arm, "Stem",
@@ -299,7 +316,7 @@ def build_generic_flora(
     root = arm.edit_bones[0]
     root.name = "Root"
     root.head = Vector((0, 0, 0))
-    root.tail = Vector((0, 0, 2))
+    root.tail = Vector((0, 0, 2)) * _FO4_UNIT_SCALE
 
     _add_bone(arm, "Stem",
               Vector((0, 0, 0)), Vector((0, 0, height * 0.5)), "Root")
@@ -352,7 +369,7 @@ def build_tentacle(
     root = arm.edit_bones[0]
     root.name = "Root"
     root.head = Vector((0, 0, 0))
-    root.tail = Vector((0, 0, 2))
+    root.tail = Vector((0, 0, 2)) * _FO4_UNIT_SCALE
 
     prev = "Root"
     for i in range(segments):
@@ -403,7 +420,7 @@ def build_quadruped(
     root = arm.edit_bones[0]
     root.name = "Root"
     root.head = Vector((0, 0, 0))
-    root.tail = Vector((0, 0, 2))
+    root.tail = Vector((0, 0, 2)) * _FO4_UNIT_SCALE
 
     _add_bone(arm, "COM",     Vector((0, 0, h)),    Vector((0, 0, h+2)),     "Root")
     _add_bone(arm, "Pelvis",  Vector((bl*.5, 0, h)), Vector((bl*.5, 0, h+5)), "COM")

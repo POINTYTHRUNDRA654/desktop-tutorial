@@ -256,9 +256,14 @@ class DesktopTutorialClient:
         import re
         import shutil
 
-        # Locate the addon zip next to this file
+        # Locate the addon zip next to this file. build_addon.py names its
+        # output "mossy-fo4-blender-addon-v{version}-{variant}.zip" --
+        # "blender_game_tools" is only the internal FOLDER NAME packed
+        # *inside* the zip (ADDON_FOLDER_NAME), never the zip's own
+        # filename, so the old pattern here never matched any real build
+        # and this always failed with "not found".
         addon_dir = os.path.dirname(os.path.abspath(__file__))
-        pattern = os.path.join(addon_dir, "blender_game_tools-v*.zip")
+        pattern = os.path.join(addon_dir, "mossy-fo4-blender-addon-v*.zip")
         matches = glob.glob(pattern)
 
         if not matches:

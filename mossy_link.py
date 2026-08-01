@@ -41,6 +41,26 @@ from urllib import request as _url_request
 
 import bpy
 
+# CPython lazily imports codec modules like encodings.idna/encodings.ascii
+# the first time socket.getaddrinfo() actually needs them (inside
+# urlopen() -> getaddrinfo() -> hostname.encode(...)). This module spawns
+# background daemon threads (_bg_push, _bg_health_ping, etc.) that make HTTP
+# calls to the local Mossy bridge, and if the FIRST such lazy codec import
+# in the whole process happens concurrently on one of those threads while
+# the main thread is also doing dynamic imports (e.g. this addon's own
+# _try_import machinery during registration, or any importlib usage), the
+# import system's lock can be entered from two threads for the first-ever
+# import of the same module -- observed as a hard EXCEPTION_ACCESS_VIOLATION
+# crash inside python311.dll, confirmed via blender.crash.txt showing the
+# fault inside encodings/idna.py's search_function, reached through exactly
+# this module's _bg_push -> push_blender_context -> urlopen call chain.
+# Forcing these imports here, at module load time on the main thread (during
+# addon registration, before any of this module's background threads can
+# exist), pre-populates sys.modules so no thread ever has to race to
+# perform the first-time import.
+import encodings.idna    # noqa: F401
+import encodings.ascii   # noqa: F401
+
 # ── Internal state ─────────────────────────────────────────────────────────────
 _server_thread: "threading.Thread | None" = None
 _server_socket: "socket.socket | None" = None
@@ -132,20 +152,19 @@ _FO4_SYSTEM_CONTEXT = (
     "    Decimate Mesh (high-quality LOD), Split by Components, Clean & Reduce pipeline\n\n"
 
     "KEY WORKFLOWS:\n"
-    "1. DAZ IMPORT: Game Assets → Import Asset → select .duf/.dsf. Or: File → Import → DAZ Studio File\n"
-    "2. MESH PREP (always do this first): select mesh → Mesh Helpers → 'Prepare External Mesh for FO4'\n"
+    "1. MESH PREP (always do this first): select mesh → Mesh Helpers → 'Prepare External Mesh for FO4'\n"
     "   Fixes: transforms, UV name, extra UVs, material, merged doubles, non-manifold edges\n"
-    "3. VEGETATION: Prepare mesh → Thicken Flat Planes (Cross Card) → Smart Wind + FO4 Export Prep\n"
+    "2. VEGETATION: Prepare mesh → Thicken Flat Planes (Cross Card) → Smart Wind + FO4 Export Prep\n"
     "   → Generate LOD Chain → Export Static Mesh\n"
-    "4. STATIC PROP: Prepare mesh → Generate Collision Mesh (UCX_) → Validate → Export Static Mesh\n"
-    "5. NPC/CREATURE: Prepare mesh → Import FO4 Skeleton or Auto-Rig → Auto-Weight Paint\n"
+    "3. STATIC PROP: Prepare mesh → Generate Collision Mesh (UCX_) → Validate → Export Static Mesh\n"
+    "4. NPC/CREATURE: Prepare mesh → Import FO4 Skeleton or Auto-Rig → Auto-Weight Paint\n"
     "   → Enforce Bone Limit → Export Mesh to NIF\n"
-    "6. EXPORT: Export → Export Static Mesh (Full Pipeline) → choose output NIF path in file browser\n"
-    "7. HKX ANIMATION: set ck-cmd path in External Tools → Animation Export panel → Export Animation (HKX)\n"
-    "8. DDS TEXTURES: External Tools → set NVTT or TexConv path → Texture Conversion panel\n"
-    "9. SETTLEMENT ITEM: Prepare + Collision → Settlement Workshop → Add Snap Points\n"
+    "5. EXPORT: Export → Export Static Mesh (Full Pipeline) → choose output NIF path in file browser\n"
+    "6. HKX ANIMATION: set ck-cmd path in External Tools → Animation Export panel → Export Animation (HKX)\n"
+    "7. DDS TEXTURES: External Tools → set NVTT or TexConv path → Texture Conversion panel\n"
+    "8. SETTLEMENT ITEM: Prepare + Collision → Settlement Workshop → Add Snap Points\n"
     "   → Generate Workshop Stubs → Export\n"
-    "10. FIRST MOD: Setup & Status (install PyNifly) → External Tools (set paths) → Game Assets\n"
+    "9. FIRST MOD: Setup & Status (install PyNifly) → External Tools (set paths) → Game Assets\n"
     "    (set FO4 Data Folder + Mod Output Folder) → model/import → Prepare → Export\n\n"
 
     "TECHNICAL FO4 KNOWLEDGE:\n"
@@ -1365,8 +1384,15 @@ def push_blender_context(obj=None) -> bool:
             ctx["material_slots"]  = len(obj.material_slots)
             ctx["modifiers"]       = [m.name for m in obj.modifiers]
             ctx["has_armature"]    = any(m.type == 'ARMATURE' for m in obj.modifiers)
-            ctx["fo4_mesh_type"]   = obj.get("fo4_mesh_type", "")
-            ctx["fo4_collision"]   = obj.get("fo4_collision_type", "")
+            # fo4_mesh_type/fo4_collision_type are real RNA EnumProperties
+            # (bpy.types.Object.fo4_mesh_type/fo4_collision_type = EnumProperty(...)),
+            # set via attribute assignment everywhere they're actually used --
+            # obj.get(...) only reads custom ID properties and always
+            # silently returned "" for these two. fo4_object_type genuinely
+            # IS a custom property (set via obj["fo4_object_type"] = ...
+            # elsewhere), so its .get() lookup was already correct.
+            ctx["fo4_mesh_type"]   = getattr(obj, "fo4_mesh_type", "")
+            ctx["fo4_collision"]   = getattr(obj, "fo4_collision_type", "")
             ctx["fo4_object_type"] = obj.get("fo4_object_type", "")
             ctx["scale_applied"]   = all(abs(s - 1.0) < 1e-4 for s in obj.scale)
             # Flag common problems directly so Mossy can highlight them

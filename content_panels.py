@@ -68,6 +68,25 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         # ── Asset-path status banner ─────────────────────────────────────────
         _draw_game_path_box(layout, context)
 
+        # Create from a reference image — two paths depending on what the
+        # source actually needs to be: a flat billboard/leaf-card (cheap,
+        # matches the real FO4 LOD-billboard/leaf-card convention for
+        # anything genuinely flat), or a full AI 3D reconstruction (for
+        # trunks/stems/anything with real depth).
+        box = layout.box()
+        box.label(text="Create From Reference Image", icon='IMAGE_DATA')
+        sub = box.column(align=True)
+        sub.scale_y = 0.75
+        sub.label(text="Flat foliage/billboards/signage → Plane", icon='INFO')
+        sub.label(text="Trunks/props with real depth → 3D Mesh (AI)", icon='INFO')
+        box.separator()
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("fo4.image_to_plane_fo4", text="Image → Plane", icon='MESH_PLANE')
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("fo4.image_to_mesh_fo4", text="Image → 3D Mesh (AI)", icon='MESH_MONKEY')
+
         # Import & Retopologize (AI-generated meshes: Meshy, etc.)
         box = layout.box()
         box.label(text="Import & Retopologize (AI Mesh)", icon='MOD_REMESH')
@@ -113,18 +132,27 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
         sub = box.column(align=True)
         sub.scale_y = 0.75
-        sub.label(text="FO4: LOD0 (close) → LOD3 (far) per vegetation asset", icon='INFO')
-        sub.label(text="Source = LOD0. Creates LOD1–LOD3 copies.", icon='INFO')
+        sub.label(text="Real FO4 convention: 2 reduced-mesh levels, then a", icon='INFO')
+        sub.label(text="baked cross-billboard for the farthest level", icon='INFO')
         box.separator()
+        has_mesh = bool(obj and obj.type == 'MESH')
         row = box.row()
-        row.enabled = bool(obj and obj.type == 'MESH')
+        row.enabled = has_mesh
         row.scale_y = 1.3
-        row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain", icon='MESH_GRID')
-        row2 = box.row()
-        row2.enabled = bool(obj and obj.type == 'MESH')
+        row.operator("fo4.generate_lod_and_collision",
+                     text="Generate LOD + Collision", icon='SHADERFX')
+
+        legacy = box.box()
+        legacy.scale_y = 0.85
+        legacy.label(text="Legacy / manual alternative:", icon='DOT')
+        row = legacy.row()
+        row.enabled = has_mesh
+        row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain (manual, no billboard/collision)", icon='MESH_GRID')
+        row2 = legacy.row()
+        row2.enabled = has_mesh
         row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
-        row3 = box.row()
-        row3.enabled = bool(obj and obj.type == 'MESH')
+        row3 = legacy.row()
+        row3.enabled = has_mesh
         row3.operator("fo4.import_glb_as_lod", text="Import GLB / GLTF as LOD", icon='IMPORT')
 
         # Collision for vegetation
@@ -134,8 +162,8 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         sub.scale_y = 0.75
         sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
         sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
+        sub.label(text="'Generate LOD + Collision' above already includes this", icon='INFO')
         box.separator()
-        has_mesh = bool(obj and obj.type == 'MESH')
         if has_mesh:
             box.prop(obj, "fo4_collision_type", text="Type")
         row = box.row()
@@ -143,11 +171,7 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         row = box.row()
         can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
         row.enabled = bool(can_collide)
-        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh", icon='MESH_DATA')
-        row = box.row()
-        row.enabled = bool(has_mesh)
-        row.operator("fo4.generate_lod_and_collision",
-                     text="Generate LOD + Collision", icon='SHADERFX')
+        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh (manual)", icon='MESH_DATA')
 
         # Wind animation
         box = layout.box()

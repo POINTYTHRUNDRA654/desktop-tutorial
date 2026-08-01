@@ -580,19 +580,30 @@ class AdvisorHelpers:
         # The niftools exporter uses a CONTAINS check on the node label, so
         # the label must contain the exact TEX_SLOTS string.  "Diffuse" is not
         # in that set and causes "Do not know how to export texture node …".
+        # Node-name aliases: texture_helpers.setup_fo4_material (the addon's
+        # own material builder) always names the diffuse node "Diffuse", not
+        # "Base" -- looking up only "Base" here (the old code) never found
+        # it, so this advisor permanently reported the diffuse texture as
+        # missing on every correctly set-up FO4 material. Check both names,
+        # matching the alias-set pattern already used correctly elsewhere
+        # (fo4_scene_diagnostics.py's UV/texture check).
         _SLOTS = {
-            "Base":     ("DIFFUSE",  "Diffuse / albedo",
+            "Diffuse":  (("Diffuse", "Base"), "DIFFUSE",  "Diffuse / albedo",
                          "BC1 (DXT1) or BC3 if alpha needed",  True,  True),
-            "Normal":   ("NORMAL",   "Normal map",
+            "Normal":   (("Normal",), "NORMAL",   "Normal map",
                          "BC5 (ATI2) two-channel tangent-space", True,  False),
-            "Specular": ("SPECULAR", "Specular",
+            "Specular": (("Specular", "Spec"), "SPECULAR", "Specular",
                          "BC1 (DXT1)",                          False, False),
-            "Glow":     ("GLOW",     "Glow / emissive",
+            "Glow":     (("Glow",), "GLOW",   "Glow / emissive",
                          "BC1 (DXT1)",                          False, False),
         }
         texture_status = {}
-        for node_name, (tex_type, display, dds_fmt, required, is_colour) in _SLOTS.items():
-            node = nodes.get(node_name)
+        for node_name, (aliases, tex_type, display, dds_fmt, required, is_colour) in _SLOTS.items():
+            node = None
+            for alias in aliases:
+                node = nodes.get(alias)
+                if node is not None:
+                    break
             if node is None:
                 texture_status[node_name] = {"node_present": False}
                 if required:

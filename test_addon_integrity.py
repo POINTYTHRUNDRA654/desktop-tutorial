@@ -4204,7 +4204,7 @@ class TestBGSMHelpers(unittest.TestCase):
                 alpha=0.75,
                 alpha_test=True,
                 alpha_test_ref=100,
-                smoothness=180.0,
+                smoothness=0.72,  # real BGSM range is 0.0-1.0, not 0-255
                 emit_enabled=True,
                 emittance_color=(1.0, 0.5, 0.0),
                 emittance_mult=2.0,

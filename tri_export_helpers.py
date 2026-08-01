@@ -122,6 +122,25 @@ class TRIExportHelpers:
                 "(max 65,535). Decimate or split the mesh before exporting."
             )
 
+        # ── FO4 unit scale restoration ──────────────────────────────────────────
+        # A .tri's base vertex positions and morph deltas are applied at
+        # runtime directly against this same mesh's exported NIF geometry,
+        # which the NIF exporter always writes back at FO4-native scale
+        # (Blender-metre coords x fo4_unit_scale, ~69.99125 -- see
+        # export_helpers.py). Without the same restoration here, a .tri
+        # written straight from Blender's own (/70) editing-scale
+        # coordinates would be ~70x too small relative to its companion
+        # NIF -- either rejected as mismatched or applying imperceptibly
+        # tiny morph deltas in-game.
+        fo4_scale = obj.get("fo4_unit_scale", None)
+        if fo4_scale is None:
+            try:
+                from . import export_helpers as _eh
+                fo4_scale = _eh.ExportHelpers._infer_fo4_scale_for_untagged(obj)
+            except Exception:
+                fo4_scale = None
+        fo4_scale = fo4_scale or 1.0
+
         # ── Build triangulated face list ───────────────────────────────────────
         depsgraph = bpy.context.evaluated_depsgraph_get()
         eval_obj = obj.evaluated_get(depsgraph)
@@ -147,11 +166,11 @@ class TRIExportHelpers:
         if n_tris == 0:
             return False, "Mesh has no triangles after triangulation"
 
-        # ── Collect basis vertex positions ─────────────────────────────────────
+        # ── Collect basis vertex positions (restored to FO4-native scale) ──────
         basis_cos = [
-            (basis_key.data[i].co.x,
-             basis_key.data[i].co.y,
-             basis_key.data[i].co.z)
+            (basis_key.data[i].co.x * fo4_scale,
+             basis_key.data[i].co.y * fo4_scale,
+             basis_key.data[i].co.z * fo4_scale)
             for i in range(n_verts)
         ]
 
@@ -161,9 +180,9 @@ class TRIExportHelpers:
             deltas_f = []
             max_delta = 0.0
             for i in range(n_verts):
-                dx = key.data[i].co.x - basis_cos[i][0]
-                dy = key.data[i].co.y - basis_cos[i][1]
-                dz = key.data[i].co.z - basis_cos[i][2]
+                dx = key.data[i].co.x * fo4_scale - basis_cos[i][0]
+                dy = key.data[i].co.y * fo4_scale - basis_cos[i][1]
+                dz = key.data[i].co.z * fo4_scale - basis_cos[i][2]
                 deltas_f.extend((dx, dy, dz))
                 m = max(abs(dx), abs(dy), abs(dz))
                 if m > max_delta:

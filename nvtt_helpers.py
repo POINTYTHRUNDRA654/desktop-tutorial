@@ -18,15 +18,20 @@ from . import preferences
 # Slot-aware format detection
 # ---------------------------------------------------------------------------
 
-# Mapping from texture slot name to DDS compression format.
-# Slot names are returned by detect_slot_from_filename().
-FORMAT_FOR_SLOT: dict[str, str] = {
-    'diffuse':  'bc7',   # sRGB colour – BC7 for high quality
-    'normal':   'bc5',   # two-channel tangent-space
-    'specular': 'bc4',   # single-channel smoothspec / gloss mask
-    'glow':     'bc7',   # emissive / glow
-    'envmask':  'bc7',   # environment / cube-map mask
-    'unknown':  'bc7',   # safe high-quality default
+# Mapping from texture slot name (as returned by detect_slot_from_filename)
+# to the key NVTTHelpers.get_fo4_dds_format expects. That method is this
+# module's single source of truth for FO4 compression conventions (BC1
+# diffuse/specular/glow, BC5 normal) -- this module used to keep a SECOND,
+# independent format table here (BC7 diffuse, BC4 specular) that had
+# silently drifted out of sync with it. Auto-detection now always resolves
+# through get_fo4_dds_format so the two can never disagree again.
+_SLOT_TO_FORMAT_KEY: dict[str, str] = {
+    'diffuse':  'DIFFUSE',
+    'normal':   'NORMAL',
+    'specular': 'SPECULAR',
+    'glow':     'GLOW',
+    'envmask':  'ENVIRONMENT',
+    'unknown':  'DIFFUSE',
 }
 
 
@@ -221,7 +226,20 @@ class NVTTHelpers:
             resolved_slot = slot if slot is not None else detect_slot_from_filename(
                 input_path
             )
-            compression_format = FORMAT_FOR_SLOT.get(resolved_slot, 'bc7')
+            # Callers pass slot names in whatever case is natural to them
+            # (e.g. bgsm_helpers.py passes Blender node names like "Normal",
+            # operators.py's bake path passes 'NORMAL') -- normalize to
+            # lowercase before mapping to a get_fo4_dds_format() key so both
+            # styles resolve correctly. Previously this looked up a second,
+            # independent format table (FORMAT_FOR_SLOT) that had drifted out
+            # of sync with get_fo4_dds_format's documented conventions (e.g.
+            # claiming specular should be BC4 instead of BC1) AND used
+            # lowercase-only keys that silently missed every capitalized
+            # caller, always falling through to a BC7 default regardless of
+            # actual texture type (e.g. baked normal maps shipped as BC7
+            # instead of BC5).
+            format_key = _SLOT_TO_FORMAT_KEY.get((resolved_slot or "").lower(), 'DIFFUSE')
+            compression_format = NVTTHelpers.get_fo4_dds_format(format_key)
         if not os.path.exists(input_path):
             return False, f"Input file not found: {input_path}"
 

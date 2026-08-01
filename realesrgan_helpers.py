@@ -382,13 +382,22 @@ class RealESRGANHelpers:
             # Pass the resolved executable path so upscale_texture_vulkan does
             # not have to re-resolve it (avoids a second shutil.which call and
             # ensures the locally-installed binary is always used).
+            # Explicit general-purpose model: upscale_texture_vulkan's own
+            # default is 'realesr-animevideov3' (an anime/video-tuned
+            # model), while upscale_texture_python's default is the
+            # general-purpose 'RealESRGAN_x4plus' -- since Vulkan is
+            # preferred/checked first, any user with the NCNN binary
+            # installed silently got anime-video-tuned output on ordinary
+            # FO4 game textures. 'realesrgan-x4plus' is the Vulkan-side
+            # equivalent of the Python package's general model (see
+            # upscale_krea_legacy_style, which already gets this right).
             exe = path if path != 'python' else None
             return RealESRGANHelpers.upscale_texture_vulkan(
-                input_path, output_path, scale, exe_path=exe
+                input_path, output_path, scale, model='realesrgan-x4plus', exe_path=exe
             )
         elif method == 'python':
             return RealESRGANHelpers.upscale_texture_python(
-                input_path, output_path, scale
+                input_path, output_path, scale, model='RealESRGAN_x4plus'
             )
         else:
             return False, f"Unknown upscaling method: {method}"

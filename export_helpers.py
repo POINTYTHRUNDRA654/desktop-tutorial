@@ -52,12 +52,29 @@ class ExportHelpers:
 
         Vegetation in FO4 uses procedural in-engine wind driven by the Wind
         vertex group — no armature skeleton is needed or wanted.  The check
-        looks for three signals in priority order:
-        1. ``fo4_object_type == 'VEGETATION'`` custom property on the object.
-        2. ``fo4_shader_type == 'vegetation'`` or ``fo4_core_profile == 'foliage'``
+        looks for four signals in priority order:
+        1. ``fo4_mesh_type == 'VEGETATION'`` — the real, user-facing "Mesh
+           Type" dropdown (a proper RNA EnumProperty; read via getattr, not
+           .get(), since it isn't a custom ID property).
+        2. ``fo4_object_type == 'VEGETATION'`` custom property on the object.
+        3. ``fo4_shader_type == 'vegetation'`` or ``fo4_core_profile == 'foliage'``
            on any of the object's materials.
-        3. All vertex groups are recognised wind-weight group names.
+        4. All vertex groups are recognised wind-weight group names.
+
+        NOTE: a ``VERTEX_ALPHA`` colour attribute's mere *presence* was tried
+        as a 5th signal (the theory being that FO4's BSLeafAnimNode reads
+        this channel as per-vertex wind-sway weight, so an already-wind-
+        enabled NIF import would carry it). Checked directly against a real
+        mod's assets and reverted: a static Red Rocket building shape ALSO
+        had a VERTEX_ALPHA attribute, uniformly 1.0 with zero correlation to
+        vertex height — indistinguishable from the vegetation samples, which
+        were *also* uniformly 1.0 (one didn't even have the attribute at
+        all). This channel's presence (even a non-uniform one) is not a
+        reliable vegetation signal in real-world NIFs; do not reintroduce it
+        without a much stronger, verified-on-real-assets distinguishing test.
         """
+        if getattr(obj, "fo4_mesh_type", "") == "VEGETATION":
+            return True
         if obj.get("fo4_object_type", "").upper() == "VEGETATION":
             return True
         for slot in getattr(obj, 'material_slots', []):
@@ -97,7 +114,7 @@ class ExportHelpers:
         # and the armature with fo4_weapon_type. Without this check, the
         # generic "parented to an armature with non-NPC bone names" rule
         # below would misclassify that weapon as CREATURE.
-        if obj.get("fo4_weapon_type"):
+        if obj.get("fo4_weapon_type") or getattr(obj, "fo4_mesh_type", "") == "WEAPON":
             return 'WEAPON'
 
         # Power Armor and other rigid, unskinned armor pieces (tagged by
@@ -722,6 +739,19 @@ class ExportHelpers:
         2. Any direct child with the ``fo4_collision`` flag (less specific).
         3. Scene siblings whose name matches ``UCX_{name}`` (Fallout 4 / FBX
            convention) or the legacy ``{name}_COLLISION`` suffix.
+        4. A single unclaimed native-collision object (``pynRigidBody`` set --
+           PyNifly's own import-time marker for a ``bhkPhysicsSystem`` shape,
+           the same property our own authoring tools set) sharing *obj*'s
+           ``fo4_source_nif``. Real FO4 assets imported with pre-existing
+           native Havok collision arrive this way -- unparented, no
+           ``fo4_collision`` flag, no UCX_ name -- so none of checks 1-3 ever
+           matched them, and a plain reimport-then-reexport of such an asset
+           silently dropped its collision entirely (confirmed on
+           gsfungusbarnacletrap01.nif). Only fires when exactly one such
+           object exists for this source NIF -- with more than one, we can't
+           tell which real mesh each collision shape belongs to (no parent/
+           spatial data survives import), and guessing wrong would attach
+           the wrong collision rather than none at all.
         """
         ucx_name = f"UCX_{obj.name}".upper()
         legacy_name = f"{obj.name}_COLLISION".upper()
@@ -741,7 +771,45 @@ class ExportHelpers:
                 oname = o.name.upper()
                 if oname == ucx_name or oname == legacy_name:
                     return o
+
+        source_nif = obj.get("fo4_source_nif")
+        if source_nif:
+            for scene in getattr(obj, 'users_scene', []):
+                candidates = [
+                    o for o in scene.objects
+                    if o is not obj and o.get("pynRigidBody")
+                    and o.get("fo4_source_nif") == source_nif
+                ]
+                if len(candidates) == 1:
+                    return candidates[0]
         return None
+
+    @staticmethod
+    def _find_connect_points(obj):
+        """Return all connect-point child objects (parent and child kinds)
+        anywhere under *obj*, so they survive being included in the export
+        selection.
+
+        PyNifly identifies connect points purely by Blender object name --
+        ``BSConnectPointParents::P-<name>`` (an attachment point FOR other
+        things, e.g. a scope/magazine attaching to this weapon) or
+        ``BSConnectPointChildren::C-<name>`` (how this object attaches to
+        something else, e.g. a weapon attaching to a hand bone) -- gathered
+        from whatever is in ``bpy.context.selected_objects`` at export time
+        (see ``nif/connectpoint.py``'s ``is_parent``/``is_child``). Without
+        this, connect points a user hand-built under the weapon object were
+        silently excluded every export, since export_mesh_to_nif explicitly
+        deselects everything and selects only ``[obj, collision]``.
+        """
+        found = []
+        stack = list(obj.children)
+        while stack:
+            child = stack.pop()
+            name = child.name
+            if name.startswith("BSConnectPointParents") or name.startswith("BSConnectPointChildren"):
+                found.append(child)
+            stack.extend(child.children)
+        return found
 
     @staticmethod
     def _find_skinned_armature(obj):
@@ -880,11 +948,25 @@ class ExportHelpers:
                 if fo4_scale is None:
                     fo4_scale = ExportHelpers._infer_fo4_scale_for_untagged(obj)
                 if fo4_scale:
-                    # Collect: main mesh first, then any collision child that also
-                    # carries fo4_unit_scale (created by our LOD generator from LOD3).
+                    # Collect: main mesh first, then any collision child -- it
+                    # must move in lockstep with obj regardless of whether it
+                    # carries its own fo4_unit_scale tag. Blender's
+                    # duplicate() DOES copy custom properties (verified), so
+                    # a collision mesh generated from a TAGGED source
+                    # already inherits the tag and this used to happen to
+                    # work by accident. But when obj itself was untagged and
+                    # fo4_scale came from the dimension-based
+                    # _infer_fo4_scale_for_untagged() fallback just above,
+                    # the collision mesh (also untagged, being a duplicate
+                    # of an untagged source) was silently excluded here --
+                    # the main mesh got scaled/restored but its collision
+                    # hull didn't, leaving it ~70x too small relative to the
+                    # now-correctly-scaled visual geometry. Gate on fo4_scale
+                    # itself (already resolved above, tag-or-inferred) not on
+                    # the collision object's own tag.
                     _scale_targets = [obj]
                     _coll_early = ExportHelpers._find_collision_mesh(obj)
-                    if _coll_early and _coll_early.get("fo4_unit_scale"):
+                    if _coll_early:
                         _scale_targets.append(_coll_early)
 
                     # The skinned armature's bind-pose bones must move in lockstep
@@ -919,13 +1001,28 @@ class ExportHelpers:
                                 o.data = o.data.copy()
                         except Exception:
                             pass
+                        # bpy.ops.object.transform_apply() communicates failure
+                        # through a Blender operator report + a non-FINISHED
+                        # return value, NOT a Python exception -- a bare
+                        # try/except around the call alone treats "the
+                        # operator silently did nothing" the same as "it
+                        # succeeded". Confirmed directly on a real multi-piece
+                        # armor rig: this exact call left o.scale sitting at
+                        # ×fo4_scale (~70) with no exception raised, and
+                        # validate_before_export() below (which runs before
+                        # the restore-in-finally undoes this ×70) then
+                        # correctly, but confusingly, rejected the mesh for
+                        # "scale not applied" -- the export-time ×70 bake
+                        # itself had silently failed, not anything upstream.
                         applied = False
                         try:
-                            bpy.ops.object.transform_apply(
+                            _sc_result = bpy.ops.object.transform_apply(
                                 location=False, rotation=False, scale=True
                             )
-                            applied = True
+                            applied = 'FINISHED' in _sc_result and tuple(o.scale) == (1.0, 1.0, 1.0)
                         except Exception:
+                            applied = False
+                        if not applied:
                             # Fallback: bake scale directly into mesh vertices.
                             try:
                                 import mathutils as _mu
@@ -960,6 +1057,11 @@ class ExportHelpers:
                     coll = ExportHelpers._find_collision_mesh(obj)
                     if coll:
                         selection.append(coll)
+                # include any weapon-mod/attachment connect points the user
+                # has built under this object -- PyNifly only finds these by
+                # scanning the export-time selection, so they'd be silently
+                # dropped otherwise.
+                selection.extend(ExportHelpers._find_connect_points(obj))
 
                 bpy.ops.object.select_all(action='DESELECT')
                 for o in selection:
@@ -967,24 +1069,40 @@ class ExportHelpers:
                 bpy.context.view_layer.objects.active = obj
 
                 # Dispatch to the appropriate exporter.
+                import time as _time_mod
+                _export_start = _time_mod.time()
                 if exporter == "pynifly":
                     kwargs = ExportHelpers._build_pynifly_export_kwargs(filepath)
-                    result = ExportHelpers._call_nif_export(bpy.ops.export_scene.pynifly, kwargs)
+                    result = ExportHelpers._call_nif_export(
+                        bpy.ops.export_scene.pynifly, kwargs,
+                        active_object=obj, selected_objects=selection,
+                    )
                     exporter_label = "PyNifly"
                 else:
                     kwargs = ExportHelpers._build_nif_export_kwargs(filepath)
-                    result = ExportHelpers._call_nif_export(bpy.ops.export_scene.nif, kwargs)
+                    result = ExportHelpers._call_nif_export(
+                        bpy.ops.export_scene.nif, kwargs,
+                        active_object=obj, selected_objects=selection,
+                    )
                     exporter_label = "Niftools v0.1.1"
 
                 # PyNifly returns an empty set() on SUCCESS — it never adds
                 # 'FINISHED' (see ExportNIF.execute:
                 # `return res.intersection({'CANCELLED','FINISHED'})`, where res
-                # only ever gains 'CANCELLED', on failure).  So treat any result
-                # WITHOUT 'CANCELLED' as success; only fall back to a disk check
-                # when the operator actually cancelled.
-                _out_ok = isinstance(result, set) and 'CANCELLED' not in result
-                if not _out_ok:
-                    _out_ok = ExportHelpers._export_output_written(filepath)
+                # only ever gains 'CANCELLED', on failure). But a non-CANCELLED
+                # result is not proof the file was actually written — confirmed
+                # directly on a real multi-piece armor rig, calling this in a
+                # headless (-b) session via the active_object/selected_objects
+                # context-override fallback (no real window/area available):
+                # the operator returned a non-CANCELLED result and this code
+                # reported success, yet no .nif ever appeared on disk. Always
+                # verify the file actually landed rather than trusting a
+                # merely-non-CANCELLED result. after_time=_export_start makes
+                # this exact — otherwise a PREVIOUS piece's .nif written
+                # moments earlier in the same output folder (e.g. exporting
+                # a multi-piece armor set one after another) can be mistaken
+                # for this call's own output purely for being "recent".
+                _out_ok = ExportHelpers._export_output_written(filepath, after_time=_export_start)
 
                 if _out_ok:
                     ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
@@ -1103,12 +1221,32 @@ class ExportHelpers:
                             # the correct BSXFlags for mesh types where we
                             # have a verified real value (e.g. Furniture).
                             from . import nif_roundtrip as _nrt
+                            # fo4_mesh_type is a real RNA EnumProperty
+                            # (bpy.types.Object.fo4_mesh_type = EnumProperty(...)),
+                            # set via attribute assignment (obj.fo4_mesh_type = ...)
+                            # everywhere it's actually used (Create Vegetation,
+                            # generate_lod_chain, etc.) -- NOT a custom ID
+                            # property, so obj.get(...) here always silently
+                            # returned "" regardless of the real value. This
+                            # meant patch_fresh_bsxflags never actually fired for
+                            # any real object, only for test scripts that
+                            # coincidentally set it as a raw custom property.
                             _fresh_report = _nrt.patch_fresh_bsxflags(
-                                filepath, obj.get("fo4_mesh_type", "")
+                                filepath, getattr(obj, "fo4_mesh_type", "")
                             )
                             _fresh_summary = _nrt.summarize(_fresh_report)
                             if _fresh_summary:
                                 _roundtrip_note = f"  [{_fresh_summary}]"
+                            # Real weapon root-node naming (every vanilla
+                            # weapon file uses the literal name "WEAPON",
+                            # confirmed across 10mmPistol/CombatShotgun/
+                            # GaussRifle/Cryolator/Flamer/AssaultRifleProto).
+                            _root_report = _nrt.patch_root_name(
+                                filepath, getattr(obj, "fo4_mesh_type", "")
+                            )
+                            _root_summary = _nrt.summarize(_root_report)
+                            if _root_summary:
+                                _roundtrip_note += f"  [{_root_summary}]"
                     except Exception as _rte:
                         print(f"[FO4Export] NIF round-trip patch skipped: {_rte}")
 
@@ -1141,10 +1279,18 @@ class ExportHelpers:
                     if mod:
                         obj.modifiers.remove(mod)
                 # Restore objects to Blender-metre scale after export.
+                # This must be a UNIFORM 1/fo4_scale, NOT orig_scale[i]*inv --
+                # orig_scale's own (possibly non-uniform, possibly non-unity)
+                # shape info is already permanently baked into the mesh DATA
+                # by the earlier scale-up-then-transform_apply step above, so
+                # re-multiplying by any component of orig_scale here double-
+                # applies it. Verified empirically: for orig_scale=(2,3,4),
+                # the old orig_scale[0]*inv code left the object 2x too big
+                # in every axis after restore; uniform inv alone reproduces
+                # the exact pre-export dimensions.
                 inv = 1.0 / _FO4_UNIT_SCALE_INV if restore_scale_objs else None
                 for o, orig_scale in restore_scale_objs:
-                    restore_s = orig_scale[0] * inv
-                    o.scale = (restore_s, restore_s, restore_s)
+                    o.scale = (inv, inv, inv)
                     bpy.context.view_layer.objects.active = o
                     bpy.ops.object.select_all(action='DESELECT')
                     o.select_set(True)
@@ -1357,9 +1503,10 @@ class ExportHelpers:
                 pass
 
     @staticmethod
-    def _export_output_written(filepath, since_seconds: float = 300.0):
+    def _export_output_written(filepath, since_seconds: float = 300.0, after_time: float = None):
         """Return True when a NIF that looks like this export was written to disk
-        within *since_seconds*.
+        within *since_seconds* (or, if *after_time* is given, strictly after
+        that timestamp — see below).
 
         PyNifly V27 frequently prints "Export successful" yet returns an empty
         ``set()`` from ``bpy.ops`` instead of ``{'FINISHED'}`` — so the operator
@@ -1370,13 +1517,27 @@ class ExportHelpers:
           2. any ``*.nif`` in the target directory sharing the filepath's stem,
           3. as a last resort, the most-recently modified ``*.nif`` in that
              directory.
+
+        *after_time* should be a timestamp captured immediately before the
+        export operator was invoked (e.g. ``time.time()``). Without it, check
+        3 only requires a file to be "fresh" relative to *since_seconds*
+        (a fixed 300 s window) — confirmed directly to false-positive when
+        exporting several pieces to the same output folder in a short span
+        (e.g. an armor set with multiple pieces): the second piece's failed
+        export was reported as successful purely because the FIRST piece's
+        .nif, written moments earlier, was still within that window and
+        happened to be the most recently modified .nif in the directory.
+        Passing *after_time* makes check 3 exact — a file from an earlier,
+        unrelated export call can never be mistaken for this one's output,
+        regardless of how "fresh" it superficially looks.
         """
         import time as _t
         now = _t.time()
+        _floor = after_time if after_time is not None else (now - since_seconds)
 
         def _fresh(p):
             try:
-                return os.path.exists(p) and (now - os.path.getmtime(p) < since_seconds)
+                return os.path.exists(p) and os.path.getmtime(p) > _floor
             except Exception:
                 return False
 
@@ -1418,7 +1579,7 @@ class ExportHelpers:
         return False
 
     @staticmethod
-    def _call_nif_export(op_callable, kwargs):
+    def _call_nif_export(op_callable, kwargs, active_object=None, selected_objects=None):
         """Invoke a NIF export operator (``bpy.ops.export_scene.pynifly`` /
         ``.nif``) in a context equivalent to a normal ``File > Export``.
 
@@ -1431,8 +1592,13 @@ class ExportHelpers:
         written.  That is the "Export successful … result=set()" symptom.
 
         Overriding to the main window's 3D viewport reproduces the working
-        manual-export context.  Falls back to a plain call when no viewport is
-        available or ``temp_override`` is unsupported.
+        manual-export context.  When no viewport is available at all (e.g. a
+        headless ``-b`` session, which never has any window/screen/area),
+        falls back to overriding just ``active_object``/``selected_objects``
+        instead of a completely bare call — confirmed directly that a bare
+        call can fail with "Operator ... .poll() failed, context is
+        incorrect" in that scenario even though the object/selection state
+        set up by the caller is otherwise entirely correct.
         """
         win = area = region = None
         try:
@@ -1457,6 +1623,16 @@ class ExportHelpers:
             except Exception:
                 # temp_override unsupported (very old Blender) or rejected —
                 # fall through to a direct call so export is still attempted.
+                pass
+
+        if active_object is not None:
+            try:
+                override = {"active_object": active_object}
+                if selected_objects is not None:
+                    override["selected_objects"] = override["selected_editable_objects"] = selected_objects
+                with bpy.context.temp_override(**override):
+                    return op_callable(**kwargs)
+            except Exception:
                 pass
         return op_callable(**kwargs)
 
@@ -1534,6 +1710,7 @@ class ExportHelpers:
         meshes = [
             obj for obj in source_objs
             if obj.type == 'MESH' and not ExportHelpers._is_collision_mesh(obj)
+            and not obj.get("fo4_reference")
         ]
 
         if not meshes:
@@ -1590,9 +1767,13 @@ class ExportHelpers:
                 if fo4_scale is None:
                     fo4_scale = ExportHelpers._infer_fo4_scale_for_untagged(obj)
                 if fo4_scale:
+                    # See the matching comment in export_mesh_to_nif: gate on
+                    # fo4_scale (tag-or-inferred) rather than the collision
+                    # object's own tag, or an untagged source's collision
+                    # mesh silently gets excluded from the scale round-trip.
                     _scale_targets = [obj]
                     _coll_early = ExportHelpers._find_collision_mesh(obj)
-                    if _coll_early and _coll_early.get("fo4_unit_scale"):
+                    if _coll_early:
                         _scale_targets.append(_coll_early)
 
                     # Move the skinned armature's bind-pose bones in lockstep —
@@ -1672,6 +1853,10 @@ class ExportHelpers:
                     coll = ExportHelpers._find_collision_mesh(obj)
                     if coll:
                         coll.select_set(True)
+                # Include any weapon-mod/attachment connect points built
+                # under this object -- see _find_connect_points for why.
+                for cp in ExportHelpers._find_connect_points(obj):
+                    cp.select_set(True)
 
             # Final defensive re-selection: several per-object helpers called
             # above (fix_unweighted_vertices, transform_apply fallbacks, etc.)
@@ -1687,6 +1872,8 @@ class ExportHelpers:
                     coll = ExportHelpers._find_collision_mesh(obj)
                     if coll:
                         coll.select_set(True)
+                for cp in ExportHelpers._find_connect_points(obj):
+                    cp.select_set(True)
 
             # Set the first mesh as the active object so the exporter has a
             # valid context even when no object was explicitly activated.
@@ -1703,12 +1890,20 @@ class ExportHelpers:
                     exporter_label = "Niftools v0.1.1"
                     call = bpy.ops.export_scene.nif
                 try:
-                    result = ExportHelpers._call_nif_export(call, kwargs)
+                    import time as _time_mod2
+                    _export_start2 = _time_mod2.time()
+                    result = ExportHelpers._call_nif_export(
+                        call, kwargs,
+                        active_object=meshes[0], selected_objects=list(bpy.context.selected_objects),
+                    )
                     # PyNifly returns empty set() on success; only {'CANCELLED'}
-                    # signals failure.  Treat non-cancel as success.
-                    _ok = isinstance(result, set) and 'CANCELLED' not in result
-                    if not _ok:
-                        _ok = ExportHelpers._export_output_written(filepath)
+                    # signals failure. But that's not proof the file was
+                    # actually written (see export_mesh_to_nif's identical
+                    # note) — always verify on disk rather than trusting a
+                    # merely-non-CANCELLED result. after_time makes the check
+                    # exact so an earlier export's .nif in the same folder
+                    # can't be mistaken for this one's output.
+                    _ok = ExportHelpers._export_output_written(filepath, after_time=_export_start2)
                     if _ok:
                         mesh_count = len(meshes)
                         _coll_note = ""
@@ -1777,11 +1972,15 @@ class ExportHelpers:
                         if mod:
                             obj.modifiers.remove(mod)
             # Restore objects to Blender-metre scale after export.
+            # See the matching comment in export_mesh_to_nif: this must be a
+            # UNIFORM 1/fo4_scale, not orig_scale[i]*inv -- orig_scale's own
+            # shape info is already baked into the mesh data by the earlier
+            # scale-up-then-apply step, so reusing it here double-applies it
+            # (verified empirically to distort non-unity pre-export scale).
             if restore_scale_objs:
                 inv = 1.0 / _FO4_UNIT_SCALE_INV
                 for o, orig_scale in restore_scale_objs:
-                    restore_s = orig_scale[0] * inv
-                    o.scale = (restore_s, restore_s, restore_s)
+                    o.scale = (inv, inv, inv)
                     bpy.context.view_layer.objects.active = o
                     bpy.ops.object.select_all(action='DESELECT')
                     o.select_set(True)

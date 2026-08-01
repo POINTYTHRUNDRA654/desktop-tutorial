@@ -257,7 +257,7 @@ def _summarize(kind: str, info: dict) -> "str | None":
         if info.get("alpha_test"):
             bit += " +alpha_test"
         if info.get("smoothness") is not None:
-            bit += f" smoothness={info['smoothness']:.0f}"
+            bit += f" smoothness={info['smoothness']:.2f}"
         return bit
     if kind == "texture":
         return f"{info.get('width')}x{info.get('height')} {info.get('format')} ({info.get('mipmaps')} mips)"

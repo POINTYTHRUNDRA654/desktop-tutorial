@@ -10,49 +10,75 @@ class ItemHelpers:
     @staticmethod
     def create_weapon_base(weapon_category='PISTOL'):
         """Create weapon base mesh"""
+        parts = []
+        final_name = "Weapon_Base"
         if weapon_category == 'PISTOL':
             # Pistol grip + barrel
             bpy.ops.mesh.primitive_cube_add(size=0.15, location=(0, 0, 0))
             grip = bpy.context.active_object
             grip.name = "Weapon_Grip"
             grip.scale = (0.5, 1.0, 1.5)
-            
+            parts.append(grip)
+
             bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=0.3, location=(0, 0, 0.15))
             barrel = bpy.context.active_object
             barrel.name = "Weapon_Barrel"
             barrel.rotation_euler[1] = 1.5708  # Rotate horizontal
-            
+            parts.append(barrel)
+
         elif weapon_category == 'RIFLE':
             # Longer barrel + stock
             bpy.ops.mesh.primitive_cube_add(size=0.15, location=(0, -0.2, 0))
             stock = bpy.context.active_object
             stock.name = "Weapon_Stock"
             stock.scale = (0.5, 2.0, 1.0)
-            
+            parts.append(stock)
+
             bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=0.6, location=(0, 0.4, 0))
             barrel = bpy.context.active_object
             barrel.name = "Weapon_Barrel"
             barrel.rotation_euler[1] = 1.5708
-            
+            parts.append(barrel)
+
         elif weapon_category == 'MELEE':
             # Handle + blade
             bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=0.3, location=(0, 0, 0))
             handle = bpy.context.active_object
             handle.name = "Weapon_Handle"
-            
+            parts.append(handle)
+
             bpy.ops.mesh.primitive_cube_add(size=0.5, location=(0, 0, 0.4))
             blade = bpy.context.active_object
             blade.name = "Weapon_Blade"
             blade.scale = (0.1, 0.3, 1.0)
-            
+            parts.append(blade)
+
         elif weapon_category == 'HEAVY':
             # Large weapon base
             bpy.ops.mesh.primitive_cube_add(size=0.3, location=(0, 0, 0))
             body = bpy.context.active_object
             body.name = "Weapon_Body"
             body.scale = (1.0, 2.0, 1.2)
-        
-        return bpy.context.active_object
+            parts.append(body)
+
+        if not parts:
+            return None
+
+        # Join multi-part weapons into a single returned object -- otherwise
+        # only the LAST-created part was ever returned, leaving the other
+        # part(s) orphaned in the scene (unparented, unreferenced by any
+        # caller such as add_weapon_mod_slot, which only attaches to the
+        # returned object).
+        if len(parts) > 1:
+            bpy.ops.object.select_all(action='DESELECT')
+            for p in parts:
+                p.select_set(True)
+            bpy.context.view_layer.objects.active = parts[0]
+            bpy.ops.object.join()
+            parts[0].name = final_name
+            return parts[0]
+
+        return parts[0]
     
     @staticmethod
     def add_weapon_mod_slot(weapon, slot_type='RECEIVER'):

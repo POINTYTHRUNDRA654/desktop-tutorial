@@ -767,7 +767,7 @@ class FO4_PT_MainPanel(Panel):
             compat_box.label(text="✓ NIF import/export: use PyNifly", icon='CHECKMARK')
             compat_box.label(text="  File → Import/Export → NIF (PyNifly)")
         else:
-            compat_box.label(text="✓ NIF import/export: PyNifly 27.0.0 fully supported", icon='CHECKMARK')
+            compat_box.label(text="✓ NIF import/export: PyNifly fully supported", icon='CHECKMARK')
             compat_box.label(text="  File → Import/Export → NIF (PyNifly)")
 
         # ── Getting Started Guide (Mossy-First Approach) ────────────────────
@@ -1795,7 +1795,7 @@ class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
         # ── LOD Generation ───────────────────────────────────────────────
         lod_box = layout.box()
         lod_box.label(text="Step 1 — Generate LODs", icon='MOD_DECIM')
-        lod_box.label(text="LOD0=original  LOD1=60%%  LOD2=30%%  LOD3=10%%", icon='DOT')
+        lod_box.label(text="LOD0=original  LOD1=30%  LOD2=12%  LOD3=8%", icon='DOT')
         row = lod_box.row()
         row.enabled = has_mesh
         row.operator("fo4.generate_lods", text="Generate LOD0–LOD3", icon='DUPLICATE')
@@ -1995,6 +1995,10 @@ class FO4_PT_SetupAIShapE(_FO4SubPanel):
             image_box.label(text="Image to 3D:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_shap_e_image_path", text="")
             image_box.operator("fo4.generate_shap_e_image", text="Generate from Image", icon='TEXTURE')
+
+            export_box = layout.box()
+            export_box.label(text="FO4 Export:", icon='MOD_DECIM')
+            export_box.prop(scene, "fo4_shap_e_target_polys")
         elif shap_e_installed is False:
             layout.label(text="Status: Not Installed ✗", icon='ERROR')
             layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
@@ -2033,7 +2037,6 @@ class FO4_PT_SetupAIPointE(_FO4SubPanel):
             text_box.label(text="Text to Point Cloud:", icon='FILE_TEXT')
             text_box.prop(scene, "fo4_point_e_prompt", text="")
             text_box.prop(scene, "fo4_point_e_num_samples")
-            text_box.prop(scene, "fo4_point_e_grid_size")
             text_box.prop(scene, "fo4_point_e_inference_steps")
             text_box.prop(scene, "fo4_point_e_reconstruction_method")
             text_box.operator("fo4.generate_point_e_text", text="Generate from Text", icon='MESH_CUBE')
@@ -2041,9 +2044,13 @@ class FO4_PT_SetupAIPointE(_FO4SubPanel):
             image_box = layout.box()
             image_box.label(text="Image to Point Cloud:", icon='IMAGE_DATA')
             image_box.prop(scene, "fo4_point_e_image_path", text="")
-            image_box.prop(scene, "fo4_point_e_grid_size")
             image_box.prop(scene, "fo4_point_e_inference_steps")
             image_box.operator("fo4.generate_point_e_image", text="Generate from Image", icon='TEXTURE')
+
+            export_box = layout.box()
+            export_box.label(text="FO4 Export:", icon='MOD_DECIM')
+            export_box.prop(scene, "fo4_point_e_target_polys")
+            export_box.label(text="Only applies with a surface reconstruction method", icon='INFO')
         elif point_e_installed is False:
             layout.label(text="Status: Not Installed ✗", icon='ERROR')
             layout.label(text="Use the 'Install Tools' hub to install.", icon='INFO')
@@ -2448,9 +2455,8 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
             mossy_box.label(text="✓ Mossy Link server running", icon='CHECKMARK')
         else:
             mossy_box.label(text="Mossy Link server stopped", icon='RADIOBUT_OFF')
-            if hasattr(bpy.types, 'WM_OT_MossyLinkToggle'):
-                mossy_box.operator("wm.mossy_link_toggle",
-                                   text="Start Mossy Link Server", icon='PLAY')
+            _activation_op(mossy_box, 'WM_OT_MossyLinkToggle', "wm.mossy_link_toggle",
+                            "Start Mossy Link Server", icon='PLAY')
 
         if use_mossy:
             mossy_box.label(text="✓ Using Mossy as AI Advisor", icon='CHECKMARK')
@@ -2459,8 +2465,8 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
             # Mossy first (local), then falls back to remote LLM if needed.
             op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
             op.use_llm = True
-            if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
-                mossy_box.operator("wm.mossy_check_http", text="Check Mossy HTTP", icon='QUESTION')
+            _activation_op(mossy_box, 'WM_OT_MossyCheckHttp', "wm.mossy_check_http",
+                            "Check Mossy HTTP", icon='QUESTION')
         else:
             mossy_box.label(text="Mossy AI not active", icon='INFO')
             mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
@@ -3126,7 +3132,7 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
         info_col.label(text="Scale correction: 1.0  (1 Blender unit = 1 NIF unit)", icon='INFO')
         if pynifly_ok:
             info_col.separator(factor=0.5)
-            info_col.label(text="PyNifly V25.14 parameters used on export:", icon='SETTINGS')
+            info_col.label(text="PyNifly parameters used on export:", icon='SETTINGS')
             info_col.label(text="  target_game=FO4  |  export_modifiers=True", icon='DOT')
             info_col.label(text="  export_colors=True  |  export_animations=False", icon='DOT')
             info_col.label(text="  write_bodytri=False  |  blender_xf=False", icon='DOT')
@@ -3648,7 +3654,7 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
         tool_row = hero.row(align=True)
         tool_row.scale_y = 0.9
         tool_row.operator("fo4.flip_skeleton_facing", text="Flip Skeleton 180°", icon='LOOP_BACK')
-        tool_row.operator("fo4.fix_nif_scale", text="Fix NIF Scale ÷100", icon='MOD_LENGTH')
+        tool_row.operator("fo4.fix_nif_scale", text="Fix NIF Scale ÷70", icon='MOD_LENGTH')
         hero.operator(
             "fo4.fix_wrongly_scaled_import",
             text="Fix Wrongly-Scaled FBX/OBJ/GLB Import",
@@ -4810,10 +4816,8 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
 
         toggle_text = "Stop Mossy Link Server" if server_active else "Start Mossy Link Server"
         toggle_icon = 'PAUSE' if server_active else 'PLAY'
-        if hasattr(bpy.types, 'WM_OT_MossyLinkToggle'):
-            srv_box.operator("wm.mossy_link_toggle", text=toggle_text, icon=toggle_icon)
-        else:
-            srv_box.label(text="(Mossy Link loading...)", icon='TIME')
+        _activation_op(srv_box, 'WM_OT_MossyLinkToggle', "wm.mossy_link_toggle",
+                        toggle_text, icon=toggle_icon)
 
         # Port / token / autostart - read directly from addon prefs so that
         # changes here are actually picked up by mossy_link._get_ports().
@@ -4891,18 +4895,14 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         row = torch_box.row(align=True)
         row.operator("torch.recheck_status", text="Re-check PyTorch", icon='FILE_REFRESH')
         # TORCH_OT_install_custom_path → Blender op ID: torch.install_custom_path
-        if hasattr(bpy.types, 'TORCH_OT_install_custom_path'):
-            row.operator("torch.install_custom_path", text="Local Install Guide", icon='INFO')
+        _activation_op(row, 'TORCH_OT_install_custom_path', "torch.install_custom_path",
+                        "Local Install Guide", icon='INFO')
 
         layout.separator()
 
         # ── Check both connections ─────────────────────────────────────────────
-        if hasattr(bpy.types, 'WM_OT_MossyCheckHttp'):
-            layout.operator(
-                "wm.mossy_check_http",
-                text="Check Mossy Connection",
-                icon='QUESTION',
-            )
+        _activation_op(layout, 'WM_OT_MossyCheckHttp', "wm.mossy_check_http",
+                        "Check Mossy Connection", icon='QUESTION')
 
         layout.separator()
 
@@ -5031,6 +5031,13 @@ class FO4_PT_WeaponPanel(_FO4SubPanel):
         sub.operator("fo4.auto_rig_weapon", text="Auto-Rig Only", icon='BONE_DATA')
         sub2 = btn.row(); sub2.enabled = bool(has_arm)
         sub2.operator("fo4.generate_weapon_animations", text="Generate Animations", icon='OUTLINER_DATA_ARMATURE')
+        btn.separator(factor=0.3)
+        sub3 = btn.row(); sub3.enabled = bool(has_mesh)
+        sub3.operator("fo4.create_weapon_connect_points", text="Create Connect Points", icon='EMPTY_ARROWS')
+        cp_note = box.box()
+        cp_note.scale_y = 0.72
+        cp_note.label(text="Attachment points for scopes/mags/muzzle + hand", icon='DOT')
+        cp_note.label(text="Reposition each empty to match Grip/Barrel/etc.", icon='DOT')
 
 
 class FO4_PT_GlowEffectsPanel(_FO4SubPanel):
@@ -5307,6 +5314,14 @@ classes = (
     FO4_PT_RiggedArmorPipeline,
     FO4_PT_SetupAIGradio,
     FO4_PT_SetupAIHyMotion,
+    # These 5 panels were fully built (correct bl_idname/bl_parent_id, no
+    # registration errors) but never added to this tuple, so they were
+    # invisible dead UI despite their operators still working via F3 search.
+    FO4_PT_SetupAIShapE,
+    FO4_PT_SetupAIPointE,
+    FO4_PT_SetupAIDiffusers,
+    FO4_PT_ToolsLinks,
+    FO4_PT_GameAssetsLibraryPanel,
     FO4_PT_MeshPanel,
     FO4_PT_TexturePanel,
     # Texture Conversion sub-panel (child of FO4_PT_texture_panel)

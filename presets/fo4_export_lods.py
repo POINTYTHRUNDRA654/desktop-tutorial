@@ -30,7 +30,15 @@ for suffix in lods:
 
     out_path = str(out_dir / f"{lod_name}.nif")
     try:
-        bpy.ops.export_scene.nif(filepath=out_path)
+        # bpy.ops.export_scene.nif is the OLD Niftools exporter (Blender <=3.6
+        # only) -- PyNifly (what this script's docstring actually requires)
+        # registers bpy.ops.export_scene.pynifly instead. intuit_defaults
+        # must be forced off here too: it defaults True and is only forced
+        # False inside PyNifly's own invoke() (the interactive File>Export
+        # path), which this direct execute()-style call never goes through --
+        # without it PyNifly silently re-detects the target game itself.
+        bpy.ops.export_scene.pynifly(filepath=out_path, target_game='FO4',
+                                      intuit_defaults=False)
         exported.append(out_path)
         print(f"  Exported: {out_path}")
     except Exception as e:

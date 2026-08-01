@@ -118,7 +118,7 @@ def add_room_snap_grid(cell_size: float = 256.0, grid_count: int = 3) -> list:
             bpy.ops.object.empty_add(type='PLAIN_AXES', location=(x, y, 0))
             emp = bpy.context.active_object
             emp.name = f"FO4_RoomSnap_{xi}_{yi}"
-            emp.display_size = step * 0.4
+            emp.empty_display_size = step * 0.4
             emp["fo4_room_snap"] = True
             snaps.append(emp)
     return snaps

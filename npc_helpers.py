@@ -16,12 +16,22 @@ class NPCHelpers:
             body = bpy.context.active_object
             body.name = "NPC_Body"
             body.scale = (0.4, 0.2, 0.9)
-            
+
             # Head
             bpy.ops.mesh.primitive_uv_sphere_add(radius=0.15, location=(0, 0, 1.7))
             head = bpy.context.active_object
             head.name = "NPC_Head"
-            
+
+            # Join into a single returned object -- otherwise only `body` is
+            # returned below and `head` is left orphaned in the scene,
+            # unparented and unreferenced by any caller.
+            bpy.ops.object.select_all(action='DESELECT')
+            body.select_set(True)
+            head.select_set(True)
+            bpy.context.view_layer.objects.active = body
+            bpy.ops.object.join()
+            body.name = "NPC_Body"
+
         elif npc_type == 'GHOUL':
             # Hunched posture
             bpy.ops.mesh.primitive_cube_add(size=1.6, location=(0, 0.2, 0.8))

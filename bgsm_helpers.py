@@ -23,123 +23,122 @@ materials.  This module provides:
 
 Binary format (FO4 version 2, little-endian)
 ---------------------------------------------
-All integers are unsigned unless stated otherwise; all booleans are stored
-as a single byte (0 = False, 1 = True).
+This layout was derived empirically by instrumenting PyNifly's own bundled
+reference parser (``io_scene_nifly/pyn/bgsmaterial.py``) against real vanilla
+files (``Barnacle.BGSM``, ``DefaultEffect.BGEM``) -- NOT from written
+documentation. All integers are unsigned unless stated otherwise; all
+booleans are stored as a single byte (0 = False, 1 = True). There is no
+separate ``bTileU``/``bTileV`` byte pair -- tiling is encoded purely via the
+``tileFlags`` bitmask.
 
 Common header (shared by BGSM and BGEM):
 
-  Offset  Size  Type    Field
-  ------  ----  ------  ----------------------------------------
-       0     4  char[4] magic ("BGSM" or "BGEM")
-       4     4  uint32  version (2 for FO4)
-       8     4  uint32  tileFlags  bit0=TileU, bit1=TileV
-      12     1  bool    bTileU
-      13     1  bool    bTileV
-      14     4  float   offsetU
-      18     4  float   offsetV
-      22     4  float   scaleU  (U tiling scale, 1.0 = no tile)
-      26     4  float   scaleV  (V tiling scale, 1.0 = no tile)
-      30     4  float   alpha
-      34     1  uint8   alphaBlendMode (0=None 1=Std 2=Add 3=Mul 4=Sub)
-      35     1  uint8   alphaTestRef (0–255)
-      36     1  bool    alphaTest
-      38     1  bool    zBufferWrite
-      39     1  bool    zBufferTest
-      40     1  bool    screenSpaceReflections
-      41     1  bool    wetnessControlScreenSpaceScale
-      42     1  bool    wetnessControlHemisphere
-      43     1  bool    wetnessControlScreenSpaceSpecular
-      44     1  bool    wetnessControlSpecularPower
-      45     1  bool    wetnessControlSpecularIntensity
-      46     1  bool    wetnessControlEnvMapScale
-      47     1  bool    grayscaleToPaletteColor
-      48     1  bool    grayscaleToPaletteScale
-      49     4  float   grayscaleToPaletteScaleValue
-      53     1  bool    specularEnabled
-      54    12  float*3 specularColor  (R, G, B)
-      66     4  float   specularMult
-      70     4  float   smoothness
-      74     4  float   fresnelPower
-      78     4  float   wetnessControlEnvMapScale
-      82     4  float   wetnessControlFresnelPower
-      86     4  float   wetnessControlMetalness
-      90     ?  NiStr   rootMaterialPath  (uint32 len + UTF-8 bytes)
-      ?      1  bool    anisoLighting
-      ?      1  bool    emitEnabled
-      ?     12  float*3 emittanceColor  (R, G, B)
-      ?      4  float   emittanceMult
-      ?      1  bool    modelSpaceNormals
-      ?      1  bool    externalEmittance
-      ?      1  bool    backLighting
-      ?      1  bool    receiveShadows
-      ?      1  bool    hideSecret
-      ?      1  bool    castShadows
-      ?      1  bool    dissolveFade
-      ?      1  bool    assumeShadowmask
-      ?      1  bool    glowmap
-      ?      1  bool    envMappingWindow
-      ?      1  bool    envMappingEye
-      ?      1  bool    hair
-      ?     12  float*3 hairTintColor  (R, G, B)
-      ?      1  bool    tree
-      ?      1  bool    facegen
-      ?      1  bool    skinTint
-      ?      1  bool    tessellate
-      ?      4  float   displacementTexBias
-      ?      4  float   displacementTexScale
-      ?      4  float   tessellationPNScale
-      ?      4  float   tessellationBaseFactor
-      ?      4  float   tessellationFadeDistance
-      ?      1  bool    pbr
-      ?      1  bool    translucency
-      ?      1  bool    translucencyThickObject
-      ?      1  bool    translucencyMixAlbedoWithSubsurface
-      ?     12  float*3 translucencySubsurfaceColor
-      ?      4  float   translucencyTransmissiveScale
-      ?      4  float   translucencyTurbulence
-      ?      1  bool    customPorosity
-      ?      4  float   porosityValue
-      ?      ?  NiStr   envmapMaskTexture
+  Size  Type      Field
+  ----  --------  ----------------------------------------
+     4  char[4]   magic ("BGSM" or "BGEM")
+     4  uint32    version (2 for FO4)
+     4  uint32    tileFlags  bit0=TileU, bit1=TileV
+     4  float     offsetU
+     4  float     offsetV
+     4  float     scaleU  (U tiling scale, 1.0 = no tile)
+     4  float     scaleV  (V tiling scale, 1.0 = no tile)
+     4  float     alpha
+     1  uint8     alphblend0  (blending-enabled toggle)
+     4  uint32    alphblend1  (D3D source blend factor)
+     4  uint32    alphblend2  (D3D dest blend factor)
+     1  uint8     alphaTestRef (0-255)
+     1  bool      alphaTest
+     1  bool      zBufferWrite
+     1  bool      zBufferTest
+     1  bool      screenSpaceReflections
+     1  bool      wetnessScreenSpaceReflections
+     1  bool      decal
+     1  bool      twoSided
+     1  bool      decalNoFade
+     1  bool      nonOccluder
+     1  bool      refraction
+     1  bool      refractionFalloff
+     4  float     refractionPower
+     1  bool      environmentMapping
+     4  float     environmentMappingMaskScale
+     1  bool      grayscaleToPaletteColor
 
-BGSM-only fields (appended after common header):
+BGSM-only fields (appended after common header), in order:
 
-      ?      ?  NiStr   diffuseTexture    (_d.dds)
-      ?      ?  NiStr   normalTexture     (_n.dds)
-      ?      ?  NiStr   smoothSpecTexture (_s.dds)
-      ?      ?  NiStr   greyscaleTexture  (_g.dds  glow/palette mask)
-      ?      ?  NiStr   glowTexture       (glow map override)
-      ?      ?  NiStr   innerLayerTexture (wrinkle/inner layer)
-      ?      ?  NiStr   wrinkleMaskTexture
-      ?      ?  NiStr   displacementTexture
-      ?      4  uint32  shaderFlags1
-      ?      4  uint32  shaderFlags2
+     ?  NiStr     diffuseTexture, normalTexture, smoothSpecTexture,
+                  greyscaleTexture, envMapTexture, glowTexture,
+                  innerLayerTexture, wrinkleMaskTexture, displacementTexture
+     1  bool      enableEditorAlphaRef
+     1  bool      rimLighting
+     4  float     rimPower
+     4  float     backlightPower
+     1  bool      subsurfaceLighting
+     4  float     subsurfaceRolloff
+     1  bool      specularEnabled
+    12  float*3   specularColor  (R, G, B -- true floats, not a color-u32)
+     4  float     specularMult
+     4  float     smoothness  (real range 0.0-1.0, NOT 0-100)
+     4  float     fresnelPower
+     4  float     wetnessSpecScale
+     4  float     wetnessSpecPower
+     4  float     wetnessMinVar
+     4  float     wetnessEnvmapScale
+     4  float     wetnessFresnelPower
+     4  float     wetnessMetalness
+     ?  NiStr     rootMaterialPath
+     1  bool      anisoLighting
+     1  bool      emitEnabled
+    12  float*3   emittanceColor  (ONLY present if emitEnabled is True --
+                  data-dependent, not version-gated)
+     4  float     emittanceMult
+     1  bool      modelSpaceNormals
+     1  bool      externalEmittance
+     1  bool      backLighting
+     1  bool      receiveShadows
+     1  bool      hideSecret
+     1  bool      castShadows
+     1  bool      dissolveFade
+     1  bool      assumeShadowmask
+     1  bool      glowmap
+     1  bool      environmentMappingWindow
+     1  bool      environmentMappingEye
+     1  bool      hair
+    12  uint32*3  hairTintColor  (R, G, B -- 0-255 ints, one per uint32 slot)
+     1  bool      tree
+     1  bool      facegen
+     1  bool      skinTint
+     1  bool      tessellate
+     4  float     displacementTextureBias
+     4  float     displacementTextureScale
+     4  float     tessellationPnScale
+     4  float     tessellationBaseFactor
+     4  float     tessellationFadeDistance
+     4  float     grayscaleToPaletteScale
+     1  bool      skewSpecularAlpha
 
-BGEM-only fields (appended after common header):
+BGEM-only fields (appended after common header), in order:
 
-      ?      ?  NiStr   baseTexture
-      ?      ?  NiStr   grayscaleTexture
-      ?      ?  NiStr   envMapTexture
-      ?      ?  NiStr   normalTexture
-      ?      ?  NiStr   envMapMaskTexture
-      ?      1  bool    bloodEnabled
-      ?      1  bool    effectLightingEnabled
-      ?      1  bool    falloffEnabled
-      ?      1  bool    falloffColorEnabled
-      ?      1  bool    grayscaleToPaletteAlpha
-      ?      1  bool    softEnabled
-      ?     12  float*3 baseColor  (R, G, B)
-      ?      4  float   baseColorScale
-      ?      4  float   falloffStartAngle
-      ?      4  float   falloffStopAngle
-      ?      4  float   falloffStartOpacity
-      ?      4  float   falloffStopOpacity
-      ?      4  float   lightingInfluence
-      ?      1  uint8   envMapMinLod
-      ?      4  float   softDepth
+     ?  NiStr     baseTexture, grayscaleTexture, envMapTexture,
+                  normalTexture, envMapMaskTexture
+     1  bool      bloodEnabled
+     1  bool      effectLightingEnabled
+     1  bool      falloffEnabled
+     1  bool      falloffColorEnabled
+     1  bool      grayscaleToPaletteAlpha
+     1  bool      softEnabled
+    12  uint32*3  baseColor  (R, G, B -- 0-255 ints, one per uint32 slot)
+     4  float     baseColorScale
+     4  float     falloffStartAngle
+     4  float     falloffStopAngle
+     4  float     falloffStartOpacity
+     4  float     falloffStopOpacity
+     4  float     lightingInfluence
+     1  uint8     envMapMinLod
+     4  float     softDepth
 
-NiString encoding: uint32 (length) followed by exactly ``length`` ASCII/UTF-8
-bytes.  The string is NOT null-terminated.  An empty string is encoded as
-four zero bytes.
+NiString encoding: uint32 (declared length, INCLUDING a trailing NUL)
+followed by that many ASCII bytes, the last of which is 0x00. An empty
+string is encoded as a single zero byte with declared length 1.
 """
 
 from __future__ import annotations
@@ -166,12 +165,57 @@ _FO4_VERSION = 2
 _TILE_U = 1
 _TILE_V = 2
 
-# AlphaBlendMode enum values
+# AlphaBlendMode enum values -- a UI-facing convenience concept for code
+# that just wants "none/standard/additive/etc", NOT the on-disk format.
 ALPHA_BLEND_NONE = 0
 ALPHA_BLEND_STANDARD = 1
 ALPHA_BLEND_ADDITIVE = 2
 ALPHA_BLEND_MULTIPLY = 3
 ALPHA_BLEND_SUBTRACT = 4
+
+# Defaults for (alphblend1, alphblend2) -- the real D3D source/destination
+# blend-factor enum values -- used only when a fresh BGSMData is built from
+# an ALPHA_BLEND_* choice with no pre-existing raw triple (e.g. a brand new
+# Blender material with no imported .bgsm backing it). Real vanilla files
+# use a wide variety of factor combinations for the "blended" case (e.g.
+# (6, 7) confirmed via Barnacle.BGSM for the disabled/NONE case, but (6, 0)
+# is common for real additive glow/neon effect materials, NOT the (6, 1)
+# originally guessed here) -- so round-tripping an EXISTING file must always
+# preserve its own raw alpha_blend1/alpha_blend2 values losslessly (see
+# _CommonData.alpha_blend1/2) rather than re-deriving them from this table.
+_ALPHA_BLEND_DEFAULT_FACTORS = {
+    ALPHA_BLEND_NONE:     (6, 7),
+    ALPHA_BLEND_STANDARD: (6, 7),
+    ALPHA_BLEND_ADDITIVE: (6, 0),
+    ALPHA_BLEND_MULTIPLY: (3, 0),
+    ALPHA_BLEND_SUBTRACT: (6, 7),
+}
+
+
+def _alpha_blend_mode_from_real(b0: int, b1: int, b2: int) -> int:
+    """Best-effort coarse classification of the real (alphblend0/1/2) triple
+    into the simplified ALPHA_BLEND_* enum, for UI/display purposes only.
+    The raw triple itself is what actually gets preserved/round-tripped --
+    see _CommonData.alpha_blend1/2."""
+    if b0 == 0:
+        return ALPHA_BLEND_NONE
+    if (b1, b2) == (6, 0):
+        return ALPHA_BLEND_ADDITIVE
+    if (b1, b2) == (3, 0):
+        return ALPHA_BLEND_MULTIPLY
+    return ALPHA_BLEND_STANDARD
+
+
+def _set_alpha_blend_mode(data: "_CommonData", mode: int) -> None:
+    """Set *data*'s alpha_blend_mode plus the raw fields that actually get
+    written to disk, using the default D3D factor pair for *mode* (see
+    _ALPHA_BLEND_DEFAULT_FACTORS). Use this instead of assigning
+    data.alpha_blend_mode directly so brand-new materials (with no
+    pre-existing raw triple to preserve) still get a sane on-disk value."""
+    data.alpha_blend_mode = mode
+    data.alpha_blend_enabled = mode != ALPHA_BLEND_NONE
+    data.alpha_blend1, data.alpha_blend2 = _ALPHA_BLEND_DEFAULT_FACTORS.get(
+        mode, _ALPHA_BLEND_DEFAULT_FACTORS[ALPHA_BLEND_NONE])
 
 # ShaderFlags1 bit masks (common flags)
 SF1_SPECULAR = 1 << 0
@@ -244,6 +288,14 @@ def _read_nistring(buf: bytes, offset: int) -> tuple[str, int]:
     """Read a NiString at *offset* from *buf*.
 
     Returns (string_value, new_offset_after_string).
+
+    Real BGSM/BGEM strings are NUL-terminated *within* their declared
+    length (confirmed byte-for-byte against real vanilla files, e.g.
+    Barnacle.BGSM's Diffuse path: declared length 36 for 35 characters of
+    text, with the 36th byte being 0x00) -- the previous implementation
+    didn't account for this trailing NUL, corrupting every string field
+    (and, since the length prefix is off by one relative to what real
+    writers/readers expect, everything after the first string in the file).
     """
     if offset + 4 > len(buf):
         raise ValueError(
@@ -259,13 +311,15 @@ def _read_nistring(buf: bytes, offset: int) -> tuple[str, int]:
         )
     offset += 4
     end = offset + length
-    text = buf[offset:end].decode("ascii", errors="replace")
+    text = buf[offset:end].decode("ascii", errors="replace").rstrip("\x00")
     return text, end
 
 
 def _write_nistring(s: str) -> bytes:
-    """Encode a string as a NiString (uint32 length + ASCII bytes)."""
-    encoded = (s or "").encode("ascii", errors="replace")
+    """Encode a string as a NiString (uint32 length + ASCII bytes + NUL
+    terminator, with the NUL counted in the declared length -- see
+    :func:`_read_nistring` for why the NUL matters)."""
+    encoded = (s or "").encode("ascii", errors="replace") + b"\x00"
     return struct.pack("<I", len(encoded)) + encoded
 
 
@@ -273,47 +327,97 @@ def _write_nistring(s: str) -> bytes:
 # Data classes
 # ---------------------------------------------------------------------------
 
+# The layouts below (field names, order, inclusion for format version 2,
+# and defaults) were derived empirically -- NOT from written documentation
+# -- by instrumenting the bundled PyNifly addon's own reference parser
+# (io_scene_nifly/pyn/bgsmaterial.py, which ships its own tests against
+# real files and is used by PyNifly's own NIF import/export) and tracing
+# its exact field-read sequence against real vanilla files
+# (F:\FO4 WORKING FLODER\Materials\Barnacle.BGSM for BGSM,
+# ...\DefaultEffect.BGEM for BGEM, both confirmed format version 2 -- the
+# only version observed across 500+/all real sampled files respectively).
+# The previous layout in this module was entirely invented and failed to
+# parse 100% of 500 real BGSM files and 100% of 50 real BGEM files tested.
+
 @dataclass
 class _CommonData:
-    """Fields shared by both BGSM and BGEM."""
-    # UV tiling/offset
+    """The true shared header between BGSM and BGEM -- tileFlags through
+    grayscaleToPaletteColor in the real format. Everything after this
+    point diverges completely between the two file types in the real
+    format (BGSM has specular/emission/hair/tessellation/translucency
+    fields; BGEM has an entirely different blood/falloff/lighting-influence
+    set) and lives directly on BGSMData/BGEMData instead of a shared base.
+    """
     tile_u: bool = True
     tile_v: bool = True
     offset_u: float = 0.0
     offset_v: float = 0.0
     scale_u: float = 1.0
     scale_v: float = 1.0
-    # Alpha
     alpha: float = 1.0
+    # Real 3-field alpha-blend encoding: alpha_blend1/2 are the raw D3D
+    # source/destination blend-factor values and are what's actually
+    # preserved byte-for-byte on read/write. alpha_blend_mode is a coarse,
+    # lossy UI-facing classification derived from the raw triple (see
+    # _alpha_blend_mode_from_real) -- set it directly only when there is no
+    # pre-existing raw triple to preserve (e.g. a brand new material);
+    # _pack_common always writes the raw alpha_blend1/2 values, never
+    # re-derives them from alpha_blend_mode.
     alpha_blend_mode: int = ALPHA_BLEND_NONE
+    alpha_blend_enabled: bool = False
+    alpha_blend1: int = 6
+    alpha_blend2: int = 7
     alpha_test_ref: int = 128
     alpha_test: bool = False
-    # Z-buffer
     z_buffer_write: bool = True
     z_buffer_test: bool = True
-    # Misc flags
     screen_space_reflections: bool = False
-    wetness_control_screen_space_scale: bool = False
-    wetness_control_hemisphere: bool = False
-    wetness_control_screen_space_specular: bool = False
-    wetness_control_specular_power: bool = False
-    wetness_control_specular_intensity: bool = False
-    wetness_control_env_map_scale: bool = False
+    wetness_screen_space_reflections: bool = False
+    decal: bool = False
+    two_sided: bool = False
+    decal_no_fade: bool = False
+    non_occluder: bool = False
+    refraction: bool = False
+    refraction_falloff: bool = False
+    refraction_power: float = 0.0
+    environment_mapping: bool = False
+    environment_mapping_mask_scale: float = 1.0
     grayscale_to_palette_color: bool = False
-    grayscale_to_palette_scale: bool = False
-    grayscale_to_palette_scale_value: float = 1.0
-    # Specular
+
+
+@dataclass
+class BGSMData(_CommonData):
+    """All fields of a FO4 ``.bgsm`` file (standard material), version 2."""
+    # 9 texture strings, real v2 order: Diffuse, Normal, Specular,
+    # Greyscale, EnvMap, Glow, InnerLayer, Wrinkles, Height.
+    diffuse_texture: str = ""
+    normal_texture: str = ""
+    smooth_spec_texture: str = ""
+    greyscale_texture: str = ""
+    env_map_texture: str = ""
+    glow_texture: str = ""
+    inner_layer_texture: str = ""
+    wrinkle_mask_texture: str = ""
+    displacement_texture: str = ""   # real field name "Height"
+
+    enable_editor_alpha_ref: bool = False
+    rim_lighting: bool = False
+    rim_power: float = 2.0
+    backlight_power: float = 0.0
+    subsurface_lighting: bool = False
+    subsurface_rolloff: float = 0.3
     specular_enabled: bool = True
     specular_color: tuple = (1.0, 1.0, 1.0)
     specular_mult: float = 1.0
-    smoothness: float = 100.0
+    smoothness: float = 1.0          # real range is 0.0-1.0, NOT 0-100
     fresnel_power: float = 5.0
-    wetness_control_env_map_scale_value: float = 1.0
-    wetness_control_fresnel_power: float = 5.0
-    wetness_control_metalness: float = 0.0
-    # Root material
+    wetness_spec_scale: float = -1.0
+    wetness_spec_power: float = -1.0
+    wetness_min_var: float = -1.0
+    wetness_envmap_scale: float = -1.0
+    wetness_fresnel_power: float = -1.0
+    wetness_metalness: float = -1.0
     root_material_path: str = ""
-    # Emission / lighting
     aniso_lighting: bool = False
     emit_enabled: bool = False
     emittance_color: tuple = (1.0, 1.0, 1.0)
@@ -327,8 +431,8 @@ class _CommonData:
     dissolve_fade: bool = False
     assume_shadowmask: bool = False
     glowmap: bool = False
-    env_mapping_window: bool = False
-    env_mapping_eye: bool = False
+    environment_mapping_window: bool = False
+    environment_mapping_eye: bool = False
     hair: bool = False
     hair_tint_color: tuple = (1.0, 1.0, 1.0)
     tree: bool = False
@@ -336,40 +440,27 @@ class _CommonData:
     skin_tint: bool = False
     tessellate: bool = False
     displacement_tex_bias: float = 0.0
-    displacement_tex_scale: float = 1.0
-    tessellation_pn_scale: float = 1.0
-    tessellation_base_factor: float = 1.0
-    tessellation_fade_distance: float = 1.0
-    pbr: bool = False
-    translucency: bool = False
-    translucency_thick_object: bool = False
-    translucency_mix_albedo_with_subsurface: bool = False
-    translucency_subsurface_color: tuple = (1.0, 1.0, 1.0)
-    translucency_transmissive_scale: float = 1.0
-    translucency_turbulence: float = 0.0
-    custom_porosity: bool = False
-    porosity_value: float = 0.0
-    envmap_mask_texture: str = ""
+    displacement_tex_scale: float = 0.0
+    tessellation_pn_scale: float = 0.0
+    tessellation_base_factor: float = 0.0
+    tessellation_fade_distance: float = 0.0
+    grayscale_to_palette_scale: float = 1.0
+    skew_specular_alpha: bool = False
 
-
-@dataclass
-class BGSMData(_CommonData):
-    """All fields of a FO4 ``.bgsm`` file (standard material)."""
-    diffuse_texture: str = ""
-    normal_texture: str = ""
-    smooth_spec_texture: str = ""
-    greyscale_texture: str = ""
-    glow_texture: str = ""
-    inner_layer_texture: str = ""
-    wrinkle_mask_texture: str = ""
-    displacement_texture: str = ""
+    # Informational only -- these are NIF BSLightingShaderProperty
+    # ShaderFlags1/2 bit-flags (a NIF concept), NOT part of the .bgsm file
+    # format itself (real files have no trailing flags field at all). Kept
+    # for callers that derive NIF-side shader flags from a material
+    # (see fo4_reference_library.py); never written into the .bgsm bytes.
     shader_flags1: int = SF1_SPECULAR | SF1_RECEIVE_SHADOWS | SF1_CAST_SHADOWS
     shader_flags2: int = SF2_ZBUFFER_TEST | SF2_ZBUFFER_WRITE
 
 
 @dataclass
 class BGEMData(_CommonData):
-    """All fields of a FO4 ``.bgem`` file (effect material)."""
+    """All fields of a FO4 ``.bgem`` file (effect material), version 2."""
+    # 5 texture strings, real v2 order: Diffuse, Greyscale, EnvMap, Normal,
+    # EnvMapMask.
     base_texture: str = ""
     grayscale_texture: str = ""
     env_map_texture: str = ""
@@ -396,266 +487,119 @@ class BGEMData(_CommonData):
 # Binary serialisation helpers
 # ---------------------------------------------------------------------------
 
+def _pack_color_u32(color: tuple) -> bytes:
+    """Pack an RGB tuple for hairTintColor/baseColor.
+
+    PyNifly's reference reader declares these fields as ``c_uint32*3``, but
+    verified round-tripping real files through it (Barnacle.BGSM's
+    hairTintColor, DefaultEffect.BGEM's baseColor) shows the raw 4-byte
+    values are IEEE-754 float bit patterns, not 0-255 integers -- e.g.
+    baseColor's uint32 reading of 1065353216 is exactly the bit pattern of
+    1.0f. So despite the uint32 field type, these are plain floats on disk,
+    identical in format to specularColor/emittanceColor; the name is kept
+    for clarity at call sites (these two fields specifically use it) but it
+    now just packs floats.
+    """
+    return struct.pack("<fff", *color)
+
+
+def _unpack_color_u32(buf: bytes, offset: int) -> tuple:
+    """Inverse of :func:`_pack_color_u32`. Returns (color_tuple, new_offset)."""
+    color = struct.unpack_from("<fff", buf, offset)
+    return color, offset + 12
+
+
 def _pack_common(data: _CommonData) -> bytes:
-    """Serialise the common header fields to bytes."""
+    """Serialise the true shared header (tileFlags through
+    grayscaleToPaletteColor) to bytes, matching the exact real byte layout."""
     buf = bytearray()
 
     tile_flags = (_TILE_U if data.tile_u else 0) | (_TILE_V if data.tile_v else 0)
-
-    # tileFlags (uint32), bTileU (bool 1B), bTileV (bool 1B),
-    # fOffsetU, fOffsetV, fScaleU, fScaleV, fAlpha (5 floats)
     buf += struct.pack("<I", tile_flags)
-    buf += struct.pack("<BB", int(data.tile_u), int(data.tile_v))
     buf += struct.pack(
         "<fffff",
         data.offset_u,
         data.offset_v,
-        getattr(data, 'scale_u', 1.0),
-        getattr(data, 'scale_v', 1.0),
+        data.scale_u,
+        data.scale_v,
         data.alpha,
     )
 
-    # alphaBlendMode (uint8), alphaTestRef (uint8), alphaTest (uint8)
-    # Real FO4 BGSM format stores all three as single bytes.
-    buf += struct.pack("<BBB", data.alpha_blend_mode, data.alpha_test_ref & 0xFF, int(data.alpha_test))
+    buf += struct.pack(
+        "<BII",
+        int(data.alpha_blend_enabled),
+        data.alpha_blend1,
+        data.alpha_blend2,
+    )
+    buf += struct.pack("<B", data.alpha_test_ref & 0xFF)
 
-    # z-buffer and misc bool flags (each 1 byte)
-    flags = [
+    buf += bytes(int(v) for v in (
+        data.alpha_test,
         data.z_buffer_write,
         data.z_buffer_test,
         data.screen_space_reflections,
-        data.wetness_control_screen_space_scale,
-        data.wetness_control_hemisphere,
-        data.wetness_control_screen_space_specular,
-        data.wetness_control_specular_power,
-        data.wetness_control_specular_intensity,
-        data.wetness_control_env_map_scale,
-        data.grayscale_to_palette_color,
-        data.grayscale_to_palette_scale,
-    ]
-    buf += bytes([int(b) for b in flags])
-
-    # grayscaleToPaletteScaleValue (float), specularEnabled (bool)
-    buf += struct.pack("<fB", data.grayscale_to_palette_scale_value, int(data.specular_enabled))
-
-    # specularColor (3 floats), specularMult, smoothness, fresnelPower
-    r, g, b = data.specular_color
-    buf += struct.pack("<ffffffff",
-                       r, g, b,
-                       data.specular_mult,
-                       data.smoothness,
-                       data.fresnel_power,
-                       data.wetness_control_env_map_scale_value,
-                       data.wetness_control_fresnel_power)
-    buf += struct.pack("<f", data.wetness_control_metalness)
-
-    # rootMaterialPath (NiString)
-    buf += _write_nistring(data.root_material_path)
-
-    # anisoLighting, emitEnabled
-    buf += struct.pack("<BB", int(data.aniso_lighting), int(data.emit_enabled))
-
-    # emittanceColor (3 floats), emittanceMult
-    r, g, b = data.emittance_color
-    buf += struct.pack("<ffff", r, g, b, data.emittance_mult)
-
-    # Boolean flags (each 1 byte)
-    flags2 = [
-        data.model_space_normals,
-        data.external_emittance,
-        data.back_lighting,
-        data.receive_shadows,
-        data.hide_secret,
-        data.cast_shadows,
-        data.dissolve_fade,
-        data.assume_shadowmask,
-        data.glowmap,
-        data.env_mapping_window,
-        data.env_mapping_eye,
-        data.hair,
-    ]
-    buf += bytes([int(b) for b in flags2])
-
-    # hairTintColor (3 floats)
-    r, g, b = data.hair_tint_color
-    buf += struct.pack("<fff", r, g, b)
-
-    # More boolean flags
-    flags3 = [data.tree, data.facegen, data.skin_tint, data.tessellate]
-    buf += bytes([int(b) for b in flags3])
-
-    # Tessellation/displacement floats
-    buf += struct.pack(
-        "<fffff",
-        data.displacement_tex_bias,
-        data.displacement_tex_scale,
-        data.tessellation_pn_scale,
-        data.tessellation_base_factor,
-        data.tessellation_fade_distance,
-    )
-
-    # PBR / translucency
-    buf += struct.pack(
-        "<BBBB",
-        int(data.pbr),
-        int(data.translucency),
-        int(data.translucency_thick_object),
-        int(data.translucency_mix_albedo_with_subsurface),
-    )
-    r, g, b = data.translucency_subsurface_color
-    buf += struct.pack("<fffff",
-                       r, g, b,
-                       data.translucency_transmissive_scale,
-                       data.translucency_turbulence)
-
-    # customPorosity, porosityValue
-    buf += struct.pack("<Bf", int(data.custom_porosity), data.porosity_value)
-
-    # envmapMaskTexture (NiString)
-    buf += _write_nistring(data.envmap_mask_texture)
+        data.wetness_screen_space_reflections,
+        data.decal,
+        data.two_sided,
+        data.decal_no_fade,
+        data.non_occluder,
+        data.refraction,
+        data.refraction_falloff,
+    ))
+    buf += struct.pack("<f", data.refraction_power)
+    buf += struct.pack("<B", int(data.environment_mapping))
+    buf += struct.pack("<f", data.environment_mapping_mask_scale)
+    buf += struct.pack("<B", int(data.grayscale_to_palette_color))
 
     return bytes(buf)
 
 
 def _unpack_common(buf: bytes, offset: int) -> tuple[_CommonData, int]:
-    """Deserialise the common header fields from *buf* starting at *offset*."""
+    """Deserialise the true shared header from *buf* starting at *offset*."""
     data = _CommonData()
 
-    # tileFlags (uint32), bTileU (bool 1B), bTileV (bool 1B),
-    # fOffsetU, fOffsetV, fScaleU, fScaleV, fAlpha (5 floats)
     tile_flags = struct.unpack_from("<I", buf, offset)[0]
     offset += 4
-    tile_u_byte, tile_v_byte = struct.unpack_from("<BB", buf, offset)
-    offset += 2
+    data.tile_u = bool(tile_flags & _TILE_U)
+    data.tile_v = bool(tile_flags & _TILE_V)
+
     (data.offset_u, data.offset_v,
      data.scale_u, data.scale_v, data.alpha) = struct.unpack_from("<fffff", buf, offset)
     offset += 20
 
-    data.tile_u = bool(tile_u_byte)
-    data.tile_v = bool(tile_v_byte)
-    # tileFlags bits are authoritative for the tile-enable state
-    if tile_flags & _TILE_U:
-        data.tile_u = True
-    if tile_flags & _TILE_V:
-        data.tile_v = True
+    b0, b1, b2 = struct.unpack_from("<BII", buf, offset)
+    offset += 9
+    data.alpha_blend_enabled = bool(b0)
+    data.alpha_blend1 = b1
+    data.alpha_blend2 = b2
+    data.alpha_blend_mode = _alpha_blend_mode_from_real(b0, b1, b2)
 
-    # alphaBlendMode (uint8), alphaTestRef (uint8), alphaTest (uint8)
-    # Real FO4 BGSM format stores all three as single bytes.
-    data.alpha_blend_mode, data.alpha_test_ref, alpha_test = struct.unpack_from("<BBB", buf, offset)
-    data.alpha_test = bool(alpha_test)
-    offset += 3
+    data.alpha_test_ref = struct.unpack_from("<B", buf, offset)[0]
+    offset += 1
 
-    # z-buffer and misc bool flags
-    def _rb(n: int) -> tuple:
-        vals = struct.unpack_from(f"{n}B", buf, offset)
-        return vals
-
-    (zw, zt, ssr, wc_sss, wc_h, wc_ssspec, wc_sp, wc_si, wc_ems,
-     g2pc, g2ps) = struct.unpack_from("<11B", buf, offset)
+    (at, zw, zt, ssr, wssr, decal, two_sided, decal_nf, non_occ,
+     refr, refr_fall) = struct.unpack_from("<11B", buf, offset)
     offset += 11
+    data.alpha_test = bool(at)
     data.z_buffer_write = bool(zw)
     data.z_buffer_test = bool(zt)
     data.screen_space_reflections = bool(ssr)
-    data.wetness_control_screen_space_scale = bool(wc_sss)
-    data.wetness_control_hemisphere = bool(wc_h)
-    data.wetness_control_screen_space_specular = bool(wc_ssspec)
-    data.wetness_control_specular_power = bool(wc_sp)
-    data.wetness_control_specular_intensity = bool(wc_si)
-    data.wetness_control_env_map_scale = bool(wc_ems)
-    data.grayscale_to_palette_color = bool(g2pc)
-    data.grayscale_to_palette_scale = bool(g2ps)
+    data.wetness_screen_space_reflections = bool(wssr)
+    data.decal = bool(decal)
+    data.two_sided = bool(two_sided)
+    data.decal_no_fade = bool(decal_nf)
+    data.non_occluder = bool(non_occ)
+    data.refraction = bool(refr)
+    data.refraction_falloff = bool(refr_fall)
 
-    # grayscaleToPaletteScaleValue, specularEnabled
-    g2psv, spec_en = struct.unpack_from("<fB", buf, offset)
-    data.grayscale_to_palette_scale_value = g2psv
-    data.specular_enabled = bool(spec_en)
-    offset += 5
-
-    # specularColor, specularMult, smoothness, fresnelPower, wetness floats
-    (sr, sg, sb, smult, smooth, fresnel,
-     wc_em_scale, wc_fp, wc_metal) = struct.unpack_from("<fffffffff", buf, offset)
-    data.specular_color = (sr, sg, sb)
-    data.specular_mult = smult
-    data.smoothness = smooth
-    data.fresnel_power = fresnel
-    data.wetness_control_env_map_scale_value = wc_em_scale
-    data.wetness_control_fresnel_power = wc_fp
-    data.wetness_control_metalness = wc_metal
-    offset += 36
-
-    # rootMaterialPath (NiString)
-    data.root_material_path, offset = _read_nistring(buf, offset)
-
-    # anisoLighting, emitEnabled
-    aniso, emit = struct.unpack_from("<BB", buf, offset)
-    data.aniso_lighting = bool(aniso)
-    data.emit_enabled = bool(emit)
-    offset += 2
-
-    # emittanceColor, emittanceMult
-    er, eg, eb, emult = struct.unpack_from("<ffff", buf, offset)
-    data.emittance_color = (er, eg, eb)
-    data.emittance_mult = emult
-    offset += 16
-
-    # Boolean flags block 2
-    (msn, ext_em, back_l, recv_s, hide_s, cast_s, diss, assum,
-     glow, env_w, env_e, hair) = struct.unpack_from("<12B", buf, offset)
-    offset += 12
-    data.model_space_normals = bool(msn)
-    data.external_emittance = bool(ext_em)
-    data.back_lighting = bool(back_l)
-    data.receive_shadows = bool(recv_s)
-    data.hide_secret = bool(hide_s)
-    data.cast_shadows = bool(cast_s)
-    data.dissolve_fade = bool(diss)
-    data.assume_shadowmask = bool(assum)
-    data.glowmap = bool(glow)
-    data.env_mapping_window = bool(env_w)
-    data.env_mapping_eye = bool(env_e)
-    data.hair = bool(hair)
-
-    # hairTintColor
-    hr, hg, hb = struct.unpack_from("<fff", buf, offset)
-    data.hair_tint_color = (hr, hg, hb)
-    offset += 12
-
-    # More boolean flags
-    tree, facegen, skin_tint, tessellate = struct.unpack_from("<4B", buf, offset)
+    data.refraction_power = struct.unpack_from("<f", buf, offset)[0]
     offset += 4
-    data.tree = bool(tree)
-    data.facegen = bool(facegen)
-    data.skin_tint = bool(skin_tint)
-    data.tessellate = bool(tessellate)
-
-    # Tessellation/displacement floats
-    (data.displacement_tex_bias, data.displacement_tex_scale,
-     data.tessellation_pn_scale, data.tessellation_base_factor,
-     data.tessellation_fade_distance) = struct.unpack_from("<fffff", buf, offset)
-    offset += 20
-
-    # PBR / translucency
-    pbr, trans, trans_thick, trans_mix = struct.unpack_from("<4B", buf, offset)
+    data.environment_mapping = bool(struct.unpack_from("<B", buf, offset)[0])
+    offset += 1
+    data.environment_mapping_mask_scale = struct.unpack_from("<f", buf, offset)[0]
     offset += 4
-    data.pbr = bool(pbr)
-    data.translucency = bool(trans)
-    data.translucency_thick_object = bool(trans_thick)
-    data.translucency_mix_albedo_with_subsurface = bool(trans_mix)
-
-    tr, tg, tb, trans_scale, trans_turb = struct.unpack_from("<fffff", buf, offset)
-    data.translucency_subsurface_color = (tr, tg, tb)
-    data.translucency_transmissive_scale = trans_scale
-    data.translucency_turbulence = trans_turb
-    offset += 20
-
-    # customPorosity, porosityValue
-    cp, pv = struct.unpack_from("<Bf", buf, offset)
-    data.custom_porosity = bool(cp)
-    data.porosity_value = pv
-    offset += 5
-
-    # envmapMaskTexture (NiString)
-    data.envmap_mask_texture, offset = _read_nistring(buf, offset)
+    data.grayscale_to_palette_color = bool(struct.unpack_from("<B", buf, offset)[0])
+    offset += 1
 
     return data, offset
 
@@ -665,18 +609,23 @@ def _unpack_common(buf: bytes, offset: int) -> tuple[_CommonData, int]:
 # ---------------------------------------------------------------------------
 
 def write_bgsm(data: BGSMData) -> bytes:
-    """Serialise a :class:`BGSMData` to binary BGSM bytes."""
+    """Serialise a :class:`BGSMData` to binary BGSM bytes (format version 2,
+    the only version observed across the entire vanilla+DLC reference
+    library). Field order/inclusion verified by instrumenting PyNifly's own
+    reference parser against real files -- see the module-level comment
+    above ``_CommonData`` for the full story."""
     buf = bytearray()
     buf += _BGSM_MAGIC
     buf += struct.pack("<I", _FO4_VERSION)
     buf += _pack_common(data)
 
-    # BGSM-specific texture strings
+    # 9 texture strings, real v2 order.
     for tex in (
         data.diffuse_texture,
         data.normal_texture,
         data.smooth_spec_texture,
         data.greyscale_texture,
+        data.env_map_texture,
         data.glow_texture,
         data.inner_layer_texture,
         data.wrinkle_mask_texture,
@@ -684,8 +633,58 @@ def write_bgsm(data: BGSMData) -> bytes:
     ):
         buf += _write_nistring(tex)
 
-    # Shader flags
-    buf += struct.pack("<II", data.shader_flags1, data.shader_flags2)
+    buf += struct.pack("<B", int(data.enable_editor_alpha_ref))
+    buf += struct.pack("<B", int(data.rim_lighting))
+    buf += struct.pack("<ff", data.rim_power, data.backlight_power)
+    buf += struct.pack("<B", int(data.subsurface_lighting))
+    buf += struct.pack("<f", data.subsurface_rolloff)
+    buf += struct.pack("<B", int(data.specular_enabled))
+    # specularColor is c_float*3 (unlike hairTintColor/baseColor, which are
+    # c_uint32*3) -- packed directly as floats, not via _pack_color_u32.
+    buf += struct.pack("<fff", *data.specular_color)
+    buf += struct.pack(
+        "<fff", data.specular_mult, data.smoothness, data.fresnel_power)
+    buf += struct.pack(
+        "<ffff",
+        data.wetness_spec_scale, data.wetness_spec_power,
+        data.wetness_min_var, data.wetness_envmap_scale)
+    buf += struct.pack("<ff", data.wetness_fresnel_power, data.wetness_metalness)
+    buf += _write_nistring(data.root_material_path)
+    buf += struct.pack("<BB", int(data.aniso_lighting), int(data.emit_enabled))
+    if data.emit_enabled:
+        buf += struct.pack("<fff", *data.emittance_color)
+    buf += struct.pack("<f", data.emittance_mult)
+    buf += bytes(int(v) for v in (
+        data.model_space_normals,
+        data.external_emittance,
+        data.back_lighting,
+    ))
+    buf += bytes(int(v) for v in (
+        data.receive_shadows,
+        data.hide_secret,
+        data.cast_shadows,
+        data.dissolve_fade,
+        data.assume_shadowmask,
+        data.glowmap,
+        data.environment_mapping_window,
+        data.environment_mapping_eye,
+        data.hair,
+    ))
+    buf += _pack_color_u32(data.hair_tint_color)
+    buf += bytes(int(v) for v in (
+        data.tree, data.facegen, data.skin_tint, data.tessellate,
+    ))
+    buf += struct.pack(
+        "<fffff",
+        data.displacement_tex_bias,
+        data.displacement_tex_scale,
+        data.tessellation_pn_scale,
+        data.tessellation_base_factor,
+        data.tessellation_fade_distance,
+    )
+    buf += struct.pack("<f", data.grayscale_to_palette_scale)
+    buf += struct.pack("<B", int(data.skew_specular_alpha))
+
     return bytes(buf)
 
 
@@ -707,18 +706,61 @@ def read_bgsm(raw: bytes) -> BGSMData:
         common, offset = _unpack_common(raw, 8)
         data = BGSMData(**{k: v for k, v in common.__dict__.items()})
 
-        # Texture strings
         data.diffuse_texture, offset = _read_nistring(raw, offset)
         data.normal_texture, offset = _read_nistring(raw, offset)
         data.smooth_spec_texture, offset = _read_nistring(raw, offset)
         data.greyscale_texture, offset = _read_nistring(raw, offset)
+        data.env_map_texture, offset = _read_nistring(raw, offset)
         data.glow_texture, offset = _read_nistring(raw, offset)
         data.inner_layer_texture, offset = _read_nistring(raw, offset)
         data.wrinkle_mask_texture, offset = _read_nistring(raw, offset)
         data.displacement_texture, offset = _read_nistring(raw, offset)
 
-        if offset + 8 <= len(raw):
-            data.shader_flags1, data.shader_flags2 = struct.unpack_from("<II", raw, offset)
+        data.enable_editor_alpha_ref = bool(struct.unpack_from("<B", raw, offset)[0]); offset += 1
+        data.rim_lighting = bool(struct.unpack_from("<B", raw, offset)[0]); offset += 1
+        data.rim_power, data.backlight_power = struct.unpack_from("<ff", raw, offset); offset += 8
+        data.subsurface_lighting = bool(struct.unpack_from("<B", raw, offset)[0]); offset += 1
+        data.subsurface_rolloff = struct.unpack_from("<f", raw, offset)[0]; offset += 4
+        data.specular_enabled = bool(struct.unpack_from("<B", raw, offset)[0]); offset += 1
+        data.specular_color = struct.unpack_from("<fff", raw, offset); offset += 12
+        data.specular_mult, data.smoothness, data.fresnel_power = struct.unpack_from("<fff", raw, offset); offset += 12
+        (data.wetness_spec_scale, data.wetness_spec_power,
+         data.wetness_min_var, data.wetness_envmap_scale) = struct.unpack_from("<ffff", raw, offset); offset += 16
+        data.wetness_fresnel_power, data.wetness_metalness = struct.unpack_from("<ff", raw, offset); offset += 8
+        data.root_material_path, offset = _read_nistring(raw, offset)
+        aniso, emit = struct.unpack_from("<BB", raw, offset); offset += 2
+        data.aniso_lighting = bool(aniso)
+        data.emit_enabled = bool(emit)
+        if data.emit_enabled:
+            data.emittance_color = struct.unpack_from("<fff", raw, offset); offset += 12
+        data.emittance_mult = struct.unpack_from("<f", raw, offset)[0]; offset += 4
+        (msn, ext_em, back_l) = struct.unpack_from("<3B", raw, offset); offset += 3
+        data.model_space_normals = bool(msn)
+        data.external_emittance = bool(ext_em)
+        data.back_lighting = bool(back_l)
+        (recv_s, hide_s, cast_s, diss, assum, glow, env_w, env_e,
+         hair) = struct.unpack_from("<9B", raw, offset); offset += 9
+        data.receive_shadows = bool(recv_s)
+        data.hide_secret = bool(hide_s)
+        data.cast_shadows = bool(cast_s)
+        data.dissolve_fade = bool(diss)
+        data.assume_shadowmask = bool(assum)
+        data.glowmap = bool(glow)
+        data.environment_mapping_window = bool(env_w)
+        data.environment_mapping_eye = bool(env_e)
+        data.hair = bool(hair)
+        data.hair_tint_color, offset = _unpack_color_u32(raw, offset)
+        tree, facegen, skin_tint, tessellate = struct.unpack_from("<4B", raw, offset); offset += 4
+        data.tree = bool(tree)
+        data.facegen = bool(facegen)
+        data.skin_tint = bool(skin_tint)
+        data.tessellate = bool(tessellate)
+        (data.displacement_tex_bias, data.displacement_tex_scale,
+         data.tessellation_pn_scale, data.tessellation_base_factor,
+         data.tessellation_fade_distance) = struct.unpack_from("<fffff", raw, offset); offset += 20
+        data.grayscale_to_palette_scale = struct.unpack_from("<f", raw, offset)[0]; offset += 4
+        if offset < len(raw):
+            data.skew_specular_alpha = bool(struct.unpack_from("<B", raw, offset)[0])
 
         return data
     except Exception:
@@ -732,13 +774,15 @@ def read_bgsm(raw: bytes) -> BGSMData:
 
 
 def write_bgem(data: BGEMData) -> bytes:
-    """Serialise a :class:`BGEMData` to binary BGEM bytes."""
+    """Serialise a :class:`BGEMData` to binary BGEM bytes (format version 2).
+    See :func:`write_bgsm` for how this layout was verified."""
     buf = bytearray()
     buf += _BGEM_MAGIC
     buf += struct.pack("<I", _FO4_VERSION)
     buf += _pack_common(data)
 
-    # BGEM-specific texture strings
+    # 5 texture strings, real v2 order: Diffuse, Greyscale, EnvMap, Normal,
+    # EnvMapMask.
     for tex in (
         data.base_texture,
         data.grayscale_texture,
@@ -748,22 +792,16 @@ def write_bgem(data: BGEMData) -> bytes:
     ):
         buf += _write_nistring(tex)
 
-    # BGEM boolean flags
-    buf += struct.pack(
-        "<6B",
-        int(data.blood_enabled),
-        int(data.effect_lighting_enabled),
-        int(data.falloff_enabled),
-        int(data.falloff_color_enabled),
-        int(data.grayscale_to_palette_alpha),
-        int(data.soft_enabled),
-    )
-
-    # baseColor, baseColorScale
-    r, g, b = data.base_color
-    buf += struct.pack("<ffff", r, g, b, data.base_color_scale)
-
-    # Falloff angles/opacities
+    buf += bytes(int(v) for v in (
+        data.blood_enabled,
+        data.effect_lighting_enabled,
+        data.falloff_enabled,
+        data.falloff_color_enabled,
+        data.grayscale_to_palette_alpha,
+        data.soft_enabled,
+    ))
+    buf += _pack_color_u32(data.base_color)
+    buf += struct.pack("<f", data.base_color_scale)
     buf += struct.pack(
         "<fffff",
         data.falloff_start_angle,
@@ -772,7 +810,7 @@ def write_bgem(data: BGEMData) -> bytes:
         data.falloff_stop_opacity,
         data.lighting_influence,
     )
-    buf += struct.pack("<B", data.env_map_min_lod)
+    buf += struct.pack("<B", data.env_map_min_lod & 0xFF)
     buf += struct.pack("<f", data.soft_depth)
     return bytes(buf)
 
@@ -800,29 +838,23 @@ def read_bgem(raw: bytes) -> BGEMData:
     data.normal_texture, offset = _read_nistring(raw, offset)
     data.env_map_mask_texture, offset = _read_nistring(raw, offset)
 
-    if offset + 6 <= len(raw):
-        flags = struct.unpack_from("<6B", raw, offset)
-        offset += 6
-        (data.blood_enabled, data.effect_lighting_enabled,
-         data.falloff_enabled, data.falloff_color_enabled,
-         data.grayscale_to_palette_alpha, data.soft_enabled) = [bool(f) for f in flags]
+    flags = struct.unpack_from("<6B", raw, offset)
+    offset += 6
+    (data.blood_enabled, data.effect_lighting_enabled,
+     data.falloff_enabled, data.falloff_color_enabled,
+     data.grayscale_to_palette_alpha, data.soft_enabled) = [bool(f) for f in flags]
 
-    if offset + 20 <= len(raw):
-        br, bg, bb, bcs = struct.unpack_from("<ffff", raw, offset)
-        data.base_color = (br, bg, bb)
-        data.base_color_scale = bcs
-        offset += 16
+    data.base_color, offset = _unpack_color_u32(raw, offset)
+    data.base_color_scale = struct.unpack_from("<f", raw, offset)[0]
+    offset += 4
 
-    if offset + 21 <= len(raw):
-        (data.falloff_start_angle, data.falloff_stop_angle,
-         data.falloff_start_opacity, data.falloff_stop_opacity,
-         data.lighting_influence) = struct.unpack_from("<fffff", raw, offset)
-        offset += 20
-        data.env_map_min_lod = struct.unpack_from("<B", raw, offset)[0]
-        offset += 1
-
-    if offset + 4 <= len(raw):
-        data.soft_depth = struct.unpack_from("<f", raw, offset)[0]
+    (data.falloff_start_angle, data.falloff_stop_angle,
+     data.falloff_start_opacity, data.falloff_stop_opacity,
+     data.lighting_influence) = struct.unpack_from("<fffff", raw, offset)
+    offset += 20
+    data.env_map_min_lod = struct.unpack_from("<B", raw, offset)[0]
+    offset += 1
+    data.soft_depth = struct.unpack_from("<f", raw, offset)[0]
 
     return data
 
@@ -975,7 +1007,7 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
     data.normal_texture = _get_image_node_path(mat, "Normal")
     data.smooth_spec_texture = _get_image_node_path(mat, "Specular")
     data.greyscale_texture = _get_image_node_path(mat, "Glow")
-    data.envmap_mask_texture = _get_image_node_path(mat, "EnvMap")
+    data.env_map_texture = _get_image_node_path(mat, "EnvMap")
 
     # When a Glow (_g) texture is assigned, auto-enable the emission / glow-map
     # flags so the BGSM always exports with the correct shader settings.
@@ -996,16 +1028,21 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
         data.shader_flags2 &= ~SF2_DOUBLE_SIDED
 
     # Alpha settings
-    if mat.blend_method == 'CLIP':
+    # Blender 4.2+ silently normalizes a material's blend_method to 'HASHED'
+    # on readback even when 'CLIP' was set (confirmed live) --
+    # texture_helpers.setup_vegetation_material sets exactly 'CLIP', so
+    # checking for only that value here never matched and every plant/
+    # foliage BGSM silently lost its alpha cutout on export.
+    if mat.blend_method in ('CLIP', 'HASHED'):
         data.alpha_test = True
         data.alpha_test_ref = int((mat.alpha_threshold or 0.5) * 255)
-        data.alpha_blend_mode = ALPHA_BLEND_NONE
+        _set_alpha_blend_mode(data, ALPHA_BLEND_NONE)
     elif mat.blend_method == 'BLEND':
         data.alpha_test = False
-        data.alpha_blend_mode = ALPHA_BLEND_STANDARD
+        _set_alpha_blend_mode(data, ALPHA_BLEND_STANDARD)
     else:
         data.alpha_test = False
-        data.alpha_blend_mode = ALPHA_BLEND_NONE
+        _set_alpha_blend_mode(data, ALPHA_BLEND_NONE)
 
     # Principled BSDF settings
     pbsdf = None
@@ -1021,11 +1058,26 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
         if alpha_sock and not alpha_sock.is_linked:
             data.alpha = float(alpha_sock.default_value)
 
-        # Roughness → Glossiness  (Glossiness = (1 - roughness) * 255)
+        # Roughness → Smoothness (real BGSM range is 0.0-1.0, NOT 0-255)
         rough_sock = pbsdf.inputs.get("Roughness")
         if rough_sock and not rough_sock.is_linked:
             roughness = float(rough_sock.default_value)
-            data.smoothness = max(0.0, min(255.0, (1.0 - roughness) * 255.0))
+            derived = max(0.0, min(1.0, 1.0 - roughness))
+            # bgsm_to_blender_mat clamps the *displayed* roughness to a
+            # minimum of 0.3 (max effective smoothness 0.7) so nothing
+            # looks like unlit chrome in the viewport, which is lossy for
+            # real smoothness > 0.7. If a stashed original value exists AND
+            # the current roughness still equals what that clamp would
+            # have produced, the user hasn't touched this socket -- prefer
+            # the exact original instead of the display-clamped derivation
+            # so a straight import->export round trip doesn't silently
+            # degrade very glossy/wet materials to 0.7.
+            orig = mat.get("fo4_bgsm_smoothness_orig")
+            if orig is not None:
+                expected_display_roughness = max(0.3, min(1.0, 1.0 - float(orig)))
+                if abs(roughness - expected_display_roughness) < 1e-4:
+                    derived = float(orig)
+            data.smoothness = derived
 
         # Specular (Base Color used as specular hint when metallic > 0)
         metallic_sock = pbsdf.inputs.get("Metallic")
@@ -1062,17 +1114,64 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
     if combined_hint:
         _apply_shader_hints(data, combined_hint)
 
-    # Override translucency values if the artist set per-material custom props
+    # Note: real FO4 BGSM files (format version 2, confirmed across the
+    # entire sampled reference library) have no translucency/subsurface
+    # fields at all -- those only exist in a later, unobserved format
+    # version. There is nothing to persist into the .bgsm bytes for a
+    # "fo4_translucency" custom property, so only the shader-flags hint
+    # (informational, NIF-side only -- see BGSMData.shader_flags1) is kept.
     if mat.get("fo4_translucency"):
-        data.translucency = True
-        data.translucency_mix_albedo_with_subsurface = bool(mat.get("fo4_translucency_mix_albedo", True))
-        r = float(mat.get("fo4_translucency_subsurface_r", 0.35))
-        g = float(mat.get("fo4_translucency_subsurface_g", 0.60))
-        b = float(mat.get("fo4_translucency_subsurface_b", 0.15))
-        data.translucency_subsurface_color = (r, g, b)
-        data.translucency_transmissive_scale = float(mat.get("fo4_translucency_scale", 0.55))
-        data.translucency_turbulence = float(mat.get("fo4_translucency_turbulence", 0.0))
         data.shader_flags1 |= SF1_BACK_LIGHTING
+
+    # ── Advanced material presets (fo4_advanced_materials.py) ───────────────
+    # apply_advanced_material_preset() stashes every preset field as a
+    # fo4_bgsm_<key> custom property and its own docstring claims they're
+    # "read by bgsm_helpers.blender_mat_to_bgsm()" -- that read never
+    # existed, so applying e.g. "Weathered Metal (Wet/Corroded)" had zero
+    # effect on the exported .bgsm. Only wire the subset of preset keys that
+    # actually correspond to real BGSMData fields: about half the preset
+    # data (translucency*, and the wetnessControl* fields under
+    # "bgsm_flags") describes a translucency/wetness-toggle model that does
+    # not exist in the real BGSM v2 format at all (confirmed empirically
+    # this session against the whole reference library) and is left as
+    # inert metadata rather than asserted onto invented fields.
+    _PRESET_KEY_TO_FIELD = {
+        "backLighting":     "back_lighting",
+        "specularEnabled":  "specular_enabled",
+        "zBufferWrite":     "z_buffer_write",
+        "zBufferTest":      "z_buffer_test",
+        "receiveShadows":   "receive_shadows",
+        "castShadows":      "cast_shadows",
+        "tree":             "tree",
+        "environmentMapping": "environment_mapping",
+        "emitEnabled":      "emit_enabled",
+        "glowmap":          "glowmap",
+        "skinTint":         "skin_tint",
+        "smoothness":       "smoothness",
+        "specularMult":     "specular_mult",
+        "fresnelPower":     "fresnel_power",
+        "emittanceMult":    "emittance_mult",
+        "emittanceColor":   "emittance_color",
+        # The preset module's "values" dict uses a "wetnessControl*" naming
+        # convention for these three that (unlike the same-named boolean
+        # bgsm_flags) DOES map onto real numeric BGSMData fields.
+        "wetnessControlEnvMapScale":  "wetness_envmap_scale",
+        "wetnessControlFresnelPower": "wetness_fresnel_power",
+        "wetnessControlMetalness":   "wetness_metalness",
+    }
+    for preset_key, field_name in _PRESET_KEY_TO_FIELD.items():
+        if mat.get(f"fo4_bgsm_{preset_key}") is not None:
+            val = mat[f"fo4_bgsm_{preset_key}"]
+            try:
+                if isinstance(getattr(data, field_name), tuple):
+                    val = tuple(float(v) for v in val)
+                elif isinstance(getattr(data, field_name), bool):
+                    val = bool(val)
+                elif isinstance(getattr(data, field_name), float):
+                    val = float(val)
+                setattr(data, field_name, val)
+            except Exception:
+                pass
 
     return data
 
@@ -1100,7 +1199,7 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
     if "bgem_bloom" in hint_lower:
         # Additive blend for bloom halos – mark on the BGSM stub so exporters
         # know to generate a .bgem file instead of .bgsm.
-        data.alpha_blend_mode = ALPHA_BLEND_ADDITIVE
+        _set_alpha_blend_mode(data, ALPHA_BLEND_ADDITIVE)
         data.glowmap = True
         data.emit_enabled = True
         data.shader_flags1 |= SF1_EMIT_ENABLED
@@ -1121,14 +1220,9 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
     if "two_sided" in hint_lower or "foliage" in hint_lower or "vegetation" in hint_lower:
         data.shader_flags2 |= SF2_DOUBLE_SIDED
         # Back-lighting flag makes sunlight pass through leaf surfaces in-game.
-        # Combined with the translucency block this is what gives leaves their
-        # characteristic glow when the sun is behind them.
+        # (Real v2 BGSM files have no translucency/subsurface data fields to
+        # set alongside this -- see the note in blender_mat_to_bgsm.)
         data.shader_flags1 |= SF1_BACK_LIGHTING
-        data.translucency = True
-        data.translucency_mix_albedo_with_subsurface = True
-        data.translucency_subsurface_color = (0.35, 0.60, 0.15)
-        data.translucency_transmissive_scale = 0.55
-        data.translucency_turbulence = 0.0
 
 
 def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
@@ -1166,10 +1260,18 @@ def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
         pbsdf = nodes.new('ShaderNodeBsdfPrincipled')
         pbsdf.location = (0, 300)
 
-    # Roughness from Glossiness — clamp to 0.3 minimum so nothing looks like chrome
-    # in the Blender viewport. FO4 smoothness is stored as 0-255 float.
-    raw_rough = 1.0 - (data.smoothness / 255.0)
+    # Roughness from Smoothness — clamp to 0.3 minimum so nothing looks like
+    # chrome in the Blender viewport. FO4 smoothness is stored 0.0-1.0.
+    # The clamp is lossy for real smoothness > 0.7 (very glossy/wet/chrome
+    # materials) -- without preserving the true value somewhere,
+    # blender_mat_to_bgsm re-deriving smoothness from the (now-clamped)
+    # Roughness socket on export would permanently degrade it to 0.7 after
+    # a single import->export round trip. Stash the real value as a hidden
+    # custom property so export can prefer it when the user hasn't actually
+    # touched the Roughness socket.
+    raw_rough = 1.0 - data.smoothness
     roughness = max(0.3, min(1.0, raw_rough))
+    mat["fo4_bgsm_smoothness_orig"] = data.smoothness
     if pbsdf.inputs.get("Roughness") and not pbsdf.inputs["Roughness"].links:
         pbsdf.inputs["Roughness"].default_value = roughness
 
@@ -1223,7 +1325,7 @@ def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
         "Normal":   data.normal_texture,
         "Specular": data.smooth_spec_texture,
         "Glow":     data.greyscale_texture,
-        "EnvMap":   data.envmap_mask_texture,
+        "EnvMap":   data.env_map_texture,
     }
 
     def _resolve_tex(tex_path: str):

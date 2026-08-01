@@ -129,13 +129,42 @@ def _apply_fo4_import_scale(context, objects=None) -> int:
     :func:`export_helpers.ExportHelpers.export_mesh_to_nif` can multiply back
     to game units before writing the NIF.
 
+    IMPORTANT — location must scale too, not just mesh geometry: on a
+    multi-mesh NIF, PyNifly gives each piece its own small, near-origin local
+    vertex data and expresses that piece's actual position via the Blender
+    object's own ``.location`` (e.g. a gun's receiver sub-meshes import with
+    ``location=(-24.2, -4.6, -3.8)`` and only a few Havok units of local
+    vertex spread).  ``transform_apply(location=False, scale=True)`` bakes
+    the ÷70 factor into each mesh's own vertices but — by design — leaves
+    ``.location`` completely untouched.  The result: every piece's own
+    geometry shrinks correctly, but the offsets *between* pieces stay at
+    full Havok scale — visually, each piece ends up roughly 70x farther from
+    its neighbors than it should be, exactly the "scattered/floating parts"
+    bug reported for multi-mesh NIF imports.  Multiplying ``.location`` by
+    the same ``_FO4_UNIT_SCALE`` factor (independent of any parent's own
+    transform, since a parent's baked-in scale is always reset to 1 by this
+    same function) reproduces a uniformly-scaled-down copy of the original
+    arrangement — verified against PyNifly's own import of a real multi-mesh
+    FO4 NIF (a 165-object gun-display prop).  Parent EMPTY nodes (e.g. the
+    NiNode ``:ROOT``) are included here too, since their own ``.location``
+    can carry a real offset even though they have no mesh data to bake scale
+    into — only ``.location`` needs correcting for those, never ``.scale``.
+
     Returns the number of objects scaled.
     """
     _SCALABLE = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE', 'META', 'FONT'}
     candidates = objects if objects is not None else context.selected_objects
     imported = [o for o in candidates if o.type in _SCALABLE]
-    if not imported:
+    empties = [o for o in candidates if o.type == 'EMPTY']
+    if not imported and not empties:
         return 0
+
+    # Parent EMPTY nodes (e.g. NiNode ":ROOT") carry no mesh to bake scale
+    # into, but their .location can still hold a real offset - scale that
+    # alone, never .scale (an empty's scale would otherwise compound into
+    # every child's world transform through normal parent-child composition).
+    for obj in empties:
+        obj.location = tuple(c * _FO4_UNIT_SCALE for c in obj.location)
 
     # Deselect all, then scale + apply each object individually so Blender's
     # transform_apply works reliably (it operates on the active object).
@@ -150,6 +179,11 @@ def _apply_fo4_import_scale(context, objects=None) -> int:
         context.view_layer.objects.active = obj
         obj.select_set(True)
         obj.scale = (_FO4_UNIT_SCALE, _FO4_UNIT_SCALE, _FO4_UNIT_SCALE)
+        # Scale location too - see the "IMPORTANT" note above.  This must
+        # happen whether or not the transform_apply below succeeds, since it
+        # corrects a completely separate value that transform_apply
+        # deliberately never touches (location=False).
+        obj.location = tuple(c * _FO4_UNIT_SCALE for c in obj.location)
         # Bake the scale into the mesh so Blender measurements are meaningful and
         # the object stays downsized.  transform_apply can fail on PyNifly
         # imports (mesh parented to a skeleton, multi-user mesh data, or a
@@ -230,6 +264,84 @@ def _find_bone_landmark_z(armature_obj, keywords, exclude=_BONE_LANDMARK_EXCLUDE
     return sum(zs) / len(zs)
 
 
+def _robust_transform_apply_scale(context, obj) -> bool:
+    """Apply *obj*'s current .scale into its mesh data and reset .scale to
+    (1, 1, 1), retrying once with single-user mesh data if needed.
+
+    bpy.ops.object.transform_apply() communicates failure through a Blender
+    operator report + a non-FINISHED return value, NOT a Python exception —
+    a bare ``try: bpy.ops.object.transform_apply(...) except Exception: pass``
+    therefore silently treats "the operator did nothing" the same as "it
+    succeeded", leaving obj.scale completely unbaked with no error at all.
+    Confirmed directly on a real multi-piece armor rig processed object by
+    object in one script: this exact call succeeded for one piece and
+    silently no-oped for two others, all three unconditionally treated as
+    fine by the caller — the two un-baked pieces then failed NIF export
+    validation ("Object scale not applied") with no earlier warning that
+    anything had gone wrong.
+
+    Returns True only if the operator actually reported FINISHED and
+    obj.scale really is (1, 1, 1) afterward.
+    """
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    context.view_layer.objects.active = obj
+
+    def _try_apply():
+        try:
+            with context.temp_override(active_object=obj, selected_objects=[obj],
+                                        selected_editable_objects=[obj]):
+                return bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        except Exception:
+            return {'CANCELLED'}
+
+    result = _try_apply()
+    if 'FINISHED' not in result and obj.data and getattr(obj.data, "users", 1) > 1:
+        obj.data = obj.data.copy()
+        result = _try_apply()
+
+    return 'FINISHED' in result and tuple(obj.scale) == (1.0, 1.0, 1.0)
+
+
+def _enforce_bone_limit_python(obj, max_influences=4, exclude_prefix="FO4 SEG"):
+    """Guarantee every vertex has at most *max_influences* non-excluded
+    (real bone deform) vertex-group weights, keeping the highest and
+    renormalizing them to sum to 1.0.
+
+    bpy.ops.object.vertex_group_limit_total() can report FINISHED without
+    actually having capped every vertex — confirmed directly on a real
+    multi-piece armor rig: one mesh still had a vertex with 11 non-negligible
+    bone weights after that operator supposedly enforced a 4-influence limit,
+    which then failed NIF export validation with no earlier warning. This
+    pure-Python pass is deterministic and doesn't depend on the operator's
+    poll/context behaviour, so it's used as a guaranteed correction after
+    calling the Blender operator (which is kept first since it's much faster
+    for the overwhelming majority of vertices that are already within limit).
+
+    Returns the number of vertices that had to be corrected.
+    """
+    bone_group_idx = {
+        vg.index for vg in obj.vertex_groups
+        if not vg.name.upper().startswith(exclude_prefix)
+    }
+    fixed = 0
+    for v in obj.data.vertices:
+        weights = [(g.group, g.weight) for g in v.groups
+                   if g.group in bone_group_idx and g.weight > 0.0]
+        if len(weights) <= max_influences:
+            continue
+        weights.sort(key=lambda gw: gw[1], reverse=True)
+        keep = weights[:max_influences]
+        drop = weights[max_influences:]
+        total = sum(w for _, w in keep) or 1.0
+        for gi, _ in drop:
+            obj.vertex_groups[gi].remove([v.index])
+        for gi, w in keep:
+            obj.vertex_groups[gi].add([v.index], w / total, 'REPLACE')
+        fixed += 1
+    return fixed
+
+
 def _classify_garment_target_span(obj_name, fo4_skel):
     """Return (target_bottom_z, target_top_z, segment_label) for a garment
     classified by its object name, using real bone landmarks on *fo4_skel*.
@@ -299,19 +411,31 @@ def _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel):
         if factor is None:
             factor = _find_sibling_landmark_factor(context, obj, fo4_skel)
         if factor is not None:
-            obj.scale = tuple(s * factor for s in obj.scale)
-            try:
-                with context.temp_override(active_object=obj, selected_objects=[obj],
-                                            selected_editable_objects=[obj]):
-                    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-            except Exception:
-                pass
+            # Set the factor directly rather than multiplying against
+            # whatever obj.scale already happens to be. obj.scale is not
+            # reliably (1,1,1) here: confirmed directly that
+            # bpy.ops.object.transform_apply(scale=True) on a PARENT object
+            # (e.g. the pants, processed earlier in the same rig pass) can
+            # leave a compensating scale on its still-parented CHILDREN (e.g.
+            # a kneepad) to preserve their world-space size. Multiplying that
+            # leftover value by the sibling's factor again compounded to
+            # factor² (0.8423 -> 0.7095), producing a mesh that was
+            # completely wrong for FO4/undersized relative to the pants it's
+            # supposed to hug.
+            obj.scale = (factor, factor, factor)
+            applied = _robust_transform_apply_scale(context, obj)
             obj["fo4_landmark_scale_factor"] = factor
             # Also tag fo4_unit_scale — this is what export_helpers.py checks to
             # know it must multiply back ×70 before writing the NIF. Without it,
             # this object silently skips that restoration and exports at
             # Blender-metre scale directly (~70x too small in-game/NifSkope).
             obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+            if not applied:
+                return False, (
+                    f"'{obj.name}' scale ×{factor:.4f} set but NOT baked into the mesh "
+                    "(transform_apply did not succeed) — run Object > Apply > Scale "
+                    "manually before export."
+                )
             return True, f"'{obj.name}' inherited parent scale ×{factor:.4f}"
         return False, f"'{obj.name}' — couldn't classify garment type (name has no shirt/pants/etc keyword) and no scaled parent to inherit from"
 
@@ -324,17 +448,7 @@ def _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel):
 
     factor = (target_top - target_bottom) / cur_span
     obj.scale = tuple(s * factor for s in obj.scale)
-    try:
-        with context.temp_override(active_object=obj, selected_objects=[obj],
-                                    selected_editable_objects=[obj]):
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    except Exception:
-        try:
-            if obj.data and getattr(obj.data, "users", 1) > 1:
-                obj.data = obj.data.copy()
-            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-        except Exception:
-            pass
+    applied = _robust_transform_apply_scale(context, obj)
 
     # Reposition so the bottom lands exactly on the target landmark (X/Y untouched).
     world_pts2 = [obj.matrix_world @ _V(c) for c in obj.bound_box]
@@ -347,6 +461,12 @@ def _auto_scale_mesh_to_skeleton_landmarks(context, obj, fo4_skel):
     # object silently skips that restoration and exports at Blender-metre
     # scale directly (~70x too small in-game/NifSkope).
     obj["fo4_unit_scale"] = _FO4_UNIT_SCALE_INV
+    if not applied:
+        return False, (
+            f"'{obj.name}' scale ×{factor:.4f} set but NOT baked into the mesh "
+            "(transform_apply did not succeed) — run Object > Apply > Scale "
+            "manually before export."
+        )
     return True, f"'{obj.name}' scaled ×{factor:.4f} to match {seg} landmarks"
 
 
@@ -1210,6 +1330,17 @@ class FO4_OT_TransferArmorWeightsBasic(Operator):
 
         source = sources[0]
 
+        # Data Transfer's 'NAME' dst-matching mode only maps onto vertex
+        # groups that ALREADY exist on the destination by that exact name --
+        # it never creates new ones. A freshly authored/imported armor mesh
+        # has zero vertex groups, so without this the transfer is a silent
+        # no-op (every vertex ends up with zero total weight). Pre-create
+        # empty groups matching the source's so Data Transfer has real
+        # targets to populate.
+        for vg in source.vertex_groups:
+            if vg.name not in active.vertex_groups:
+                active.vertex_groups.new(name=vg.name)
+
         # Add Data Transfer modifier if not already present
         mod_name = "FO4_WeightTransfer"
         if mod_name in active.modifiers:
@@ -1413,14 +1544,23 @@ class FO4_OT_LoadFO4Skeleton(Operator):
 
 
 class FO4_OT_FixNIFScale(Operator):
-    """Fix NIF import scale — NIFs import at Havok scale (≈ cm) which looks huge in Blender.
+    """Fix NIF import scale — NIFs import at Havok scale which looks huge in Blender.
 
     Select all objects from the NIF import, then click this button.
-    Scales them down by 0.01 so 1 Blender unit = 1 cm (correct for FO4 / Havok).
+    Scales them down by the real FO4 Havok unit factor (1 / 69.99125, NOT a
+    flat 100) so 1 Blender unit matches this addon's own import convention.
     """
     bl_idname  = "fo4.fix_nif_scale"
-    bl_label   = "Fix NIF Scale (÷100)"
+    bl_label   = "Fix NIF Scale (÷70)"
     bl_options = {'REGISTER', 'UNDO'}
+
+    # FO4's real Havok/game-unit scale factor -- confirmed against real
+    # skeleton/armor NIFs and matches _FO4_UNIT_SCALE_INV used throughout
+    # export_helpers.py. This operator used to hardcode 0.01 (÷100), the
+    # exact same wrong constant already found and fixed once this session
+    # for the skeleton-loading path -- it left every mesh it "fixed" about
+    # 30% too small.
+    _FO4_SCALE_FACTOR = 1.0 / 69.99125
 
     def execute(self, context):
         targets = list(context.selected_objects) or list(context.scene.objects)
@@ -1428,21 +1568,22 @@ class FO4_OT_FixNIFScale(Operator):
             self.report({'WARNING'}, "No objects selected or in scene.")
             return {'CANCELLED'}
 
+        f = self._FO4_SCALE_FACTOR
         scaled = 0
         for obj in targets:
             # Only scale objects that look oversized (> 2 BU in any dimension)
             if max(abs(obj.scale.x), abs(obj.scale.y), abs(obj.scale.z)) > 1.5:
-                obj.scale = (0.01, 0.01, 0.01)
+                obj.scale = (f, f, f)
                 scaled += 1
             elif max(obj.dimensions.x, obj.dimensions.y, obj.dimensions.z) > 5.0:
-                obj.scale = (0.01, 0.01, 0.01)
+                obj.scale = (f, f, f)
                 scaled += 1
 
         if scaled:
             bpy.ops.object.transform_apply(scale=True)
             self.report({'INFO'},
                 f"Fixed scale on {scaled} object(s). "
-                "Mesh is now at FO4/Havok units (1 BU ≈ 1 cm).")
+                "Mesh is now at FO4/Havok units (÷69.99125).")
         else:
             self.report({'INFO'}, "Objects already appear to be at the correct scale.")
         return {'FINISHED'}
@@ -1930,12 +2071,38 @@ class FO4_OT_QuickFBXArmorSetup(Operator):
                 self.report({'WARNING'}, f"Auto-weight fallback failed: {exc}")
 
         # ── 4. Enforce FO4 4-bone-per-vertex limit ────────────────────────────
+        # bpy.ops.object.vertex_group_limit_total() communicates failure via a
+        # non-FINISHED return value, not a Python exception — a bare call
+        # whose result is never checked can silently no-op, leaving vertices
+        # over the 4-influence cap with no warning until NIF export
+        # validation rejects the mesh. Confirmed directly: this happened for
+        # one piece of a real 3-piece armor rig while the other two worked,
+        # all three previously reported as "enforced" regardless.
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        context.view_layer.objects.active = obj
         try:
-            context.view_layer.objects.active = obj
-            bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL', limit=4)
-            steps_done.append("enforced 4-bone limit")
+            with context.temp_override(active_object=obj, selected_objects=[obj],
+                                        selected_editable_objects=[obj]):
+                _limit_result = bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL', limit=4)
         except Exception as exc:
-            self.report({'WARNING'}, f"Bone limit step failed (run Weights > Limit Total manually): {exc}")
+            _limit_result = {'CANCELLED'}
+            self.report({'WARNING'}, f"Bone limit step raised: {exc}")
+        if 'FINISHED' in _limit_result:
+            steps_done.append("enforced 4-bone limit")
+        else:
+            self.report({'WARNING'},
+                f"Bone limit step returned {_limit_result}, not enforced — "
+                "run Weights > Limit Total manually before export.")
+
+        # Verify the actual post-condition rather than trusting the operator's
+        # return code — confirmed directly that vertex_group_limit_total() can
+        # report FINISHED while still leaving vertices with far more than 4
+        # non-negligible bone weights (one real mesh had 11 on a single
+        # vertex). Fix any remainder with a deterministic pure-Python pass.
+        _n_fixed = _enforce_bone_limit_python(obj, max_influences=4)
+        if _n_fixed:
+            steps_done.append(f"corrected {_n_fixed} vertex(es) still over the 4-bone limit")
 
         _ny_hint = f"  [facing_ny={_detected_ny:.4f}]" if _detected_ny is not None else ""
         self.report({'INFO'},
@@ -3450,7 +3617,10 @@ class FO4_OT_SetupLeafCard(Operator):
         mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
         mat.use_nodes = True
         mat.blend_method  = 'CLIP'
-        mat.shadow_method = 'CLIP'
+        try:
+            mat.shadow_method = 'CLIP'  # removed in Blender 4.2+ (EEVEE Next)
+        except AttributeError:
+            pass
         mat.alpha_threshold = self.alpha_threshold
         mat.use_backface_culling = False  # leaves visible from both sides
 
@@ -3503,7 +3673,11 @@ class FO4_OT_SetupLeafCard(Operator):
             steps.append(f"Wind weights skipped ({exc})")
 
         # ── 5. Tag as vegetation ───────────────────────────────────────────────
-        obj["fo4_mesh_type"] = "VEGETATION"
+        # fo4_mesh_type is a real RNA EnumProperty -- must use attribute
+        # assignment, not bracket/custom-property assignment (which silently
+        # creates a separate, unrelated custom property the export pipeline
+        # never reads).
+        obj.fo4_mesh_type = "VEGETATION"
         obj["fo4_leaf_card"] = True
 
         summary = " | ".join(steps)
@@ -4075,12 +4249,22 @@ class FO4_OT_ExportCKAssetBundle(Operator):
     def _collect_material_texture_paths(mat) -> list[str]:
         if mat is None or not getattr(mat, "use_nodes", False) or not mat.node_tree:
             return []
-        wanted = {"Diffuse", "Normal", "Specular", "Glow", "EnvMap", "Environment"}
+        # Substring match (case-insensitive), not exact match: this addon's
+        # various material builders label texture nodes inconsistently
+        # ("Diffuse", "FO4 Diffuse", "Diffuse Texture", ...) -- an exact-set
+        # match here silently missed every texture wired up by
+        # FO4_OT_AutoConnectArmorTextures (which labels nodes "Diffuse
+        # Texture"/"Normal Map"/"Specular Texture"/"Glow Map"), so an armor
+        # mesh set up via that operator then exported through "Export CK
+        # Asset Bundle" had its textures neither copied nor warned about.
+        wanted = ("diffuse", "normal", "specular", "glow", "envmap", "environment")
         paths = []
         for node in mat.node_tree.nodes:
             if node.type != 'TEX_IMAGE':
                 continue
-            if node.name not in wanted and node.label not in wanted:
+            name_low = (node.name or "").lower()
+            label_low = (node.label or "").lower()
+            if not any(w in name_low or w in label_low for w in wanted):
                 continue
             img = getattr(node, "image", None)
             if not img:
@@ -5208,16 +5392,32 @@ class FO4_OT_GenerateLOD(Operator):
 class FO4_OT_GenerateLODAndCollision(Operator):
     """Generate a LOD chain, a baked billboard, and a collision mesh in one step.
 
-    Treats the active object as LOD0 (full detail), creates LOD1/LOD2
-    simplified copies, then adds a baked-billboard LOD3 — the real FO4
-    convention for the farthest level (verified against a reference asset:
-    only two real reduced-mesh levels, then a ~4-triangle cross billboard
-    with its own dedicated texture, not a further-decimated organic mesh).
-    The collision mesh is built from LOD2 (the last real 3D level) rather
-    than re-decimating the full mesh or using the billboard, which produces
-    a tighter, more accurate collision shape. The recommended one-click
-    workflow for static props and vegetation that need both distance
-    rendering and physics collision in-game.
+    Processes every selected mesh object (falling back to just the active
+    object if nothing is selected) — a multi-mesh NIF (e.g. a tree trunk plus
+    separate vine-cluster pieces, all imported as their own Blender objects)
+    needs LOD/collision/billboard generated for EVERY piece, not just
+    whichever one happens to be active; this used to only ever process
+    context.active_object, silently skipping every other selected mesh.
+
+    For each source object this treats it as LOD0 (full detail), creates
+    LOD1/LOD2 simplified copies, then adds a baked-billboard LOD3 — the real
+    FO4 convention for the farthest level (verified against a reference
+    asset: only two real reduced-mesh levels, then a ~4-triangle cross
+    billboard with its own dedicated texture, not a further-decimated
+    organic mesh). The collision mesh for each piece is built from its own
+    LOD2 (the last real 3D level) rather than re-decimating the full mesh or
+    using the billboard, which produces a tighter, more accurate collision
+    shape.
+
+    LOD textures are downscaled/shared across ALL processed objects together
+    (not per-object) — see AdvancedMeshHelpers.generate_lod_chain's
+    apply_lod_textures note — so pieces from the same NIF that reference the
+    same source texture (e.g. a trunk and its vines both using the same bark
+    diffuse) end up sharing one LOD atlas instead of each getting its own
+    separately-downscaled copy, matching how real FO4 assets do it.
+
+    The recommended one-click workflow for static props and vegetation that
+    need both distance rendering and physics collision in-game.
     """
     bl_idname = "fo4.generate_lod_and_collision"
     bl_label = "Generate LOD Chain + Collision"
@@ -5243,65 +5443,90 @@ class FO4_OT_GenerateLODAndCollision(Operator):
             self.report({'ERROR'}, "mesh_helpers module not available")
             return {'CANCELLED'}
 
-        obj = context.active_object
-        if not obj or obj.type != 'MESH':
+        targets = [o for o in context.selected_objects if o.type == 'MESH']
+        if not targets:
+            active = context.active_object
+            if active and active.type == 'MESH':
+                targets = [active]
+        if not targets:
             self.report({'ERROR'}, "No mesh object selected")
             return {'CANCELLED'}
 
         results = []
+        all_lod_objects = []  # every (lod_obj, poly_count) across every target
 
-        # --- LOD chain (real, decimated levels only — LOD1/LOD2) ---
-        success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(obj)
-        if success:
-            results.append(f"LOD: {len(lod_objects)} levels created")
-            print("\n" + "="*70)
-            print("LOD GENERATION")
-            print("="*70)
-            print(f"Source: {obj.name} (LOD0)")
-            for lod_obj, poly_count in lod_objects:
-                print(f"  {lod_obj.name}: {poly_count} polygons")
-            print("="*70 + "\n")
-        else:
-            results.append(f"LOD failed: {message}")
-
-        # --- Collision mesh from the lowest REAL LOD (never the billboard) ---
-        # Using the most-simplified LOD as the collision base produces a
-        # tighter shape than re-decimating the full mesh, and avoids an
-        # extra polygon-reduction pass.
-        obj.fo4_collision_type = self.collision_type
-        if self.collision_type not in ('NONE', 'GRASS', 'MUSHROOM'):
-            try:
-                # Pick the lowest LOD object that was successfully generated.
-                lowest_lod = lod_objects[-1][0] if lod_objects else None
-                if lowest_lod:
-                    collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
-                        lowest_lod, obj, collision_type=self.collision_type
-                    )
-                    collision_source = lowest_lod.name
-                else:
-                    # Fallback: generate directly from source if no LOD was produced.
-                    collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
-                        obj, collision_type=self.collision_type
-                    )
-                    collision_source = obj.name
-                if collision_obj:
-                    results.append(f"Collision: {collision_obj.name} built from {collision_source}")
-                else:
-                    results.append("Collision: skipped (type has no collision)")
-            except Exception as e:
-                results.append(f"Collision failed: {str(e)}")
-        else:
-            results.append(f"Collision: skipped for type '{self.collision_type}'")
-
-        # --- Baked billboard as the final, farthest LOD level ---
-        try:
-            billboard_name = f"{obj.name}_LOD{len(lod_objects) + 1}"
-            billboard_obj, billboard_msg = fo4_lod_generator.generate_billboard_lod(
-                obj, billboard_name, tex_size=self.billboard_tex_size
+        for obj in targets:
+            # --- LOD chain (real, decimated levels only — LOD1/LOD2) ---
+            # apply_lod_textures=False: textures are downscaled once, below,
+            # across every target's LOD objects together so shared source
+            # textures end up sharing one LOD atlas instead of each target
+            # separately downscaling its own copy.
+            success, message, lod_objects = advanced_mesh_helpers.AdvancedMeshHelpers.generate_lod_chain(
+                obj, apply_lod_textures=False
             )
-            results.append(billboard_msg)
-        except Exception as e:
-            results.append(f"Billboard failed: {str(e)}")
+            if success:
+                results.append(f"{obj.name} LOD: {len(lod_objects)} levels created")
+                print("\n" + "="*70)
+                print("LOD GENERATION")
+                print("="*70)
+                print(f"Source: {obj.name} (LOD0)")
+                for lod_obj, poly_count in lod_objects:
+                    print(f"  {lod_obj.name}: {poly_count} polygons")
+                print("="*70 + "\n")
+                all_lod_objects.extend(lod_objects)
+            else:
+                results.append(f"{obj.name} LOD failed: {message}")
+
+            # --- Collision mesh from the lowest REAL LOD (never the billboard) ---
+            # Using the most-simplified LOD as the collision base produces a
+            # tighter shape than re-decimating the full mesh, and avoids an
+            # extra polygon-reduction pass.
+            obj.fo4_collision_type = self.collision_type
+            if self.collision_type not in ('NONE', 'GRASS', 'MUSHROOM'):
+                try:
+                    # Pick the lowest LOD object that was successfully generated.
+                    lowest_lod = lod_objects[-1][0] if lod_objects else None
+                    if lowest_lod:
+                        collision_obj = mesh_helpers.MeshHelpers.collision_from_lod_mesh(
+                            lowest_lod, obj, collision_type=self.collision_type
+                        )
+                        collision_source = lowest_lod.name
+                    else:
+                        # Fallback: generate directly from source if no LOD was produced.
+                        collision_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
+                            obj, collision_type=self.collision_type
+                        )
+                        collision_source = obj.name
+                    if collision_obj:
+                        results.append(f"{obj.name} Collision: {collision_obj.name} built from {collision_source}")
+                    else:
+                        results.append(f"{obj.name} Collision: skipped (type has no collision)")
+                except Exception as e:
+                    results.append(f"{obj.name} Collision failed: {str(e)}")
+            else:
+                results.append(f"{obj.name} Collision: skipped for type '{self.collision_type}'")
+
+            # --- Baked billboard as the final, farthest LOD level ---
+            try:
+                billboard_name = f"{obj.name}_LOD{len(lod_objects) + 1}"
+                billboard_obj, billboard_msg = fo4_lod_generator.generate_billboard_lod(
+                    obj, billboard_name, tex_size=self.billboard_tex_size
+                )
+                results.append(f"{obj.name} {billboard_msg}")
+            except Exception as e:
+                results.append(f"{obj.name} Billboard failed: {str(e)}")
+
+        # --- Downscale/share LOD textures across every target's LOD objects ---
+        # One shared pass over the combined list, not one pass per target —
+        # see this operator's own docstring for why.
+        if all_lod_objects:
+            try:
+                _ok, tex_msg = fo4_lod_generator.create_lod_textures(
+                    [o for o, _ in all_lod_objects], scale_factor=0.25
+                )
+                results.append(tex_msg)
+            except Exception as e:
+                results.append(f"Texture downscale failed: {str(e)}")
 
         summary = " | ".join(results)
         self.report({'INFO'}, summary)
@@ -6862,7 +7087,6 @@ class FO4_OT_FoliageUVUnwrap(Operator):
 
     def execute(self, context):
         import bmesh as _bmesh
-        import math
 
         obj = context.active_object
         if not obj or obj.type != 'MESH':
@@ -6920,57 +7144,51 @@ class FO4_OT_FoliageUVUnwrap(Operator):
             total_components = len(components)
 
             # ── Step 3: unwrap each component flat by normal projection ───
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='DESELECT')
-            bpy.ops.object.mode_set(mode='OBJECT')
-
+            # Writes UVs directly via mesh data (not bpy.ops.uv/.mesh
+            # operators), so no Edit-mode / selection state is needed here.
             for comp_faces in components:
-                # Select only this component's faces
-                for fi in range(len(mesh.polygons)):
-                    mesh.polygons[fi].select = (fi in set(comp_faces))
-                for v in mesh.vertices:
-                    v.select = False
-                for e in mesh.edges:
-                    e.select = False
-
-                bpy.ops.object.mode_set(mode='EDIT')
-                bpy.context.tool_settings.mesh_select_mode = (False, False, True)
-
-                # Project from the component's average normal
-                avg_normal = [0.0, 0.0, 0.0]
+                # Project from the component's average normal.
+                # bpy.ops.uv.project_from_view() takes NO direction argument --
+                # it always projects from whatever the current 3D viewport
+                # happens to be looking at, which has nothing to do with a
+                # per-component normal. The previous implementation computed
+                # avg_normal and then never used it before calling that
+                # operator, so every component was silently projected from
+                # the same single fixed (viewport) angle regardless of its
+                # own orientation, directly contradicting this operator's own
+                # docstring. Project directly via an orthonormal basis built
+                # from avg_normal instead -- this is viewport-independent and
+                # actually implements what's documented.
+                import mathutils
+                avg_normal = mathutils.Vector((0.0, 0.0, 0.0))
                 for fi in comp_faces:
-                    n = mesh.polygons[fi].normal
-                    avg_normal[0] += n.x
-                    avg_normal[1] += n.y
-                    avg_normal[2] += n.z
-                length = math.sqrt(sum(x*x for x in avg_normal)) or 1.0
-                avg_normal = [x / length for x in avg_normal]
+                    avg_normal += mesh.polygons[fi].normal
+                if avg_normal.length < 1e-9:
+                    avg_normal = mathutils.Vector((0.0, 0.0, 1.0))
+                else:
+                    avg_normal.normalize()
 
-                try:
-                    bpy.ops.uv.project_from_view(
-                        orthographic=True,
-                        camera_bounds=False,
-                        correct_aspect=True,
-                        scale_to_bounds=False,
-                    )
-                except Exception:
-                    # Fallback: angle-based unwrap when project_from_view fails
-                    try:
-                        bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=self.island_margin)
-                    except Exception:
-                        pass
+                reference = mathutils.Vector((0.0, 0.0, 1.0))
+                if abs(avg_normal.dot(reference)) > 0.99:
+                    reference = mathutils.Vector((1.0, 0.0, 0.0))
+                u_axis = reference.cross(avg_normal).normalized()
+                v_axis = avg_normal.cross(u_axis).normalized()
 
-                bpy.ops.object.mode_set(mode='OBJECT')
+                uv_data = mesh.uv_layers.active.data
+                for fi in comp_faces:
+                    poly = mesh.polygons[fi]
+                    for loop_index in poly.loop_indices:
+                        vert_idx = mesh.loops[loop_index].vertex_index
+                        co = mesh.vertices[vert_idx].co
+                        uv_data[loop_index].uv = (co.dot(u_axis), co.dot(v_axis))
 
             # ── Step 4: group components by similar REAL (3D) surface area ─
-            # Real area-based stacking (not just a generic rescale). Grouping
-            # must use each component's actual 3D mesh surface area, not its
-            # post-unwrap UV-space area -- Step 3 unwraps each disconnected
-            # component with its own independent call (project_from_view /
-            # ANGLE_BASED), and neither preserves relative scale between
-            # separate components, so two very differently-sized leaves can
-            # land at a similar UV-space size purely as an unwrap artifact.
-            # The UV bbox is still what later actually gets overlapped.
+            # Real area-based stacking (not just a generic rescale). Step 3's
+            # per-component planar projection is an isometric projection (unit
+            # basis vectors, so it preserves real-world distances exactly),
+            # but grouping is still done from the real 3D surface area rather
+            # than the resulting UV-space area for robustness/clarity -- the
+            # UV bbox is what later actually gets overlapped/stacked.
             bpy.ops.object.mode_set(mode='OBJECT')
             uv_data = mesh.uv_layers.active.data
             comp_bbox = []       # (min_u, min_v, max_u, max_v) per component
@@ -7666,7 +7884,7 @@ class FO4_OT_ImportFO4AssetFile(Operator):
         subtype='FILE_PATH',
     )
     filter_glob: StringProperty(
-        default="*.fbx;*.obj;*.nif;*.glb;*.gltf;*.duf;*.dsf;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
+        default="*.fbx;*.obj;*.nif;*.glb;*.gltf;*.dds;*.png;*.tga;*.bmp;*.jpg;*.jpeg",
         options={'HIDDEN'},
     )
 
@@ -7848,25 +8066,9 @@ class FO4_OT_ImportFO4AssetFile(Operator):
                 self.report({'ERROR'}, f"Texture load failed: {e}")
                 return {'CANCELLED'}
 
-        # ── DAZ Studio format (.duf / .dsf) ─────────────────────────────────
-        if ext in {'.duf', '.dsf', '.duf.gz', '.dsf.gz'}:
-            if hasattr(bpy.ops, 'fo4') and hasattr(bpy.ops.fo4, 'import_dsf'):
-                try:
-                    bpy.ops.fo4.import_dsf('EXEC_DEFAULT', filepath=filepath)
-                    return {'FINISHED'}
-                except Exception as e:
-                    self.report({'ERROR'}, f"DAZ import failed: {e}")
-                    return {'CANCELLED'}
-            else:
-                self.report({'ERROR'},
-                    "DAZ Studio importer not available. "
-                    "Try File → Import → DAZ Studio File (.dsf/.duf) instead."
-                )
-                return {'CANCELLED'}
-
         self.report({'ERROR'},
             f"Unsupported file type '{ext}'. "
-            "Supported: FBX, OBJ, NIF, DUF, DSF, DDS, PNG, TGA, BMP, JPG"
+            "Supported: FBX, OBJ, NIF, DDS, PNG, TGA, BMP, JPG"
         )
         return {'CANCELLED'}
 
@@ -11694,6 +11896,14 @@ class FO4_OT_ImportModFolder(Operator):
                 after_objects = set(context.scene.objects)
                 new_objects = after_objects - before_objects
 
+                # FO4 NIFs are in Havok game units (~70/metre); the single-file
+                # importer (fo4.import_fo4_asset_file) applies the same ÷70
+                # correction via _apply_fo4_import_scale, but this batch path
+                # never did -- every mod-folder import came in ~70x too large
+                # and untagged (no fo4_unit_scale), so export-side rescaling
+                # couldn't compensate for it either.
+                _apply_fo4_import_scale(context, objects=list(new_objects))
+
                 # Move objects to the correct collection and store original path
                 for obj in new_objects:
                     # Store original file path as custom property
@@ -13708,8 +13918,14 @@ def _build_convex_piece(source_mesh, vert_indices, piece_name):
     if len(bm2.verts) > _FO4_LIMIT:
         # Apply a further convex hull after reducing the vert set
         target = max(4, _FO4_LIMIT)
-        # Delete excess verts furthest from centroid
-        centroid = sum((v.co for v in bm2.verts), bm2.verts[0].co.copy()) / len(bm2.verts)
+        # Delete excess verts furthest from centroid.
+        # sum(iterable, start) computes start + item0 + item1 + ... -- since
+        # the generator's first term IS bm2.verts[0].co, using that same
+        # vertex's coord as `start` too double-counted it, skewing the
+        # centroid toward whichever vertex happens to be index 0 (and
+        # dividing by len(verts) rather than len(verts)+1 compounded it).
+        from mathutils import Vector as _CentroidVec
+        centroid = sum((v.co for v in bm2.verts), _CentroidVec((0.0, 0.0, 0.0))) / len(bm2.verts)
         sorted_verts = sorted(bm2.verts, key=lambda v: (v.co - centroid).length, reverse=True)
         excess = sorted_verts[target:]
         if excess:
@@ -14613,84 +14829,6 @@ class FO4_OT_TestDDSConverters(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class FO4_OT_ConvertTextureToDDS(bpy.types.Operator):
-    """Convert the active image texture to DDS (BC7) using texconv or NVTT"""
-    bl_idname  = "fo4.convert_texture_to_dds"
-    bl_label   = "Convert Texture to DDS"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    filepath: bpy.props.StringProperty(subtype='FILE_PATH', default="")
-
-    def invoke(self, context, event):
-        context.window_manager.fileselect_add(self)
-        return {'RUNNING_MODAL'}
-
-    def execute(self, context):
-        import shutil, subprocess, pathlib
-        src = pathlib.Path(self.filepath)
-        if not src.exists():
-            self.report({'ERROR'}, f"File not found: {src}")
-            return {'CANCELLED'}
-        texconv = shutil.which("texconv")
-        nvtt    = shutil.which("nvtt_export") or shutil.which("nvcompress")
-        if texconv:
-            cmd = [texconv, "-f", "BC7_UNORM", "-o", str(src.parent), str(src)]
-        elif nvtt:
-            out = src.with_suffix('.dds')
-            cmd = [nvtt, "--format", "bc7", str(src), str(out)]
-        else:
-            self.report({'ERROR'}, "No DDS converter found. Install texconv or NVTT.")
-            return {'CANCELLED'}
-        try:
-            subprocess.run(cmd, check=True, capture_output=True)
-            self.report({'INFO'}, f"Converted → {src.with_suffix('.dds')}")
-        except subprocess.CalledProcessError as e:
-            self.report({'ERROR'}, f"Conversion failed: {e.stderr.decode()[:200]}")
-            return {'CANCELLED'}
-        return {'FINISHED'}
-
-
-class FO4_OT_ConvertObjectTexturesToDDS(bpy.types.Operator):
-    """Convert all image textures on the active object's materials to DDS"""
-    bl_idname  = "fo4.convert_object_textures_to_dds"
-    bl_label   = "Convert Object Textures to DDS"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        import shutil, subprocess, pathlib
-        obj = context.active_object
-        if not obj:
-            self.report({'ERROR'}, "No active object")
-            return {'CANCELLED'}
-        texconv = shutil.which("texconv")
-        nvtt    = shutil.which("nvtt_export") or shutil.which("nvcompress")
-        if not texconv and not nvtt:
-            self.report({'ERROR'}, "No DDS converter found. Install texconv or NVTT.")
-            return {'CANCELLED'}
-        converted = 0
-        for mat in obj.data.materials:
-            if not mat or not mat.use_nodes:
-                continue
-            for node in mat.node_tree.nodes:
-                if node.type != 'TEX_IMAGE' or not node.image:
-                    continue
-                img_path = pathlib.Path(bpy.path.abspath(node.image.filepath))
-                if not img_path.exists() or img_path.suffix.lower() == '.dds':
-                    continue
-                if texconv:
-                    cmd = [texconv, "-f", "BC7_UNORM", "-o", str(img_path.parent), str(img_path)]
-                else:
-                    out = img_path.with_suffix('.dds')
-                    cmd = [nvtt, "--format", "bc7", str(img_path), str(out)]
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True)
-                    converted += 1
-                except subprocess.CalledProcessError:
-                    pass
-        self.report({'INFO'}, f"Converted {converted} texture(s) to DDS")
-        return {'FINISHED'}
-
-
 class FO4_OT_ImportESPCell(bpy.types.Operator):
     """Check that a file is a valid ESP/ESM/ESL, then point you to the
     working import path (xEdit CSV export). Direct binary ESP/ESM parsing
@@ -14980,8 +15118,6 @@ classes = (
     FO4_OT_ExtractBA2Asset,
     FO4_OT_CheckNVTTInstallation,
     FO4_OT_TestDDSConverters,
-    FO4_OT_ConvertTextureToDDS,
-    FO4_OT_ConvertObjectTexturesToDDS,
     FO4_OT_ImportESPCell,
 )
 

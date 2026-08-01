@@ -708,7 +708,11 @@ class FO4_OT_ConvertUnityAsset(Operator):
             context.view_layer.objects.active = obj
             bpy.ops.object.select_all(action='DESELECT')
             obj.select_set(True)
-            obj["fo4_mesh_type"] = self.mat_type
+            # fo4_mesh_type is a real RNA EnumProperty -- must use attribute
+            # assignment (see fo4_ue5_converter.py's identical fix for full
+            # rationale). self.mat_type's 'DEFAULT' has no matching
+            # fo4_mesh_type item (that enum uses 'STATIC'), so remap it.
+            obj.fo4_mesh_type = "STATIC" if self.mat_type == "DEFAULT" else self.mat_type
 
             # ── Material remap ─────────────────────────────────────────────────
             for slot in obj.material_slots:
@@ -741,10 +745,18 @@ class FO4_OT_ConvertUnityAsset(Operator):
                     )
                     if not existing:
                         from . import mesh_helpers
-                        _, col_msg = mesh_helpers.MeshHelpers.add_collision_mesh(
+                        # add_collision_mesh returns a single Object (or
+                        # None), never a tuple -- the old 2-value unpack
+                        # always raised (caught below), so this step's real
+                        # result never got reported even though the
+                        # collision mesh itself was still successfully
+                        # created as a side effect before the crash.
+                        col_obj = mesh_helpers.MeshHelpers.add_collision_mesh(
                             obj, simplify_ratio=0.25
                         )
-                        obj_steps.append(f"Collision: {col_msg}")
+                        obj_steps.append(
+                            f"Collision: {'added ' + col_obj.name if col_obj else 'skipped (ground-cover type)'}"
+                        )
                 except Exception as e:
                     obj_warns.append(f"Collision skipped: {e}")
 
@@ -838,7 +850,15 @@ class FO4_OT_ConvertUnityAsset(Operator):
             for slot in obj.material_slots:
                 mat = slot.material
                 if mat:
-                    bgsm_helpers.write_bgsm(bgsm_helpers.blender_mat_to_bgsm(mat), mabs)
+                    # write_bgsm(data) takes exactly one argument and RETURNS
+                    # the serialized bytes -- it never touches the filesystem
+                    # itself. Passing mabs as a second positional arg raised
+                    # a TypeError every call (silently caught below), so no
+                    # .bgsm file was ever actually written despite this
+                    # function's caller reporting "BGSM exported" success.
+                    raw = bgsm_helpers.write_bgsm(bgsm_helpers.blender_mat_to_bgsm(mat))
+                    with open(mabs, "wb") as f:
+                        f.write(raw)
                     break
         except Exception as e:
             print(f"[Unity→FO4] BGSM export error: {e}")

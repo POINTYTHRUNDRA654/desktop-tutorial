@@ -12,35 +12,37 @@ All reference objects are:
 - Displayed in wire-frame / solid shade but marked as non-selectable and
   non-renderable to avoid interfering with normal work
 
-Reference sizes (Blender units = game units ≈ 0.7 m / 70 cm in most FO4 cells)
+Reference sizes (Blender units, using this add-on's REAL import/export
+scale convention)
 ---------------------------------------------------------------------------
-The Fallout 4 engine uses the "Gamebryo / Creation Engine" unit convention
-where **1 Blender unit ≈ 143.75 cm** when exported as-is via Niftools (the
-exact conversion depends on the NIF scale correction you use, but the standard
-workflow is: NO scale correction, 1 BU = 1 NIF unit ≈ 1.4375 cm).
-
-For practical reference objects we therefore use the following rule-of-thumb
-that is consistent with the Niftools Blender add-on default (no scale factor):
+This add-on's actual, verified FO4 unit-scale convention (confirmed against
+real skeleton/armor NIFs, and used throughout export_helpers.py/
+fo4_skeleton_helpers.py) is: 1 Blender unit = 69.99125 FO4/NIF game units --
+NOT a flat 100, and NOT "no scale correction" as this module previously
+assumed. Under that wrong assumption every reference below was ~30% too
+short (e.g. an adult male human at 1.28 BU instead of a realistic ~1.83 m).
 
   Vanilla adult human (male NPC)    ≈ 128 NIF units tall
-  ≈ 1.28 Blender units high when using no scale correction
+  ≈ 128 / 69.99125 ≈ 1.83 Blender units high (a normal adult male height)
 
-All heights below are given in Blender units at the standard 1 BU = 1 NIF
-unit assumption (which is the add-on's default export setting).  These match
-the proportions used by vanilla FO4 assets.
+All heights below are given in Blender units matching how a correctly-scaled
+FO4 asset actually looks after this add-on's own import pipeline (which
+targets Blender's native 1 BU = 1 metre convention) -- confirmed by the
+1-metre reference cube below coming out to almost exactly 1.00 BU per side
+under this corrected math, versus 0.70 BU under the old wrong assumption.
 
 Reference       | Height (BU) | Notes
 ----------------|-------------|----------------------------------------------
-Human (male)    |     1.28    | Adult male NPC standing (including head)
-Human (female)  |     1.22    | Adult female NPC standing
-Child           |     0.90    | Child character
-Power Armor     |     1.72    | T-60/X-01 occupied; shoulder ≈ 1.50
-Deathclaw       |     2.20    | Standing on hind legs
-Brahmin         |     1.30    | Shoulder height (on all fours)
-Pre-war Car     |  4.20×1.80  | Typical pre-war sedan (length × height)
-Door Frame      |  1.10×1.80  | Standard interior door opening (w × h)
-1 m Cube        |     0.70    | 1 m = 0.7 BU reference cube
-Settlement Ceil.|     2.20    | Settlement floor-to-ceiling height
+Human (male)    |     1.83    | Adult male NPC standing (including head)
+Human (female)  |     1.74    | Adult female NPC standing
+Child           |     1.29    | Child character
+Power Armor     |     2.46    | T-60/X-01 occupied; shoulder ≈ 2.14
+Deathclaw       |     3.14    | Standing on hind legs
+Brahmin         |     1.86    | Shoulder height (on all fours)
+Pre-war Car     |  6.00×1.86  | Typical pre-war sedan (length × height)
+Door Frame      |  1.57×2.57  | Standard interior door opening (w × h)
+1 m Cube        |     1.00    | 1 m = 1.00 BU reference cube
+Settlement Floor|  5.72×5.72  | Standard settlement snap-build floor panel
 """
 
 from __future__ import annotations
@@ -63,85 +65,89 @@ _COLLECTION_NAME = "FO4_References"
 # ---------------------------------------------------------------------------
 
 REFERENCES: dict = {
+    # Dimensions below are corrected via this add-on's real 1 BU = 69.99125
+    # game-unit convention (previously assumed a flat, wrong "1 BU = 1 NIF
+    # unit" with no scale correction, making every reference ~30% too
+    # small -- see the module docstring for the full explanation).
     "HUMAN_MALE": {
         "label":       "Human (Male NPC)",
-        "description": "Adult male NPC silhouette at 1.28 BU (≈ 128 NIF units)",
+        "description": "Adult male NPC silhouette at 1.83 BU (≈ 128 NIF units)",
         "shape":       "CYLINDER",
-        "dimensions":  (0.35, 0.25, 1.28),
+        "dimensions":  (0.50, 0.36, 1.83),
         "color":       (0.2, 0.6, 1.0),
-        "note":        "Male NPC: width ~0.35 BU, height 1.28 BU",
+        "note":        "Male NPC: width ~0.50 BU, height 1.83 BU",
     },
     "HUMAN_FEMALE": {
         "label":       "Human (Female NPC)",
-        "description": "Adult female NPC silhouette at 1.22 BU",
+        "description": "Adult female NPC silhouette at 1.74 BU",
         "shape":       "CYLINDER",
-        "dimensions":  (0.32, 0.22, 1.22),
+        "dimensions":  (0.46, 0.31, 1.74),
         "color":       (1.0, 0.5, 0.8),
-        "note":        "Female NPC: width ~0.32 BU, height 1.22 BU",
+        "note":        "Female NPC: width ~0.46 BU, height 1.74 BU",
     },
     "CHILD": {
         "label":       "Child",
-        "description": "Child character silhouette at 0.90 BU",
+        "description": "Child character silhouette at 1.29 BU",
         "shape":       "CYLINDER",
-        "dimensions":  (0.25, 0.18, 0.90),
+        "dimensions":  (0.36, 0.26, 1.29),
         "color":       (1.0, 0.85, 0.3),
-        "note":        "Child: height 0.90 BU",
+        "note":        "Child: height 1.29 BU",
     },
     "POWER_ARMOR": {
         "label":       "Power Armor (T-60 / X-01)",
-        "description": "Occupied power armor suit at 1.72 BU",
+        "description": "Occupied power armor suit at 2.46 BU",
         "shape":       "CYLINDER",
-        "dimensions":  (0.55, 0.40, 1.72),
+        "dimensions":  (0.79, 0.57, 2.46),
         "color":       (0.4, 0.8, 0.2),
-        "note":        "Power Armor: shoulder ~1.50 BU, head ~1.72 BU",
+        "note":        "Power Armor: shoulder ~2.14 BU, head ~2.46 BU",
     },
     "DEATHCLAW": {
         "label":       "Deathclaw",
-        "description": "Adult Deathclaw silhouette standing (2.20 BU)",
+        "description": "Adult Deathclaw silhouette standing (3.14 BU)",
         "shape":       "CYLINDER",
-        "dimensions":  (0.80, 0.60, 2.20),
+        "dimensions":  (1.14, 0.86, 3.14),
         "color":       (0.8, 0.2, 0.1),
-        "note":        "Deathclaw standing: height ~2.20 BU",
+        "note":        "Deathclaw standing: height ~3.14 BU",
     },
     "BRAHMIN": {
         "label":       "Brahmin",
-        "description": "Two-headed brahmin cow (shoulder 1.30 BU, length 2.50 BU)",
+        "description": "Two-headed brahmin cow (shoulder 1.86 BU, length 3.57 BU)",
         "shape":       "BOX",
-        "dimensions":  (2.50, 1.00, 1.30),
+        "dimensions":  (3.57, 1.43, 1.86),
         "color":       (0.7, 0.5, 0.2),
-        "note":        "Brahmin: shoulder 1.30 BU, body length 2.50 BU",
+        "note":        "Brahmin: shoulder 1.86 BU, body length 3.57 BU",
     },
     "PRE_WAR_CAR": {
         "label":       "Pre-war Car (sedan)",
-        "description": "Typical pre-war sedan: 4.20 BU long, 1.80 BU tall",
+        "description": "Typical pre-war sedan: 6.00 BU long, 1.86 BU tall",
         "shape":       "BOX",
-        "dimensions":  (4.20, 1.80, 1.30),
+        "dimensions":  (6.00, 2.57, 1.86),
         "color":       (0.9, 0.7, 0.1),
-        "note":        "Pre-war sedan: 4.20 × 1.80 × 1.30 BU",
+        "note":        "Pre-war sedan: 6.00 (length) x 2.57 (width) x 1.86 (height) BU",
     },
     "DOOR_FRAME": {
         "label":       "Standard Door Frame",
-        "description": "Interior door opening 1.10 BU wide, 1.80 BU tall",
+        "description": "Interior door opening 1.57 BU wide, 2.57 BU tall",
         "shape":       "DOOR_FRAME",
-        "dimensions":  (1.10, 0.10, 1.80),
+        "dimensions":  (1.57, 0.14, 2.57),
         "color":       (0.6, 0.9, 0.6),
-        "note":        "Door frame: 1.10 BU wide, 1.80 BU tall",
+        "note":        "Door frame: 1.57 BU wide, 2.57 BU tall",
     },
     "CUBE_1M": {
         "label":       "1-Metre Reference Cube",
-        "description": "1 m ≈ 0.70 BU reference cube for scale comparison",
+        "description": "1 m ≈ 1.00 BU reference cube for scale comparison",
         "shape":       "BOX",
-        "dimensions":  (0.70, 0.70, 0.70),
+        "dimensions":  (1.00, 1.00, 1.00),
         "color":       (1.0, 1.0, 1.0),
-        "note":        "1 m reference cube: 0.70 BU per side",
+        "note":        "1 m reference cube: 1.00 BU per side",
     },
     "SETTLEMENT_FLOOR": {
         "label":       "Settlement Floor Panel",
-        "description": "Standard settlement snap-build floor section (4 BU × 4 BU)",
+        "description": "Standard settlement snap-build floor section (5.72 BU × 5.72 BU)",
         "shape":       "BOX",
-        "dimensions":  (4.0, 4.0, 0.05),
+        "dimensions":  (5.72, 5.72, 0.07),
         "color":       (0.5, 0.5, 1.0),
-        "note":        "Settlement floor: 4 × 4 BU footprint",
+        "note":        "Settlement floor: 5.72 x 5.72 BU footprint",
     },
 }
 

@@ -139,12 +139,26 @@ def validate_navmesh(nav_obj) -> dict:
     bm.from_mesh(me)
     bm.edges.ensure_lookup_table()
     open_edges = [e for e in bm.edges if len(e.link_faces) < 2]
+    # Degenerate (near-zero-area) triangles -- these cause CK pathfinding to
+    # hang or crash (same check navmesh_helpers.py's independent validator
+    # already performs). min_triangle_area was declared in NAVMESH_LIMITS but
+    # never actually checked anywhere, so a navmesh full of slivers used to
+    # be reported "valid".
+    bm.faces.ensure_lookup_table()
+    degenerate = [f for f in bm.faces if f.calc_area() < NAVMESH_LIMITS["min_triangle_area"]]
     bm.free()
     if open_edges:
         issues.append({
             "severity": "WARNING",
             "message":  f"{len(open_edges)} open edges — navmesh should be manifold for best results",
             "fix":      "Fill holes or use Mesh → Clean Up → Fill Holes",
+        })
+    if degenerate:
+        issues.append({
+            "severity": "ERROR",
+            "message":  f"{len(degenerate)} degenerate/sliver triangle(s) below "
+                        f"{NAVMESH_LIMITS['min_triangle_area']} m² — can hang or crash CK pathfinding",
+            "fix":      "Delete or merge the overlapping/collapsed vertices",
         })
 
     return {
@@ -167,7 +181,7 @@ def add_cover_marker(location, cover_type: str = "LEFT",
     emp.name = f"FO4_Cover_{cover_type}_{len(bpy.data.objects)}"
     emp.rotation_euler.z = math.radians(angle_degrees)
     emp["fo4_cover_type"] = cover_type
-    emp.display_size = 0.3
+    emp.empty_display_size = 0.3
     return emp
 
 

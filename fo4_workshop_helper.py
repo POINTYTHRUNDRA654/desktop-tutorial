@@ -107,7 +107,12 @@ def add_snap_points(obj, snap_type: str = "FLOOR",
         emp.name       = f"FO4_SNAP_{obj.name}_{suffix}"
         emp.parent     = obj
         emp["fo4_snap_type"] = snap_type
-        emp.display_size = 0.1
+        # bpy.types.Object has no "display_size" attribute -- the real
+        # property for an Empty's visual radius is "empty_display_size".
+        # The wrong name raised an unguarded AttributeError on the very
+        # first snap-point empty created, crashing this operator 100% of
+        # the time it was invoked.
+        emp.empty_display_size = 0.1
         empties.append(emp)
         print(f"[Workshop] Snap: {emp.name}")
 

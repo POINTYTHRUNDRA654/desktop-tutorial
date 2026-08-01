@@ -75,7 +75,15 @@ class MotionGenerationHelpers:
                 (os.path.expanduser("~/Projects/ellemcfarlane-MotionDiffuse"), "smplx"),
             ]
 
-            all_paths = possible_paths + smplx_paths
+            # candidate_paths() returns a list of plain path strings, while
+            # smplx_paths is a list of (path, version_type) tuples -- the
+            # unpacking loop below always raised "too many values to
+            # unpack" the moment it reached one of the plain strings from
+            # possible_paths (unpacking a string tries to unpack its
+            # characters), so MotionDiffuse could never be detected even
+            # when installed. Tag the plain paths the same way before
+            # concatenating.
+            all_paths = [(p, "original") for p in possible_paths] + smplx_paths
 
             found_versions = []
             for path, version_type in all_paths:
@@ -593,7 +601,17 @@ For more details:
         # HY-Motion-1.0 (delegates to hymotion_helpers)                       #
         # ------------------------------------------------------------------ #
         if system == "hymotion":
-            from . import hymotion_helpers
+            # The top-level package sets `hymotion_helpers = None` as a lazy-
+            # load placeholder (heavy AI/torch modules aren't imported at
+            # addon startup) -- a plain `from . import hymotion_helpers`
+            # binds to that existing `None` attribute instead of ever
+            # importing the real submodule, since Python only falls back to
+            # a fresh import when the name ISN'T already bound on the
+            # package. Use importlib directly to force the real import,
+            # bypassing the placeholder, matching the working pattern
+            # already used elsewhere (ai_gen_operators.py, ui_panels.py).
+            import importlib
+            hymotion_helpers = importlib.import_module(".hymotion_helpers", package=__package__)
             ok, msg = hymotion_helpers.generate_motion_from_text(prompt, duration, fps)
             # hymotion_helpers returns the file path as part of its message; pass None
             # for motion_data since the import has already happened inside that call.

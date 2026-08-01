@@ -5,8 +5,11 @@ Generates 3D point clouds that can be converted to meshes
 """
 
 import atexit
+import importlib.util
 import multiprocessing
 import multiprocessing.connection  # explicit sub-module import required for type annotations
+import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -28,8 +31,8 @@ except ImportError:  # pragma: no cover - worker processes run without Blender
 # holding duplicate weights in VRAM when both modes are used in one session.
 #
 # The PointCloudSampler and diffusion objects are NOT cached here - they are
-# created cheaply on each generation call so that the user's grid_size and
-# inference_steps settings take effect immediately without reloading weights.
+# created cheaply on each generation call so that the user's inference_steps
+# setting takes effect immediately without reloading weights.
 # ---------------------------------------------------------------------------
 _point_e_text_models = None   # dict: {base_model, device}
 _point_e_image_models = None  # dict: {base_model, device}
@@ -48,13 +51,13 @@ def _pytorch_required_message(detail=""):
         msg += f"\n\nError: {detail}"
     return msg
 
-# Sampler caches - keyed by (device_str, grid_size, num_steps) so that users
-# can freely change quality settings without the per-call overhead of
-# re-building diffusion schedules and PointCloudSampler objects.
+# Sampler caches - keyed by (device_str, num_steps) so that users can freely
+# change quality settings without the per-call overhead of re-building
+# diffusion schedules and PointCloudSampler objects.
 # Caches are cleared whenever the underlying model weights are reloaded (e.g.
 # on a CPU↔GPU device switch) to keep model references valid.
-_point_e_text_sampler_cache = {}   # key: (device_str, grid_size, num_steps)
-_point_e_image_sampler_cache = {}  # key: (device_str, grid_size, num_steps)
+_point_e_text_sampler_cache = {}   # key: (device_str, num_steps)
+_point_e_image_sampler_cache = {}  # key: (device_str, num_steps)
 
 def _stop_point_e_worker():
     """Terminate the Point-E worker process and clean up its connection."""
@@ -83,6 +86,21 @@ def _stop_point_e_worker():
 
 def _point_e_worker_main(conn: multiprocessing.connection.Connection):
     """Background worker loop that keeps heavy Point-E inference off the UI thread."""
+    # point_e has internal code paths we do not control that may fall back
+    # to its own default_cache_dir(), which is always <CWD>/point_e_model_cache.
+    # This worker process inherits Blender's CWD (typically Blender's own
+    # install directory, not writable without admin rights), so those paths
+    # can fail with "Access is denied" even though our own load_checkpoint()
+    # calls already pass an explicit cache_dir.  Changing CWD to the parent
+    # of _point_e_cache_dir() makes point_e's own internal default resolve to
+    # the exact same writable ~/.cache/point_e_model_cache location.
+    try:
+        _cache_parent = Path.home() / ".cache"
+        _cache_parent.mkdir(parents=True, exist_ok=True)
+        os.chdir(str(_cache_parent))
+    except Exception:
+        pass
+
     while True:
         try:
             message = conn.recv()
@@ -119,6 +137,41 @@ def _point_e_worker_main(conn: multiprocessing.connection.Connection):
         pass
 
 
+def _get_plain_worker_module():
+    """Load this file as a bare top-level 'point_e_helpers' module.
+
+    When installed as a Blender Extension, this file is really imported as
+    e.g. 'bl_ext.user_default.blender_game_tools.point_e_helpers' - a virtual
+    package name that only exists via Blender's own extension import hooks.
+    multiprocessing's spawn start method pickles Process targets by
+    (__module__, __qualname__) and re-imports __module__ in a bare child
+    interpreter that has none of those hooks, so spawning a worker with
+    target=_point_e_worker_main directly used to fail with
+    "ModuleNotFoundError: No module named 'bl_ext'".
+
+    Loading a second copy of this same file under the plain name
+    'point_e_helpers' (and making sure this file's directory is on sys.path,
+    which multiprocessing.spawn propagates to the child) gives us a function
+    reference that unpickles correctly in a bare interpreter - this is
+    exactly the "worker processes run without Blender" scenario the
+    `except ImportError: bpy = None` guard at the top of this file already
+    anticipated.
+    """
+    addon_dir = os.path.dirname(os.path.abspath(__file__))
+    if addon_dir not in sys.path:
+        sys.path.insert(0, addon_dir)
+
+    mod = sys.modules.get("point_e_helpers")
+    if mod is not None and getattr(mod, "__file__", None) == __file__:
+        return mod
+
+    spec = importlib.util.spec_from_file_location("point_e_helpers", __file__)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["point_e_helpers"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _ensure_point_e_worker() -> bool:
     """Start the Point-E worker if needed."""
     global _POINT_E_WORKER_PROC, _POINT_E_WORKER_CONN
@@ -128,9 +181,10 @@ def _ensure_point_e_worker() -> bool:
     _stop_point_e_worker()
 
     try:
+        worker_mod = _get_plain_worker_module()
         ctx = multiprocessing.get_context("spawn")
         parent_conn, child_conn = ctx.Pipe()
-        proc = ctx.Process(target=_point_e_worker_main, args=(child_conn,))
+        proc = ctx.Process(target=worker_mod._point_e_worker_main, args=(child_conn,))
         proc.daemon = True
         proc.start()
         child_conn.close()
@@ -161,6 +215,23 @@ def _dispatch_point_e_job(cmd: str, payload: Dict[str, Any]):
 
 atexit.register(_stop_point_e_worker)
 
+
+def _point_e_cache_dir() -> str:
+    """Return a writable directory for Point-E's downloaded model weights.
+
+    point_e.models.download.default_cache_dir() defaults to
+    ``<CWD>/point_e_model_cache`` - inside Blender's own worker process the
+    CWD is Blender's install directory (e.g. ``D:\\Program Files\\Blender
+    Foundation\\Blender 5.1\\``), which is not writable without admin rights
+    and fails with ``[WinError 5] Access is denied``.  Use the user's home
+    cache directory instead, matching the ``~/.cache/...`` convention already
+    used for the HuggingFace cache elsewhere in this add-on.
+    """
+    d = Path.home() / ".cache" / "point_e_model_cache"
+    d.mkdir(parents=True, exist_ok=True)
+    return str(d)
+
+
 # Background worker state (keeps heavy Point-E inference off the UI thread)
 _POINT_E_WORKER_PROC: multiprocessing.Process | None = None
 _POINT_E_WORKER_CONN: multiprocessing.connection.Connection | None = None
@@ -184,7 +255,7 @@ def _load_point_e_upsampler(device, torch_module):
     print("Loading Point-E upsampler (shared, first use or device change)…")
     upsampler_model = model_from_config(MODEL_CONFIGS['upsample'], device)
     upsampler_model.eval()
-    upsampler_model.load_state_dict(load_checkpoint('upsample', device))
+    upsampler_model.load_state_dict(load_checkpoint('upsample', device, cache_dir=_point_e_cache_dir()))
     if torch_module.device(device).type == 'cuda':
         upsampler_model.half()
         # cudnn auto-tuner selects the fastest convolution kernel for fixed
@@ -207,8 +278,8 @@ def _load_point_e_text_models(device):
     Only the base (text-conditioned) model weights are cached here.
     The upsampler is shared via _load_point_e_upsampler.
     The PointCloudSampler and diffusion configs are created per generation
-    call so that grid_size and inference_steps settings take effect without
-    reloading weights.
+    call so that the inference_steps setting takes effect without reloading
+    weights.
     """
     global _point_e_text_models
     import torch as _torch
@@ -226,7 +297,7 @@ def _load_point_e_text_models(device):
     base_name = 'base40M-textvec'
     base_model = model_from_config(MODEL_CONFIGS[base_name], device)
     base_model.eval()
-    base_model.load_state_dict(load_checkpoint(base_name, device))
+    base_model.load_state_dict(load_checkpoint(base_name, device, cache_dir=_point_e_cache_dir()))
 
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
     # avoid per-step autocast conversion overhead.
@@ -252,8 +323,8 @@ def _load_point_e_image_models(device):
     Only the base (image-conditioned) model weights are cached here.
     The upsampler is shared via _load_point_e_upsampler.
     The PointCloudSampler and diffusion configs are created per generation
-    call so that grid_size and inference_steps settings take effect without
-    reloading weights.
+    call so that the inference_steps setting takes effect without reloading
+    weights.
     """
     global _point_e_image_models
     import torch as _torch
@@ -271,7 +342,7 @@ def _load_point_e_image_models(device):
     base_name = 'base40M'
     base_model = model_from_config(MODEL_CONFIGS[base_name], device)
     base_model.eval()
-    base_model.load_state_dict(load_checkpoint(base_name, device))
+    base_model.load_state_dict(load_checkpoint(base_name, device, cache_dir=_point_e_cache_dir()))
 
     # Pre-convert to half precision on CUDA to halve GPU memory bandwidth and
     # avoid per-step autocast conversion overhead.
@@ -291,37 +362,37 @@ def _load_point_e_image_models(device):
     return _point_e_image_models
 
 
-def _grid_size_to_num_points(grid_size):
-    """Map the user-facing grid_size setting to Point-E num_points=[base, upsample].
+def _point_e_num_points():
+    """Return the fixed Point-E num_points=[base, upsample] pair.
 
-    The upsampler output count scales with grid_size while the base model output
-    is kept at 1024 (its training distribution).  Lower grid sizes produce fewer
-    upsampled points, directly reducing the upsampling stage cost.
-
-    Speedup figures are relative to the old hardcoded default of [1024, 4096]:
-
-    grid_size  base_pts  upsample_pts  upsample speedup vs. old default
-    --------   --------  ------------  -------------------------------------
-    32         1024      1024          ~4× (1024 vs 4096 pts to diffuse)
-    64         1024      2048          ~2×
-    128        1024      4096          1× (same as old hardcoded default)
-    256        1024      8192          ~0.5× (more detail, slower)
+    These are NOT tunable.  Both the 'base40M*' and 'upsample' checkpoints
+    are transformers with a fixed number of learned positional embeddings
+    (n_ctx) baked in at training time - 1024 for every base40M variant and
+    3072 for 'upsample' (verified directly against point_e.models.configs.
+    MODEL_CONFIGS).  Passing any other point count raises
+    ``assert x.shape[-1] == self.n_ctx`` deep inside point_e's own
+    transformer.forward(), which is exactly what happened every time this
+    add-on called this with the previous grid_size-based scaling scheme -
+    none of the 4 offered grid_size choices (32/64/128/256) ever produced
+    the one value (3072) the upsample checkpoint actually needs, so every
+    Point-E generation failed 100% of the time.  There is no way to make
+    the upsampler faster/slower by changing point count; num_steps is the
+    only real speed/quality lever for this model family.
     """
-    upsample_pts = max(1024, grid_size * 32)
-    return [1024, upsample_pts]
+    return [1024, 3072]
 
 
-def _get_point_e_text_sampler(device, device_str, grid_size, num_steps):
+def _get_point_e_text_sampler(device, device_str, num_steps):
     """Return a cached PointCloudSampler for text-to-3D generation.
 
     The sampler wraps the already-cached model weights together with diffusion
-    configs built for the requested (grid_size, num_steps) pair.  Repeated
-    calls with the same arguments skip the diffusion-schedule rebuild and
-    PointCloudSampler construction, saving a few hundred milliseconds per
-    call on CPU and reducing Python overhead on GPU.
+    configs built for the requested num_steps.  Repeated calls with the same
+    num_steps skip the diffusion-schedule rebuild and PointCloudSampler
+    construction, saving a few hundred milliseconds per call on CPU and
+    reducing Python overhead on GPU.
     """
     global _point_e_text_sampler_cache
-    key = (device_str, grid_size, num_steps)
+    key = (device_str, num_steps)
     if key in _point_e_text_sampler_cache:
         return _point_e_text_sampler_cache[key]
 
@@ -337,12 +408,11 @@ def _get_point_e_text_sampler(device, device_str, grid_size, num_steps):
     up_cfg['timestep_respacing'] = str(num_steps)
     upsampler_diffusion = diffusion_from_config(up_cfg)
 
-    num_points = _grid_size_to_num_points(grid_size)
     sampler = PointCloudSampler(
         device=device,
         models=[_point_e_text_models['base_model'], _point_e_upsampler['model']],
         diffusions=[base_diffusion, upsampler_diffusion],
-        num_points=num_points,
+        num_points=_point_e_num_points(),
         aux_channels=['R', 'G', 'B'],
         guidance_scale=[3.0, 0.0],
         model_kwargs_key_filter=('texts', ''),
@@ -351,13 +421,13 @@ def _get_point_e_text_sampler(device, device_str, grid_size, num_steps):
     return sampler
 
 
-def _get_point_e_image_sampler(device, device_str, grid_size, num_steps):
+def _get_point_e_image_sampler(device, device_str, num_steps):
     """Return a cached PointCloudSampler for image-to-3D generation.
 
     See _get_point_e_text_sampler for caching rationale.
     """
     global _point_e_image_sampler_cache
-    key = (device_str, grid_size, num_steps)
+    key = (device_str, num_steps)
     if key in _point_e_image_sampler_cache:
         return _point_e_image_sampler_cache[key]
 
@@ -373,12 +443,11 @@ def _get_point_e_image_sampler(device, device_str, grid_size, num_steps):
     up_cfg['timestep_respacing'] = str(num_steps)
     upsampler_diffusion = diffusion_from_config(up_cfg)
 
-    num_points = _grid_size_to_num_points(grid_size)
     sampler = PointCloudSampler(
         device=device,
         models=[_point_e_image_models['base_model'], _point_e_upsampler['model']],
         diffusions=[base_diffusion, upsampler_diffusion],
-        num_points=num_points,
+        num_points=_point_e_num_points(),
         aux_channels=['R', 'G', 'B'],
         guidance_scale=[3.0, 0.0],
     )
@@ -601,46 +670,43 @@ For more info: https://github.com/openai/point-e
 """
 
     @staticmethod
-    def generate_from_text_background(prompt, num_samples=1, grid_size=128, num_steps=64):
+    def generate_from_text_background(prompt, num_samples=1, num_steps=64):
         """Run Point-E text generation in a worker process to keep the UI responsive."""
         return _dispatch_point_e_job(
             "text",
             {
                 "prompt": prompt,
                 "num_samples": num_samples,
-                "grid_size": grid_size,
                 "num_steps": num_steps,
             },
         )
 
     @staticmethod
-    def generate_from_image_background(image_path, num_samples=1, grid_size=128, num_steps=64):
+    def generate_from_image_background(image_path, num_samples=1, num_steps=64):
         """Run Point-E image generation in a worker process to keep the UI responsive."""
         return _dispatch_point_e_job(
             "image",
             {
                 "image_path": image_path,
                 "num_samples": num_samples,
-                "grid_size": grid_size,
                 "num_steps": num_steps,
             },
         )
-    
+
     @staticmethod
-    def generate_from_text(prompt, num_samples=1, grid_size=128, num_steps=64):
+    def generate_from_text(prompt, num_samples=1, num_steps=64):
         """
         Generate 3D point cloud from text prompt using Point-E
 
         Args:
             prompt: Text description of object to generate
             num_samples: Number of point clouds to generate
-            grid_size: Resolution of point cloud (32, 64, 128, 256).
-                Mapped to num_points via _grid_size_to_num_points - lower values
-                are proportionally faster because the upsampling stage is cheaper.
             num_steps: Number of diffusion timesteps per stage (default 64).
                 Fewer steps = faster generation, lower quality.
                 The full Point-E diffusion schedule has 1024 steps; 64 gives a
                 ~16× speedup with acceptable quality for game asset prototypes.
+                This is the only real speed/quality lever - num_points is fixed
+                by the model's own architecture (see _point_e_num_points).
 
         Returns:
             Tuple of (success, point_cloud_data or error_message)
@@ -672,14 +738,13 @@ For more info: https://github.com/openai/point-e
             _load_point_e_text_models(device)
             print(f"[Point-E] model load: {time.monotonic() - t0:.1f} s")
 
-            num_points = _grid_size_to_num_points(grid_size)
             print(
-                f"[Point-E] inference (grid_size={grid_size}, "
-                f"num_points={num_points}, steps={num_steps})…"
+                f"[Point-E] inference (num_points={_point_e_num_points()}, "
+                f"steps={num_steps})…"
             )
 
             t0 = time.monotonic()
-            sampler = _get_point_e_text_sampler(device, device_str, grid_size, num_steps)
+            sampler = _get_point_e_text_sampler(device, device_str, num_steps)
             print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
             # Generate - use inference_mode + autocast for FP16 mixed-precision on CUDA.
@@ -694,12 +759,25 @@ For more info: https://github.com/openai/point-e
                     samples = x
             print(f"[Point-E] inference: {time.monotonic() - t0:.1f} s")
 
-            # Extract point cloud
-            pc = samples[0]  # First sample
+            # Extract point cloud. sample_batch_progressive() yields the raw
+            # model output tensor at each step, NOT a PointCloud object -
+            # output_to_point_clouds() does the actual (coords, channels)
+            # extraction/rescaling from that tensor (samples[0] used to be
+            # passed straight to .coords/.channels, which doesn't exist on a
+            # bare Tensor).
+            pc = sampler.output_to_point_clouds(samples)[0]  # First sample
 
-            # Get coordinates and colors
+            # coords is already a numpy [N, 3] array and channels is a dict
+            # of per-component numpy arrays ({'R': [N], 'G': [N], 'B': [N]},
+            # matching the aux_channels=['R','G','B'] passed to the sampler
+            # above) - neither is a torch Tensor at this point, so no
+            # .cpu()/.numpy() call is needed or valid here.
+            import numpy as np
             coords = pc.coords  # [N, 3] coordinates
-            colors = pc.channels  # [N, 3] RGB colors if available
+            colors = (
+                np.stack([pc.channels['R'], pc.channels['G'], pc.channels['B']], axis=-1)
+                if pc.channels else None
+            )
 
             print(
                 f"[Point-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
@@ -707,8 +785,8 @@ For more info: https://github.com/openai/point-e
             )
 
             return True, {
-                'coords': coords.cpu().numpy(),
-                'colors': colors.cpu().numpy() if colors is not None else None,
+                'coords': coords,
+                'colors': colors,
                 'prompt': prompt,
                 'num_points': len(coords)
             }
@@ -720,21 +798,29 @@ For more info: https://github.com/openai/point-e
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:
-            return False, f"Generation failed: {str(e)}"
+            # str(e) can be empty for bare `assert cond` failures inside
+            # point_e's own sampler code, which previously produced an
+            # unhelpful "Generation failed: " with no detail at all.  Print
+            # the full traceback to the console and fall back to repr(e) /
+            # the exception class name so there is always something to
+            # diagnose from.
+            import traceback as _tb
+            _tb.print_exc()
+            detail = str(e) or repr(e)
+            return False, f"Generation failed: {type(e).__name__}: {detail}"
 
     @staticmethod
-    def generate_from_image(image_path, num_samples=1, grid_size=128, num_steps=64):
+    def generate_from_image(image_path, num_samples=1, num_steps=64):
         """
         Generate 3D point cloud from image using Point-E
 
         Args:
             image_path: Path to input image
             num_samples: Number of point clouds to generate
-            grid_size: Resolution of point cloud (32, 64, 128, 256).
-                Mapped to num_points via _grid_size_to_num_points - lower values
-                are proportionally faster because the upsampling stage is cheaper.
             num_steps: Number of diffusion timesteps per stage (default 64).
                 Fewer steps = faster generation, lower quality.
+                This is the only real speed/quality lever - num_points is fixed
+                by the model's own architecture (see _point_e_num_points).
 
         Returns:
             Tuple of (success, point_cloud_data or error_message)
@@ -773,14 +859,13 @@ For more info: https://github.com/openai/point-e
             _load_point_e_image_models(device)
             print(f"[Point-E] model load: {time.monotonic() - t0:.1f} s")
 
-            num_points = _grid_size_to_num_points(grid_size)
             print(
-                f"[Point-E] inference (grid_size={grid_size}, "
-                f"num_points={num_points}, steps={num_steps})…"
+                f"[Point-E] inference (num_points={_point_e_num_points()}, "
+                f"steps={num_steps})…"
             )
 
             t0 = time.monotonic()
-            sampler = _get_point_e_image_sampler(device, device_str, grid_size, num_steps)
+            sampler = _get_point_e_image_sampler(device, device_str, num_steps)
             print(f"[Point-E] sampler build: {time.monotonic() - t0:.1f} s")
 
             # Generate - use inference_mode + autocast for FP16 mixed-precision on CUDA.
@@ -795,12 +880,22 @@ For more info: https://github.com/openai/point-e
                     samples = x
             print(f"[Point-E] inference: {time.monotonic() - t0:.1f} s")
 
-            # Extract point cloud
-            pc = samples[0]
+            # Extract point cloud. sample_batch_progressive() yields the raw
+            # model output tensor at each step, NOT a PointCloud object -
+            # output_to_point_clouds() does the actual (coords, channels)
+            # extraction/rescaling from that tensor.
+            pc = sampler.output_to_point_clouds(samples)[0]
 
-            # Get coordinates and colors
+            # coords is already a numpy [N, 3] array and channels is a dict
+            # of per-component numpy arrays ({'R': [N], 'G': [N], 'B': [N]}) -
+            # neither is a torch Tensor at this point, so no .cpu()/.numpy()
+            # call is needed or valid here.
+            import numpy as np
             coords = pc.coords
-            colors = pc.channels
+            colors = (
+                np.stack([pc.channels['R'], pc.channels['G'], pc.channels['B']], axis=-1)
+                if pc.channels else None
+            )
 
             print(
                 f"[Point-E] TOTAL: {time.monotonic() - t_total:.1f} s  "
@@ -808,8 +903,8 @@ For more info: https://github.com/openai/point-e
             )
 
             return True, {
-                'coords': coords.cpu().numpy(),
-                'colors': colors.cpu().numpy() if colors is not None else None,
+                'coords': coords,
+                'colors': colors,
                 'image_path': image_path,
                 'num_points': len(coords)
             }
@@ -821,7 +916,16 @@ For more info: https://github.com/openai/point-e
         except ImportError as e:
             return False, f"Point-E not installed: {str(e)}"
         except Exception as e:
-            return False, f"Generation failed: {str(e)}"
+            # str(e) can be empty for bare `assert cond` failures inside
+            # point_e's own sampler code, which previously produced an
+            # unhelpful "Generation failed: " with no detail at all.  Print
+            # the full traceback to the console and fall back to repr(e) /
+            # the exception class name so there is always something to
+            # diagnose from.
+            import traceback as _tb
+            _tb.print_exc()
+            detail = str(e) or repr(e)
+            return False, f"Generation failed: {type(e).__name__}: {detail}"
 
 
     @staticmethod
@@ -1019,18 +1123,6 @@ def register():
         max=4
     )
     
-    bpy.types.Scene.fo4_point_e_grid_size = EnumProperty(
-        name="Grid Size",
-        description="Resolution of point cloud",
-        items=[
-            ('32', "32 (Fast)", "Low resolution, fast generation"),
-            ('64', "64 (Balanced)", "Medium resolution"),
-            ('128', "128 (High)", "High resolution (recommended)"),
-            ('256', "256 (Ultra)", "Very high resolution, slow"),
-        ],
-        default='64'
-    )
-    
     bpy.types.Scene.fo4_point_e_reconstruction_method = EnumProperty(
         name="Reconstruction Method",
         description="Method to convert point cloud to mesh",
@@ -1061,20 +1153,33 @@ def register():
         max=1024,
     )
 
+    bpy.types.Scene.fo4_point_e_target_polys = IntProperty(
+        name="Target Triangles",
+        description=(
+            "Triangle count to decimate the reconstructed Point-E mesh down "
+            "to after generation. Only applies when a surface reconstruction "
+            "method (not plain 'Point Cloud') actually produced faces. Also "
+            "triangulates, UV unwraps, and adds a material slot"
+        ),
+        default=10000,
+        min=500,
+        max=65535
+    )
+
 
 def unregister():
     """Unregister Point-E properties"""
     if bpy is None:  # pragma: no cover - only runs inside Blender
         return
-    
+
     if hasattr(bpy.types.Scene, 'fo4_point_e_prompt'):
         del bpy.types.Scene.fo4_point_e_prompt
     if hasattr(bpy.types.Scene, 'fo4_point_e_image_path'):
         del bpy.types.Scene.fo4_point_e_image_path
     if hasattr(bpy.types.Scene, 'fo4_point_e_num_samples'):
         del bpy.types.Scene.fo4_point_e_num_samples
-    if hasattr(bpy.types.Scene, 'fo4_point_e_grid_size'):
-        del bpy.types.Scene.fo4_point_e_grid_size
+    if hasattr(bpy.types.Scene, 'fo4_point_e_target_polys'):
+        del bpy.types.Scene.fo4_point_e_target_polys
     if hasattr(bpy.types.Scene, 'fo4_point_e_reconstruction_method'):
         del bpy.types.Scene.fo4_point_e_reconstruction_method
     if hasattr(bpy.types.Scene, 'fo4_point_e_use_gpu'):

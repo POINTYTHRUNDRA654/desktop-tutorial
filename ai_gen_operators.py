@@ -2806,6 +2806,10 @@ class FO4_OT_GenerateWithTripoSRLight(Operator):
 
         # Auto-decimate if the user has enabled it
         if getattr(context.scene, 'fo4_imageto3d_auto_decimate', False):
+            try:
+                from . import advanced_mesh_helpers
+            except Exception:
+                advanced_mesh_helpers = None
             obj = context.active_object
             if obj and obj.type == 'MESH' and advanced_mesh_helpers:
                 target = getattr(context.scene, 'fo4_imageto3d_target_poly', 16000)
@@ -3126,8 +3130,12 @@ class FO4_OT_GenerateShapEText(Operator):
                         name=f"ShapE_{prompt[:20]}"
                     )
                     if obj:
+                        pp_ok, pp_msg = shap_e_helpers._fo4_post_process(
+                            obj, target_polys=scene.fo4_shap_e_target_polys, name=obj.name
+                        )
+                        level = 'INFO' if pp_ok else 'WARNING'
                         notification_system.FO4_NotificationSystem.notify(
-                            f"Shap-E generation complete: {obj.name}", 'INFO'
+                            f"Shap-E generation complete: {obj.name} | {pp_msg}", level
                         )
                     else:
                         notification_system.FO4_NotificationSystem.notify(
@@ -3203,8 +3211,12 @@ class FO4_OT_GenerateShapEImage(Operator):
                         name="ShapE_FromImage"
                     )
                     if obj:
+                        pp_ok, pp_msg = shap_e_helpers._fo4_post_process(
+                            obj, target_polys=scene.fo4_shap_e_target_polys, name=obj.name
+                        )
+                        level = 'INFO' if pp_ok else 'WARNING'
                         notification_system.FO4_NotificationSystem.notify(
-                            f"Shap-E image generation complete: {obj.name}", 'INFO'
+                            f"Shap-E image generation complete: {obj.name} | {pp_msg}", level
                         )
                     else:
                         notification_system.FO4_NotificationSystem.notify(
@@ -3315,7 +3327,6 @@ class FO4_OT_GeneratePointEText(Operator):
             return {'CANCELLED'}
 
         num_samples = scene.fo4_point_e_num_samples
-        grid_size = int(scene.fo4_point_e_grid_size)
         method = scene.fo4_point_e_reconstruction_method
         num_steps = scene.fo4_point_e_inference_steps
 
@@ -3324,7 +3335,6 @@ class FO4_OT_GeneratePointEText(Operator):
                 success, result = _pe.generate_from_text_background(
                     prompt,
                     num_samples=num_samples,
-                    grid_size=grid_size,
                     num_steps=num_steps,
                 )
             except Exception as _exc:
@@ -3345,9 +3355,23 @@ class FO4_OT_GeneratePointEText(Operator):
                         name=f"PointE_{prompt[:20]}"
                     )
                     if obj:
-                        notification_system.FO4_NotificationSystem.notify(
-                            f"Point-E generation complete: {obj.name}", 'INFO'
-                        )
+                        # A plain 'point_cloud' result (or a reconstruction
+                        # method that silently fell back to one, e.g. no
+                        # Open3D installed) has vertices but no faces -
+                        # triangulate/decimate/UV-unwrap don't apply to that.
+                        if obj.type == 'MESH' and len(obj.data.polygons) > 0:
+                            pp_ok, pp_msg = point_e_helpers._fo4_post_process(
+                                obj, target_polys=scene.fo4_point_e_target_polys, name=obj.name
+                            )
+                            level = 'INFO' if pp_ok else 'WARNING'
+                            notification_system.FO4_NotificationSystem.notify(
+                                f"Point-E generation complete: {obj.name} | {pp_msg}", level
+                            )
+                        else:
+                            notification_system.FO4_NotificationSystem.notify(
+                                f"Point-E generation complete: {obj.name} (raw point cloud, "
+                                "no faces - use a reconstruction method for a real mesh)", 'INFO'
+                            )
                     else:
                         notification_system.FO4_NotificationSystem.notify(
                             "Failed to create mesh in Blender", 'WARNING'
@@ -3401,7 +3425,6 @@ class FO4_OT_GeneratePointEImage(Operator):
         
         num_samples = scene.fo4_point_e_num_samples
         method = scene.fo4_point_e_reconstruction_method
-        grid_size = int(scene.fo4_point_e_grid_size)
         num_steps = scene.fo4_point_e_inference_steps
 
         def _run():
@@ -3409,7 +3432,6 @@ class FO4_OT_GeneratePointEImage(Operator):
                 success, result = _pe.generate_from_image_background(
                     image_path,
                     num_samples=num_samples,
-                    grid_size=grid_size,
                     num_steps=num_steps,
                 )
             except Exception as _exc:
@@ -3430,9 +3452,19 @@ class FO4_OT_GeneratePointEImage(Operator):
                         name="PointE_FromImage"
                     )
                     if obj:
-                        notification_system.FO4_NotificationSystem.notify(
-                            f"Point-E image generation complete: {obj.name}", 'INFO'
-                        )
+                        if obj.type == 'MESH' and len(obj.data.polygons) > 0:
+                            pp_ok, pp_msg = point_e_helpers._fo4_post_process(
+                                obj, target_polys=scene.fo4_point_e_target_polys, name=obj.name
+                            )
+                            level = 'INFO' if pp_ok else 'WARNING'
+                            notification_system.FO4_NotificationSystem.notify(
+                                f"Point-E image generation complete: {obj.name} | {pp_msg}", level
+                            )
+                        else:
+                            notification_system.FO4_NotificationSystem.notify(
+                                f"Point-E image generation complete: {obj.name} (raw point cloud, "
+                                "no faces - use a reconstruction method for a real mesh)", 'INFO'
+                            )
                     else:
                         notification_system.FO4_NotificationSystem.notify(
                             "Failed to create mesh in Blender", 'WARNING'
@@ -3483,6 +3515,10 @@ class FO4_OT_MossyAnalyzeMesh(bpy.types.Operator):
 
         # Custom properties
         custom_props = {k: v for k, v in obj.items() if not k.startswith('_')}
+        # fo4_mesh_type is a real RNA EnumProperty (bpy.types.Object.fo4_mesh_type
+        # = EnumProperty(...)), not a custom ID property, so it never shows up
+        # in obj.items()/custom_props -- read it separately via getattr.
+        fo4_mesh_type = getattr(obj, "fo4_mesh_type", "") or "not set"
 
         context_msg = f"""Analyze this Fallout 4 mesh for export issues:
 
@@ -3495,7 +3531,7 @@ Materials: {mat_names}
 Has armature/rigging: {has_armature}
 Has shape keys/morphs: {has_shape_keys}
 Custom properties: {custom_props}
-FO4 mesh type: {custom_props.get('fo4_mesh_type', 'not set')}
+FO4 mesh type: {fo4_mesh_type}
 
 What FO4 modding issues should I fix before exporting this mesh? Focus on:
 - NIF export compatibility
@@ -3692,13 +3728,75 @@ _CREATURE_LIMB_ENUM = [
 # The vertex-group name pyNIF actually recognizes for FO4 dismemberment
 # partitions. FO4's segment system (unlike Skyrim's "SBP_<n>_<name>" body-part
 # numbering) uses flat, generically-numbered segments -- "FO4 Seg 000",
-# "FO4 Seg 001", etc. (regex FO4Segment.fo4segmatch1 in pyNifly). A single
-# segment covering the whole shape is enough to make pyNIF emit a
-# BSSubIndexTriShape with a real FO4Segment partition, which is what solid
-# armor pieces need (confirmed against real CombatArmor/body NIFs -- true
-# per-limb dismemberment cuts are a separate, hierarchical FO4Subsegment
-# structure only seen on creature/NPC body meshes, not armor overlays).
-_FO4_SEGMENT_GROUP_NAME = "FO4 Seg 000"
+# "FO4 Seg 001", etc. (regex FO4Segment.fo4segmatch1 in pyNifly).
+#
+# IMPORTANT: segment index 0 is never actually used for real geometry in any
+# vanilla FO4 file -- cross-referencing shape.partition_tris against
+# shape.partitions across 10 real armor/creature NIFs (ArmyFatigues/FatiguesM,
+# ArmoredCoat/OutfitM+GlovesM, CombatArmor/F_Torso_Mid+F_Arm_Mid_L+
+# F_Leg_Mid_L+F_Helmet, KnightUnderArmor/FBodynoHood+FHood, Molerat, Dogmeat)
+# found the same consistent convention everywhere: index 1 = Head, 2 = Right
+# Arm, 3 = Torso/Body, 4 = Left Arm, 5 = Right Leg, 6 = Left Leg. An earlier
+# version of this constant always wrote index 0 for every slot -- that
+# produces a structurally valid BSSubIndexTriShape (so the "zero partitions,
+# plain BSTriShape" bug is fixed) but at an index the game's dismemberment
+# system has never been observed using, so it likely won't hide/show
+# correctly on a body-part-removal event.
+#
+# _FO4_SEGMENT_INDEX_BY_SLOT below maps each user-facing SBP_* slot to the
+# real segment index it should use. Two are fully confirmed by the
+# cross-reference above (Head, Torso/Body); the rest are the closest
+# reasonable single-index match for a slot whose label doesn't distinguish
+# left/right (Hands/Forearms/Legs/Feet all default to the Right-side index --
+# still a strict improvement over the always-wrong index 0, but not
+# independently verified per-slot the way Head/Torso were). FX01 has no
+# corresponding body-region index in this convention at all and is left at 0
+# pending real reference data for that slot specifically.
+_FO4_SEGMENT_INDEX_BY_SLOT = {
+    "SBP_32": 3,   # Body -> Torso (confirmed)
+    "SBP_33": 1,   # Head (confirmed)
+    "SBP_34": 1,   # Hair -> Head (best-effort: hair attaches at/near the head)
+    "SBP_37": 2,   # Hands -> Right Arm (best-effort: no L/R distinction in this slot)
+    "SBP_38": 2,   # Forearms -> Right Arm (best-effort, same caveat)
+    "SBP_41": 3,   # Torso (confirmed)
+    "SBP_46": 5,   # Legs -> Right Leg (best-effort, no L/R distinction in this slot)
+    "SBP_47": 5,   # Feet -> Right Leg (best-effort, same caveat)
+    "SBP_130": 0,  # FX01 -- no confirmed real-file mapping; left unchanged
+}
+
+
+def _fo4_segment_group_name(slot: str) -> str:
+    """Return the real 'FO4 Seg NNN' vertex-group name for *slot*.
+
+    See _FO4_SEGMENT_INDEX_BY_SLOT above for which indices are confirmed
+    against real files vs. best-effort approximations.
+    """
+    idx = _FO4_SEGMENT_INDEX_BY_SLOT.get(slot, 0)
+    return f"FO4 Seg {idx:03d}"
+
+
+def _segment_index_for_limb(limb_name: str) -> int:
+    """Best-effort real segment index for a creature-limb dismemberment name
+    (e.g. "Up Arm.R", "Thigh.L", "Death Claw Hand.L").
+
+    Names in niflytools.fo4BoneIDs (the source of _FO4_BONE_IDS/limb_name
+    here) consistently encode body region + side in the name itself, so this
+    parses those keywords against the same confirmed 6-region convention
+    used for the SBP_* slots above (1=Head, 2=RArm, 3=Torso, 4=LArm,
+    5=RLeg, 6=LLeg) rather than always writing the confirmed-wrong index 0.
+    Falls back to Torso (3) for names that don't match a recognized
+    region -- a reasonable single default, not independently verified.
+    """
+    n = limb_name.lower()
+    is_left = n.endswith('.l') or '.l ' in n
+    if any(k in n for k in ('head', 'skull', 'jaw', 'neck')):
+        return 1
+    if any(k in n for k in ('arm', 'hand', 'claw', 'wing', 'finger')):
+        return 4 if is_left else 2
+    if any(k in n for k in ('leg', 'thigh', 'calf', 'foot', 'paw', 'hoof',
+                            'knee', 'kne-clf', 'hip')):
+        return 6 if is_left else 5
+    return 3
 
 
 
@@ -4039,27 +4137,35 @@ class FO4_OT_AddPhysicsBones(bpy.types.Operator):
 class FO4_OT_AddDismemberPartition(bpy.types.Operator):
     """Add an FO4 dismemberment/body-slot partition to the active mesh.
 
-    For the SBP_* armor slots: creates a pyNIF-recognized 'FO4 Seg 000'
+    For the SBP_* armor slots: creates a pyNIF-recognized 'FO4 Seg NNN'
     vertex group (if missing) and assigns all selected vertices to it --
     pyNIF converts this to a BSSubIndexTriShape with a real FO4Segment
-    partition on export. The chosen slot is stored on the object as
-    documentation of which CK ArmorAddon biped slot this piece belongs to;
-    it is not itself part of the NIF partition name (FO4's segment naming
-    carries no body-slot number) -- confirmed correct for armor against real
-    vanilla ArmyFatigues/FatiguesM.nif.
+    partition on export. NNN is the real body-region segment index for the
+    chosen slot (see _FO4_SEGMENT_INDEX_BY_SLOT) -- cross-referencing
+    shape.partition_tris against shape.partitions across 10 real vanilla
+    armor/creature NIFs found segment index 0 is never actually used for
+    real geometry; the real convention is 1=Head, 2=Right Arm, 3=Torso/Body,
+    4=Left Arm, 5=Right Leg, 6=Left Leg. The chosen slot is also stored on
+    the object as documentation of which CK ArmorAddon biped slot this piece
+    belongs to; that biped-slot number is not itself part of the NIF
+    partition name (FO4's segment naming carries no body-slot number).
 
-    For the Gore: Meatcap slots: creates a REAL 'FO4 Seg 000 | Head Meatcap'
-    or 'FO4 Seg 000 | Body Meatcap' vertex group instead -- PyNifly parses
+    For the Gore: Meatcap slots: creates a REAL 'FO4 Seg 001 | Head Meatcap'
+    or 'FO4 Seg 003 | Body Meatcap' vertex group instead -- PyNifly parses
     this "FO4 Seg NNN | <part name>" naming into an actual FO4Subsegment
     with user_slot 100/101, verified against real Molerat.nif/Dogmeat.nif,
     which is what lets a creature's gore variant actually work in-game.
 
     For the Gore: <limb name> slots: creates a REAL
-    'FO4 Seg 000 | 000 | <limb name>' vertex group -- PyNifly resolves the
-    third segment against its own bundled fo4BoneIDs table into the exact
-    real material hash a vanilla creature uses for that limb (verified via
-    a full export round-trip: "Up Arm.R" -> material=3001185871, an exact
-    match to real Molerat.nif). Covers every FO4 creature species with a
+    'FO4 Seg NNN | 000 | <limb name>' vertex group, where NNN is picked by
+    _segment_index_for_limb from the same real 6-region convention above
+    (parsed from body-region/side keywords in the limb name itself) --
+    PyNifly resolves the third segment against its own bundled fo4BoneIDs
+    table into the exact real material hash a vanilla creature uses for
+    that limb (verified via a full export round-trip: "Up Arm.R" ->
+    material=3001185871, an exact match to real Molerat.nif; the leading
+    segment number does not affect this hash lookup, which only matches on
+    the limb-name component). Covers every FO4 creature species with a
     unique skeleton (Ghoul, Death Claw, Super Mutant Hound, Mirelurk, Dog,
     Behemoth, Robot) in addition to generic humanoid limbs.
 
@@ -4087,11 +4193,14 @@ class FO4_OT_AddDismemberPartition(bpy.types.Operator):
         limb_name = _LIMB_SUBSEG_NAMES.get(self.slot)
         meatcap_name = _MEATCAP_SUBSEG_NAMES.get(self.slot)
         if limb_name:
-            group_name = f"{_FO4_SEGMENT_GROUP_NAME} | 000 | {limb_name}"
+            seg_name = f"FO4 Seg {_segment_index_for_limb(limb_name):03d}"
+            group_name = f"{seg_name} | 000 | {limb_name}"
         elif meatcap_name:
-            group_name = f"{_FO4_SEGMENT_GROUP_NAME} | {meatcap_name}"
+            # Head Meatcap -> segment 1 (Head), Body Meatcap -> segment 3 (Torso).
+            seg_idx = 1 if "Head" in meatcap_name else 3
+            group_name = f"FO4 Seg {seg_idx:03d} | {meatcap_name}"
         else:
-            group_name = _FO4_SEGMENT_GROUP_NAME
+            group_name = _fo4_segment_group_name(self.slot)
 
         # Create group if absent
         vg = (obj.vertex_groups.get(group_name)
@@ -4145,6 +4254,18 @@ class FO4_OT_TransferArmorWeights(bpy.types.Operator):
             self.report({'ERROR'}, "Active object must be your armor mesh")
             return {'CANCELLED'}
 
+        # Data Transfer's 'NAME' dst-matching mode only maps onto vertex
+        # groups that ALREADY exist on the destination by that exact name --
+        # it never creates new ones. A freshly authored/imported armor mesh
+        # (the normal case right after binding to the skeleton in Step 4)
+        # has zero vertex groups, so without this the whole transfer was a
+        # silent no-op: every vertex ended up with zero total weight despite
+        # the operator reporting success. Pre-create empty groups matching
+        # the body's so Data Transfer has real targets to populate.
+        for vg in body.vertex_groups:
+            if vg.name not in armor.vertex_groups:
+                armor.vertex_groups.new(name=vg.name)
+
         # Add Data Transfer modifier
         dt = armor.modifiers.new(name="FO4_WeightTransfer", type='DATA_TRANSFER')
         dt.object = body
@@ -4157,14 +4278,19 @@ class FO4_OT_TransferArmorWeights(bpy.types.Operator):
         # Apply modifier
         bpy.ops.object.modifier_apply(modifier="FO4_WeightTransfer")
 
-        # Clean weights
-        bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
-        bpy.ops.object.vertex_group_clean(group_select_mode='ALL',
-                                          limit=self.clean_threshold,
-                                          keep_single=False)
-        bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL',
-                                                limit=self.limit_total)
-        bpy.ops.object.mode_set(mode='OBJECT')
+        # Clean weights -- guard against the (now rare, but still possible if
+        # body had no vertex groups either) case of ending up with none,
+        # which previously crashed with an uncaught RuntimeError here.
+        if armor.vertex_groups:
+            bpy.ops.object.mode_set(mode='WEIGHT_PAINT')
+            bpy.ops.object.vertex_group_clean(group_select_mode='ALL',
+                                              limit=self.clean_threshold,
+                                              keep_single=False)
+            bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL',
+                                                    limit=self.limit_total)
+            bpy.ops.object.mode_set(mode='OBJECT')
+        else:
+            self.report({'WARNING'}, f"{body.name} has no vertex groups to transfer -- nothing to clean")
 
         self.report({'INFO'}, f"Weights transferred from {body.name} → {armor.name} (clean={self.clean_threshold}, limit={self.limit_total})")
         print(f"[FO4] Weight transfer complete: {body.name} → {armor.name}")
@@ -4413,20 +4539,44 @@ class FO4_OT_GenerateBGSMFile(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def execute(self, context):
-        import json, pathlib
-        data = dict(self._BGSM_DATA.get(self.template, {}))
-        # Add empty texture slots
-        data = {
-            "Diffuse":          "<your _d.dds>",
-            "Normal":           "<your _n.dds>",
-            "SmoothSpec":       "<your _s.dds>",
-            "AmbientOcclusion": "<your _ao.dds>",
-            **data,
-        }
+        import pathlib
+        from . import bgsm_helpers
+
+        template = dict(self._BGSM_DATA.get(self.template, {}))
+
+        # Real FO4 BGSM files are a binary format (magic "BGSM", verified
+        # byte-for-byte this session against 300 real vanilla files) --
+        # this used to just json.dumps() the template dict straight into a
+        # ".bgsm"-named file, producing a completely fake, non-functional
+        # file no real FO4 tool (CK, NifSkope, the game) could parse. Also
+        # dropped the invented "AmbientOcclusion" texture slot -- real BGSM
+        # v2 has no such field at all.
+        data = bgsm_helpers.BGSMData(
+            diffuse_texture="<your _d.dds>",
+            normal_texture="<your _n.dds>",
+            smooth_spec_texture="<your _s.dds>",
+            smoothness=float(template.get("Smoothness", 1.0)),
+            specular_mult=float(template.get("Specular", 1.0)),
+            rim_lighting=bool(template.get("EnableRimLighting", False)),
+            subsurface_lighting=bool(template.get("EnableSubsurface", False)),
+            environment_mapping=bool(template.get("EnableEnvironmentMapping", False)),
+            environment_mapping_mask_scale=float(template.get("EnvironmentMapScale", 1.0)),
+        )
+        if template.get("EnableGlow"):
+            data.glowmap = True
+            data.emit_enabled = True
+            glow_color = template.get("GlowColor")
+            if glow_color:
+                data.emittance_color = tuple(float(c) for c in glow_color)
+            data.emittance_mult = float(template.get("GlowStrength", 1.0))
+
         dst = pathlib.Path(self.filepath)
-        dst.write_text(json.dumps(data, indent=4))
-        print(f"[BGSM] Written: {dst}")
-        self.report({'INFO'}, f"BGSM saved: {dst.name} — fill in DDS paths")
+        if dst.suffix.lower() != ".bgsm":
+            dst = dst.with_suffix(".bgsm")
+        raw = bgsm_helpers.write_bgsm(data)
+        dst.write_bytes(raw)
+        print(f"[BGSM] Written: {dst} ({len(raw)} bytes)")
+        self.report({'INFO'}, f"BGSM saved: {dst.name} — fill in DDS paths in NifSkope")
         return {'FINISHED'}
 
 

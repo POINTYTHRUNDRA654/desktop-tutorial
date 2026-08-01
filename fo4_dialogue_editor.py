@@ -115,12 +115,20 @@ def export_dialogue_tree_json(node_tree, output_path: str) -> tuple:
         "function Initialize: Integer;",
         "var esp, grp, rec: IInterface; begin",
     ]
+    def _pas_str(s: str) -> str:
+        """Escape a string for a single-quoted Pascal string literal.
+        Free-form dialogue/topic text routinely contains apostrophes
+        ("Don't move.") which would otherwise truncate the literal and
+        produce an uncompilable .pas script -- Pascal escapes an embedded
+        quote by doubling it."""
+        return (s or "").replace("'", "''")
+
     for topic in topics:
         pas_lines += [
             f"  // DIAL: {topic['topic']}",
             f"  grp := Add(esp, 'DIAL', True);",
             f"  rec := Add(grp, 'DIAL', True);",
-            f"  SetElementEditValues(rec, 'EDID', '{topic['topic']}');",
+            f"  SetElementEditValues(rec, 'EDID', '{_pas_str(topic['topic'])}');",
             f"  SetElementEditValues(rec, 'QNAM', ''); // Set quest FormID",
         ]
     for line in lines:
@@ -128,12 +136,17 @@ def export_dialogue_tree_json(node_tree, output_path: str) -> tuple:
             f"  // INFO: {line['text'][:40]}",
             f"  grp := Add(esp, 'INFO', True);",
             f"  rec := Add(grp, 'INFO', True);",
-            f"  SetElementEditValues(rec, 'NAM1 - Response Text', '{line['text']}');",
-            f"  SetElementEditValues(rec, 'ANAM - Speaker', '{line['voice_type']}');",
+            f"  SetElementEditValues(rec, 'NAM1 - Response Text', '{_pas_str(line['text'])}');",
+            f"  SetElementEditValues(rec, 'ANAM - Speaker', '{_pas_str(line['voice_type'])}');",
         ]
     pas_lines += ["  Result := 0; end; end."]
 
-    pas_path = output_path.replace(".json", ".pas")
+    # output_path is user-editable (FILE_PATH property); a plain .replace()
+    # is a no-op for any path that doesn't literally contain ".json"
+    # (different extension, or none), which would make pas_path equal
+    # output_path and silently overwrite the just-written JSON export below.
+    base, _ext = os.path.splitext(output_path)
+    pas_path = base + ".pas"
     with open(pas_path, "w", encoding="utf-8") as f:
         f.write("\n".join(pas_lines))
 

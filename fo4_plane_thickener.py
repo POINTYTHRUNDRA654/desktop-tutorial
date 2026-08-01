@@ -77,6 +77,16 @@ def _apply_cross_card(context, obj, card_count: int):
             bpy.ops.object.duplicate(linked=False)
             copy = context.active_object
 
+            # duplicate(linked=False) only means "not a Shift+D linked
+            # duplicate" -- whether the mesh DATA itself is independently
+            # copied still depends on the user's "Duplicate Data > Mesh"
+            # Blender preference. If that's off, copy.data is obj.data, and
+            # the transform_apply below would bake this rotation directly
+            # into the SOURCE object's own mesh (repeatedly, once per card),
+            # corrupting `obj` before it's even joined with these copies.
+            if copy.data.users > 1:
+                copy.data = copy.data.copy()
+
             copy.rotation_euler.rotate_axis('Z', angle_step * i)
             bpy.ops.object.transform_apply(rotation=True, scale=False, location=False)
             copies.append(copy)

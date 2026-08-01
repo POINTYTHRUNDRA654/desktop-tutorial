@@ -298,6 +298,11 @@ def apply_learned_preprocess(obj) -> tuple:
 
     actions = []
     try:
+        # transform_apply/mode_set(EDIT) below operate on ALL selected
+        # objects (multi-object editing) -- deselect first so whatever else
+        # the user happened to have selected doesn't get silently scaled/
+        # welded/loose-vertex-deleted alongside obj.
+        bpy.ops.object.select_all(action='DESELECT')
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
 

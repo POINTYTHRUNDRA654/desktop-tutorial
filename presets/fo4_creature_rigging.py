@@ -27,7 +27,16 @@ if "Armature" not in armor.modifiers:
     mod.object = armature
     print(f"Armature modifier added → {armature.name}")
 
-# Transfer weights via Data Transfer modifier
+# Transfer weights via Data Transfer modifier.
+# layers_vgroup_select_dst = 'NAME' only maps onto vertex groups that
+# ALREADY EXIST on `armor` -- a freshly-created creature mesh has none, so
+# the whole transfer would silently do nothing while still reporting
+# success. Pre-create empty groups matching the body's so the transfer has
+# somewhere to write.
+for vg in body.vertex_groups:
+    if vg.name not in armor.vertex_groups:
+        armor.vertex_groups.new(name=vg.name)
+
 dt = armor.modifiers.new("CreatureWeightTransfer", 'DATA_TRANSFER')
 dt.object = body
 dt.use_vert_data = True

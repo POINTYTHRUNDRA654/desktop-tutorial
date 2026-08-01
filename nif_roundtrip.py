@@ -179,9 +179,25 @@ def patch_exported_nif(exported_path, original_path, obj) -> dict:
 # Real BSXFlags values verified against real vanilla NIFs via PyNifly this
 # session (not the values previously documented/coded in this addon, which
 # were wrong): furniture uses Havok(2)+Articulated(128)=130, confirmed
-# against ModernDomesticLoungeChair01.nif/WorkshopMilitaryCot01.nif.
+# against ModernDomesticLoungeChair01.nif/WorkshopMilitaryCot01.nif. Vegetation
+# uses the same 130, confirmed against BlastedForestBurntTreeUpright01.nif.
+# STATIC/ARCHITECTURE also use 130, confirmed against CrateDeathclaw01.nif and
+# NCA2x1Wall01.nif/DecoBaseA1x1Wall01.nif respectively. DEBRIS uses 194
+# (Havok+Dynamic+Articulated), confirmed against ModCrate.nif. FLORA uses a
+# distinct value, 170, confirmed against FloraMutFruit01.nif -- NOT the same
+# as VEGETATION's 130, despite both being plant-adjacent categories.
+# ANIMATED is deliberately NOT included: real animated-prop files disagree
+# with each other (139 on DLC04WW_WindMill01Anim.nif/IndustrialFan01.nif, 11
+# on CeilingFan01.nif), so it isn't a flat per-type constant like the others
+# and needs real design work (likely tied to the specific animation/controller
+# setup) rather than a table entry.
 FRESH_BSXFLAGS_BY_MESH_TYPE = {
     "FURNITURE": 130,
+    "VEGETATION": 130,
+    "STATIC": 130,
+    "ARCHITECTURE": 130,
+    "DEBRIS": 194,
+    "FLORA": 170,
 }
 
 
@@ -209,6 +225,52 @@ def patch_fresh_bsxflags(exported_path, mesh_type: str) -> dict:
         report["restored"].append(f"BSXFlags={flags}")
     except Exception as exc:
         report["could_not_restore"].append(f"BSXFlags ({exc})")
+
+    return report
+
+
+# Real, fixed root-node names verified against the vanilla reference
+# library, keyed by fo4_mesh_type. Unlike BSXFlags (a per-category
+# constant), most mesh types don't have a single "correct" root name -- real
+# static props (e.g. CrateDeathclaw01.nif) name their root after the asset
+# itself, which isn't something we can derive with confidence (varies per
+# file, unclear whether it's functionally load-bearing or purely
+# cosmetic/organizational) -- so only WEAPON is included here, since every
+# real weapon file checked (10mmPistol, CombatShotgun, GaussRifle,
+# Cryolator, Flamer, AssaultRifleProto) uses the exact same literal root
+# name "WEAPON" regardless of the specific weapon, a genuine fixed
+# convention rather than an asset-specific one.
+FRESH_ROOT_NAME_BY_MESH_TYPE = {
+    "WEAPON": "WEAPON",
+}
+
+
+def patch_root_name(exported_path, mesh_type: str) -> dict:
+    """Rename a freshly exported NIF's root node to the real convention for
+    *mesh_type*, when one is known (see :data:`FRESH_ROOT_NAME_BY_MESH_TYPE`).
+
+    PyNifly's own export-time root-naming mechanism (a Blender object tagged
+    with a ``pynRoot`` custom property) triggered a hard, low-level DLL
+    crash (EXCEPTION_ACCESS_VIOLATION) when exercised directly -- renaming
+    the root node AFTER export, via the public NifFile API only (the same
+    "open the just-exported file, patch a value, resave" approach already
+    used by :func:`patch_fresh_bsxflags`), avoids that code path entirely
+    and was verified safe end-to-end.
+    """
+    report = {"restored": [], "could_not_restore": []}
+    real_name = FRESH_ROOT_NAME_BY_MESH_TYPE.get((mesh_type or "").upper())
+    if real_name is None or _pynifly is None:
+        return report
+
+    try:
+        exp = _load(exported_path)
+        if exp.root.name == real_name:
+            return report  # already correct, nothing to do
+        exp.root.name = real_name
+        exp.save()
+        report["restored"].append(f"root name={real_name}")
+    except Exception as exc:
+        report["could_not_restore"].append(f"root name ({exc})")
 
     return report
 
@@ -292,8 +354,25 @@ def patch_native_collision(exported_path, collision_obj) -> dict:
                 convex_radius=radius, children=[], physics=physics,
             )
 
-        coll_node = exp.root.add_collision(
-            None, flags=0, collision_type=PynBufferTypes.bhkNPCollisionObjectBufType)
+        # PyNifly v28 added a required `body_id` param for
+        # bhkNPCollisionObjectBufType: it indexes the body's position within
+        # the bhkPhysicsSystem's packed body array (built just below from
+        # `shapes=[shape]`, a single-body list, so index 0 is always
+        # correct here). Leaving it unset defaults to a sentinel that the
+        # game engine dereferences as a bad index in
+        # bhkNPCollisionObject::CreateInstance and CRASHES on load -- this
+        # is not just a PyNifly-side issue, it produces a broken NIF.
+        # inspect the live signature rather than hard-coding a version
+        # check so this keeps working whether the installed PyNifly is the
+        # older (no body_id) or newer (requires it) build.
+        import inspect
+        add_collision_kwargs = {"flags": 0, "collision_type": PynBufferTypes.bhkNPCollisionObjectBufType}
+        try:
+            if "body_id" in inspect.signature(exp.root.add_collision).parameters:
+                add_collision_kwargs["body_id"] = 0
+        except (TypeError, ValueError):
+            pass
+        coll_node = exp.root.add_collision(None, **add_collision_kwargs)
         _pynifly.bhkPhysicsSystem.New(exp, shapes=[shape], parent=coll_node)
         exp.save()
         report["restored"].append(f"Havok collision ({shape_type})")

@@ -765,13 +765,23 @@ def import_mesh_file(filepath, mesh_name="AI_Generated_Mesh"):
         ext = os.path.splitext(filepath)[1].lower()
         
         if ext == '.obj':
-            bpy.ops.import_scene.obj(filepath=filepath)
+            # import_scene.obj/import_mesh.stl were removed in Blender 4.0
+            # (replaced by wm.obj_import/wm.stl_import) -- calling the old
+            # names unconditionally raised AttributeError on every
+            # currently-supported Blender version this add-on targets.
+            if hasattr(bpy.ops.wm, "obj_import"):
+                bpy.ops.wm.obj_import(filepath=filepath)
+            else:
+                bpy.ops.import_scene.obj(filepath=filepath)
         elif ext in ['.glb', '.gltf']:
             bpy.ops.import_scene.gltf(filepath=filepath)
         elif ext == '.fbx':
             bpy.ops.import_scene.fbx(filepath=filepath)
         elif ext == '.stl':
-            bpy.ops.import_mesh.stl(filepath=filepath)
+            if hasattr(bpy.ops.wm, "stl_import"):
+                bpy.ops.wm.stl_import(filepath=filepath)
+            else:
+                bpy.ops.import_mesh.stl(filepath=filepath)
         else:
             return False, f"Unsupported file format: {ext}"
         

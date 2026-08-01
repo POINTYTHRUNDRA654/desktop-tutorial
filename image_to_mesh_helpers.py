@@ -242,8 +242,16 @@ def apply_displacement_to_mesh(obj, filepath, strength=0.5):
         links.new(img_texture.outputs['Color'], displacement.inputs['Height'])
         links.new(displacement.outputs['Displacement'], output.inputs['Displacement'])
         
-        # Set material displacement method
-        mat.cycles.displacement_method = 'DISPLACEMENT'
+        # Set material displacement method. Blender 4.2 moved this from the
+        # per-render-engine mat.cycles.displacement_method to a unified
+        # mat.displacement_method on the material itself; mat.cycles no
+        # longer has the attribute at all on newer Blender (confirmed on
+        # 5.1 — AttributeError otherwise). Prefer the new location, fall
+        # back to the old one for Blender 3.6/4.0/4.1.
+        if hasattr(mat, "displacement_method"):
+            mat.displacement_method = 'DISPLACEMENT'
+        elif hasattr(mat, "cycles") and hasattr(mat.cycles, "displacement_method"):
+            mat.cycles.displacement_method = 'DISPLACEMENT'
         
         return True, f"Displacement map applied to {obj.name}"
         

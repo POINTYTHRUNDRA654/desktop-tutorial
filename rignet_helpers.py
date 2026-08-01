@@ -933,8 +933,21 @@ For more details:
                 _ti._ensure_ml_on_path()
             from scipy.spatial import cKDTree
             tree = cKDTree(verts)
-            _, boundary_indices = tree.query(handle_pts)
-            boundary_indices = np.unique(boundary_indices)
+            _, snapped = tree.query(handle_pts)
+
+            # np.unique(snapped) alone would sort-by-vertex-index AND drop
+            # duplicates, destroying the handles' original
+            # [bone0_head, bone0_tail, bone1_head, bone1_tail, ...] order that
+            # the weight-application loop below relies on (via `j // 2`) --
+            # every subsequent bone would silently get some OTHER bone's BBW
+            # column. Coincident handles are also common and expected (a
+            # parent bone's tail usually sits exactly at its child's head),
+            # so build an explicit boundary-vertex -> originating-handle-
+            # indices map instead of assuming a 1:1 handle/column correspondence.
+            vertex_to_handles: dict[int, list[int]] = {}
+            for handle_idx, vert_idx in enumerate(snapped):
+                vertex_to_handles.setdefault(int(vert_idx), []).append(handle_idx)
+            boundary_indices = np.array(sorted(vertex_to_handles.keys()), dtype=np.int64)
 
             num_handles = len(boundary_indices)
             bc = np.eye(num_handles, dtype=np.float64)
@@ -945,20 +958,28 @@ For more details:
                 return False, f"igl.bbw solver returned non-zero flag: {success_flag}"
 
             # --- Apply computed weights to vertex groups ---
-            # igl.bbw returns weights for *all* vertices (rows = vertices, cols = handles).
-            # Use REPLACE mode so each vertex gets exactly its BBW weight.
-            for vi in range(len(verts)):
-                for j in range(weights.shape[1]):
-                    bone_idx = j // 2
+            # igl.bbw returns weights for *all* vertices (rows = vertices,
+            # cols = boundary vertices, in the same order as boundary_indices).
+            # Column j's weight belongs to whichever bone(s) had a handle that
+            # snapped to boundary_indices[j] -- resolve via
+            # vertex_to_handles/bone_names rather than a positional j // 2
+            # guess, which silently broke once boundary_indices was
+            # deduplicated/reordered. Use REPLACE mode so each vertex gets
+            # exactly its BBW weight.
+            for j, vert_idx in enumerate(boundary_indices):
+                col = weights[:, j]
+                bone_indices_for_col = {h // 2 for h in vertex_to_handles[int(vert_idx)]}
+                for bone_idx in bone_indices_for_col:
                     if bone_idx >= len(armature_obj.pose.bones):
                         continue
                     bone_name = armature_obj.pose.bones[bone_idx].name
                     vg = mesh_obj.vertex_groups.get(bone_name)
                     if vg is None:
                         vg = mesh_obj.vertex_groups.new(name=bone_name)
-                    w = float(weights[vi, j])
-                    if w > 1e-6:
-                        vg.add([vi], w, 'REPLACE')
+                    for vi in range(len(verts)):
+                        w = float(col[vi])
+                        if w > 1e-6:
+                            vg.add([vi], w, 'REPLACE')
 
             return True, f"BBW skinning applied: {weights.shape[1]} bone handles, {len(verts)} vertices"
 

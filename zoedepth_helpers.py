@@ -25,6 +25,40 @@ import tempfile
 import time
 from pathlib import Path
 
+def _resolve_zoedepth_path():
+    """Find the ZoeDepth repo directory, checking the tool_installers-managed
+    location (the addon's own one-click installer destination) FIRST.
+
+    This is the single source of truth for both the availability check and
+    the actual inference call -- they used to maintain two independently
+    hand-written path lists that had drifted apart: the availability check
+    included the tool_installers candidate, the inference function didn't.
+    Since install_zoedepth() (tool_installers.py) is the primary/recommended
+    install method, that meant `check_zoedepth_availability()` reported
+    "available" for anyone using it, while `estimate_depth_from_image()`
+    always failed with "ZoeDepth directory not found."
+    """
+    possible_paths = [
+        os.path.expanduser("~/ZoeDepth"),
+        os.path.expanduser("~/Projects/ZoeDepth"),
+        "/opt/ZoeDepth",
+        os.path.join(os.path.dirname(__file__), "tools", "ZoeDepth"),
+    ]
+    try:
+        from . import tool_installers
+        for candidate in tool_installers.candidate_tool_paths("ZoeDepth"):
+            candidate_str = str(candidate)
+            if Path(candidate_str) not in [Path(p) for p in possible_paths]:
+                possible_paths.insert(0, candidate_str)  # Check these first
+    except Exception:
+        pass
+
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            return path
+    return None
+
+
 # Check if ZoeDepth is available
 ZOEDEPTH_AVAILABLE = False
 ZOEDEPTH_ERROR = None
@@ -178,30 +212,8 @@ def _check_zoedepth_availability_uncached():
             return False, f"PyTorch not available: {_e}"
 
     # Check if ZoeDepth repository is cloned
-    # Common locations to check
-    possible_paths = [
-        os.path.expanduser("~/ZoeDepth"),
-        os.path.expanduser("~/Projects/ZoeDepth"),
-        "/opt/ZoeDepth",
-        os.path.join(os.path.dirname(__file__), "tools", "ZoeDepth"),  # addon_folder/tools/ZoeDepth
-    ]
+    zoedepth_path = _resolve_zoedepth_path()
 
-    # Also check the tool_installers managed directory
-    try:
-        from . import tool_installers
-        for candidate in tool_installers.candidate_tool_paths("ZoeDepth"):
-            candidate_str = str(candidate)
-            if Path(candidate_str) not in [Path(p) for p in possible_paths]:
-                possible_paths.insert(0, candidate_str)  # Check these first
-    except Exception:
-        pass
-    
-    zoedepth_path = None
-    for path in possible_paths:
-        if os.path.exists(path) and os.path.isdir(path):
-            zoedepth_path = path
-            break
-    
     if zoedepth_path is None:
         return False, (
             "ZoeDepth not found. Clone it with:\n"
@@ -240,17 +252,7 @@ def estimate_depth_from_image(image_path, output_path=None, model_type="ZoeD_N")
         from PIL import Image as _PIL_Image
 
         # Locate the ZoeDepth installation directory
-        possible_paths = [
-            os.path.expanduser("~/ZoeDepth"),
-            os.path.expanduser("~/Projects/ZoeDepth"),
-            "/opt/ZoeDepth",
-            os.path.join(os.path.dirname(__file__), "..", "ZoeDepth"),
-        ]
-        zoedepth_path = None
-        for p in possible_paths:
-            if os.path.exists(p) and os.path.isdir(p):
-                zoedepth_path = p
-                break
+        zoedepth_path = _resolve_zoedepth_path()
 
         if zoedepth_path is None:
             return False, "ZoeDepth directory not found.", 0, 0

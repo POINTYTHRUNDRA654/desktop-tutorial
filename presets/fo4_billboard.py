@@ -31,7 +31,10 @@ links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
 links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
 
 mat.blend_method = 'CLIP'  # Needed for alpha cutout
-mat.shadow_method = 'CLIP'
+try:
+    mat.shadow_method = 'CLIP'  # removed in Blender 4.2+ (EEVEE Next)
+except AttributeError:
+    pass
 
 plane.data.materials.append(mat)
 print("Billboard created: Tree_Billboard")

@@ -109,7 +109,14 @@ class FO4GameAssets:
             if fo4_path.exists() and (fo4_path / "Fallout4.exe").exists():
                 FO4GameAssets._game_dir = fo4_path
                 return fo4_path
-        except (WindowsError, FileNotFoundError):
+        except (OSError, FileNotFoundError):
+            # WindowsError isn't a defined name on non-Windows Python at all
+            # (in Python 3 it's just an alias for OSError on Windows), so
+            # evaluating this except clause's tuple used to raise a bare
+            # NameError on Linux/macOS before it could even match the
+            # FileNotFoundError raised two lines above for the
+            # `_winreg is None` case -- crashing instead of falling through
+            # to FO4_COMMON_PATHS as the surrounding comment promises.
             pass
 
         # Check common installation paths

@@ -230,11 +230,14 @@ def classify_asset(obj, scene_objects=None) -> Dict:
         reasons.append(f"LOD {sev} ({tri_count:,} tris)")
 
     # ── Collision needs ─────────────────────────────────────────────────────
-    coll_type = obj.get("fo4_collision_type", "DEFAULT")
+    # fo4_collision_type is a real RNA EnumProperty (bpy.types.Object.
+    # fo4_collision_type = EnumProperty(...)), set via attribute assignment
+    # everywhere it's actually used -- obj.get() only sees custom ID
+    # properties and always silently returned "DEFAULT" here regardless of
+    # what the user actually chose.
+    coll_type = getattr(obj, "fo4_collision_type", "DEFAULT")
     already_has_coll = _has_collision(obj, scene_objects)
     if asset_class in ("SKINNED", "WEAPON", "VEGETATION") and coll_type in _NO_COLLISION_TYPES:
-        needs_collision = False
-    elif asset_class == "VEGETATION" and coll_type in _NO_COLLISION_TYPES:
         needs_collision = False
     elif already_has_coll:
         needs_collision = False
@@ -333,8 +336,15 @@ def _run_lod(obj, context) -> Tuple[bool, str]:
     try:
         context.view_layer.objects.active = obj
         obj.select_set(True)
-        result = bpy.ops.fo4.generate_lods("INVOKE_DEFAULT")
-        # INVOKE_DEFAULT opens a dialog — use EXEC_DEFAULT with defaults
+        # EXEC_DEFAULT runs with the operator's own defaults, no dialog --
+        # this is the only call needed. A leftover INVOKE_DEFAULT call used
+        # to run here first (opening/discarding a dialog in an automated
+        # context), meaning generate_lods ran TWICE per object; combined
+        # with FO4_OT_GenerateLODs leaving its collision mesh as the active
+        # object afterward, the second run silently operated on the
+        # just-created UCX_ collision mesh instead of the source object,
+        # polluting the scene with nonsense doubly-prefixed LOD/collision
+        # objects (e.g. "UCX_UCX_Foo").
         bpy.ops.fo4.generate_lods("EXEC_DEFAULT")
         return True, f"LOD generated for '{obj.name}'"
     except Exception as exc:

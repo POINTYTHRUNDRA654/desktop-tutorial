@@ -108,6 +108,16 @@ def batch_export_objects(objects: list, output_dir: str,
         safe = obj.name.replace(" ","_").replace(".","_")
         nif_path = os.path.join(output_dir, safe + ".nif")
 
+        # Isolate this object BEFORE any edit-mode prep step -- fo4_post_process
+        # enters Edit Mode and runs mesh.remove_doubles()/normals_make_consistent(),
+        # which under Blender's multi-object editing apply to EVERY currently
+        # selected mesh, not just the one passed in. Selecting only `obj` first
+        # prevents it from also mutating whatever the user had selected before
+        # Batch Export was invoked, or the previous loop iteration's object.
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+
         # FO4 prep
         if apply_fo4_prep:
             try:
@@ -116,10 +126,6 @@ def batch_export_objects(objects: list, output_dir: str,
                     _ith.fo4_post_process(obj, name=safe)
             except Exception:
                 pass
-
-        bpy.ops.object.select_all(action="DESELECT")
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
 
         exported = False
         if _eh:

@@ -138,79 +138,21 @@ def fix_flipped_uv_islands(obj) -> Tuple[int, int]:
     if uv_layer is None:
         return 0, 0
 
-    # ── Work on an evaluated copy so modifiers are baked in ──────────────
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    eval_obj  = obj.evaluated_get(depsgraph)
-    eval_mesh = eval_obj.to_mesh()
-
-    bm = bmesh.new()
-    bm.from_mesh(eval_mesh)
-    bmesh.ops.triangulate(bm, faces=bm.faces)
-    bm_uv = bm.loops.layers.uv.active
-
-    if bm_uv is None:
-        bm.free()
-        eval_obj.to_mesh_clear()
-        return 0, 0
-
-    # ── Build loop UV map: loop.index → [u, v] (from real mesh) ──────────
-    # We'll use the bmesh to detect islands, then patch the real mesh UVs.
-    n_loops = len(mesh.loops)
-    import numpy as np
-    raw_uvs = np.zeros(n_loops * 2, dtype=np.float32)
-    uv_layer.data.foreach_get('uv', raw_uvs)
-    uvs = raw_uvs.reshape(n_loops, 2)
-
-    # ── Island detection via union-find on loop indices ───────────────────
-    # Map each loop to a root in the union-find structure.
-    # Two loops are in the same island if they share an edge and their
-    # UV coordinates at the shared edge match (within tolerance).
-
-    # Simpler approach: group faces by their UV connectivity.
-    # For each face in bmesh, mark signed area.  Then flood-fill.
-    face_area     = {f.index: _face_uv_signed_area(f, bm_uv) for f in bm.faces}
-    face_visited  = {}  # face_index → island_id
-    island_id     = 0
-
-    # Build adjacency: edge → list of face indices
-    edge_to_faces: dict[int, List[int]] = {}
-    for f in bm.faces:
-        for e in f.edges:
-            edge_to_faces.setdefault(e.index, []).append(f.index)
-
-    face_by_idx = {f.index: f for f in bm.faces}
-
-    islands: List[List[int]] = []  # each entry: list of face indices
-    for start_face in bm.faces:
-        if start_face.index in face_visited:
-            continue
-        # BFS flood-fill
-        stack   = [start_face.index]
-        members = []
-        while stack:
-            fi = stack.pop()
-            if fi in face_visited:
-                continue
-            face_visited[fi] = island_id
-            members.append(fi)
-            f = face_by_idx[fi]
-            for e in f.edges:
-                for nfi in edge_to_faces.get(e.index, []):
-                    if nfi not in face_visited:
-                        stack.append(nfi)
-        islands.append(members)
-        island_id += 1
-
-    bm.free()
-    eval_obj.to_mesh_clear()
+    # NOTE: detection below reads obj.data directly (the base/unevaluated
+    # mesh), NOT an evaluated (modifier-baked) copy. An earlier version of
+    # this function built a whole separate evaluated-mesh island-detection
+    # pass first (via bpy.context.evaluated_depsgraph_get()) but then never
+    # used any of its results -- the code below always re-derived islands
+    # from the original mesh anyway, making that entire block dead and its
+    # "work on an evaluated copy so modifiers are baked in" comment false.
+    # A real consequence: a Mirror modifier with negative scale (common on
+    # symmetric FO4 armor pieces) can flip UV winding only once the modifier
+    # is evaluated, and that flip is invisible to this function -- it is
+    # caught by the eventual NIF export step instead (PyNifly's own
+    # apply_modifiers=True bakes the modifier before writing), not here.
 
     # ── For each island: check if majority of faces are flipped ──────────
     n_islands_fixed = 0
-    # Build map from bmesh face index to poly loop_start in real mesh.
-    # After triangulate the bmesh face count may differ from mesh polys;
-    # we can't reliably map them back.  Instead use a direct bmesh approach
-    # on the original mesh (without triangulation) to find loops to patch.
-
     bm2 = bmesh.new()
     bm2.from_mesh(mesh)
     bm2_uv = bm2.loops.layers.uv.active
@@ -642,14 +584,25 @@ class FO4_OT_AlignUVToTexture(Operator):
         uv_layer.data.foreach_get('uv', raw)
         uvs = raw.reshape(n_loops, 2)
 
-        aspect = h / w   # < 1.0 for wider-than-tall textures
-        uvs[:, 1] *= aspect
+        # Compress whichever axis is larger so the result always stays
+        # within [0, 1] on both axes. The old code always scaled V by
+        # h/w -- correct for landscape textures (w > h, ratio < 1) but for
+        # a portrait texture (h > w) that ratio is > 1, which pushed V
+        # values PAST 1.0 instead of compressing them (the opposite of
+        # "fit without stretching"), causing the texture to tile/repeat
+        # vertically under the default REPEAT extension mode.
+        if w >= h:
+            axis, ratio = 1, h / w   # compress V
+        else:
+            axis, ratio = 0, w / h   # compress U
+        uvs[:, axis] *= ratio
 
         uv_layer.data.foreach_set('uv', uvs.ravel())
         mesh.update()
 
+        axis_name = "V" if axis == 1 else "U"
         self.report({'INFO'},
-            f"UV adjusted for {w}×{h} texture '{img.name}' (V scaled by {aspect:.4f}).")
+            f"UV adjusted for {w}×{h} texture '{img.name}' ({axis_name} scaled by {ratio:.4f}).")
         return {'FINISHED'}
 
 

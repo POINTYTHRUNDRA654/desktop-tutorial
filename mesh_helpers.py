@@ -811,6 +811,39 @@ class MeshHelpers:
         return f"Bone influences capped at {max_influences} per vertex and normalized"
 
     @staticmethod
+    def _looks_like_vegetation(obj) -> bool:
+        """Return True if *obj* is actually vegetation/foliage, mirroring
+        the same signals ``export_helpers.ExportHelpers._is_vegetation_object``
+        checks (kept as a separate, lightweight copy here to avoid a circular
+        import between mesh_helpers.py and export_helpers.py):
+
+        1. ``fo4_mesh_type == 'VEGETATION'`` -- the real RNA EnumProperty
+           dropdown (read via getattr, not .get(), since it isn't a custom
+           ID property).
+        2. ``fo4_object_type == 'VEGETATION'`` custom property.
+        3. ``fo4_shader_type == 'vegetation'`` or ``fo4_core_profile ==
+           'foliage'`` on any of the object's materials.
+
+        Deliberately does NOT check "existing vertex groups are all
+        wind-named" the way the export_helpers version does -- at the point
+        this is called the object may have zero vertex groups (that's
+        exactly the case this function exists to handle for a fresh
+        vegetation asset), so that signal wouldn't fire yet anyway.
+        """
+        if getattr(obj, "fo4_mesh_type", "") == "VEGETATION":
+            return True
+        if obj.get("fo4_object_type", "").upper() == "VEGETATION":
+            return True
+        for slot in getattr(obj, 'material_slots', []):
+            mat = slot.material
+            if not mat:
+                continue
+            if (mat.get("fo4_shader_type") == "vegetation"
+                    or mat.get("fo4_core_profile") == "foliage"):
+                return True
+        return False
+
+    @staticmethod
     def fix_unweighted_vertices(obj) -> str:
         """Automatically fix unweighted vertices before export.
 
@@ -887,8 +920,8 @@ class MeshHelpers:
                 f"Fixed {len(unweighted)} unweighted vertex/vertices – "
                 f"assigned each to nearest bone"
             )
-        else:
-            # No armature – this is vegetation / foliage using FO4 wind weights.
+        elif MeshHelpers._looks_like_vegetation(obj):
+            # No armature, and this object is actually vegetation/foliage --
             # FO4 wind animation is driven by a single per-vertex weight channel:
             #   0.0 (blue)  = base / roots – no movement
             #   1.0 (red)   = tips / top   – full wind movement
@@ -905,6 +938,21 @@ class MeshHelpers:
                 )
             else:
                 msg = f"Could not fix unweighted vertices: {wind_msg}"
+        else:
+            # No armature, and nothing suggests this is vegetation -- a plain
+            # unrigged static/weapon/furniture/architecture mesh legitimately
+            # has zero vertex groups and needs none; every vertex being
+            # "unweighted" in that sense is the normal, correct state, not an
+            # error. Previously this branch was unconditional (any no-armature
+            # mesh got treated as vegetation needing a wind gradient), which
+            # force-added a real "Wind" vertex group to ordinary static props
+            # on every export -- and since vegetation detection elsewhere in
+            # this addon partly keys off "has a wind-named vertex group", that
+            # one export call would permanently misclassify the object as
+            # VEGETATION on every subsequent scan (skipping LOD/collision,
+            # routing it into wind processing instead). Doing nothing here is
+            # correct: there is nothing to fix.
+            return "No unweighted vertices found (unrigged static mesh -- no vertex groups needed)"
 
         print(f"[MeshHelpers] fix_unweighted_vertices: {msg}")
         return msg
@@ -985,6 +1033,11 @@ class MeshHelpers:
         collision_obj["fo4_collision"] = True
         collision_obj.fo4_collision_type = collision_type
         obj.fo4_collision_type = collision_type
+
+        # Match collision_from_lod_mesh's PYN_GAME tagging for consistency
+        # (a direct PyNifly export of either object should always target FO4).
+        collision_obj["PYN_GAME"] = "FO4"
+        obj["PYN_GAME"] = "FO4"
 
         # copy sound / weight presets
         if sound is not None:

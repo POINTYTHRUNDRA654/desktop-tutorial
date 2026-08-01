@@ -306,8 +306,14 @@ class InstantNGPHelpers:
             return False, f"File not found: {obj_path}", None
         
         try:
-            # Import OBJ file
-            bpy.ops.import_scene.obj(filepath=obj_path)
+            # Import OBJ file. import_scene.obj was removed in Blender 4.0
+            # (replaced by wm.obj_import) -- calling the old name
+            # unconditionally raised AttributeError on every
+            # currently-supported Blender version this add-on targets.
+            if hasattr(bpy.ops.wm, "obj_import"):
+                bpy.ops.wm.obj_import(filepath=obj_path)
+            else:
+                bpy.ops.import_scene.obj(filepath=obj_path)
             
             # Get imported object
             imported_obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None

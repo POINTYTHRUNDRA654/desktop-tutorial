@@ -240,7 +240,13 @@ def _apply(obj, tex_map, alpha_cutout=False, mat=None):
                     nt.links.new(n.outputs['Alpha'], a)
                 try:
                     mat.blend_method = 'CLIP'
-                    mat.shadow_method = 'CLIP'
+                except Exception:
+                    pass
+                try:
+                    mat.shadow_method = 'CLIP'  # removed in Blender 4.2+ (EEVEE Next)
+                except Exception:
+                    pass
+                try:
                     mat.alpha_threshold = 0.5
                     mat.use_backface_culling = False
                 except Exception:

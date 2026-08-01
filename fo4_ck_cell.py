@@ -831,9 +831,14 @@ class FO4_OT_ExportCKCell(Operator):
             for slot in obj.material_slots:
                 mat = slot.material
                 if mat:
-                    bgsm_helpers.write_bgsm(
-                        bgsm_helpers.blender_mat_to_bgsm(mat), mabs
-                    )
+                    # write_bgsm(data) takes exactly one argument and RETURNS
+                    # bytes -- it never touches the filesystem itself. The
+                    # old two-arg call raised a TypeError every time
+                    # (silently caught below), so no .bgsm file was ever
+                    # actually written.
+                    raw = bgsm_helpers.write_bgsm(bgsm_helpers.blender_mat_to_bgsm(mat))
+                    with open(mabs, "wb") as f:
+                        f.write(raw)
                     break
         except Exception as e:
             print(f"[CK Cell] BGSM export error: {e}")

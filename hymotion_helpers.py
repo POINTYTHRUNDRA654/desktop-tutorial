@@ -21,6 +21,36 @@ import subprocess
 import time
 from pathlib import Path
 
+
+def _resolve_hymotion_path():
+    """Find the HY-Motion-1.0 repo directory, checking the tool_installers
+    managed location (install_hymotion()'s own clone destination) FIRST.
+
+    Single source of truth for both the availability check and the actual
+    generation call -- they used to each keep an independent hand-written
+    path list that had drifted apart (the availability check included the
+    tools_root candidate, generation didn't), so a standard installer-based
+    setup always reported "available" yet always failed at generation time
+    with a None path.
+    """
+    possible_paths = []
+    try:
+        from . import tool_installers as _tli
+        possible_paths.append(str(_tli.get_tools_root() / "HY-Motion-1.0"))
+    except Exception:
+        pass  # fall through to home-dir candidates below
+    possible_paths += [
+        os.path.expanduser("~/HY-Motion-1.0"),
+        os.path.expanduser("~/Projects/HY-Motion-1.0"),
+        "/opt/HY-Motion-1.0",
+        os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
+    ]
+    for path in possible_paths:
+        if os.path.exists(path) and os.path.isdir(path):
+            return path
+    return None
+
+
 # Check if HY-Motion-1.0 is available
 # None = not yet checked; True = available; False = not available
 HYMOTION_AVAILABLE = None
@@ -247,27 +277,8 @@ def _check_hymotion_availability_uncached():
         return False, f"git-lfs required but not available: {lfs_message}"
     
     # Check if HY-Motion-1.0 repository is cloned.
-    # Check the tools root first (highest priority - matches install_hymotion()
-    # which clones to <tools_root>/HY-Motion-1.0 via tool_installers).
-    possible_paths = []
-    try:
-        from . import tool_installers as _tli
-        possible_paths.append(str(_tli.get_tools_root() / "HY-Motion-1.0"))
-    except Exception:
-        pass  # fall through to home-dir candidates below
-    possible_paths += [
-        os.path.expanduser("~/HY-Motion-1.0"),
-        os.path.expanduser("~/Projects/HY-Motion-1.0"),
-        "/opt/HY-Motion-1.0",
-        os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
-    ]
-    
-    hymotion_path = None
-    for path in possible_paths:
-        if os.path.exists(path) and os.path.isdir(path):
-            hymotion_path = path
-            break
-    
+    hymotion_path = _resolve_hymotion_path()
+
     if hymotion_path is None:
         return False, (
             "HY-Motion-1.0 not found. Install it with:\n"
@@ -305,15 +316,7 @@ def generate_motion_from_text(prompt, duration=5.0, fps=30):
         import glob as _glob
         import tempfile
 
-        possible_paths = [
-            os.path.expanduser("~/HY-Motion-1.0"),
-            os.path.expanduser("~/Projects/HY-Motion-1.0"),
-            "/opt/HY-Motion-1.0",
-            os.path.join(os.path.dirname(__file__), "..", "HY-Motion-1.0"),
-        ]
-        hymotion_path = next(
-            (p for p in possible_paths if os.path.isdir(p)), None
-        )
+        hymotion_path = _resolve_hymotion_path()
 
         output_dir = tempfile.mkdtemp(prefix="hymotion_")
 
