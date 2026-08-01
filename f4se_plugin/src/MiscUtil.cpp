@@ -540,13 +540,23 @@ extern "C"
     }
 
     // ── Load (called by both 0.6.x and 0.7.x after version check passes) ─────
+    // Papyrus registration re-disabled 2026-08-01: confirmed by a live crash
+    // that g_papyrus->Register(RegisterFunctions) still hard-crashes the game
+    // at F4SE's RegisterPapyrusFunctions_Hook, even when built against the
+    // F4SE 0.7.8 headers at D:\src\f4se — f4se.log's last line is literally
+    // "RegisterPapyrusFunctions_Hook" with nothing after it, no exception, no
+    // further plugin output. So the 0.7.8-headers theory in the old note
+    // (removed by commit 64d4d10) was wrong, or insufficient on its own —
+    // something about this RegisterFunctions callback (or its interaction
+    // with another Papyrus-registering plugin already in the load order:
+    // GardenOfEdenPapyrusScriptExtender/LooksMenu, Hydra, mcm, po3 plugins)
+    // is still incompatible. Needs real F4SE plugin debugging (attach a
+    // debugger and break on this hook, or bisect by disabling other
+    // Papyrus-registering plugins one at a time) before re-attempting this —
+    // do not re-enable without reproducing and diagnosing first.
     __declspec(dllexport) bool F4SEPlugin_Load(const F4SEInterface* f4se)
     {
         g_pluginHandle = f4se->GetPluginHandle();
-        g_papyrus = (F4SEPapyrusInterface*)f4se->QueryInterface(kInterface_Papyrus);
-        if (g_papyrus) {
-            g_papyrus->Register(RegisterFunctions);
-        }
         return true;
     }
 }
