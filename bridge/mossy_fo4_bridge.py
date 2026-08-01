@@ -1496,20 +1496,31 @@ def _call_ollama(payload: dict, dialogue_history: list | None = None) -> dict:
 
     # Per-role model preference — best fit for each NPC type.
     # Falls back through the list until one is installed.
+    #
+    # qwen3.5:9b and gemma4:12b are deliberately excluded: both are
+    # reasoning/"thinking" models that spend their whole max_tokens budget on
+    # a hidden <reasoning> pass and return an empty "content" string before
+    # ever writing the actual line — confirmed directly against this Ollama
+    # install (both came back with content: "" and a populated "reasoning"
+    # field). That silently produced canned fallback lines for every NPC
+    # line once qwen3.5:9b got pulled and put first in these lists. Neither
+    # is a fit for this short, low-latency chat-completion call regardless —
+    # raising max_tokens enough for them to finish thinking would blow both
+    # the response deadline and the "one or two short sentences" brief.
     _ROLE_MODELS: dict[str, list[str]] = {
         # Companions: need consistent personality and longer context awareness
-        "companion":     ["qwen3.5:9b", "gemma2:9b", "llama3.1:8b", "llama3:latest", "mistral:7b"],
+        "companion":     ["gemma2:9b", "llama3.1:8b", "llama3:latest", "mistral:7b"],
         # Settlers / Minutemen: fast, plain Commonwealth speech
-        "settler":       ["qwen3.5:9b", "llama3.1:8b", "llama3:latest", "gemma2:9b", "mistral:7b"],
+        "settler":       ["llama3.1:8b", "llama3:latest", "gemma2:9b", "mistral:7b"],
         # Raiders and ghouls: terse, dark, menacing
-        "raider":        ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "llama3:latest", "gemma2:9b"],
-        "ghoul":         ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "gemma2:9b"],
+        "raider":        ["mistral:7b", "llama3.1:8b", "llama3:latest", "gemma2:9b"],
+        "ghoul":         ["mistral:7b", "llama3.1:8b", "gemma2:9b"],
         # Robots: mechanical, directive-following
-        "robot":         ["qwen3.5:9b", "llama3:latest", "llama3.1:8b", "mistral:7b", "gemma2:9b"],
+        "robot":         ["llama3:latest", "llama3.1:8b", "mistral:7b", "gemma2:9b"],
         # Super mutants: short, aggressive, broken syntax
-        "super mutant":  ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "llama3:latest"],
+        "super mutant":  ["mistral:7b", "llama3.1:8b", "llama3:latest"],
         # Default: best general-purpose available
-        "default":       ["qwen3.5:9b", "llama3.1:8b", "gemma2:9b", "llama3:latest", "mistral:7b",
+        "default":       ["llama3.1:8b", "gemma2:9b", "llama3:latest", "mistral:7b",
                           "phi4-mini", "phi3:mini", "llama3.2:3b", "tinyllama"],
     }
 
@@ -3040,17 +3051,42 @@ def watch_bridge_input():
 
         time.sleep(0.25)
 
+_GAME_CHECK_INTERVAL_S = 5.0  # tasklist spawns a real process — don't do it every 0.5s tick
+
+def _is_fallout4_running() -> bool:
+    """Ground truth for game_running: is Fallout4.exe actually alive right now?
+
+    Used to just be inferred from the Papyrus log file's existence/inode —
+    but that file stays on disk (same inode) long after the game exits, so
+    game_running latched True forever after the first session and never
+    went back to False.
+    """
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq Fallout4.exe", "/NH"],
+            capture_output=True, text=True, timeout=3,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return "Fallout4.exe" in result.stdout
+    except Exception:
+        return _status.get("game_running", False)  # can't tell — keep last known state
+
 def watch_papyrus_log():
     """Tail Papyrus.0.log in a background thread."""
     print(f"[Bridge] Watching log: {PAPYRUS_LOG}")
-    last_inode = None
-    file_pos   = 0
+    last_inode      = None
+    file_pos        = 0
+    last_game_check = 0.0
 
     while True:
         try:
+            now = time.monotonic()
+            if now - last_game_check >= _GAME_CHECK_INTERVAL_S:
+                _status["game_running"] = _is_fallout4_running()
+                last_game_check = now
+
             if not PAPYRUS_LOG.exists():
                 time.sleep(2)
-                _status["game_running"] = False
                 continue
 
             current_inode = PAPYRUS_LOG.stat().st_ino
@@ -3059,7 +3095,6 @@ def watch_papyrus_log():
                 last_inode = current_inode
                 file_pos   = 0
                 print("[Bridge] Log file opened/rotated")
-                _status["game_running"] = True
 
             with open(PAPYRUS_LOG, "r", encoding="utf-8", errors="replace") as f:
                 f.seek(file_pos)
@@ -3374,7 +3409,7 @@ def _prewarm_ollama():
         if not r.ok:
             return
         available = [m["name"] for m in r.json().get("models", [])]
-        preferred = ["qwen3.5:9b", "llama3.1:8b", "llama3:8b", "mistral:7b", "gemma2:9b", "llama3:latest"]
+        preferred = ["llama3.1:8b", "llama3:8b", "mistral:7b", "gemma2:9b", "llama3:latest"]
         model = next((p for p in preferred if any(p in a for a in available)), None)
         if not model:
             return
