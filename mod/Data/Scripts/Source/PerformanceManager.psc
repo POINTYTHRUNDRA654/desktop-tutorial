@@ -55,6 +55,23 @@
 ;    - Logs warning to bridge if detected
 ;    - Helps catch compatibility issues with other mods
 ;
+;  ENGINE ACTOR-CAP AWARENESS (real, verified, distinct from MaxActorsPerTick above)
+;    - MaxActorsPerTick only limits how many actors THIS mod's scan processes —
+;      it does NOT change the engine's own hardcoded actor-activity limits.
+;    - The engine itself only lets ~20 actors be fully "active" (simulated with
+;      real AI) at once by default; a stricter 4-actor sub-limit governs which
+;      combatants get full-fidelity AI in a fight. Both are raisable via ini
+;      (the same class of change "More Active AI"/"MORE AI MORE NPCs" mods make) —
+;      up to 128/255 for the general cap, 6/8/10/12 for the combatant sub-limit.
+;    - A SEPARATE, stricter cap governs exterior-to-interior chases: only 2
+;      pursuing NPCs follow the player through a door while in combat, by
+;      default (raisable the same way, to 4/6/8/16).
+;    - Net effect for large-encounter design: a horde built via AdvancedCreatureAI/
+;      AdvancedNPCAI can look correctly large outdoors, then appear to go idle
+;      (engine cap) or thin out the moment the player retreats indoors (chase
+;      cap) — neither is a bug in this mod's scripts. See CheckEngineActorCaps()
+;      below, which logs a one-time warning so this doesn't get mistaken for one.
+;
 ; Attach to AdvancedAIManager quest — MUST be initialized FIRST.
 ; ═══════════════════════════════════════════════════════════════════════════
 Scriptname PerformanceManager extends Quest
@@ -97,6 +114,10 @@ float Property ScanRadius_Max       = 3000.0 Auto; Maximum scan radius; Maximum 
 int   Property MaxActorsPerTick     = 20    Auto; Never process more than this; Never process more than this; Never process more than this; Never process more than this
 float Property MinRealTimeInterval  = 150.0  Auto; Milliseconds between real executions; Milliseconds between real executions; Milliseconds between real executions; Milliseconds between real executions
 
+; ── Engine Actor-Cap Awareness (informational — set these to match your actual ini values if raised) ──
+int Property VanillaActiveActorCap    = 20 Auto; Engine's own default cap on fully AI-active actors (raisable to 128/255); Engine's own default cap on fully AI-active actors (raisable to 128/255); Engine's own default cap on fully AI-active actors (raisable to 128/255); Engine's own default cap on fully AI-active actors (raisable to 128/255)
+int Property VanillaInteriorChaseCap  = 2  Auto; Engine's own default cap on pursuing NPCs following through a door in combat (raisable to 4/6/8/16); Engine's own default cap on pursuing NPCs following through a door in combat (raisable to 4/6/8/16); Engine's own default cap on pursuing NPCs following through a door in combat (raisable to 4/6/8/16); Engine's own default cap on pursuing NPCs following through a door in combat (raisable to 4/6/8/16)
+
 ; ── Internal State ─────────────────────────────────────────────────────────────
 float  _lastRealTime       = 0.0
 float  _currentInterval    = 0.15
@@ -108,6 +129,7 @@ int    _stressTicks        = 0; Consecutive ticks in stress mode; Consecutive ti
 Actor[] _lastScanResult; Cached actor scan result; Cached actor scan result; Cached actor scan result; Cached actor scan result
 float  _lastScanTime       = 0.0
 int    _activeLightCount   = 0
+bool   _activeCapWarned    = False; One-time warning latch for CheckEngineActorCaps(); One-time warning latch for CheckEngineActorCaps(); One-time warning latch for CheckEngineActorCaps(); One-time warning latch for CheckEngineActorCaps()
 
 ; System enable flags (from bridge — which systems are active)
 bool _sys_AI        = True
@@ -142,6 +164,9 @@ EndEvent
 
 Event Actor.OnCombatStateChanged(Actor akSender, Actor akTarget, Int aeCombatState)
     _playerInCombat = (aeCombatState == 1)
+    If !_playerInCombat
+        _activeCapWarned = False; Re-arm the actor-cap notice for the next encounter; Re-arm the actor-cap notice for the next encounter; Re-arm the actor-cap notice for the next encounter; Re-arm the actor-cap notice for the next encounter
+    EndIf
     UpdatePerformanceMode()
 EndEvent
 
@@ -179,6 +204,12 @@ Function DoGameTimeTick()
 
     If gPerf_LastScanCount != None
         gPerf_LastScanCount.SetValue(_lastScanResult.Length as Float)
+    EndIf
+
+    ; Warn once if a large encounter is approaching the engine's own hardcoded
+    ; actor-activity ceiling (distinct from MaxActorsPerTick — see header docs)
+    If _currentMode == 2
+        CheckEngineActorCaps()
     EndIf
 
     ; PRIORITY-BASED DISPATCH
@@ -321,6 +352,35 @@ Float Function GetCurrentScanRadius()
     EndIf
 
     Return radius
+EndFunction
+
+; ═══════════════════════════════════════════════════════════════════════════
+; ENGINE ACTOR-CAP AWARENESS
+; MaxActorsPerTick only bounds THIS mod's own scan/dispatch work — it cannot
+; raise the engine's real hardcoded actor-activity limits. This just warns
+; (once per combat encounter) when a fight is large enough that those separate
+; engine ceilings are likely the reason enemies look idle or thin out at a
+; doorway, so it doesn't get mistaken for a bug in this mod's scripts.
+; ═══════════════════════════════════════════════════════════════════════════
+Function CheckEngineActorCaps()
+    If _activeCapWarned
+        Return
+    EndIf
+
+    Int nearby = _lastScanResult.Length
+    If nearby >= VanillaActiveActorCap
+        Debug.Trace("[AAI-Perf] ACTOR_CAP_NOTICE|nearby=" + nearby + "|vanilla_active_cap=" + VanillaActiveActorCap + "|note=Fallout 4's engine only fully AI-simulates a limited number of actors at once regardless of MaxActorsPerTick; if enemies beyond this count look idle rather than fighting, raise the actual engine ini setting (see 'More Active AI'/'MORE AI MORE NPCs'-style mods), not this mod's settings.")
+        _activeCapWarned = True
+    EndIf
+EndFunction
+
+; Call when a scripted chase/retreat sends multiple combatants through an
+; exterior-to-interior transition — lets encounter design code log the same
+; class of warning for the SEPARATE, stricter interior-chase cap.
+Function NoteInteriorChaseTransition(Int pursuerCount)
+    If pursuerCount > VanillaInteriorChaseCap
+        Debug.Trace("[AAI-Perf] INTERIOR_CHASE_CAP_NOTICE|pursuers=" + pursuerCount + "|vanilla_interior_chase_cap=" + VanillaInteriorChaseCap + "|note=Only a limited number of combat pursuers follow the player through a door by default — a large exterior horde will thin out on an interior transition even with the general active-actor cap raised.")
+    EndIf
 EndFunction
 
 ; ═══════════════════════════════════════════════════════════════════════════

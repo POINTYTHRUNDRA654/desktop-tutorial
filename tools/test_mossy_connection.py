@@ -29,6 +29,15 @@ except ImportError:
     print("[mossy-test] Install with: pip install requests")
     sys.exit(1)
 
+# Windows consoles default to cp1252, which can't encode the arrows/dashes
+# used below — force utf-8 with a safe fallback so the test never crashes
+# on output instead of reporting the actual result.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # bridge_status.json is written to Data/F4AI/ next to the exe — resolve relative to repo

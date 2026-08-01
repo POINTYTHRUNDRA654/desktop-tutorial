@@ -4,7 +4,7 @@
   "speech_speed": 1.0,
   "enable_mossy_bridge": 1,
   "mossy_endpoint": "http://127.0.0.1:8765/f4ai/bridge",
-  "mossy_timeout": 20.0,
+  "mossy_timeout": 4.0,
   "enable_plugin_hooks": 0,
   "plugin_endpoints": [],
   "plugin_timeout": 3.0,
@@ -17,8 +17,15 @@
 
   "_tts_help": "TTS (text-to-speech) plays AI responses through the NPC in-game. Requires a Sound Descriptor in your ESP pointing to tts_voice_path. Set enable_tts to 1 after completing CK setup. Engines: edge-tts (needs internet + pip install edge-tts pydub) or pyttsx3 (offline + pip install pyttsx3).",
   "enable_tts": 1,
+  "_tts_pc_playback_help": "Set to 1 to also play NPC voice through your PC speakers - useful before the ESP Sound Descriptor (F4AI_VoiceSound) is set up in the CK.",
+  "tts_pc_playback": 0,
   "tts_engine": "edge-tts",
   "tts_voice": "",
   "tts_voice_path": "E:/Steam/steamapps/common/Fallout 4/Data/Sound/Voice/F4AI/npc_voice.xwm",
-  "xwmaencode_path": "E:/Steam/steamapps/common/Fallout 4/Tools/LipGen/LipGenerator/xWMAEncode.exe"
+  "xwmaencode_path": "E:/Steam/steamapps/common/Fallout 4/Tools/LipGen/LipGenerator/xWMAEncode.exe",
+
+  "_stt_help": "STT (speech-to-text) records your mic right after you press push-to-talk and transcribes it via local Whisper, so the NPC responds to what you actually said instead of a generic greeting. stt_max_seconds is how long it listens per press.",
+  "enable_stt": 1,
+  "stt_hint": "STT needs: pip install faster-whisper sounddevice numpy (start_fo4_bridge.bat installs these automatically)",
+  "stt_max_seconds": 6.0
 }

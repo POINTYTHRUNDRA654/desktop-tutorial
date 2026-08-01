@@ -31,6 +31,20 @@ from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+# Windows' default console codepage (cp1252) can't encode the arrows/em-dashes
+# used throughout this file's log messages. An UnicodeEncodeError from a plain
+# print() call inside a background thread (e.g. _handle_social_event, which
+# logs "NPC-A <-> NPC-B" before generating anything) is uncaught, kills that
+# thread silently, and the request never completes — ambient conversations in
+# particular were dying on their very first log line before any AI call ran.
+# Force UTF-8 on stdout/stderr once, here, so no print() call can ever crash
+# a request thread again.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ── Advanced AI subsystems (graceful degradation if not importable) ───────────
 _BRIDGE_DIR = Path(__file__).resolve().parent
 if str(_BRIDGE_DIR) not in sys.path:
@@ -64,6 +78,26 @@ try:
 except Exception as _se_err:
     print(f"[Bridge] settlement_evolution not available: {_se_err}")
     _SETTLEMENT_EVO_OK = False
+
+# src/ siblings — FO4 knowledge base + persistent cross-session memory store,
+# used to enrich ambient NPC-to-NPC conversations (faction voice + pair history).
+_SRC_DIR = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
+try:
+    from fo4_knowledge import get_faction_context
+    _FO4_KNOWLEDGE_OK = True
+except Exception as _fk_err:
+    print(f"[Bridge] fo4_knowledge not available: {_fk_err}")
+    _FO4_KNOWLEDGE_OK = False
+
+try:
+    from ai.memory_store import save_npc_conversation, build_npc_pair_history_string
+    _MEMORY_STORE_OK = True
+except Exception as _ms_err:
+    print(f"[Bridge] memory_store not available: {_ms_err}")
+    _MEMORY_STORE_OK = False
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
@@ -848,6 +882,10 @@ AAI_DIALOGUE_PATTERN = re.compile(
 AAI_AFFINITY_PATTERN = re.compile(
     r'AAI_AFF\|npc_id=([^|]+)\|affinity=([\d.-]+)\|emotion=(\d+)'
 )
+AAI_DRIFT_PATTERN = re.compile(
+    r'PERSONALITY_DRIFT\|npc_id=([^|]+)\|npc_name=([^|]+)\|aggr=([\d.-]+)\|'
+    r'moral=([\d.-]+)\|loyal=([\d.-]+)\|trust=([\d.-]+)\|reason=(.+)'
+)
 
 def parse_log_line(line: str):
     """Parse an [AAI] tagged log line and update status / memory."""
@@ -917,15 +955,49 @@ def parse_log_line(line: str):
         )
         return
 
+    # Parse personality drift (aggression/morality/loyalty/trust deltas) —
+    # emitted by AdvancedCompanionAI's ModTrust() and AdvancedWorldMemory's
+    # LogPersonalityDrift(); both share this one parser/format.
+    p_match = AAI_DRIFT_PATTERN.search(content)
+    if p_match:
+        from advanced_memory_systems import drift_personality  # local import avoids circular import at module load
+        drift_personality(
+            npc_id=p_match.group(1),
+            npc_name=p_match.group(2),
+            event_type="papyrus_drift",
+            delta={
+                "aggression": float(p_match.group(3)),
+                "morality": float(p_match.group(4)),
+                "loyalty": float(p_match.group(5)),
+                "trust_player": float(p_match.group(6)),
+            },
+            reason=p_match.group(7),
+        )
+        return
+
+# config.json is a static file shipped with the mod — it lives in the MO2 mod
+# folder, never in Overwrites (Overwrites only ever receives files the game
+# *process* writes at runtime, like bridge_input.json/world_state.json).
+# F4AI_DATA_DIR prioritizes Overwrites, so a single-path lookup there almost
+# never finds config.json in a real MO2 setup — every setting in it (enable_tts,
+# mossy_endpoint, ai_temperature, ...) was silently ignored in favor of whatever
+# default each cfg.get(key, default) call happened to hardcode. Check all three
+# real locations, same belt-and-suspenders pattern as _BRIDGE_INPUT_CANDIDATES.
+_CONFIG_CANDIDATES = [
+    F4AI_DATA_DIR / "config.json",
+    _MO2_MOD_F4AI / "config.json",
+    FO4_GAME_PATH / "Data" / "F4AI" / "config.json",
+]
+
 def _load_f4ai_config() -> dict:
-    """Load Data/F4AI/config.json; return {} on any error."""
-    try:
-        cfg_path = F4AI_DATA_DIR / "config.json"
-        if cfg_path.exists():
-            with open(cfg_path, encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
+    """Load config.json from the first candidate location that has it; {} on any error."""
+    for cfg_path in _CONFIG_CANDIDATES:
+        try:
+            if cfg_path.exists():
+                with open(cfg_path, encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            continue
     return {}
 
 _RACE_TO_ROLE = {
@@ -1426,18 +1498,18 @@ def _call_ollama(payload: dict, dialogue_history: list | None = None) -> dict:
     # Falls back through the list until one is installed.
     _ROLE_MODELS: dict[str, list[str]] = {
         # Companions: need consistent personality and longer context awareness
-        "companion":     ["gemma2:9b", "llama3.1:8b", "llama3:latest", "mistral:7b"],
+        "companion":     ["qwen3.5:9b", "gemma2:9b", "llama3.1:8b", "llama3:latest", "mistral:7b"],
         # Settlers / Minutemen: fast, plain Commonwealth speech
-        "settler":       ["llama3.1:8b", "llama3:latest", "gemma2:9b", "mistral:7b"],
+        "settler":       ["qwen3.5:9b", "llama3.1:8b", "llama3:latest", "gemma2:9b", "mistral:7b"],
         # Raiders and ghouls: terse, dark, menacing
-        "raider":        ["mistral:7b", "llama3.1:8b", "llama3:latest", "gemma2:9b"],
-        "ghoul":         ["mistral:7b", "llama3.1:8b", "gemma2:9b"],
+        "raider":        ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "llama3:latest", "gemma2:9b"],
+        "ghoul":         ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "gemma2:9b"],
         # Robots: mechanical, directive-following
-        "robot":         ["llama3:latest", "llama3.1:8b", "mistral:7b", "gemma2:9b"],
+        "robot":         ["qwen3.5:9b", "llama3:latest", "llama3.1:8b", "mistral:7b", "gemma2:9b"],
         # Super mutants: short, aggressive, broken syntax
-        "super mutant":  ["mistral:7b", "llama3.1:8b", "llama3:latest"],
+        "super mutant":  ["qwen3.5:9b", "mistral:7b", "llama3.1:8b", "llama3:latest"],
         # Default: best general-purpose available
-        "default":       ["llama3.1:8b", "gemma2:9b", "llama3:latest", "mistral:7b",
+        "default":       ["qwen3.5:9b", "llama3.1:8b", "gemma2:9b", "llama3:latest", "mistral:7b",
                           "phi4-mini", "phi3:mini", "llama3.2:3b", "tinyllama"],
     }
 
@@ -1599,6 +1671,80 @@ def _get_npc_text_out_paths(npc_form_id: str) -> list:
     ]
 
 # ─────────────────────────────────────────────────────────────────────────────
+# STT — speech-to-text microphone capture for push-to-talk
+# ─────────────────────────────────────────────────────────────────────────────
+# Papyrus (F4AI_PushToTalkTrigger) always sends player_speech="" — it fires the
+# request the instant the button is pressed and relies on the bridge to fill in
+# what the player actually said. Uses sounddevice (not speech_recognition's
+# Microphone, which requires PyAudio/PortAudio headers that don't have a
+# prebuilt wheel for this Python version) + faster-whisper, both already
+# installed. Fully best-effort: any missing dependency or mic error just
+# returns "" and the caller falls back to the existing default-greeting path.
+
+_stt_lock = threading.Lock()
+_whisper_model = None  # False sentinel = load attempted and failed, don't retry every call
+
+def _load_whisper_model():
+    global _whisper_model
+    if _whisper_model is not None:
+        return _whisper_model
+    with _stt_lock:
+        if _whisper_model is not None:
+            return _whisper_model
+        try:
+            from faster_whisper import WhisperModel
+            print("[Bridge/STT] Loading Faster-Whisper model (base.en)...")
+            _whisper_model = WhisperModel("base.en", device="cpu", compute_type="int8")
+            print("[Bridge/STT] Whisper model ready.")
+        except Exception as exc:
+            print(f"[Bridge/STT] Whisper unavailable: {exc}")
+            _whisper_model = False
+    return _whisper_model
+
+
+def _record_player_speech(max_seconds: float = 6.0) -> str:
+    """Record from the default mic and transcribe. Returns "" on any failure."""
+    model = _load_whisper_model()
+    if not model:
+        return ""
+    try:
+        import sounddevice as sd
+        import numpy as np
+
+        sample_rate = 16000
+        print(f"[Bridge/STT] Listening for up to {max_seconds:.0f}s...")
+        with _stt_lock:
+            recording = sd.rec(int(max_seconds * sample_rate), samplerate=sample_rate,
+                                channels=1, dtype="int16")
+            sd.wait()
+
+        audio = recording.flatten()
+        # Noise gate — zero low-energy noise, clamp spikes (same thresholds as src/stt.py)
+        noise_floor = 500
+        audio[np.abs(audio) < noise_floor] = 0
+        audio = np.clip(audio, -28000, 28000)
+
+        if not np.any(np.abs(audio) > noise_floor):
+            print("[Bridge/STT] No speech detected (silence).")
+            return ""
+
+        audio_float = audio.astype(np.float32) / 32768.0
+        # vad_filter strips leading/trailing silence and background noise before
+        # transcribing — without it, Whisper tends to hallucinate a stray word
+        # (e.g. "electricity") from the quiet padding before the player starts talking.
+        segments, _ = model.transcribe(audio_float, beam_size=3, language="en", vad_filter=True)
+        text = " ".join(seg.text for seg in segments).strip()
+        if text:
+            print(f"[Bridge/STT] Transcribed: {text!r}")
+        else:
+            print("[Bridge/STT] Whisper returned no text.")
+        return text
+    except Exception as exc:
+        print(f"[Bridge/STT] Recording/transcription error: {exc}")
+        return ""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # TTS — text-to-speech WAV generation for NPC voice
 # ─────────────────────────────────────────────────────────────────────────────
 # To enable:
@@ -1609,7 +1755,7 @@ def _get_npc_text_out_paths(npc_form_id: str) -> list:
 
 def _get_tts_wav_path() -> Path | None:
     """Return the WAV output path from config, or None when TTS is disabled."""
-    cfg = _load_config()
+    cfg = _load_f4ai_config()
     if not cfg.get("enable_tts", 0):
         return None
     raw = cfg.get("tts_voice_path", "").strip()
@@ -1618,6 +1764,8 @@ def _get_tts_wav_path() -> Path | None:
         return FO4_GAME_PATH / "Data" / "Sound" / "Voice" / "F4AI" / "npc_voice.wav"
     return Path(raw)
 
+
+_tts_lock = threading.Lock()
 
 def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
     """Generate a WAV file from *text* and overwrite the TTS voice path.
@@ -1628,12 +1776,21 @@ def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
       2. pyttsx3   — offline Windows SAPI5, robotic but zero-dependency
                      requires: pip install pyttsx3
     Returns True if the WAV was written successfully.
+
+    voice_path is a single fixed file shared by every NPC (one Sound
+    Descriptor in the ESP). _tts_lock serializes generation so two NPCs
+    answering at the same time can't interleave writes into it.
     """
+    with _tts_lock:
+        return _generate_tts_wav_locked(text, npc_race)
+
+
+def _generate_tts_wav_locked(text: str, npc_race: str) -> bool:
     voice_path = _get_tts_wav_path()
     if voice_path is None:
         return False
 
-    cfg = _load_config()
+    cfg = _load_f4ai_config()
     engine_pref = cfg.get("tts_engine", "edge-tts").lower()
 
     # Voice selection for edge-tts — choose based on NPC race for flavour
@@ -1695,26 +1852,40 @@ def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
 
             tmp_mp3 = asyncio.run(_edge_run())
 
-            # Convert MP3 → 16-bit PCM WAV (FO4-compatible)
-            converted = False
-            try:
-                from pydub import AudioSegment  # pip install pydub
-                audio = AudioSegment.from_mp3(str(tmp_mp3))
-                audio = audio.set_channels(1).set_frame_rate(44100).set_sample_width(2)
-                audio.export(str(wav_path), format="wav")
-                converted = True
-            except ImportError:
-                pass
+            # Convert MP3 → 16-bit PCM WAV (FO4-compatible).
+            # Prefer invoking ffmpeg directly: pydub's from_mp3() also shells
+            # out to ffprobe for media-info probing, and FO4 only bundles
+            # ffmpeg.exe (no ffprobe.exe) alongside its LipGen tools, so the
+            # pydub path fails on a machine with no system-wide ffmpeg install.
+            import shutil
+            ffmpeg_exe = shutil.which("ffmpeg")
+            if not ffmpeg_exe:
+                bundled_ffmpeg = FO4_GAME_PATH / "Tools" / "LipGen" / "LipGenerator" / "ffmpeg.exe"
+                if bundled_ffmpeg.exists():
+                    ffmpeg_exe = str(bundled_ffmpeg)
 
-            if not converted:
+            converted = False
+            if ffmpeg_exe:
                 try:
                     result = subprocess.run(
-                        ["ffmpeg", "-y", "-i", str(tmp_mp3),
+                        [ffmpeg_exe, "-y", "-i", str(tmp_mp3),
                          "-ar", "44100", "-ac", "1", "-sample_fmt", "s16",
                          str(wav_path)],
                         capture_output=True, timeout=15,
                     )
                     converted = result.returncode == 0
+                except Exception:
+                    pass
+
+            if not converted:
+                try:
+                    from pydub import AudioSegment  # pip install pydub
+                    if ffmpeg_exe:
+                        AudioSegment.converter = ffmpeg_exe
+                    audio = AudioSegment.from_mp3(str(tmp_mp3))
+                    audio = audio.set_channels(1).set_frame_rate(44100).set_sample_width(2)
+                    audio.export(str(wav_path), format="wav")
+                    converted = True
                 except Exception:
                     pass
 
@@ -1750,6 +1921,22 @@ def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
         print(f"[Bridge/TTS] pyttsx3 error: {exc}")
 
     return False
+
+
+def _play_voice_on_pc():
+    """Play the last generated TTS WAV through the default Windows audio device."""
+    vp = _get_tts_wav_path()
+    if vp is None:
+        return
+    wav = vp.with_suffix(".wav") if vp.suffix.lower() == ".xwm" else vp
+    if not wav.exists():
+        return
+    try:
+        import winsound
+        winsound.PlaySound(str(wav), winsound.SND_FILENAME | winsound.SND_ASYNC)
+        print(f"[Bridge/TTS] PC playback: {wav.name}")
+    except Exception as exc:
+        print(f"[Bridge/TTS] PC playback failed: {exc}")
 
 
 def _write_npc_text_out(text: str, npc_form_id: str):
@@ -1809,12 +1996,33 @@ def _handle_npc_request(found_path: Path):
     # Expose formID to AI calls (persona lookup)
     payload["npc_form_id"] = npc_form_id
 
+    # Papyrus polls for 60s total (300×0.2s). STT recording, AI generation, and
+    # TTS generation all now happen in this one request, and none of them knew
+    # about the other two — a slow-but-real response (full 6s recording + a
+    # near-deadline AI call + a slow edge-tts round trip) could add up to well
+    # over 60s, so text_out never gets written before Papyrus gives up and the
+    # NPC just never answers. Track one wall-clock deadline for the whole
+    # request and let each stage spend only what's left of it.
+    _request_start      = time.monotonic()
+    _REQUEST_DEADLINE_S  = 55.0  # 5s margin under Papyrus's 60s poll ceiling
+
     player_speech_raw = payload.get("player_speech", "")
+
+    # Papyrus always sends "" here — it fires the request the instant the
+    # button is pressed. If STT is enabled, this is the actual moment to
+    # listen: record the player's line now, before generating anything.
+    if not player_speech_raw:
+        cfg = _load_f4ai_config()
+        if cfg.get("enable_stt", 1):
+            player_speech_raw = _record_player_speech(
+                max_seconds=float(cfg.get("stt_max_seconds", 6.0))
+            )
+
     player_speech     = player_speech_raw or "Hello."
 
     # ── Generate AI response (Mossy → Ollama → KoboldCPP → fallback) ────────
-    # Hard 50-second deadline: Papyrus polls for 60s (300×0.2s), so we must
-    # write the response file before that window closes regardless of AI speed.
+    # Whatever's left of the request deadline after STT, minus a small reserve
+    # for the TTS step and the final file write below.
     response_text = "I'm having trouble thinking right now. Try again in a moment."
     _ai_result    = [response_text]
 
@@ -1861,25 +2069,58 @@ def _handle_npc_request(found_path: Path):
         except Exception as exc:
             print(f"[Bridge] AI generation error: {exc}")
 
+    _ai_timeout = max(5.0, _REQUEST_DEADLINE_S - (time.monotonic() - _request_start) - 3.0)
     ai_thread = threading.Thread(target=_run_ai_chain, daemon=True)
     ai_thread.start()
-    ai_thread.join(timeout=50)
+    ai_thread.join(timeout=_ai_timeout)
     if ai_thread.is_alive():
-        print(f"[Bridge] AI chain hit 50s deadline for {npc_name_str} — using fallback")
+        print(f"[Bridge] AI chain hit {_ai_timeout:.0f}s deadline for {npc_name_str} — using fallback")
     response_text = _ai_result[0]
 
-    # ── Write response FIRST — SQLite errors must never block this ────────────
+    # ── TTS audio FIRST — Papyrus plays F4AI_VoiceSound the instant it sees
+    # new text_out content, and that sound always points at the same shared
+    # voice_path (config tts_voice_path). If text_out is written before the
+    # WAV/XWM is fully on disk, Papyrus plays a stale (previous line's) or
+    # partially-written (corrupted/garbled) audio file. Generating TTS before
+    # writing text_out — serialized via _tts_lock so two NPCs answering at
+    # once can't interleave writes to that same shared file — keeps audio
+    # and subtitle in sync. _generate_tts_wav is best-effort and non-fatal.
+    #
+    # It only gets whatever's left of the request deadline, though: an NPC
+    # that never answers at all (because a slow edge-tts network round trip
+    # ran the whole request past Papyrus's 60s poll window) is worse than one
+    # that answers with text a beat before its own audio catches up. If the
+    # budget's already gone, skip TTS this turn rather than risk the response
+    # never being written — the previous line's WAV stays on disk unplayed
+    # rather than blocking the text that matters.
+    npc_race_str = payload.get("npc_race", "human")
+    _tts_budget = _REQUEST_DEADLINE_S - (time.monotonic() - _request_start)
+
+    def _run_tts():
+        try:
+            tts_written = _generate_tts_wav(response_text, npc_race_str)
+            # Optional fallback: play the voice through the PC's default audio
+            # device. Lets you HEAR the NPC even before the ESP Sound Descriptor
+            # (F4AI_VoiceSound) is set up in the CK. Set "tts_pc_playback": 1.
+            if tts_written and _is_truthy(_load_f4ai_config().get("tts_pc_playback", 0)):
+                _play_voice_on_pc()
+        except Exception as exc:
+            print(f"[Bridge] TTS error (non-fatal, text still delivered): {exc}")
+
+    if _tts_budget > 1.0:
+        tts_thread = threading.Thread(target=_run_tts, daemon=True)
+        tts_thread.start()
+        tts_thread.join(timeout=_tts_budget)
+        if tts_thread.is_alive():
+            print(f"[Bridge] TTS still running after {_tts_budget:.1f}s budget — "
+                  f"writing response now, audio will follow once it finishes")
+    else:
+        print("[Bridge] Skipping TTS — no time left in response deadline")
+
+    # ── Write response — SQLite errors must never block this ─────────────────
     _write_npc_text_out(response_text, npc_form_id)
     # Note: legacy _write_text_out() intentionally omitted here — per-NPC file
     # is sufficient and writing the legacy path causes stale reads on the next request.
-
-    # ── TTS audio (non-blocking — generated in parallel with memory writes) ───
-    npc_race_str = payload.get("npc_race", "human")
-    threading.Thread(
-        target=_generate_tts_wav,
-        args=(response_text, npc_race_str),
-        daemon=True,
-    ).start()
 
     # ── Persist to memory DB (best-effort, non-blocking) ─────────────────────
     try:
@@ -2002,6 +2243,8 @@ def _handle_social_event(path: Path):
     name_b, id_b = npc_b.get("name", "Settler"), npc_b.get("id", "0")
     race_a  = npc_a.get("race", "Human")
     race_b  = npc_b.get("race", "Human")
+    faction_a = npc_a.get("faction", "")
+    faction_b = npc_b.get("faction", "")
     location    = data.get("location", "The Commonwealth")
     rel_score   = float(data.get("relationship", 0.0))
     rel_label   = data.get("relationship_label", "neutral")
@@ -2041,6 +2284,22 @@ def _handle_social_event(path: Path):
         ctx_parts.append(f"Weather: {weather}.")
     ctx_parts.append(f"Relationship with {name_b}: {rel_label}.")
     ctx_parts.append(f"Talking about: {topic}.")
+
+    # Faction voice — how each NPC's affiliation should color their tone/vocabulary
+    if _FO4_KNOWLEDGE_OK and faction_a:
+        ctx_parts.append(get_faction_context(faction_a))
+
+    # Pair history — persistent, cross-session memory of what these two have
+    # said to each other before, so ambient chatter doesn't repeat itself or
+    # start from zero every time the pair happens to stand near each other.
+    if _MEMORY_STORE_OK:
+        try:
+            pair_history = build_npc_pair_history_string(name_a, name_b, limit=2)
+            if pair_history and pair_history != "These two have never spoken before.":
+                ctx_parts.append(pair_history)
+        except Exception as exc:
+            print(f"[Bridge] Pair history lookup failed (non-fatal): {exc}")
+
     context = " ".join(ctx_parts)
 
     # Load each NPC's history from SQLite
@@ -2053,10 +2312,27 @@ def _handle_social_event(path: Path):
         print(f"[Bridge] Social — no AI response for {name_a}, skipping")
         return
 
-    # Generate NPC-B's reply, with A's line as context
+    # Generate NPC-B's reply, with A's line as context (and B's own faction voice)
     ctx_b = context + f" {name_a} just said: \"{line_a}\""
+    if _FO4_KNOWLEDGE_OK and faction_b:
+        ctx_b += f" {get_faction_context(faction_b)}"
     history_b_ctx = history_b + [{"speaker": "npc_other", "line": line_a}]
     line_b = _generate_npc_line(name_b, id_b, race_b, name_a, ctx_b, history_b_ctx, "Respond naturally.") or "..."
+
+    # Persist this exchange to the pair-history store for future lookups above
+    if _MEMORY_STORE_OK:
+        try:
+            save_npc_conversation(
+                npc_a_id=id_a, npc_a_name=name_a,
+                npc_b_id=id_b, npc_b_name=name_b,
+                location=location, topic=topic,
+                lines=[
+                    {"speaker": name_a, "text": line_a},
+                    {"speaker": name_b, "text": line_b},
+                ],
+            )
+        except Exception as exc:
+            print(f"[Bridge] Pair history save failed (non-fatal): {exc}")
 
     # Write social_directive.json for NPCDirector to consume on next cycle
     directive = {
@@ -3098,7 +3374,7 @@ def _prewarm_ollama():
         if not r.ok:
             return
         available = [m["name"] for m in r.json().get("models", [])]
-        preferred = ["llama3.1:8b", "llama3:8b", "mistral:7b", "gemma2:9b", "llama3:latest"]
+        preferred = ["qwen3.5:9b", "llama3.1:8b", "llama3:8b", "mistral:7b", "gemma2:9b", "llama3:latest"]
         model = next((p for p in preferred if any(p in a for a in available)), None)
         if not model:
             return
@@ -3121,12 +3397,78 @@ def _preload_llm_background():
     print("[Bridge/LLM] Pre-loading TinyLlama in background…")
     _load_llm()   # populates the _llm cache; subsequent calls return instantly
 
+def _print_pipeline_selfcheck():
+    """Print a PASS/FAIL report for every link in the voice pipeline so
+    problems (generic replies, silent NPCs) are diagnosable at a glance."""
+    cfg = _load_f4ai_config()
+    print("-" * 60)
+    print("  Voice pipeline self-check")
+    print("-" * 60)
+
+    cfg_found = next((str(c) for c in _CONFIG_CANDIDATES if c.exists()), None)
+    print(f"  config.json          : {cfg_found or 'NOT FOUND — using defaults'}")
+    print(f"  enable_stt           : {cfg.get('enable_stt', 1)}")
+    print(f"  enable_tts           : {cfg.get('enable_tts', 0)}")
+
+    # STT — without this, every NPC reply answers a generic 'Hello.'
+    try:
+        import faster_whisper  # noqa: F401
+        print("  STT faster-whisper   : OK")
+    except Exception:
+        print("  STT faster-whisper   : MISSING -> generic replies! pip install faster-whisper")
+    try:
+        import sounddevice as _sd
+        dev = _sd.query_devices(kind="input")
+        print(f"  STT microphone       : OK ({dev['name']})")
+    except Exception as exc:
+        print(f"  STT mic/sounddevice  : MISSING/NO MIC -> generic replies! ({exc})")
+
+    # TTS — without this, no voice audio is generated
+    tts_ok = False
+    try:
+        import edge_tts  # noqa: F401
+        import pydub     # noqa: F401
+        print("  TTS edge-tts+pydub   : OK (neural voices, needs internet)")
+        tts_ok = True
+    except Exception:
+        print("  TTS edge-tts+pydub   : missing (pip install edge-tts pydub)")
+    try:
+        import pyttsx3  # noqa: F401
+        print("  TTS pyttsx3 fallback : OK (offline)")
+        tts_ok = True
+    except Exception:
+        print("  TTS pyttsx3 fallback : missing (pip install pyttsx3)")
+    if not tts_ok:
+        print("  TTS                  : NO ENGINE -> NPCs will be silent!")
+
+    vp = _get_tts_wav_path()
+    if vp is None:
+        print("  TTS voice path       : disabled (enable_tts = 0)")
+    else:
+        print(f"  TTS voice path       : {vp}")
+        if vp.suffix.lower() == ".xwm":
+            xwma = (cfg.get("xwmaencode_path", "") or "").strip() or                    str(FO4_GAME_PATH / "Tools" / "LipGen" / "LipGenerator" / "xWMAEncode.exe")
+            state = "OK" if Path(xwma).exists() else "MISSING -> falls back to WAV"
+            print(f"  xWMAEncode           : {state} ({xwma})")
+    print("  NOTE: in-game playback also requires the ESP Sound Descriptor")
+    print("        (F4AI_VoiceSound) pointing at the voice path above, filled")
+    print("        on the push-to-talk alias in the Creation Kit.")
+    if _is_truthy(cfg.get("tts_pc_playback", 0)):
+        print("  PC speaker fallback  : ON (plays voice through Windows audio)")
+    print("-" * 60)
+
+
+def _is_truthy(v) -> bool:
+    return str(v).strip().lower() in ("1", "true", "yes", "on")
+
+
 def main():
     print("=" * 60)
     print(f"  Mossy FO4 Advanced AI Bridge v{BRIDGE_VERSION}")
     print("=" * 60)
     print(f"[Bridge] Read  (bridge_input): {F4AI_DATA_DIR}")
     print(f"[Bridge] Write (text_out)    : {_F4AI_WRITE_DIR}")
+    _print_pipeline_selfcheck()
 
     # Init memory database
     init_memory_db()

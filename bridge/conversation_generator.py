@@ -48,11 +48,14 @@ from ai.memory_store import (  # noqa: E402
 # ─────────────────────────────────────────────────────────────────────────────
 
 DOCUMENTS_PATH     = Path(os.path.expandvars(r"%USERPROFILE%\Documents\My Games\Fallout4"))
-MEMORY_DB_PATH     = DOCUMENTS_PATH / "AdvancedAI_Memory.db"
+# Same DB the rest of the bridge uses (H:\Mossy Memory when present) — this used
+# to hardcode the Documents path, a file that never existed, so every query here
+# ran against an empty, disconnected database.
+from ai.memory_store import DB_PATH as MEMORY_DB_PATH  # noqa: E402
 CONVERSATION_FILE  = DOCUMENTS_PATH / "AdvancedAI_Conversations.json"
 
 OLLAMA_URL         = "http://localhost:11434/api/generate"
-OLLAMA_MODEL       = "gemma3:4b"   # Best balance of speed/quality
+OLLAMA_MODEL       = "llama3.1:8b"   # matches the model actually installed/pulled for this rig
 GEMINI_MODEL       = "gemini-2.0-flash"
 
 # Location type flavors — shapes the conversation topic pool
@@ -120,14 +123,19 @@ def select_npc_pairs(npcs: list[dict], max_pairs: int = 3) -> list[tuple]:
             if len(pairs) >= max_pairs:
                 break
 
-            # Check if they've been in the same location before
-            c.execute("""
-                SELECT COUNT(*) FROM location_knowledge
-                WHERE npc_id IN (?,?) AND location_name = ?
-                GROUP BY location_name HAVING COUNT(DISTINCT npc_id) = 2
-            """, (npc_a["npc_id"], npc_b["npc_id"],
-                  npc_a.get("current_location", "")))
-            known = c.fetchone()
+            # Check if they've been in the same location before. location_knowledge
+            # is only created by advanced_memory_systems.py, which nothing in the
+            # live bridge initializes — don't let a missing table kill pairing.
+            try:
+                c.execute("""
+                    SELECT COUNT(*) FROM location_knowledge
+                    WHERE npc_id IN (?,?) AND location_name = ?
+                    GROUP BY location_name HAVING COUNT(DISTINCT npc_id) = 2
+                """, (npc_a["npc_id"], npc_b["npc_id"],
+                      npc_a.get("current_location", "")))
+                known = c.fetchone()
+            except sqlite3.OperationalError:
+                known = None
 
             # Pair them (prefer known pairs, but take any if needed)
             pairs.append((npc_a, npc_b))

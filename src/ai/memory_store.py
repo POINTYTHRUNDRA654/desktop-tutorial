@@ -223,6 +223,12 @@ def save_npc_conversation(
     lines: list[dict],
 ) -> None:
     """Persist an NPC-to-NPC conversation so NPCs can reference past interactions."""
+    # load_npc_conversations()/build_npc_pair_history_string() always derive their
+    # lookup key from npc_*_name (lowercased, spaces->underscores) — never trust the
+    # caller's raw npc_*_id here, or a caller passing e.g. a formID silently breaks
+    # every future lookup for this pair (rows get saved but can never be found).
+    npc_a_id = npc_a_name.lower().replace(" ", "_")
+    npc_b_id = npc_b_name.lower().replace(" ", "_")
     # Normalize pair order for consistent lookup
     if npc_a_id > npc_b_id:
         npc_a_id, npc_a_name, npc_b_id, npc_b_name = npc_b_id, npc_b_name, npc_a_id, npc_a_name

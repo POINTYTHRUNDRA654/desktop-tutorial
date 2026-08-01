@@ -5,7 +5,10 @@
 ; Features:
 ;   - Persistent conversation memory (remembers player actions & talks)
 ;   - Context-aware reactive dialogue
-;   - Enhanced affinity system
+;   - Two-axis relationship model: Affinity (do they like you?) tracked
+;     separately from Trust (do they rely on you?) — a companion can like
+;     the player but still be wary, or trust the player's judgement without
+;     being personally fond of them. See GetRelationshipQuadrant() below.
 ;   - Combat awareness improvements
 ;   - Real-personality emotional state tracking
 ;
@@ -41,6 +44,18 @@ float Property AffinityDislike = -250.0 Auto
 float Property AffinityLoathe  = -750.0 Auto
 float Property AffinityIdolize =  750.0 Auto
 
+; ── Trust Properties (second relationship axis, -1.0 to 1.0) ─────────────────
+; Distinct from Affinity: built by reliability/shared hardship, not likability.
+float Property TrustHigh = 0.6  Auto
+float Property TrustLow  = -0.6 Auto
+
+; ── Relationship Quadrant Codes (combine Affinity + Trust) ────────────────────
+int Property QUADRANT_DEVOTED           = 0 Auto Const; High trust, high affinity; High trust, high affinity; High trust, high affinity; High trust, high affinity
+int Property QUADRANT_CHARMED_WARY      = 1 Auto Const; Low trust, high affinity; Low trust, high affinity; Low trust, high affinity; Low trust, high affinity
+int Property QUADRANT_RESPECTED_DISTANT = 2 Auto Const; High trust, low affinity; High trust, low affinity; High trust, low affinity; High trust, low affinity
+int Property QUADRANT_ESTRANGED         = 3 Auto Const; Low trust, low affinity; Low trust, low affinity; Low trust, low affinity; Low trust, low affinity
+int Property QUADRANT_NEUTRAL           = 4 Auto Const; Not yet decisively formed; Not yet decisively formed; Not yet decisively formed; Not yet decisively formed
+
 ; ── Personality Properties ────────────────────────────────────────────────────
 ; These define how this specific companion reacts — set per-companion in CK
 float Property PersonalityAggression  = 0.3  Auto; 0-1; 0-1; 0-1; 0-1
@@ -67,7 +82,9 @@ int Property MEM_PLAYER_LEVEL_UP = 10 Auto Const
 
 ; ── State ─────────────────────────────────────────────────────────────────────
 Actor _actor
+String _npcId; ActorBase FormID as string — matches the npc_id format the Mossy bridge expects; ActorBase FormID as string — matches the npc_id format the Mossy bridge expects; ActorBase FormID as string — matches the npc_id format the Mossy bridge expects; ActorBase FormID as string — matches the npc_id format the Mossy bridge expects
 float _curAffinity
+float _curTrust; Second relationship axis, -1.0 to 1.0; Second relationship axis, -1.0 to 1.0; Second relationship axis, -1.0 to 1.0; Second relationship axis, -1.0 to 1.0
 int   _emotionState; 0=neutral 1=happy 2=concerned 3=angry
 
 ; ════════════════════════════════════════════════════════════════════════════
@@ -76,6 +93,8 @@ Event OnAliasInit()
     If _actor == None
         Return
     EndIf
+
+    _npcId = "" + _actor.GetActorBase().GetFormID()
 
     ; Restore affinity from global
     If gAffinity != None
@@ -142,7 +161,10 @@ Function RecordMemory(Int memCode)
         gLastSeen.SetValue(Utility.GetCurrentGameTime())
     EndIf
 
-    Debug.Trace("[AAI-Companion] Memory recorded: " + memCode + " for " + _actor.GetDisplayName())
+    ; Machine-parseable line the Mossy bridge's AAI_MEMORY_PATTERN listens for
+    ; (previously this only wrote a human-readable trace, so companion memories
+    ; never actually reached the bridge/Knowledge Vault — see AAI_MEM below)
+    Debug.Trace("[AAI] AAI_MEM|npc_id=" + _npcId + "|npc_name=" + _actor.GetDisplayName() + "|event=" + memCode + "|detail=" + GetMemoryDescription(memCode) + "|time=" + Utility.GetCurrentGameTime())
 EndFunction
 
 ; ════════════════════════════════════════════════════════════════════════════
@@ -288,6 +310,10 @@ Function ModAffinity(Float delta)
     ; Sync to ActorValue mood
     ApplyPersonalityAV()
     Debug.Trace("[AAI-Companion] Affinity: " + _curAffinity + " | Emotion: " + _emotionState)
+    ; Machine-parseable line the Mossy bridge's AAI_AFFINITY_PATTERN listens for
+    ; (previously this only wrote the human-readable trace above, so affinity
+    ; never actually synced to the bridge/Knowledge Vault database)
+    Debug.Trace("[AAI] AAI_AFF|npc_id=" + _npcId + "|affinity=" + _curAffinity + "|emotion=" + _emotionState)
 EndFunction
 
 Float Function GetAffinity()
@@ -299,6 +325,69 @@ Int Function GetEmotionState()
 EndFunction
 
 ; ════════════════════════════════════════════════════════════════════════════
+; TRUST — SECOND RELATIONSHIP AXIS
+; Distinct from Affinity: Affinity is "do they like you," Trust is "do they
+; rely on you." A companion can like the player yet still be wary (low trust,
+; high affinity) or respect the player's judgement without being personally
+; fond of them (high trust, low affinity) — see GetRelationshipQuadrant().
+; ════════════════════════════════════════════════════════════════════════════
+Function ModTrust(Float delta, String reason = "unspecified")
+    _curTrust = Math.Clamp(_curTrust + delta, -1.0, 1.0)
+
+    Debug.Trace("[AAI-Companion] Trust: " + _curTrust + " | Reason: " + reason)
+    ; Feeds the bridge's existing npc_personality.trust_player column via
+    ; drift_personality() — same PERSONALITY_DRIFT line format AdvancedWorldMemory
+    ; already emits, so both scripts share one bridge-side parser.
+    Debug.Trace("[AAI] PERSONALITY_DRIFT|npc_id=" + _npcId + "|npc_name=" + _actor.GetDisplayName() + "|aggr=0.0|moral=0.0|loyal=0.0|trust=" + delta + "|reason=" + reason)
+EndFunction
+
+Float Function GetTrust()
+    Return _curTrust
+EndFunction
+
+; PUBLIC API — lets other mods/quest scripts safely modify trust, mirroring ExternalAffinityMod
+Function ExternalTrustMod(Float delta, Bool fromModder)
+    ModTrust(delta, "external_mod")
+    If fromModder
+        Debug.Trace("[AAI] ExternalTrustMod|delta=" + delta)
+    EndIf
+EndFunction
+
+; Combines Affinity + Trust into one of five relationship states
+Int Function GetRelationshipQuadrant()
+    Bool highTrust = _curTrust   >= TrustHigh
+    Bool lowTrust   = _curTrust   <= TrustLow
+    Bool highAff    = _curAffinity >= AffinityLike
+    Bool lowAff     = _curAffinity <= AffinityDislike
+
+    If highTrust && highAff
+        Return QUADRANT_DEVOTED
+    ElseIf lowTrust && highAff
+        Return QUADRANT_CHARMED_WARY
+    ElseIf highTrust && lowAff
+        Return QUADRANT_RESPECTED_DISTANT
+    ElseIf lowTrust && lowAff
+        Return QUADRANT_ESTRANGED
+    EndIf
+    Return QUADRANT_NEUTRAL
+EndFunction
+
+; Human-readable description for dialogue writers / MCM display
+String Function GetRelationshipDescription()
+    Int q = GetRelationshipQuadrant()
+    If q == QUADRANT_DEVOTED
+        Return "Devoted — trusts you completely and genuinely likes you"
+    ElseIf q == QUADRANT_CHARMED_WARY
+        Return "Charmed but wary — enjoys your company but hasn't fully let their guard down"
+    ElseIf q == QUADRANT_RESPECTED_DISTANT
+        Return "Respected but distant — relies on your judgement but isn't personally fond of you"
+    ElseIf q == QUADRANT_ESTRANGED
+        Return "Estranged — neither trusts nor particularly likes you right now"
+    EndIf
+    Return "Neutral — still forming an opinion of you"
+EndFunction
+
+; ════════════════════════════════════════════════════════════════════════════
 ; COMBAT
 ; ════════════════════════════════════════════════════════════════════════════
 Event Actor.OnCombatStateChanged(Actor akSender, Actor akTarget, Int aeCombatState)
@@ -306,6 +395,7 @@ Event Actor.OnCombatStateChanged(Actor akSender, Actor akTarget, Int aeCombatSta
         ; Record that we survived a fight together
         RecordMemory(MEM_SURVIVED_FIGHT)
         ModAffinity(5.0); Small bond from fighting together; Small bond from fighting together; Small bond from fighting together; Small bond from fighting together
+        ModTrust(0.03, "survived_combat_together"); Trust grows from proven reliability under fire, distinct from simple fondness; Trust grows from proven reliability under fire, distinct from simple fondness; Trust grows from proven reliability under fire, distinct from simple fondness; Trust grows from proven reliability under fire, distinct from simple fondness
     EndIf
 EndEvent
 
