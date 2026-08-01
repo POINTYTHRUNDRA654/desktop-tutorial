@@ -91,8 +91,14 @@ Function ScanForSocialOpportunities(Int myGen)
         Actor npc = refs[i] as Actor
         if (npc != None && !npc.IsDead() && npc != player)
             if (!npc.IsInCombat() && !npc.IsInScene() && IsHumanoid(npc))
-                candidates[candidateCount] = npc
-                candidateCount += 1
+                ; Plenty of background actors (guards, leveled settlers) ship with
+                ; a deliberately blank Name field on their base record — pairing
+                ; one into an ambient conversation produces a nameless line like
+                ; "Cricket <-> " with nobody to attribute the other half to.
+                if (npc.GetActorBase().GetName() != "")
+                    candidates[candidateCount] = npc
+                    candidateCount += 1
+                endif
             endif
         endif
         i += 1
