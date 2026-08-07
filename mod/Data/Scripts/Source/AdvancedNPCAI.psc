@@ -27,11 +27,37 @@ MiscObject Property itemPsycho     Auto
 MiscObject Property itemMedX       Auto
 MiscObject Property itemJet        Auto
 
+; ── Fire discipline ───────────────────────────────────────────────────────────
+; Rotates which squad members are actively engaging so the whole squad doesn't
+; dump mags simultaneously — conserves ammo and doesn't reveal full squad size
+; on first contact. Approximated via the Aggression AV (Unaggressive members
+; still track the target, take cover, and react to being hit via the vanilla
+; combat AI — they just don't press the attack) since Papyrus has no per-shot
+; control over burst timing; real rate-of-fire tuning lives in CombatStyle
+; records in the CK. All squad members compute their rotation slot from the
+; shared game clock, so no leader coordination is needed.
+bool  Property UsesFireDiscipline   = False  Auto; Gunners rotate who's actively firing; Gunners rotate who's actively firing; Gunners rotate who's actively firing; Gunners rotate who's actively firing
+Int   Property FireDisciplineGroups = 3      Auto; rotating "who's shooting right now" groups
+Float Property FireWindowSeconds    = 4.0    Auto; seconds each group holds the floor
+Float Property FireCheckInterval    = 1.0    Auto; how often to re-check whose turn it is
+
+; ── Urgent aid ────────────────────────────────────────────────────────────────
+; Regular (non-Essential) actors just die at 0 HP — Fallout 4 has no
+; downed-but-alive state to "revive" rank-and-file Gunners into. This
+; approximates "immediate medical attention" as preventative: the moment a
+; squad member drops below CriticalHealthThreshold, they immediately call the
+; nearest medic-tagged ally to heal them — not the medic's own ~30s ambient
+; sweep below, which could arrive too late.
+Float Property CriticalHealthThreshold = 0.3    Auto
+Float Property MedicCallRadius         = 1200.0 Auto
+
 ; ── State ─────────────────────────────────────────────────────────────────────
 bool  _moraleBroken
 bool  _tacticsApplied
+bool  _calledForMedic
 Actor _actor
 float _lastMedicCheck
+Int   _fireGen; incremented each combat start to kill stale fire-discipline loops
 
 ; ════════════════════════════════════════════════════════════════════════════
 Event OnAliasInit()
@@ -59,6 +85,7 @@ Event Actor.OnCombatStateChanged(Actor akSender, Actor akTarget, Int aeCombatSta
     If aeCombatState == 1; Entering combat; Entering combat; Entering combat; Entering combat
         _moraleBroken   = False
         _tacticsApplied = False
+        _calledForMedic = False
         OnCombatStart(akSender.GetCombatTarget() as Actor)
     ElseIf aeCombatState == 0
         OnCombatEnd()
@@ -76,6 +103,11 @@ Function OnCombatStart(Actor akTarget)
         ConsiderDrugs()
     EndIf
 
+    If UsesFireDiscipline
+        _fireGen += 1
+        ApplyFireDiscipline(_fireGen); runs (and Utility.Waits) for the rest of this combat, same pattern as the monitor loops elsewhere in this codebase
+    EndIf
+
     _actor.EvaluatePackage()
     Debug.Trace("[AAI-NPC] Combat started: " + _actor.GetDisplayName())
 EndFunction
@@ -83,7 +115,42 @@ EndFunction
 Function OnCombatEnd()
     _moraleBroken   = False
     _tacticsApplied = False
+    _calledForMedic = False
+    _fireGen += 1; signal any running fire-discipline loop to stop and restore normal aggression
     Debug.Trace("[AAI-NPC] Combat ended: " + _actor.GetDisplayName())
+EndFunction
+
+; ════════════════════════════════════════════════════════════════════════════
+; FIRE DISCIPLINE
+; ════════════════════════════════════════════════════════════════════════════
+Function ApplyFireDiscipline(Int myGen)
+    ActorValue avAggr = Game.GetFormFromFile(0x000002E7, "Fallout4.esm") as ActorValue
+    If avAggr == None
+        Return
+    EndIf
+
+    ; FormID as Int can be negative (top bit set for high load-order indices) —
+    ; normalize manually since Math.Abs is float-only in Papyrus.
+    Int mySlot = _actor.GetFormID() % FireDisciplineGroups
+    If mySlot < 0
+        mySlot += FireDisciplineGroups
+    EndIf
+    Float baseline = _actor.GetValue(avAggr)
+
+    While myGen == _fireGen && _actor.IsInCombat()
+        Int currentWindow = (Utility.GetCurrentGameTime() * 86400.0 / FireWindowSeconds) as Int % FireDisciplineGroups
+        If mySlot == currentWindow
+            _actor.SetValue(avAggr, baseline)
+        Else
+            _actor.SetValue(avAggr, 0.0); Unaggressive while holding — still tracks the target, takes cover, and fights back if directly threatened; just doesn't press the attack
+        EndIf
+        Utility.Wait(FireCheckInterval)
+        If myGen != _fireGen
+            Return
+        EndIf
+    EndWhile
+
+    _actor.SetValue(avAggr, baseline)
 EndFunction
 
 Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource, Projectile akProjectile, Bool abPowerAttack, Bool abSneakAttack, Bool abBashAttack, Bool abHitBlocked, String apMaterial)
@@ -91,6 +158,13 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
     ; Morale check
     If !_moraleBroken
         CheckMorale()
+    EndIf
+
+    ; Urgent aid — the moment THIS actor drops below critical HP, not the
+    ; medic's own throttled ambient sweep below, so help is called before
+    ; they're at risk of dying outright.
+    If !_calledForMedic
+        CheckCriticalHealth()
     EndIf
 
     ; Medic: check if allies need healing
@@ -176,6 +250,63 @@ Function HealNearbyAllies()
         EndIf
         i += 1
     EndWhile
+EndFunction
+
+; ════════════════════════════════════════════════════════════════════════════
+; URGENT AID
+; ════════════════════════════════════════════════════════════════════════════
+Function CheckCriticalHealth()
+    ActorValue avHP = Game.GetFormFromFile(0x00000015, "Fallout4.esm") as ActorValue
+    If avHP == None
+        Return
+    EndIf
+    Float maxHP = _actor.GetBaseValue(avHP)
+    If maxHP <= 0.0
+        Return
+    EndIf
+    Float hpFraction = _actor.GetValue(avHP) / maxHP
+    If hpFraction > CriticalHealthThreshold
+        Return
+    EndIf
+
+    _calledForMedic = True; at most one call per combat — avoids spamming the cast every subsequent hit while still below threshold
+    If spHealAlly == None
+        Return
+    EndIf
+
+    Actor medic = FindNearestMedic()
+    If medic == None
+        Return
+    EndIf
+
+    ; spHealAlly must be filled in on every squad member's alias, not just the
+    ; medic's — it's the wounded actor's own script that triggers the cast
+    ; here, with the medic passed in only as the spell's source actor.
+    spHealAlly.Cast(medic, _actor)
+    medic.EvaluatePackage()
+    Debug.Trace("[AAI-NPC] " + _actor.GetDisplayName() + " called for a medic — " + medic.GetDisplayName() + " responding")
+EndFunction
+
+Actor Function FindNearestMedic()
+    If kwdMedic == None
+        Return None
+    EndIf
+    Actor[] nearby = MiscUtil.ScanActors(_actor, MedicCallRadius, 8)
+    Actor best = None
+    Float bestDist = 999999.0
+    Int i = 0
+    While i < nearby.Length
+        Actor candidate = nearby[i]
+        If candidate != None && candidate != _actor && !candidate.IsDead() && candidate.HasKeyword(kwdMedic)
+            Float d = _actor.GetDistance(candidate)
+            If d < bestDist
+                bestDist = d
+                best = candidate
+            EndIf
+        EndIf
+        i += 1
+    EndWhile
+    Return best
 EndFunction
 
 ; ════════════════════════════════════════════════════════════════════════════
