@@ -983,6 +983,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
             row = box.row()
             row.enabled = bool(has_mesh)
+            row.operator("fo4.add_custom_collision", text="Custom Collision (Exact Mesh)", icon='OUTLINER_OB_MESH')
+            row = box.row()
+            row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
             box.separator()
 
@@ -1206,6 +1209,9 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row = col_box.row()
             row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
             row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
+            row = col_box.row()
+            row.enabled = bool(has_mesh)
+            row.operator("fo4.add_custom_collision", text="Custom Collision (Exact Mesh)", icon='OUTLINER_OB_MESH')
             row = col_box.row()
             row.enabled = bool(has_mesh)
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
@@ -3470,6 +3476,9 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
         row = box.row()
         row.enabled = bool(obj and obj.type == 'MESH')
+        row.operator("fo4.add_custom_collision", text="Custom Collision (Exact Mesh)", icon='OUTLINER_OB_MESH')
+        row = box.row()
+        row.enabled = bool(obj and obj.type == 'MESH')
         row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
         # Multi-piece convex collision
@@ -5163,6 +5172,10 @@ class FO4_PT_GlowEffectsPanel(_FO4SubPanel):
         row = ctrl.row(align=True)
         row.prop(scene, "fo4_glow_speed",    text="Speed")
         row.prop(scene, "fo4_glow_strength", text="Strength")
+        ctrl.template_ID(scene, "fo4_glow_map_image", open="image.open", text="Glow Map")
+        ctrl.label(text="Masked glow texture (FO4 \"_g.dds\" convention) -", icon='INFO')
+        ctrl.label(text="only the masked area glows. Without one, the")
+        ctrl.label(text="whole surface glows with Color above.")
         desc = box.box(); desc.label(text="Describe the effect:", icon='OUTLINER_DATA_LIGHTPROBE')
         desc.prop(scene, "fo4_glow_description", text="")
         pre = box.box(); pre.label(text="Quick Picks:", icon='PRESET')
@@ -5292,6 +5305,104 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
         save_op.preset_name = scene.fo4_workflow_preset_name
         row.operator_menu_enum("fo4.load_workflow_settings", "preset_name",
                                 text="Load Preset", icon='FILE_FOLDER')
+
+
+class FO4_PT_SS2PlotBuilderPanel(_FO4SubPanel):
+    bl_label = "SS2 Plot Builder"; bl_idname = "FO4_PT_ss2_plot_builder_panel"
+    bl_space_type = 'VIEW_3D'; bl_region_type = 'UI'
+    bl_category = 'Fallout 4'; bl_parent_id = "FO4_PT_main_panel"
+    bl_options = {'DEFAULT_CLOSED'}
+    def draw(self, context):
+        layout = self.layout; scene = context.scene
+        if not hasattr(scene, 'fo4_ss2_plugin_prefix'):
+            layout.label(text="Loading...", icon='TIME')
+            return
+
+        box = layout.box(); box.label(text="Custom Sim Settlements 2 Plots", icon='HOME')
+        box.label(text="Build custom plot stages here, hand off to xEdit/CK", icon='INFO')
+
+        guide = box.box(); guide.label(text="Boundary Guide", icon='MESH_CUBE')
+        guide.prop(scene, "fo4_ss2_front_axis", text="Front Direction")
+        row = guide.row(align=True)
+        for code, label, _ in _ss2_size_items():
+            op = row.operator("fo4.add_plot_boundary_guide", text=label)
+            op.size = code
+            op.front_axis = scene.fo4_ss2_front_axis
+        hint = guide.column(align=True); hint.scale_y = 0.72
+        hint.label(text="Real measured footprint per size -- build within it.")
+        hint.label(text="Front-arrow direction is a best guess -- verify in CK.")
+
+        stage = box.box(); stage.label(text="Stage Tagging", icon='PRESET')
+        sel = [o for o in context.selected_objects if o.type == 'MESH']
+        stage.label(text=f"{len(sel)} mesh(es) selected", icon='MESH_DATA')
+        row = stage.row(align=True)
+        row.prop(scene, "fo4_ss2_tag_level", text="Level")
+        row.prop(scene, "fo4_ss2_tag_stage", text="Stage")
+        stage.prop(scene, "fo4_ss2_tag_final")
+        tag_op = stage.operator("fo4.assign_plot_stage", text="Tag Selected as Stage", icon='CHECKMARK')
+        tag_op.level = scene.fo4_ss2_tag_level
+        tag_op.stage = scene.fo4_ss2_tag_stage
+        tag_op.is_final = scene.fo4_ss2_tag_final
+        levels = {}
+        for obj in context.scene.objects:
+            if obj.type == 'MESH' and "fo4_ss2_level" in obj.keys():
+                lvl = int(obj["fo4_ss2_level"])
+                levels.setdefault(lvl, []).append(obj)
+        if levels:
+            summary = stage.box(); summary.scale_y = 0.8
+            for lvl in sorted(levels.keys()):
+                objs = sorted(levels[lvl], key=lambda o: int(o.get("fo4_ss2_stage", 0)))
+                row = summary.row()
+                names = ", ".join(f"{o.name}{'*' if o.get('fo4_ss2_stage_final') else ''}" for o in objs)
+                row.label(text=f"L{lvl}: {names}")
+        else:
+            stage.label(text="No stages tagged yet", icon='INFO')
+
+        spawn = box.box(); spawn.label(text="Spawn Markers (Decorations)", icon='EMPTY_AXIS')
+        row = spawn.row(align=True)
+        row.prop(scene, "fo4_ss2_spawn_level_ui", text="Level")
+        row.prop(scene, "fo4_ss2_spawn_stage_start_ui", text="Start")
+        row.prop(scene, "fo4_ss2_spawn_stage_end_ui", text="End")
+        spawn_op = spawn.operator("fo4.add_plot_spawn_marker", text="Add Spawn Marker at Cursor", icon='ADD')
+        spawn_op.level = scene.fo4_ss2_spawn_level_ui
+        spawn_op.stage_start = scene.fo4_ss2_spawn_stage_start_ui
+        spawn_op.stage_end = scene.fo4_ss2_spawn_stage_end_ui
+        active = context.active_object
+        if active and active.get("fo4_ss2_spawn_marker"):
+            sm = spawn.box()
+            sm.label(text=f"Selected: {active.name}", icon='EMPTY_AXIS')
+            sm.prop(active, '["fo4_ss2_spawn_form"]', text="Form EditorID")
+            row = sm.row(align=True)
+            row.prop(active, '["fo4_ss2_spawn_level"]', text="Level")
+            row.prop(active, '["fo4_ss2_spawn_stage_start"]', text="Stage Start")
+            row.prop(active, '["fo4_ss2_spawn_stage_end"]', text="Stage End")
+            adv = sm.box(); adv.label(text="Advanced", icon='TOOL_SETTINGS')
+            adv.prop(active, '["fo4_ss2_spawn_type"]', text="Type")
+            r2 = adv.row(align=True)
+            r2.prop(active, '["fo4_ss2_spawn_vendor_type"]', text="Vendor Type")
+            r2.prop(active, '["fo4_ss2_spawn_vendor_level"]', text="Vendor Lvl")
+            r3 = adv.row(align=True)
+            r3.prop(active, '["fo4_ss2_spawn_owner"]', text="Owner #")
+            r3.prop(active, '["fo4_ss2_spawn_name"]', text="Spawn Name")
+            adv.prop(active, '["fo4_ss2_spawn_requirements"]', text="Requirements EditorID")
+        spawn_count = sum(1 for o in context.scene.objects if o.get("fo4_ss2_spawn_marker"))
+        spawn.label(text=f"{spawn_count} spawn marker(s) in scene", icon='INFO')
+
+        exp = box.box(); exp.label(text="Export Plot", icon='EXPORT')
+        exp.prop(scene, "fo4_ss2_plugin_prefix", text="Prefix")
+        exp.prop(scene, "fo4_ss2_plan_name", text="Plan Name")
+        exp.prop(scene, "fo4_ss2_build_material", text="Build Material")
+        exp.prop(scene, "fo4_ss2_output_dir", text="Output Folder")
+        hint2 = exp.column(align=True); hint2.scale_y = 0.72
+        hint2.label(text="Exports every tagged stage as NIF+BGSM, then")
+        hint2.label(text="writes an xEdit Static script + Models/Spawns CSV")
+        hint2.label(text="ready for SS2_ImportStageData.pas.")
+        go = exp.row(); go.scale_y = 1.3
+        go.operator("fo4.export_ss2_plot", text="Export Plot", icon='EXPORT')
+
+
+def _ss2_size_items():
+    return [("1x1", "1x1", ""), ("2x2", "2x2", ""), ("3x3", "3x3", ""), ("Interior", "Int.", "")]
 
 
 class FO4_PT_WorkshopPanel(_FO4SubPanel):
@@ -5480,6 +5591,7 @@ classes = (
     FO4_PT_TextureGeneratorPanel,
     FO4_PT_BatchToolsPanel,
     FO4_PT_WorkshopPanel,
+    FO4_PT_SS2PlotBuilderPanel,
     FO4_PT_CompatibilityPanel,
     FO4_PT_DialoguePanel,
     FO4_PT_WeatherInteriorPanel,

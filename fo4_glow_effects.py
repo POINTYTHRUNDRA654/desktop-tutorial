@@ -12,6 +12,17 @@ What this creates
    FLICKER   — random organic flicker (bioluminescent)
    RAINBOW   — cycling hue shift across the surface
 
+   All five wire into the object's REAL, existing material's Principled
+   BSDF (Emission Color/Strength) — the material is never replaced and
+   Base Color/diffuse texture links are never touched, so the base
+   texture stays fully visible under the glow. An optional glow map
+   image (FO4 "_g.dds" convention) can be supplied to mask the glow to
+   part of the surface, matching every real vanilla glowing asset
+   (Deathclaw, glowing fungus, etc.), which never use a flat full-surface
+   glow color. Emission strength defaults are calibrated against those
+   real assets' emittance_mult values (0.5-1.0) instead of an arbitrary
+   bright preview value.
+
 2. Dynamic light object in sync with glow
    A point/area light parented to the mesh that pulses with the
    emission so the environment actually lights up around it.
@@ -115,11 +126,25 @@ def parse_glow_description(description: str) -> list:
 # Material setup — emission shader with animated drivers
 # ---------------------------------------------------------------------------
 
-def _get_or_create_material(obj, name_suffix="_glow") -> bpy.types.Material:
-    mat_name = (obj.name or "FO4_Glow") + name_suffix
-    mat = bpy.data.materials.get(mat_name)
-    if mat is None:
-        mat = bpy.data.materials.new(mat_name)
+def _get_target_material(obj) -> bpy.types.Material:
+    """Return the material to apply glow to, WITHOUT ever replacing or
+    wiping an existing one.
+
+    The previous implementation always created a brand-new "<name>_glow"
+    material and cleared its node tree, discarding whatever diffuse/normal/
+    specular texture setup the object already had -- confirmed as the
+    direct cause of the reported bug ("completely overtook the texture,
+    all you could see was the glow color"): the replacement material's
+    Base Color was a FLAT copy of the glow color itself, and it fully
+    replaced the real textured material, not just added to it.
+
+    Only creates a new (empty) material if the object genuinely has none.
+    """
+    if obj.material_slots and obj.material_slots[0].material:
+        mat = obj.material_slots[0].material
+        mat.use_nodes = True
+        return mat
+    mat = bpy.data.materials.new((obj.name or "FO4_Glow") + "_mat")
     mat.use_nodes = True
     if not obj.data.materials:
         obj.data.materials.append(mat)
@@ -128,225 +153,290 @@ def _get_or_create_material(obj, name_suffix="_glow") -> bpy.types.Material:
     return mat
 
 
-def _clear_nodes(mat):
-    mat.node_tree.nodes.clear()
-    return mat.node_tree
+def _find_or_create_principled(mat: bpy.types.Material):
+    """Return the material's existing Principled BSDF (with its existing
+    Base Color / texture wiring untouched), creating one only if the
+    material genuinely has none."""
+    nt = mat.node_tree
+    for node in nt.nodes:
+        if node.type == 'BSDF_PRINCIPLED':
+            return node
+    bsdf = nt.nodes.new('ShaderNodeBsdfPrincipled')
+    out = next((n for n in nt.nodes if n.type == 'OUTPUT_MATERIAL'), None)
+    if out is None:
+        out = nt.nodes.new('ShaderNodeOutputMaterial')
+        out.location = (300, 0)
+    if not out.inputs['Surface'].is_linked:
+        nt.links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+    return bsdf
+
+
+def _emission_color_input(principled):
+    """Emission Color (4.x) or legacy combined Emission (3.x/early 4.x) --
+    same fallback bgsm_helpers.py already uses for the real BGSM export
+    path, so wiring here stays consistent with what actually gets read on
+    export."""
+    return principled.inputs.get("Emission Color") or principled.inputs.get("Emission")
+
+
+def _wire_glow_map(mat: bpy.types.Material, principled, glow_map) -> Optional[bpy.types.ShaderNodeTexImage]:
+    """Wire *glow_map* (a bpy.types.Image or None) into Emission Color using
+    the exact node name ("Glow") bgsm_helpers.bgsm_to_blender_mat/
+    blender_mat_to_bgsm already use for the real glow-map texture slot, so
+    a glow map set up here round-trips correctly through the real BGSM
+    export (data.glow_texture / data.glowmap) instead of being an
+    addon-local-only preview.
+
+    Returns the Glow texture node, or None if no glow_map was given (the
+    caller falls back to a flat/animated Emission Color instead).
+    """
+    nt = mat.node_tree
+    if glow_map is None:
+        return None
+    tex_node = nt.nodes.get("Glow")
+    if tex_node is None:
+        tex_node = nt.nodes.new('ShaderNodeTexImage')
+        tex_node.name = "Glow"
+        tex_node.label = "Glow"
+        tex_node.location = (principled.location.x - 300, principled.location.y - 300)
+    tex_node["fo4_tex_slot"] = "Glow"
+    tex_node.image = glow_map
+    color_in = _emission_color_input(principled)
+    if color_in is not None:
+        while color_in.is_linked and color_in.links:
+            nt.links.remove(color_in.links[0])
+        nt.links.new(tex_node.outputs['Color'], color_in)
+    return tex_node
+
+
+def _wire_emission(obj, color, glow_map) -> dict:
+    """Set up (or reuse) the object's real material's Principled BSDF for
+    glow, without ever touching Base Color / the existing diffuse texture
+    chain. Returns the material and the socket to attach an animated
+    Emission Strength driver to."""
+    mat = _get_target_material(obj)
+    principled = _find_or_create_principled(mat)
+
+    glow_tex_node = _wire_glow_map(mat, principled, glow_map)
+    if glow_tex_node is None:
+        # No glow map supplied -- flat colour fallback, still additive to
+        # (never replacing) whatever Base Color already is.
+        color_in = _emission_color_input(principled)
+        if color_in is not None and not color_in.is_linked:
+            color_in.default_value = color
+
+    strength_in = principled.inputs.get("Emission Strength")
+    return {"material": mat, "principled": principled, "strength_socket": strength_in}
+
+
+def _seed_driver_value(expression: str, index: int = -1):
+    """Evaluate *expression* the same way Blender's driver namespace would
+    (bare ``frame`` plus unqualified math functions) and return the result.
+
+    Blender does not evaluate a freshly-added driver until the next
+    depsgraph update (frame change, viewport redraw, etc.) -- in a
+    headless/script context (batch export, or an export run immediately
+    after applying the effect) that update may never happen, leaving
+    ``default_value`` stuck at its pre-driver value (0.0) and causing
+    ``bgsm_helpers.blender_mat_to_bgsm()`` to read a dead Emission Strength
+    and silently export with no glow at all. Seeding ``default_value``
+    directly with the driver's own current-frame result closes that gap;
+    the driver still keeps it live for viewport playback afterwards.
+    """
+    ns = {"__builtins__": {}}
+    ns.update({name: getattr(math, name) for name in dir(math) if not name.startswith("_")})
+    ns["frame"] = bpy.context.scene.frame_current
+    try:
+        return float(eval(expression, ns))
+    except Exception:
+        return None
+
+
+def _drive_emission_strength(principled, expression: str) -> None:
+    strength_in = principled.inputs.get("Emission Strength")
+    if strength_in is None:
+        return
+    # Remove only this specific socket's previous driver (if re-applying a
+    # different effect/expression to the same reused Principled BSDF) --
+    # scoped removal rather than clearing all of the material's animation
+    # data, which could otherwise wipe unrelated drivers the user has.
+    try:
+        strength_in.driver_remove("default_value")
+    except Exception:
+        pass
+    fcurves = strength_in.driver_add("default_value")
+    drv = fcurves.driver
+    drv.type = 'SCRIPTED'
+    drv.expression = expression
+    seeded = _seed_driver_value(expression)
+    if seeded is not None:
+        strength_in.default_value = seeded
 
 
 def setup_glow_pulse(obj, color=(0.2,1.0,0.4,1.0),
-                      speed=1.0, min_strength=0.2, max_strength=3.0) -> dict:
-    """Sine-wave emission pulse.
+                      speed=1.0, min_strength=0.15, max_strength=1.0,
+                      glow_map=None) -> dict:
+    """Sine-wave emission pulse, wired into the object's REAL material's
+    Principled BSDF (Emission Color/Strength) -- never replaces the
+    material or its Base Color/diffuse texture.
 
-    Adds a driver to emission strength:  sin(frame * speed * 0.05) * range + midpoint
+    Default min/max strength (0.15-1.0) matches the real emittance_mult
+    range found across vanilla glowing assets (Deathclaw 0.52,
+    WastelandFungusStalk 0.5, FungusBrain 1.0) rather than an arbitrarily
+    bright preview value.
     """
-    mat  = _get_or_create_material(obj)
-    tree = _clear_nodes(mat)
-    nodes = tree.nodes
-    links = tree.links
+    info = _wire_emission(obj, color, glow_map)
+    mat, principled = info["material"], info["principled"]
 
-    # Nodes
-    out   = nodes.new('ShaderNodeOutputMaterial')
-    add   = nodes.new('ShaderNodeAddShader')
-    emit  = nodes.new('ShaderNodeEmission')
-    bsdf  = nodes.new('ShaderNodeBsdfPrincipled')
-    emit.inputs['Color'].default_value  = color
-    emit.inputs['Strength'].default_value = 1.0
-    bsdf.inputs['Base Color'].default_value = color
-    bsdf.inputs['Roughness'].default_value  = 0.6
+    mid = (min_strength + max_strength) / 2
+    rng = (max_strength - min_strength) / 2
+    _drive_emission_strength(principled, f"{mid} + {rng} * sin(frame * {speed * 0.05:.4f})")
 
-    out.location  = (600, 0)
-    add.location  = (400, 0)
-    emit.location = (200, 100)
-    bsdf.location = (200,-100)
-
-    links.new(emit.outputs['Emission'], add.inputs[0])
-    links.new(bsdf.outputs['BSDF'],     add.inputs[1])
-    links.new(add.outputs['Shader'],    out.inputs['Surface'])
-
-    # Driver on emission strength
-    fcurves = emit.inputs['Strength'].driver_add("default_value")
-    drv = fcurves.driver
-    drv.type = 'SCRIPTED'
-    mid   = (min_strength + max_strength) / 2
-    rng   = (max_strength - min_strength) / 2
-    drv.expression = f"{mid} + {rng} * sin(frame * {speed * 0.05:.4f})"
-
-    return {"type": "PULSE", "material": mat.name, "emission_node": emit.name}
+    return {"type": "PULSE", "material": mat.name}
 
 
 def setup_glow_aurora(obj, color_a=(0.1,0.8,1.0,1.0),
                        color_b=(0.4,0.2,1.0,1.0),
-                       speed=0.3, scale=2.0) -> dict:
-    """Flowing noise pattern — animated noise texture W coordinate scrolls."""
-    mat  = _get_or_create_material(obj)
-    tree = _clear_nodes(mat)
-    nodes = tree.nodes
-    links = tree.links
+                       speed=0.3, scale=2.0, glow_map=None) -> dict:
+    """Flowing noise pattern — animated noise texture W coordinate scrolls.
 
-    out    = nodes.new('ShaderNodeOutputMaterial')
-    add    = nodes.new('ShaderNodeAddShader')
-    emit   = nodes.new('ShaderNodeEmission')
-    bsdf   = nodes.new('ShaderNodeBsdfPrincipled')
-    mix_c  = nodes.new('ShaderNodeMixRGB')
-    noise  = nodes.new('ShaderNodeTexNoise')
-    math_n = nodes.new('ShaderNodeMath')
-    coord  = nodes.new('ShaderNodeTexCoord')
-    map_n  = nodes.new('ShaderNodeMapping')
+    With a glow map supplied, the map's own colour/shape takes priority
+    (matching real assets, whose visible glow colour comes from the _g.dds
+    pixels, not a flat material colour) and only the pulsing intensity
+    flows; without one, falls back to a flowing two-colour noise mix.
+    """
+    info = _wire_emission(obj, color_a, glow_map)
+    mat, principled = info["material"], info["principled"]
+    nt = mat.node_tree
 
-    mix_c.blend_type = 'MIX'
-    mix_c.inputs['Color1'].default_value = color_a
-    mix_c.inputs['Color2'].default_value = color_b
-    noise.inputs['Scale'].default_value     = scale
-    noise.inputs['Detail'].default_value    = 6.0
-    noise.inputs['Roughness'].default_value = 0.6
-    math_n.operation = 'MULTIPLY'
-    math_n.inputs[1].default_value = 3.5  # emission strength multiplier
+    if glow_map is None:
+        color_in = _emission_color_input(principled)
+        mix_c  = nt.nodes.new('ShaderNodeMixRGB')
+        noise  = nt.nodes.new('ShaderNodeTexNoise')
+        coord  = nt.nodes.new('ShaderNodeTexCoord')
+        map_n  = nt.nodes.new('ShaderNodeMapping')
+        mix_c.blend_type = 'MIX'
+        mix_c.inputs['Color1'].default_value = color_a
+        mix_c.inputs['Color2'].default_value = color_b
+        noise.inputs['Scale'].default_value     = scale
+        noise.inputs['Detail'].default_value    = 6.0
+        noise.inputs['Roughness'].default_value = 0.6
+        mix_c.location  = (principled.location.x - 400, principled.location.y + 200)
+        noise.location  = (principled.location.x - 600, principled.location.y + 200)
+        coord.location  = (principled.location.x - 1000, principled.location.y + 200)
+        map_n.location  = (principled.location.x - 800, principled.location.y + 200)
+        nt.links.new(coord.outputs['Object'], map_n.inputs['Vector'])
+        nt.links.new(map_n.outputs['Vector'], noise.inputs['Vector'])
+        nt.links.new(noise.outputs['Fac'],    mix_c.inputs['Fac'])
+        if color_in is not None:
+            while color_in.is_linked and color_in.links:
+                nt.links.remove(color_in.links[0])
+            nt.links.new(mix_c.outputs['Color'], color_in)
+        # Animate noise W so the pattern flows over time
+        aurora_expr = f"frame * {speed * 0.01:.4f}"
+        fcurves = map_n.inputs['Location'].driver_add("default_value", 2)
+        drv = fcurves.driver
+        drv.type = 'SCRIPTED'
+        drv.expression = aurora_expr
+        seeded = _seed_driver_value(aurora_expr)
+        if seeded is not None:
+            map_n.inputs['Location'].default_value[2] = seeded
 
-    out.location    = (800,  0)
-    add.location    = (600,  0)
-    emit.location   = (400, 100)
-    bsdf.location   = (400,-100)
-    mix_c.location  = (200, 200)
-    noise.location  = (  0, 200)
-    math_n.location = (200, 400)
-    coord.location  = (-400, 200)
-    map_n.location  = (-200, 200)
-
-    links.new(coord.outputs['Object'], map_n.inputs['Vector'])
-    links.new(map_n.outputs['Vector'], noise.inputs['Vector'])
-    links.new(noise.outputs['Fac'],    mix_c.inputs['Fac'])
-    links.new(noise.outputs['Fac'],    math_n.inputs[0])
-    links.new(mix_c.outputs['Color'],  emit.inputs['Color'])
-    links.new(math_n.outputs['Value'], emit.inputs['Strength'])
-    links.new(emit.outputs['Emission'],add.inputs[0])
-    links.new(bsdf.outputs['BSDF'],    add.inputs[1])
-    links.new(add.outputs['Shader'],   out.inputs['Surface'])
-
-    # Animate noise W to make pattern flow over time
-    fcurves = map_n.inputs['Location'].driver_add("default_value", 2)  # Z offset
-    drv = fcurves.driver
-    drv.type = 'SCRIPTED'
-    drv.expression = f"frame * {speed * 0.01:.4f}"
+    _drive_emission_strength(principled, f"1.6 + 0.5 * sin(frame * {speed * 0.03:.4f} + 1.57)")
 
     return {"type": "AURORA", "material": mat.name}
 
 
 def setup_glow_breathe(obj, color=(0.3,1.0,0.5,1.0),
                         inhale_frames=40, exhale_frames=15,
-                        min_s=0.05, max_s=4.0) -> dict:
+                        min_s=0.1, max_s=1.2, glow_map=None) -> dict:
     """Asymmetric breathing — slow inhale, fast exhale.
 
-    Uses a custom F-curve instead of a simple sine so the timing
-    feels like a real breath rather than a metronome.
+    Uses a custom F-curve instead of a simple sine so the timing feels
+    like a real breath rather than a metronome. Default min/max strength
+    matches the real emittance_mult range found in vanilla glowing assets.
     """
-    mat  = _get_or_create_material(obj)
-    tree = _clear_nodes(mat)
-    nodes = tree.nodes
-    links = tree.links
-
-    out  = nodes.new('ShaderNodeOutputMaterial')
-    add  = nodes.new('ShaderNodeAddShader')
-    emit = nodes.new('ShaderNodeEmission')
-    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
-    emit.inputs['Color'].default_value = color
-    bsdf.inputs['Base Color'].default_value = color
-
-    out.location  = (600, 0)
-    add.location  = (400, 0)
-    emit.location = (200, 100)
-    bsdf.location = (200,-100)
-
-    links.new(emit.outputs['Emission'], add.inputs[0])
-    links.new(bsdf.outputs['BSDF'],     add.inputs[1])
-    links.new(add.outputs['Shader'],    out.inputs['Surface'])
+    info = _wire_emission(obj, color, glow_map)
+    mat, principled = info["material"], info["principled"]
 
     total = inhale_frames + exhale_frames
-    # Driver uses modulo + conditional for asymmetric shape
-    fcurves = emit.inputs['Strength'].driver_add("default_value")
-    drv = fcurves.driver
-    drv.type = 'SCRIPTED'
     # Slow rise (inhale), fast fall (exhale) — piecewise linear
-    drv.expression = (
+    expression = (
         f"({max_s}-{min_s})*((frame%{total})/{inhale_frames}) + {min_s} "
         f"if (frame%{total}) < {inhale_frames} else "
         f"({max_s}-{min_s})*(1-((frame%{total}-{inhale_frames})/{exhale_frames})) + {min_s}"
     )
+    _drive_emission_strength(principled, expression)
 
     return {"type": "BREATHE", "material": mat.name}
 
 
 def setup_glow_flicker(obj, color=(0.2,1.0,0.3,1.0),
-                        base_s=1.0, flicker_range=2.5) -> dict:
-    """Organic random flicker using layered noise at different frequencies."""
-    mat  = _get_or_create_material(obj)
-    tree = _clear_nodes(mat)
-    nodes = tree.nodes
-    links = tree.links
+                        base_s=0.5, flicker_range=0.9, glow_map=None) -> dict:
+    """Organic random flicker using layered sine waves at irrational-ratio
+    frequencies (pseudo-random, deterministic). Default range matches real
+    vanilla emittance_mult values."""
+    info = _wire_emission(obj, color, glow_map)
+    mat, principled = info["material"], info["principled"]
 
-    out   = nodes.new('ShaderNodeOutputMaterial')
-    add   = nodes.new('ShaderNodeAddShader')
-    emit  = nodes.new('ShaderNodeEmission')
-    bsdf  = nodes.new('ShaderNodeBsdfPrincipled')
-    emit.inputs['Color'].default_value = color
-    bsdf.inputs['Base Color'].default_value = color
-
-    out.location  = (600, 0)
-    add.location  = (400, 0)
-    emit.location = (200, 100)
-    bsdf.location = (200,-100)
-
-    links.new(emit.outputs['Emission'], add.inputs[0])
-    links.new(bsdf.outputs['BSDF'],     add.inputs[1])
-    links.new(add.outputs['Shader'],    out.inputs['Surface'])
-
-    # Layered sine waves at irrational ratios → pseudo-random organic flicker
-    fcurves = emit.inputs['Strength'].driver_add("default_value")
-    drv = fcurves.driver
-    drv.type = 'SCRIPTED'
     mid = base_s + flicker_range * 0.5
     rng = flicker_range * 0.5
-    drv.expression = (
+    expression = (
         f"{mid} + {rng*0.5:.3f}*sin(frame*0.23) "
         f"+ {rng*0.3:.3f}*sin(frame*0.71) "
         f"+ {rng*0.2:.3f}*sin(frame*1.37)"
     )
+    _drive_emission_strength(principled, expression)
 
     return {"type": "FLICKER", "material": mat.name}
 
 
-def setup_glow_rainbow(obj, speed=0.02, strength=2.5) -> dict:
-    """Hue cycling using HSV node driven by frame number."""
-    mat  = _get_or_create_material(obj)
-    tree = _clear_nodes(mat)
-    nodes = tree.nodes
-    links = tree.links
+def setup_glow_rainbow(obj, speed=0.02, strength=1.0, glow_map=None) -> dict:
+    """Hue cycling using an HSV node driven by frame number.
 
-    out   = nodes.new('ShaderNodeOutputMaterial')
-    add   = nodes.new('ShaderNodeAddShader')
-    emit  = nodes.new('ShaderNodeEmission')
-    bsdf  = nodes.new('ShaderNodeBsdfPrincipled')
-    hsv   = nodes.new('ShaderNodeHueSaturation')
+    The HSV node's Color input is fed by the glow map texture when one is
+    supplied (so a real masked _g.dds shape still hue-shifts correctly
+    instead of being replaced by a flat colour), or a flat starting colour
+    otherwise.
+    """
+    info = _wire_emission(obj, (1.0, 0.2, 0.2, 1.0), None)
+    mat, principled = info["material"], info["principled"]
+    nt = mat.node_tree
+
+    color_in = _emission_color_input(principled)
+    hsv = nt.nodes.new('ShaderNodeHueSaturation')
     hsv.inputs['Saturation'].default_value = 1.0
     hsv.inputs['Value'].default_value      = 1.0
     hsv.inputs['Color'].default_value      = (1.0, 0.2, 0.2, 1.0)
-    emit.inputs['Strength'].default_value  = strength
+    hsv.location = (principled.location.x - 200, principled.location.y - 300)
 
-    out.location  = (800, 0)
-    add.location  = (600, 0)
-    emit.location = (400, 100)
-    bsdf.location = (400,-100)
-    hsv.location  = (200, 100)
+    if glow_map is not None:
+        tex_node = nt.nodes.get("Glow")
+        if tex_node is None:
+            tex_node = nt.nodes.new('ShaderNodeTexImage')
+            tex_node.name = "Glow"
+            tex_node.label = "Glow"
+            tex_node.location = (hsv.location.x - 300, hsv.location.y)
+        tex_node["fo4_tex_slot"] = "Glow"
+        tex_node.image = glow_map
+        nt.links.new(tex_node.outputs['Color'], hsv.inputs['Color'])
 
-    links.new(hsv.outputs['Color'],    emit.inputs['Color'])
-    links.new(emit.outputs['Emission'],add.inputs[0])
-    links.new(bsdf.outputs['BSDF'],    add.inputs[1])
-    links.new(add.outputs['Shader'],   out.inputs['Surface'])
+    if color_in is not None:
+        while color_in.is_linked and color_in.links:
+            nt.links.remove(color_in.links[0])
+        nt.links.new(hsv.outputs['Color'], color_in)
 
-    # Animate hue 0→1 cyclically
+    # Animate hue 0->1 cyclically
+    hue_expr = f"(frame * {speed:.4f}) % 1.0"
     fcurves = hsv.inputs['Hue'].driver_add("default_value")
     drv = fcurves.driver
     drv.type = 'SCRIPTED'
-    drv.expression = f"(frame * {speed:.4f}) % 1.0"
+    drv.expression = hue_expr
+    seeded = _seed_driver_value(hue_expr)
+    if seeded is not None:
+        hsv.inputs['Hue'].default_value = seeded
+
+    _drive_emission_strength(principled, f"{strength}")
 
     return {"type": "RAINBOW", "material": mat.name}
 
@@ -433,8 +523,10 @@ def setup_spore_particles(obj, density=500, lifetime=80,
     settings.particle_size         = size
     settings.size_random            = 0.5
 
-    # Render as small spheres (or use a glow material on the particles)
-    settings.render_type = 'SPHERE'
+    # Render as small glowing halos (Blender has no 'SPHERE' render_type --
+    # valid values are NONE/HALO/LINE/PATH/OBJECT/COLLECTION; HALO is the
+    # correct built-in point-sprite type for light-emitting particles).
+    settings.render_type = 'HALO'
 
     # Physics: Newtonian with drag
     settings.physics_type = 'NEWTON'
@@ -658,22 +750,33 @@ def generate_papyrus_script(obj, output_dir: str,
 def apply_glow_effect(obj, effect_type: str,
                        color=(0.2,1.0,0.4,1.0),
                        speed: float    = 1.0,
-                       strength: float = 3.0,
+                       strength: float = 1.0,
                        add_light: bool = True,
-                       output_dir: str = "") -> dict:
+                       output_dir: str = "",
+                       glow_map=None) -> dict:
     """Apply a glow effect to a mesh object.
+
+    *glow_map*, if given, is a bpy.types.Image containing a real masked
+    glow map (FO4 convention: a "_g.dds" texture) -- when supplied it is
+    wired into Emission Color exactly like the real BGSM glow_texture, so
+    the visible glow follows the map's shape/mask instead of covering the
+    whole surface with a flat colour. The object's existing material and
+    Base Color/diffuse texture are never touched.
 
     Returns result dict with what was created.
     """
     result = {"effect": effect_type, "steps": []}
 
+    min_s = max(0.05, strength * 0.15)
+    max_s = strength
+
     SETUPS = {
-        "PULSE":   lambda: setup_glow_pulse(obj, color, speed),
-        "AURORA":  lambda: setup_glow_aurora(obj, color, (color[0]*0.5, color[2], color[1], 1.0)),
-        "BREATHE": lambda: setup_glow_breathe(obj, color, int(40/speed), int(15/speed)),
-        "FLICKER": lambda: setup_glow_flicker(obj, color),
-        "RAINBOW": lambda: setup_glow_rainbow(obj, speed * 0.02, strength),
-        "SPORE":   lambda: setup_glow_pulse(obj, color, speed * 0.5, 0.1, 2.5),
+        "PULSE":   lambda: setup_glow_pulse(obj, color, speed, min_s, max_s, glow_map),
+        "AURORA":  lambda: setup_glow_aurora(obj, color, (color[0]*0.5, color[2], color[1], 1.0), speed, 2.0, glow_map),
+        "BREATHE": lambda: setup_glow_breathe(obj, color, int(40/speed), int(15/speed), min_s, max_s, glow_map),
+        "FLICKER": lambda: setup_glow_flicker(obj, color, min_s, max_s - min_s, glow_map),
+        "RAINBOW": lambda: setup_glow_rainbow(obj, speed * 0.02, strength, glow_map),
+        "SPORE":   lambda: setup_glow_pulse(obj, color, speed * 0.5, min_s, max_s, glow_map),
     }
 
     setup_fn = SETUPS.get(effect_type, SETUPS["PULSE"])
@@ -739,8 +842,11 @@ class FO4_OT_ApplyGlowEffect(bpy.types.Operator):
         description="Animation speed multiplier",
     )
     strength: bpy.props.FloatProperty(
-        name="Max Strength", default=3.0, min=0.5, max=10.0,
-        description="Peak emission / light intensity",
+        name="Max Strength", default=1.0, min=0.1, max=3.0,
+        description="Peak emission intensity. Real vanilla glowing assets "
+                    "(Deathclaw, glowing fungus) use 0.5-1.0; higher values "
+                    "are available for stylized looks but will wash out the "
+                    "base texture more the higher they go",
     )
     add_light: bpy.props.BoolProperty(
         name="Add Sync Light",
@@ -752,6 +858,11 @@ class FO4_OT_ApplyGlowEffect(bpy.types.Operator):
         subtype='DIR_PATH', default="",
         description="Where to save Papyrus script and baked textures (Spore effect)",
     )
+    # Note: Blender operators cannot hold ID-datablock (PointerProperty to
+    # Image/Object/etc.) properties -- that registration is rejected at
+    # runtime ("doesn't support data-block properties"). The glow map
+    # picker lives on the scene (fo4_glow_map_image, shown in the panel
+    # above both buttons) and is read from there instead.
 
     def execute(self, context):
         obj = context.active_object
@@ -760,6 +871,7 @@ class FO4_OT_ApplyGlowEffect(bpy.types.Operator):
             return {'CANCELLED'}
 
         out = bpy.path.abspath(self.output_dir) if self.output_dir else ""
+        glow_map = getattr(context.scene, 'fo4_glow_map_image', None)
 
         result = apply_glow_effect(
             obj,
@@ -769,6 +881,7 @@ class FO4_OT_ApplyGlowEffect(bpy.types.Operator):
             strength    = self.strength,
             add_light   = self.add_light,
             output_dir  = out,
+            glow_map    = glow_map,
         )
 
         for step in result["steps"]:
@@ -796,13 +909,15 @@ class FO4_OT_ApplyGlowFromDescription(bpy.types.Operator):
         effects = parse_glow_description(desc)
         color   = tuple(getattr(context.scene, 'fo4_glow_color', (0.2,1.0,0.4,1.0)))
         speed   = getattr(context.scene, 'fo4_glow_speed',    1.0)
-        strength= getattr(context.scene, 'fo4_glow_strength', 3.0)
+        strength= getattr(context.scene, 'fo4_glow_strength', 1.0)
         out_dir = bpy.path.abspath(getattr(context.scene, 'fo4_glow_output', ''))
+        glow_map= getattr(context.scene, 'fo4_glow_map_image', None)
 
         created = 0
         for effect in effects:
             result = apply_glow_effect(obj, effect, color, speed, strength,
-                                        add_light=True, output_dir=out_dir)
+                                        add_light=True, output_dir=out_dir,
+                                        glow_map=glow_map)
             created += len(result["steps"])
             print(f"[FO4 Glow] Applied {effect}: {result['steps']}")
 
@@ -860,10 +975,16 @@ _SCENE_PROPS = [
         name="Speed", default=1.0, min=0.1, max=5.0,
     )),
     ("fo4_glow_strength", bpy.props.FloatProperty(
-        name="Max Strength", default=3.0, min=0.5, max=10.0,
+        name="Max Strength", default=1.0, min=0.1, max=3.0,
+        description="Real vanilla glowing assets use 0.5-1.0",
     )),
     ("fo4_glow_output", bpy.props.StringProperty(
         name="Output Folder", subtype='DIR_PATH', default="",
+    )),
+    ("fo4_glow_map_image", bpy.props.PointerProperty(
+        name="Glow Map", type=bpy.types.Image,
+        description="Optional masked glow texture ('_g.dds' convention) "
+                    "for the description-based workflow",
     )),
 ]
 

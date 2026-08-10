@@ -351,6 +351,13 @@ YourMod/
 - **Triangulate** checkbox — auto-triangulate quads (always enable for FO4)
 - **Generate Collision** checkbox — auto-create UCX_ collision mesh
 - **Generate BGSM** checkbox — auto-create BGSM material file
+- **Game Version** dropdown — Fallout 4 (OG) / Fallout 4 Next-Gen / Fallout 4 AE
+  (Anniversary Edition). All three share the same NIF 20.2.0.7 / BSVersion 130 /
+  BSTriShape format; this mainly documents which F4SE/mod compatibility target
+  you're building for. Persists across Blender restarts (backed by the addon
+  preferences, same as other sticky settings) — previously this reset to
+  "Fallout 4 (OG)" every time Blender restarted because it had no preferences
+  backing at all; fixed.
 
 **FO4 export limits:**
 - Max 65,535 verts per BSTriShape
@@ -982,6 +989,106 @@ No restart required. Panel updates to show tools once installed.
 - **Repair aggressiveness** — how aggressively to fix geometry errors
 
 **Credits:** PyMeshLab by CNR-ISTI VCLab (MIT license).
+
+---
+
+## 36. SS2 PLOT BUILDER *(v5.2)*
+
+**Purpose:** Build custom (non-vanilla-asset) Sim Settlements 2 plot
+structures — real plot sizes, real construction levels/stages, and
+decoration placement — directly in Blender, then export a ready-to-run
+hand-off package for the user's existing Creation Kit / xEdit finishing
+workflow (specifically the real `SS2_ImportStageData.pas` script from the
+official "Add-on Maker's Toolkit for Sim Settlements 2"). This addon does
+NOT replace that toolkit or Creation Kit — it produces exactly the files
+those tools already expect, so nothing has to be hand-placed or
+hand-typed.
+
+**Boundary Guide section:**
+
+- **Front Direction** dropdown (-Y/+Y/-X/+X) — which local axis the guide's
+  arrow points along. Default -Y is a best guess, not independently
+  confirmed against a real SS2 plot marker — recommend a visual check in
+  CK before relying on it for a release.
+- Size buttons (**1x1 / 2x2 / 3x3 / Interior**) — adds a wireframe box at
+  world origin sized to the real measured footprint for that plot size,
+  plus a single-arrow empty marking the front, as a build-only reference
+  (never exported). Real dimensions (Blender meters): 1x1 ≈
+  3.66×3.00×2.36m, 2x2 ≈ 7.31×6.00×3.66m, 3x3 ≈ 10.97×9.57×5.94m,
+  Interior ≈ 3.72×5.49×3.66m — measured from the real SS2 toolkit's own
+  Navcut NIFs via PyNifly, not guessed.
+
+**Stage Tagging section:**
+
+- **Level** (1-3) / **Stage** (any positive integer, order matters, gaps
+  are fine) / **Final Stage of Level** checkbox
+- **Tag Selected as Plot Stage** — tags every selected mesh object with the
+  chosen level/stage/final. Exactly one stage per level must be marked
+  Final (the level's last/completed model); all others are intermediate
+  construction stages, exported first-to-last in stage order.
+- A read-only summary below lists every tagged object grouped by level (the
+  Final-tagged one marked with `*`) so the whole plan is visible before
+  exporting.
+
+**Spawn Markers section (decoration/furniture placement):**
+
+- **Level / Stage Start / Stage End** — Stage Start/End are the raw stage
+  numbers from Stage Tagging above (0 = blank = spawns at the level's
+  final stage / exists for one stage only, matching the real
+  `SS2_ImportStageData.pas` Spawns.csv convention).
+- **Add Spawn Marker at Cursor** — adds an Empty at the 3D cursor. Select
+  it to edit its fields directly in this panel: **Form EditorID** (the
+  target Static/MiscItem EditorID you want spawned — this addon has no
+  game-wide EditorID database to resolve against, so type the exact real
+  EditorID yourself), plus an **Advanced** box for Type/Vendor
+  Type/Vendor Level/Owner #/Spawn Name/Requirements (all optional, matching
+  every real column in the Spawns.csv schema).
+- A marker with a blank Form EditorID is silently skipped at export time
+  (reported in the console), not treated as an error.
+
+**Export Plot section:**
+
+- **Prefix** — short prefix for generated EditorIDs and the
+  Meshes/Textures/Materials subfolder (e.g. `MyPrefix`)
+- **Plan Name** — this building plan's name (used in EditorIDs and output
+  filenames)
+- **Build Material** — a custom building-material Static/SCOL EditorID, or
+  `default` for none (goes on row 1 of Models.csv)
+- **Output Folder** — your FO4 Data-folder root
+- **Export Plot** button — for every tagged stage, in level/stage order:
+  generates collision (same exact-geometry, Havok-material-correct
+  collision as Mesh Helpers → Custom Collision, which is also what makes
+  CK's own automatic navmesh generation work correctly for a walkable
+  roof), exports the NIF + BGSM + textures, then writes:
+  - `<PlanName>_Statics.pas` — an xEdit script that creates one Static
+    record per exported stage NIF (EditorIDs follow
+    `<Prefix>_<PlanName>_L<level>_C<stage>`, `_Final` for each level's
+    last stage)
+  - `<PlanName>_Models.csv` — the real Models.csv format `SS2_ImportStageData.pas`
+    expects (row 1 = build material or `default`; rows 2-4 = Level 1-3
+    stage EditorIDs in order)
+  - `<PlanName>_Spawns.csv` — the real 16-column Spawns.csv (only written
+    if at least one spawn marker has a Form EditorID set)
+  - `README_NextSteps.txt` — the exact hand-off steps (below)
+
+**Hand-off workflow (after clicking Export Plot):**
+
+1. In FO4Edit, open your plugin, select it, right-click → **Apply
+   Script...** → the generated `<PlanName>_Statics.pas`. This creates the
+   Static records the next step needs.
+2. Still in FO4Edit, run **SS2_ImportStageData.pas** (from your Add-on
+   Maker's Toolkit) pointed at the generated Models.csv (and Spawns.csv,
+   if written). Pick the real Plot Type/Subtype/Theme keywords in that
+   script's own dialog — this addon does not duplicate that picker, since
+   the real tool already handles it.
+3. Open Creation Kit only to finalize: navmesh (auto-generates correctly
+   off the real collision already baked into each exported NIF), plot
+   keywords if not already set in step 2, and testing.
+
+**Not included in this pass (by design):** Plot Type/Subtype/Theme keyword
+selection (handled by `SS2_ImportStageData.pas`'s own dialog) and Skins /
+City Plan-scope tooling (different scope than single-plot Building Plan
+authoring).
 
 ---
 

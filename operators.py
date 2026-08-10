@@ -9460,6 +9460,58 @@ class FO4_OT_GenerateCollisionMesh(Operator):
         return context.window_manager.invoke_props_dialog(self)
 
 
+class FO4_OT_AddCustomCollision(Operator):
+    """Duplicate the selected mesh exactly as-is and turn the copy into a
+    Havok mesh-shape collision object -- no convex hull, no decimation, no
+    convex decomposition. Any opening in the source mesh (a cave mouth, a
+    doorway, a tunnel) stays open in the collision too, since the collision
+    IS the source geometry, just triangulated. Use this whenever
+    'Generate Collision Mesh' would wrongly seal an opening shut."""
+    bl_idname = "fo4.add_custom_collision"
+    bl_label = "Add Custom Collision (Exact Mesh)"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    collision_type: EnumProperty(
+        name="Collision Type",
+        description="Only affects friction/restitution/sound preset -- the "
+                    "shape is always an exact mesh copy regardless of type",
+        items=_COLLISION_TYPES,
+        default='BUILDING',
+    )
+
+    def execute(self, context):
+        if not mesh_helpers:
+            self.report({'ERROR'}, "mesh_helpers module not available")
+            return {'CANCELLED'}
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        try:
+            collision_obj = mesh_helpers.MeshHelpers.add_custom_collision(
+                obj, collision_type=self.collision_type)
+            if not collision_obj:
+                raise RuntimeError("helper failed to create collision mesh")
+            self.report({'INFO'},
+                f"Created exact-mesh collision: {collision_obj.name} "
+                f"({len(collision_obj.data.polygons)} tris)")
+            _notify(f"Custom collision generated: {collision_obj.name}", 'INFO')
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to generate custom collision: {str(e)}")
+            return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        if mesh_helpers:
+            obj = context.active_object
+            if obj and obj.type == 'MESH':
+                inferred = mesh_helpers.MeshHelpers.infer_collision_type(obj)
+                self.collision_type = mesh_helpers.MeshHelpers.resolve_collision_type(
+                    getattr(obj, 'fo4_collision_type', inferred), inferred)
+        return context.window_manager.invoke_props_dialog(self)
+
+
 class FO4_OT_SmartMaterialSetup(Operator):
     """Intelligently setup materials based on available textures"""
     bl_idname = "fo4.smart_material_setup"
@@ -15611,6 +15663,7 @@ classes = (
     FO4_OT_ConvertToFallout4,
     FO4_OT_AutoFixCommonIssues,
     FO4_OT_GenerateCollisionMesh,
+    FO4_OT_AddCustomCollision,
     FO4_OT_SmartMaterialSetup,
     # New vegetation/landscaping operators
     FO4_OT_CreateVegetationPreset,
@@ -16100,6 +16153,12 @@ def register():
                 ('FO4AE', "Fallout 4 AE (Anniversary Edition)", "Anniversary Edition - same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG; supports ESL plugins; requires latest F4SE"),
             ],
             default='FO4',
+            # Was never wired to addon preferences -- same class of bug as
+            # llm_enabled (see preferences.py comment above that field): the
+            # selection worked within a session but silently reset to 'FO4'
+            # every time Blender restarted. Now persisted via prefs.game_version
+            # and restored on load by restore_scene_props_from_prefs().
+            update=_make_scene_to_pref_sync("fo4_game_version", "game_version"),
         )
 
     except Exception as _e:

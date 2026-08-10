@@ -513,6 +513,7 @@ def restore_scene_props_from_prefs(scene) -> None:
         "auto_install_python":                "fo4_auto_install_python",
         "auto_register_tools":                "fo4_auto_register_tools",
         "mesh_panel_unified":                 "fo4_mesh_panel_unified",
+        "game_version":                       "fo4_game_version",
     }
     for pref_attr, scene_attr in _SETTINGS_PREF_TO_SCENE.items():
         if not hasattr(prefs, pref_attr) or not hasattr(scene, scene_attr):
@@ -800,6 +801,23 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
         default=_DEFAULT_KB_PATH,
         subtype='DIR_PATH',
         description="Folder with txt/md docs to feed the advisor; defaults to bundled knowledge_base/",
+        update=_pref_path_update,
+    )
+
+    # Persisted counterpart of the scene-level "Game Version" selector
+    # (fo4_game_version, registered in operators.py, shown in Export to
+    # Fallout 4) -- same class of bug as llm_enabled above: the scene
+    # property had no sync target here, so it reset to 'FO4' every time
+    # Blender restarted even though the user had picked FO4NG/FO4AE.
+    game_version: bpy.props.EnumProperty(
+        name="Game Version",
+        description="Persisted target Fallout 4 game version (affects NIF flags and dependencies)",
+        items=[
+            ('FO4',   "Fallout 4 (OG)",                    "Original Fallout 4 (pre-Next-Gen patch) - NIF 20.2.0.7, bsver 130, BSTriShape, target_game=FO4"),
+            ('FO4NG', "Fallout 4 Next-Gen",                 "Next-Gen / free update (May 2024 patch) - same NIF format as OG; requires updated F4SE and mods"),
+            ('FO4AE', "Fallout 4 AE (Anniversary Edition)", "Anniversary Edition - same NIF 20.2.0.7 / bsver 130 / BSTriShape as OG & NG; supports ESL plugins; requires latest F4SE"),
+        ],
+        default='FO4',
         update=_pref_path_update,
     )
 

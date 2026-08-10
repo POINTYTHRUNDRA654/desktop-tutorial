@@ -45,7 +45,7 @@ ZIP_FILE_PREFIX   = "mossy-fo4-blender-addon"
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
     ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode", ".vs", ".claude",
-    "build_temp", "build_addon.py", "build.ps1", "build.log",
+    "build_temp", "build_addon.py", "build.ps1", "build.log", "dist",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
     "DEVELOPMENT_NOTES.md", "RELEASE_GUIDE.md", "MIGRATION_v5.1.0.md",
@@ -116,6 +116,13 @@ def _is_excluded(path: Path, root: Path) -> bool:
     for exc in EXCLUDE:
         if exc.startswith("*"):
             if path.suffix == exc[1:] or path.name.endswith(exc[1:]):
+                # "*.zip" is meant to keep this script's own previous zip
+                # outputs (repo root / dist/) out of the next build -- NOT
+                # bundled/, which intentionally ships real dependency zips
+                # (e.g. io_scene_nifly, with BadDog's permission -- see
+                # bundled/README.md) that must be packaged, not stripped.
+                if exc == "*.zip" and "bundled" in parts:
+                    continue
                 return True
         else:
             if exc in parts or path.name == exc:

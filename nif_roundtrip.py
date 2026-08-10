@@ -43,6 +43,13 @@ try:
 except Exception:
     _pynifly = None
 
+try:
+    from io_scene_nifly.pyn import bhk_autounpack as _bau
+    from io_scene_nifly.pyn import nifconstants as _nc
+except Exception:
+    _bau = None
+    _nc = None
+
 _ALWAYS_UNRESTORABLE = [
     "Havok collision",
     "BSLeafAnimNode",
@@ -275,6 +282,80 @@ def patch_root_name(exported_path, mesh_type: str) -> dict:
     return report
 
 
+def _patch_havok_material(filepath, material_name: str) -> tuple:
+    """Overwrite the Havok physical material hash inside every
+    hknpBSMaterialProperties block in *filepath* with *material_name*'s real
+    SkyrimHavokMaterial value (FO4 shares this material ID table with
+    Skyrim -- confirmed by cross-checking the installed PyNifly's own FO4
+    export path, which branches on game for scale/radius right alongside
+    these same constants, never for material).
+
+    Necessary because PyNifly's low-level Havok packer (bhk_autopack.py)
+    has no material parameter at all when building a fresh compressed_mesh/
+    polytope shape -- it always stamps in one fixed byte template captured
+    from a single reference file, regardless of what's requested. This is a
+    raw post-save binary patch, not a PyNifly API call.
+
+    Offset +0x34 within the block was empirically confirmed (not guessed)
+    by parsing real vanilla FO4 NIFs with PyNifly's own bhk_autounpack
+    section/fixup parser and finding the one offset whose bytes, read as a
+    little-endian uint32, decoded to the exact known SkyrimHavokMaterial
+    hash matching each reference file's real material (STONE in a stone
+    wall piece, WOOD in a wood roof piece) -- see the reverse-engineering
+    session that produced this fix for the full methodology.
+
+    Returns (patched_count, message).
+    """
+    if _bau is None or _nc is None:
+        return 0, "material patch skipped (PyNifly internals unavailable)"
+    try:
+        material_value = int(_nc.SkyrimHavokMaterial[material_name])
+    except KeyError:
+        return 0, f"material patch skipped (unknown material name {material_name!r})"
+
+    data = bytearray(open(filepath, "rb").read())
+    blocks, _num = _bau._parse_nif_blocks(bytes(data))
+    patched = 0
+    for b in blocks:
+        if "bhk" not in b["type"] and "hkn" not in b["type"].lower():
+            continue
+        raw_blob = b["blob"]
+        magic_pos = raw_blob.find(_bau.HAVOK_MAGIC)
+        if magic_pos < 0:
+            continue
+        blob = raw_blob[magic_pos:]
+        try:
+            hdrs = _bau.parse_section_headers(blob)
+        except Exception:
+            continue
+        if "__classnames__" not in hdrs or "__data__" not in hdrs:
+            continue
+        cn_start = hdrs["__classnames__"].abs_start
+        data_hdr = hdrs["__data__"]
+        try:
+            objs = _bau.parse_virtual_fixups(blob, data_hdr, cn_start)
+        except Exception:
+            continue
+        for rel_off, cls in objs:
+            if cls != "hknpBSMaterialProperties":
+                continue
+            # b["offset"] = this NIF block's absolute start in the file;
+            # magic_pos = packfile start within the block's blob;
+            # data_hdr.abs_start + rel_off = the instance's start within
+            # the packfile's __data__ section; +0x34 = the material field.
+            abs_file_off = b["offset"] + magic_pos + data_hdr.abs_start + rel_off + 0x34
+            if abs_file_off + 4 > len(data):
+                continue
+            data[abs_file_off:abs_file_off + 4] = material_value.to_bytes(4, "little")
+            patched += 1
+
+    if patched:
+        with open(filepath, "wb") as fh:
+            fh.write(data)
+        return patched, f"Havok material set to {material_name} ({patched} block(s))"
+    return 0, f"material patch found no hknpBSMaterialProperties block to patch"
+
+
 def patch_native_collision(exported_path, collision_obj) -> dict:
     """Attach a real FO4 native-physics Havok collision
     (bhkNPCollisionObject -> bhkPhysicsSystem) to a freshly exported NIF's
@@ -376,6 +457,24 @@ def patch_native_collision(exported_path, collision_obj) -> dict:
         _pynifly.bhkPhysicsSystem.New(exp, shapes=[shape], parent=coll_node)
         exp.save()
         report["restored"].append(f"Havok collision ({shape_type})")
+
+        # bhkPhysicsSystem.New() above has no material parameter at all (see
+        # _patch_havok_material's docstring) -- every freshly-built shape
+        # gets the same fixed template regardless of collision type. Patch
+        # the real value in afterward, sourced from the same
+        # pyn_collshape.bhkMaterial property MeshHelpers.add_*collision*()
+        # already sets on collision_obj for PyNifly's own native-export path.
+        try:
+            material_name = collision_obj.pyn_collshape.bhkMaterial if hasattr(
+                collision_obj, 'pyn_collshape') else ""
+        except Exception:
+            material_name = ""
+        if material_name:
+            patched, mat_msg = _patch_havok_material(exported_path, material_name)
+            if patched:
+                report["restored"].append(f"Havok material ({material_name})")
+            else:
+                report["could_not_restore"].append(f"Havok material ({mat_msg})")
     except Exception as exc:
         report["could_not_restore"].append(f"Havok collision ({exc})")
 

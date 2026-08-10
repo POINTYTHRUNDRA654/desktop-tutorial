@@ -939,7 +939,11 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
                     "ShaderNodeMixRGB",
                     (principled.location.x - 150, principled.location.y + 40),
                 )
-                mix.inputs[0].default_value = self.intensity
+                # Fac (inputs[0]) is driven by the pointiness ramp below, not a
+                # static value -- intensity instead shapes the ramp thresholds
+                # a few lines up, so no default_value assignment belongs here
+                # (a previous one was dead code: immediately overwritten by
+                # the link on the next line, never taking effect).
                 mix.inputs[2].default_value = preset_colors[self.preset]
 
                 _ensure_mix_base_input(nt, principled, mix, (0.7, 0.7, 0.7, 1.0))
@@ -1067,13 +1071,19 @@ class FO4_OT_ApplyDecalLayering(Operator):
                     (principled.location.x - 120, principled.location.y),
                 )
                 mix.blend_type = "MIX"
-                mix.inputs[0].default_value = self.density
 
                 _ensure_mix_base_input(nt, principled, mix, (1.0, 1.0, 1.0, 1.0))
 
                 _replace_input_link(nt, multiply.inputs[1], tex.outputs["Color"])
                 _replace_input_link(nt, multiply.inputs[2], tint.outputs[0])
                 _replace_input_link(nt, mix.inputs[2], multiply.outputs[0])
+                # Fac normally comes from the decal's own alpha channel (its
+                # shape/opacity map) rather than a flat density value -- a
+                # previous unconditional `mix.inputs[0].default_value =
+                # self.density` line above was dead code, always immediately
+                # overwritten by this link since ShaderNodeTexImage always
+                # exposes an Alpha output. density still controls intensity
+                # via the multiply stage above.
                 if tex.outputs.get("Alpha") is not None:
                     _replace_input_link(nt, mix.inputs[0], tex.outputs["Alpha"])
                 else:

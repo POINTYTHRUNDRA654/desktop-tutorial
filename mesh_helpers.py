@@ -78,6 +78,42 @@ class MeshHelpers:
         'NONE':       {'friction': 0.5, 'restitution': 0.1},
     }
 
+    # PyNifly (io_scene_nifly) reads the Havok physical material for a
+    # collision shape from obj.pyn_collshape.bhkMaterial -- a plain string
+    # matching a SkyrimHavokMaterial enum name (FO4 shares this same material
+    # ID table; verified against the installed PyNifly's own export code,
+    # which branches on self.game == 'FO4' for scale/radius right alongside
+    # these same constants, not a separate FO4-only table). None of this
+    # add-on's collision generators ever set it, so every collision mesh this
+    # add-on has ever produced exports with Havok material NONE ("Invalid
+    # Material") -- wrong footstep sounds/impact FX in-game, even though the
+    # shape and layer are otherwise correct. Names must match exactly.
+    _HAVOK_MATERIAL_BY_TYPE = {
+        'DEFAULT':    'STONE',
+        'ROCK':       'HEAVY_STONE',
+        'TREE':       'HEAVY_WOOD',
+        'BUILDING':   'STONE',
+        'VEGETATION': 'LIGHT_WOOD',
+        'GRASS':      'GRASS',
+        'MUSHROOM':   'ORGANIC',
+        'CREATURE':   'SKIN',
+        'NONE':       'STONE',
+    }
+
+    @staticmethod
+    def _set_havok_material(collision_obj, collision_type: str) -> None:
+        """Set the Havok physical material PyNifly will export for
+        *collision_obj*, if the pyn_collshape property group is available
+        (registered by the PyNifly add-on -- absent if PyNifly isn't
+        installed/enabled, in which case this is a harmless no-op)."""
+        if not hasattr(collision_obj, 'pyn_collshape'):
+            return
+        material_name = MeshHelpers._HAVOK_MATERIAL_BY_TYPE.get(collision_type, 'STONE')
+        try:
+            collision_obj.pyn_collshape.bhkMaterial = material_name
+        except Exception:
+            pass
+
     @staticmethod
     def infer_collision_type(obj):
         """Guess an appropriate collision type based on the object name.
@@ -1197,6 +1233,7 @@ class MeshHelpers:
             collision_obj['pynCollisionShapeType'] = (
                 'compressed_mesh' if collision_type == 'BUILDING' else 'polytope'
             )
+            MeshHelpers._set_havok_material(collision_obj, collision_type)
             # FO4 static collision: mass must be 0 so Niftools emits the
             # correct PASSIVE / FIXED motion-system flags.  Friction and
             # restitution are set per collision type so the in-game surface
@@ -1215,6 +1252,136 @@ class MeshHelpers:
             pass
 
         # restore original object as active/selected
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        collision_obj.select_set(False)
+
+        return collision_obj
+
+    @staticmethod
+    def add_custom_collision(obj, collision_type: str = 'BUILDING'):
+        """Create a collision mesh that is an EXACT copy of *obj*'s geometry
+        (only triangulated, never hulled or decimated).
+
+        add_collision_mesh() always builds a convex hull, which is correct
+        for simple solid props but wrong for anything with an opening --
+        a cave mouth, a doorway, a tunnel -- since a hull seals every
+        concavity shut. add_compound_collision() approximates concave shapes
+        via convex decomposition, which needs the optional `vhacdx` package
+        and otherwise falls back to a crude bounding-box split that has no
+        idea where your openings actually are.
+
+        This is the reliable alternative for exactly that case: the source
+        mesh's own triangles become the collision shape, so any opening in
+        the original mesh is an opening in the collision too, by
+        construction -- no hull, no decomposition, no guessing. The
+        trade-off is cost: mesh-shape Havok collision is heavier at runtime
+        than a convex hull, so keep the source mesh's poly count reasonable
+        before using this on anything large or highly detailed.
+
+        Always exported as a native mesh (compressed_mesh) Havok shape,
+        regardless of *collision_type* -- that flag only affects the
+        friction/restitution/sound preset applied, not the shape.
+        """
+        if obj is None or obj.type != 'MESH':
+            return None
+
+        obj.fo4_collision_type = collision_type
+        sound  = MeshHelpers._SOUND_PRESETS.get(collision_type)
+        weight = MeshHelpers._WEIGHT_PRESETS.get(collision_type)
+        if sound is not None:
+            obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            obj["fo4_collision_weight"] = weight
+
+        # Remove any previously generated collision mesh for this object,
+        # matching add_collision_mesh()'s de-dupe behaviour.
+        ucx_name = f"UCX_{obj.name}"
+        legacy_name = f"{obj.name}_COLLISION"
+        for o in list(obj.children):
+            if o.get("fo4_collision") or o.name in (ucx_name, legacy_name):
+                bpy.data.objects.remove(o, do_unlink=True)
+        for scene in getattr(obj, 'users_scene', []):
+            for o in list(scene.objects):
+                if o is obj:
+                    continue
+                if o.name in (ucx_name, legacy_name):
+                    bpy.data.objects.remove(o, do_unlink=True)
+
+        bpy.ops.object.select_all(action='DESELECT')
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.duplicate()
+
+        collision_obj = bpy.context.active_object
+
+        # Force an independent mesh copy regardless of the user's "Duplicate
+        # Data > Mesh" preference -- see the matching comment in
+        # add_collision_mesh() above; without this, triangulating below could
+        # mutate the source object's own geometry when that preference is off.
+        if collision_obj.data.users > 1:
+            collision_obj.data = collision_obj.data.copy()
+
+        collision_obj.name = ucx_name
+        collision_obj["fo4_collision"] = True
+        collision_obj.fo4_collision_type = collision_type
+        collision_obj["PYN_GAME"] = "FO4"
+        obj["PYN_GAME"] = "FO4"
+        if sound is not None:
+            collision_obj["fo4_collision_sound"] = sound
+        if weight is not None:
+            collision_obj["fo4_collision_weight"] = weight
+
+        # Collision meshes carry no materials/vertex groups -- purely physics.
+        collision_obj.data.materials.clear()
+        collision_obj.vertex_groups.clear()
+
+        bpy.ops.object.select_all(action='DESELECT')
+        collision_obj.select_set(True)
+        bpy.context.view_layer.objects.active = collision_obj
+
+        # Bake scale/rotation into the geometry so the collision shape
+        # matches the source's true world-space silhouette. Location is left
+        # as-is so the collision object stays co-located with the source.
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+        # Triangulate only -- Havok mesh shapes need triangles, but this
+        # never changes the silhouette or closes any opening, unlike
+        # Decimate or convex_hull. A very tight weld heals floating-point
+        # seams from the source mesh without merging anything meaningful.
+        bm = bmesh.new()
+        bm.from_mesh(collision_obj.data)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+        bmesh.ops.triangulate(bm, faces=bm.faces[:])
+        bm.to_mesh(collision_obj.data)
+        bm.free()
+        collision_obj.data.update()
+
+        collision_obj.parent = obj
+        collision_obj.matrix_parent_inverse = obj.matrix_world.inverted()
+        obj["pynCollisionTarget"] = collision_obj.name
+
+        try:
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.rigidbody.object_add()
+            collision_obj.rigid_body.type = 'PASSIVE'
+            collision_obj.rigid_body.mesh_source = 'FINAL'
+            # Always MESH -- an exact-geometry copy is the whole point of
+            # this button, so it's never appropriate to hull it.
+            collision_obj.rigid_body.collision_shape = 'MESH'
+            collision_obj['pynRigidBody'] = 'bhkPhysicsSystem'
+            collision_obj['pynCollisionShapeType'] = 'compressed_mesh'
+            MeshHelpers._set_havok_material(collision_obj, collision_type)
+            phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
+                collision_type, MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'])
+            collision_obj.rigid_body.mass        = 0.0
+            collision_obj.rigid_body.friction    = phys['friction']
+            collision_obj.rigid_body.restitution = phys['restitution']
+        except Exception:
+            pass
+
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
         collision_obj.select_set(False)
@@ -1416,6 +1583,7 @@ class MeshHelpers:
             collision_obj['pynCollisionShapeType'] = (
                 'compressed_mesh' if collision_type == 'BUILDING' else 'polytope'
             )
+            MeshHelpers._set_havok_material(collision_obj, collision_type)
             phys = MeshHelpers._TYPE_PHYSICS_PRESETS.get(
                 collision_type,
                 MeshHelpers._TYPE_PHYSICS_PRESETS['DEFAULT'],
@@ -1767,6 +1935,12 @@ class MeshHelpers:
                 ucx_obj.rigid_body.type = 'PASSIVE'
                 ucx_obj.rigid_body.mesh_source = 'FINAL'
                 ucx_obj.rigid_body.collision_shape = 'CONVEX_HULL'
+                # Without these two, PyNifly doesn't reliably recognise this
+                # as real native collision at all -- see the matching
+                # comment in add_collision_mesh() above.
+                ucx_obj['pynRigidBody'] = 'bhkPhysicsSystem'
+                ucx_obj['pynCollisionShapeType'] = 'polytope'
+                MeshHelpers._set_havok_material(ucx_obj, collision_type)
                 ucx_obj.rigid_body.mass = 0.0
                 ucx_obj.rigid_body.friction = phys['friction']
                 ucx_obj.rigid_body.restitution = phys['restitution']

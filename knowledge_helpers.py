@@ -144,7 +144,13 @@ def load_snippets(max_files: int = 20, max_chars: int = 6000, query: str | None 
 
     # Relevance-ranked path: read each candidate once (generously, so short
     # files aren't unfairly scored against a truncated slice of a long one),
-    # score by keyword overlap, then truncate only the winners to max_chars.
+    # score by keyword overlap, then extract an excerpt from *around the
+    # actual match* for the winners -- NOT a blind head-of-file truncation.
+    # A large multi-section reference file (e.g. addon_complete_guide.md)
+    # can legitimately score highest on whole-file keyword overlap while the
+    # matching section sits well past character max_chars; truncating from
+    # offset 0 would then silently return a snippet that never contains the
+    # content that made the file win in the first place.
     query_words = _keywords(query)
     scored: list[tuple[int, str]] = []
     for path in candidates:
@@ -155,7 +161,48 @@ def load_snippets(max_files: int = 20, max_chars: int = 6000, query: str | None 
         scored.append((score, full_text))
 
     scored.sort(key=lambda t: t[0], reverse=True)
-    return [text[:max_chars] for _, text in scored[:max_files]]
+    return [_best_excerpt(text, query_words, max_chars) for _, text in scored[:max_files]]
+
+
+_SECTION_RE = re.compile(r"(?=^##\s)", re.MULTILINE)
+_PARAGRAPH_RE = re.compile(r"\n\s*\n")
+
+
+def _best_excerpt(text: str, query_words: set[str], max_chars: int) -> str:
+    """Return up to *max_chars* of *text*, centered on whichever chunk(s)
+    actually contain the query keywords, instead of always the first
+    *max_chars* characters of the file.
+
+    Chunks on markdown ``## `` section boundaries when the file has at
+    least two of them (matches this knowledge base's own doc structure);
+    falls back to blank-line paragraphs otherwise. Highest-scoring chunks
+    are concatenated (each internally still in original order) until
+    *max_chars* is filled; if no chunk scores above zero (e.g. the file
+    only matched on a query word that occurs everywhere), falls back to
+    the previous head-of-file behavior so a snippet is still returned.
+    """
+    if not query_words:
+        return text[:max_chars]
+
+    chunks = [c for c in _SECTION_RE.split(text) if c.strip()]
+    if len(chunks) < 2:
+        chunks = [c for c in _PARAGRAPH_RE.split(text) if c.strip()]
+    if len(chunks) < 2:
+        return text[:max_chars]
+
+    scored_chunks = [(len(query_words & _keywords(c)), c) for c in chunks]
+    if max(s for s, _ in scored_chunks) <= 0:
+        return text[:max_chars]
+
+    scored_chunks.sort(key=lambda t: t[0], reverse=True)
+    out, used = [], 0
+    for score, chunk in scored_chunks:
+        if score <= 0 or used >= max_chars:
+            break
+        piece = chunk if used + len(chunk) <= max_chars else chunk[:max_chars - used]
+        out.append(piece)
+        used += len(piece)
+    return "\n\n".join(out) if out else text[:max_chars]
 
 
 def describe_kb() -> str:
