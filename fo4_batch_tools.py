@@ -178,6 +178,53 @@ class FO4_OT_BatchExport(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class FO4_OT_SaveWorkflowSettings(bpy.types.Operator):
+    """Save the current panel settings (paths, descriptions, resolution,
+    glow settings -- see _PRESET_PROPS) as a named workflow preset.
+
+    Distinct from fo4.save_preset, which snapshots selected objects'
+    transforms/materials instead of any panel field -- the "Save Current
+    Settings" button previously called that operator by mistake, so
+    saving/loading a workflow preset never touched panel settings at all.
+    """
+    bl_idname  = "fo4.save_workflow_settings"
+    bl_label   = "Save Workflow Settings"
+    bl_options = {"REGISTER"}
+
+    preset_name: bpy.props.StringProperty(name="Preset Name", default="My Workflow")
+
+    def execute(self, context):
+        name = self.preset_name.strip()
+        if not name:
+            self.report({"ERROR"}, "Enter a preset name first")
+            return {"CANCELLED"}
+        ok, msg = save_preset(name, context.scene)
+        self.report({"INFO"} if ok else {"ERROR"}, msg)
+        return {"FINISHED"}
+
+
+def _workflow_preset_items(self, context):
+    names = list_presets()
+    return [(n, n, "") for n in names] if names else [("", "(no saved presets)", "")]
+
+
+class FO4_OT_LoadWorkflowSettings(bpy.types.Operator):
+    """Load a previously saved workflow settings preset onto the scene."""
+    bl_idname  = "fo4.load_workflow_settings"
+    bl_label   = "Load Workflow Settings"
+    bl_options = {"REGISTER"}
+
+    preset_name: bpy.props.EnumProperty(name="Preset", items=_workflow_preset_items)
+
+    def execute(self, context):
+        if not self.preset_name:
+            self.report({"ERROR"}, "No saved workflow presets found")
+            return {"CANCELLED"}
+        ok, msg = load_preset(self.preset_name, context.scene)
+        self.report({"INFO"} if ok else {"ERROR"}, msg)
+        return {"FINISHED"}
+
+
 class FO4_OT_GenerateTextureFromDesc(bpy.types.Operator):
     """Shortcut: generate texture and apply to active object material."""
     bl_idname  = "fo4.generate_and_apply_texture"
@@ -195,6 +242,8 @@ class FO4_OT_GenerateTextureFromDesc(bpy.types.Operator):
 
 _CLASSES = [
     FO4_OT_BatchExport,
+    FO4_OT_SaveWorkflowSettings,
+    FO4_OT_LoadWorkflowSettings,
     FO4_OT_GenerateTextureFromDesc,
 ]
 
@@ -204,6 +253,9 @@ _SCENE_PROPS = [
     )),
     ("fo4_batch_fo4_prep", bpy.props.BoolProperty(
         name="Apply FO4 Prep on Batch Export", default=True,
+    )),
+    ("fo4_workflow_preset_name", bpy.props.StringProperty(
+        name="Workflow Preset Name", default="My Workflow",
     )),
 ]
 

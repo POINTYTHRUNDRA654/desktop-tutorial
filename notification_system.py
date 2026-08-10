@@ -85,6 +85,19 @@ class OperationLog:
         """Delete all log entries."""
         OperationLog._save_raw([])
 
+    @staticmethod
+    def export_to_text(output_path):
+        """Write every log entry to a plain-text file. Returns (success, message)."""
+        entries = OperationLog._load_raw()
+        try:
+            with open(output_path, 'w', encoding='utf-8') as fh:
+                for entry in entries:
+                    fh.write(f"[{entry.get('timestamp','')}] {entry.get('type','INFO'):7} "
+                              f"{entry.get('message','')}\n")
+            return True, f"Exported {len(entries)} log entries to {output_path}"
+        except Exception as exc:
+            return False, f"Failed to export log: {exc}"
+
 class FO4_NotificationSystem:
     """Central notification system"""
     

@@ -181,6 +181,61 @@ class FO4_OT_ConvertObjectTexturesToDDS(Operator):
         return {'RUNNING_MODAL'}
 
 
+class FO4_OT_BatchConvertTextures(Operator):
+    """Convert every selected object's textures to DDS format, one object at a time"""
+    bl_idname = "fo4.batch_convert_textures"
+    bl_label = "Batch Convert Textures"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    output_dir: StringProperty(
+        name="Output Directory",
+        description="Directory to save converted DDS files",
+        subtype='DIR_PATH'
+    )
+
+    converter: EnumProperty(
+        name="Converter",
+        description="Select converter binary",
+        items=[
+            ('auto', "Auto (prefer NVTT)", "Use nvcompress if available, else texconv"),
+            ('nvtt', "NVTT (nvcompress)", "Use NVIDIA Texture Tools"),
+            ('texconv', "texconv (DirectXTex)", "Use Microsoft texconv"),
+        ],
+        default='auto'
+    )
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        objects = [o for o in context.selected_objects if o.type == 'MESH']
+        if not objects:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        if not self.output_dir:
+            self.report({'ERROR'}, "No output directory selected")
+            return {'CANCELLED'}
+
+        out = bpy.path.abspath(self.output_dir)
+        success_count, fail_count = 0, 0
+        for obj in objects:
+            ok, message, _files = nvtt_helpers.NVTTHelpers.convert_object_textures(
+                obj, out, preferred_tool=self.converter)
+            if ok:
+                success_count += 1
+            else:
+                fail_count += 1
+                print(f"[Batch Convert Textures] {obj.name}: {message}")
+
+        self.report({'INFO'},
+            f"Batch texture conversion: {success_count} OK, {fail_count} failed → {out}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 class FO4_OT_TestDDSConverters(Operator):
     """Self-test nvcompress/texconv by converting a tiny PNG to DDS"""
     bl_idname = "fo4.test_dds_converters"
@@ -289,6 +344,7 @@ class FO4_OT_CheckNVTTInstallation(Operator):
 _CLASSES = (
     FO4_OT_ConvertTextureToDDS,
     FO4_OT_ConvertObjectTexturesToDDS,
+    FO4_OT_BatchConvertTextures,
     FO4_OT_TestDDSConverters,
     FO4_OT_CheckNVTTInstallation,
 )

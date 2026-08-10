@@ -30,6 +30,7 @@ class PresetItem(PropertyGroup):
             ('ITEM', "Item", "Item preset"),
             ('WORLD', "World Building", "World building preset"),
             ('WORKFLOW', "Workflow", "Complete workflow preset"),
+            ('SCRIPT', "Script", "Reusable Papyrus script template"),
         ],
         default='MESH'
     )
@@ -92,8 +93,8 @@ class PresetLibrary:
         os.makedirs(library_path, exist_ok=True)
         
         # Create category subdirectories
-        categories = ['meshes', 'materials', 'vegetation', 'weapons', 'armor', 
-                     'npcs', 'items', 'world', 'workflows']
+        categories = ['meshes', 'materials', 'vegetation', 'weapons', 'armor',
+                     'npcs', 'items', 'world', 'workflows', 'scripts']
         for category in categories:
             os.makedirs(os.path.join(library_path, category), exist_ok=True)
         
@@ -156,7 +157,8 @@ class PresetLibrary:
             'NPC': 'npcs',
             'ITEM': 'items',
             'WORLD': 'world',
-            'WORKFLOW': 'workflows'
+            'WORKFLOW': 'workflows',
+            'SCRIPT': 'scripts'
         }
         
         category_folder = category_folders.get(category, 'meshes')
@@ -217,6 +219,58 @@ class PresetLibrary:
             print(f"Error loading preset: {e}")
             return None
     
+    @staticmethod
+    def export_presets_bundle(bundle_path, preset_names=None):
+        """Bundle the index entry + saved data for every preset (or just
+        *preset_names* if given) into one portable JSON file for backup or
+        sharing between machines."""
+        index = PresetLibrary.load_index()
+        entries = index.get('presets', [])
+        if preset_names:
+            entries = [e for e in entries if e.get('name') in preset_names]
+
+        bundle = {"format": "fo4_preset_bundle_v1", "presets": []}
+        for entry in entries:
+            data = PresetLibrary.load_preset(entry.get('filepath', ''))
+            if data is None:
+                continue
+            bundle["presets"].append({"meta": entry, "data": data})
+
+        try:
+            with open(bundle_path, 'w') as f:
+                json.dump(bundle, f, indent=2)
+            return True, f"Exported {len(bundle['presets'])} preset(s) to {bundle_path}"
+        except Exception as e:
+            return False, f"Failed to export presets: {e}"
+
+    @staticmethod
+    def import_presets_bundle(bundle_path):
+        """Import a bundle written by export_presets_bundle, re-saving each
+        preset through save_preset() so the index stays consistent."""
+        try:
+            with open(bundle_path, 'r') as f:
+                bundle = json.load(f)
+        except Exception as e:
+            return False, f"Failed to read preset bundle: {e}"
+
+        entries = bundle.get("presets", [])
+        imported = 0
+        for item in entries:
+            meta = item.get("meta", {})
+            data = item.get("data")
+            if data is None:
+                continue
+            ok, _msg = PresetLibrary.save_preset(
+                meta.get("name", "Imported Preset"),
+                meta.get("category", "MESH"),
+                data,
+                meta.get("description", ""),
+                meta.get("tags", ""),
+            )
+            if ok:
+                imported += 1
+        return True, f"Imported {imported} of {len(entries)} preset(s)"
+
     @staticmethod
     def delete_preset(preset_path):
         """Delete a preset from the library"""
@@ -326,6 +380,7 @@ def register():
             ('ITEM', "Items", "Item presets"),
             ('WORLD', "World", "World building presets"),
             ('WORKFLOW', "Workflows", "Workflow presets"),
+            ('SCRIPT', "Scripts", "Papyrus script presets"),
         ],
         default='ALL'
     )

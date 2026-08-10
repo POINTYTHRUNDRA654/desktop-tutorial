@@ -530,6 +530,26 @@ def is_server_running() -> bool:
     return _active
 
 
+def generate_new_token() -> tuple:
+    """Generate a fresh auth token and save it to preferences on demand.
+
+    Same generation call start_server() uses automatically on first run
+    (secrets.token_hex(16)) -- exposed standalone so the user can rotate
+    the token without restarting the server.
+    """
+    import secrets as _secrets
+    token = _secrets.token_hex(16)
+    try:
+        from . import preferences as _prefs_tok
+        prefs = _prefs_tok.get_preferences()
+        if not (prefs and hasattr(prefs, "token")):
+            return False, "Preferences unavailable -- open the addon preferences panel first"
+        prefs.token = token
+    except Exception as exc:
+        return False, f"Failed to save new token: {exc}"
+    return True, token
+
+
 def start_server() -> tuple:
     """
     Start the TCP command server.

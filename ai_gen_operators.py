@@ -981,12 +981,19 @@ class FO4_OT_AdvisorAnalyze(Operator):
     _deadline = None
 
     def _run_ai(self):
-        """Run in background thread: call Mossy then fall back to remote LLM."""
+        """Run in background thread: call Mossy for AI analysis.
+
+        query_llm() (a separate OpenAI-compatible remote endpoint, distinct
+        from Mossy) was removed when this addon migrated to routing all AI
+        through Mossy -- see preferences.py's "LLM/OpenAI API key fields
+        REMOVED" note -- but this fallback call was never updated to match,
+        so it always raised AttributeError here, silently swallowed by the
+        except below into the same "no answer" result Mossy-not-configured
+        already produces. Removed rather than reintroducing a second AI
+        backend the rest of the addon no longer supports.
+        """
         try:
-            ai_resp = advisor_helpers.AdvisorHelpers.query_mossy(self._base_report)
-            if not ai_resp:
-                ai_resp = advisor_helpers.AdvisorHelpers.query_llm(self._base_report)
-            self._result = ai_resp
+            self._result = advisor_helpers.AdvisorHelpers.query_mossy(self._base_report)
         except Exception:
             self._result = None
 
@@ -1053,6 +1060,72 @@ class FO4_OT_AdvisorAnalyze(Operator):
         notification_system.FO4_NotificationSystem.notify(
             f"Advisor: {len(report['issues'])} issues, {len(report.get('suggestions', []))} suggestions.", 'WARNING'
         )
+
+
+class FO4_OT_AdvisorAsk(Operator):
+    """Ask Mossy a free-text question about the current scene/mod/workflow.
+
+    Reuses the same scene analysis + query_mossy() plumbing as "Ask Mossy
+    for Advice", but sends the user's own question text instead of the
+    fixed export-readiness review prompt.
+    """
+    bl_idname = "fo4.advisor_ask"
+    bl_label = "Ask Mossy"
+
+    _thread = None
+    _result = None
+    _timer = None
+    _base_report = None
+    _deadline = None
+
+    def _run_ai(self, question):
+        try:
+            self._result = advisor_helpers.AdvisorHelpers.query_mossy(
+                self._base_report, custom_question=question)
+        except Exception:
+            self._result = None
+
+    def invoke(self, context, event):
+        question = getattr(context.scene, "fo4_advisor_question", "").strip()
+        if not question:
+            self.report({'ERROR'}, "Type a question first")
+            return {'CANCELLED'}
+        from . import preferences as _prefs_ask
+        prefs = _prefs_ask.get_preferences() if _prefs_ask else None
+        if not prefs or not getattr(prefs, 'use_mossy_as_ai', False):
+            self.report({'ERROR'}, "Enable 'Use Mossy as AI Advisor' first (Mossy panel)")
+            return {'CANCELLED'}
+
+        self._base_report = advisor_helpers.AdvisorHelpers.analyze_scene(context, use_llm=False)
+
+        import time
+        self._result = None
+        self._deadline = time.monotonic() + 40
+        self._thread = threading.Thread(target=self._run_ai, args=(question,), daemon=True)
+        self._thread.start()
+        self._timer = context.window_manager.event_timer_add(0.1, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        self.report({'INFO'}, "Asking Mossy… (Blender stays responsive)")
+        return {'RUNNING_MODAL'}
+
+    def modal(self, context, event):
+        if event.type != 'TIMER':
+            return {'PASS_THROUGH'}
+        import time
+        if self._thread and self._thread.is_alive() and time.monotonic() < self._deadline:
+            return {'PASS_THROUGH'}
+        context.window_manager.event_timer_remove(self._timer)
+        self._timer = None
+
+        answer = self._result or "No answer (Mossy didn't respond in time)"
+        context.scene.fo4_advisor_last_answer = answer
+        print("\n" + "="*70)
+        print("MOSSY ANSWER")
+        print("="*70)
+        print(answer)
+        print("="*70 + "\n")
+        self.report({'INFO'}, "Mossy answered — see below / console")
+        return {'FINISHED'}
 
 
 class FO4_OT_AdvisorQuickFix(Operator):
@@ -4757,6 +4830,7 @@ classes = (
     FO4_OT_ShowMotionGenerationInfo,
     FO4_OT_GenerateMotionAuto,
     FO4_OT_AdvisorAnalyze,
+    FO4_OT_AdvisorAsk,
     FO4_OT_AdvisorQuickFix,
     FO4_OT_AskMossyForSetupHelp,
     FO4_OT_UpscaleTexture,

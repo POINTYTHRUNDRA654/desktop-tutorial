@@ -180,6 +180,11 @@ fo4_game_assets = _try_import("fo4_game_assets")
 unity_game_assets = _try_import("unity_game_assets")
 unreal_game_assets = _try_import("unreal_game_assets")
 
+# SMD (Studiomdl Data) importer -- pure parser/builder, no register()/
+# unregister() of its own (same pattern as tool_installers above), so it is
+# not added to the modules list below.
+smd_helpers = _try_import("smd_helpers")
+
 # Extended / optional helpers added by the full-file merge
 post_processing_helpers = _try_import("post_processing_helpers")
 fo4_material_browser = _try_import("fo4_material_browser")

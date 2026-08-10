@@ -63,7 +63,10 @@ The root panel. Always visible at the top of the tab.
 **Contains:**
 - **Full FO4 Pipeline** section:
   - **Convert to Fallout 4 (Full Pipeline)** — one-click: applies transforms,
-    triangulates, sets up material, exports NIF + BGSM
+    triangulates, sets up material, optionally converts textures/generates
+    collision, and validates. Prepares the mesh; it does **not** export a
+    NIF/BGSM itself — use "Export Static Mesh (Full Pipeline)" below (or
+    Batch Processing → Batch Export) for that.
   - **Prepare External Mesh for FO4** — cleans up an imported mesh: applies
     transforms, fixes UV name to "UVMap", removes extra UV maps, sets material,
     merges doubles, fixes non-manifold edges
@@ -87,7 +90,9 @@ The root panel. Always visible at the top of the tab.
   exporter. Required for NIF export on Blender 4.x/5.x.
 - **Environment Check / Self Test** — verifies all tools and reports status.
   Green ✓ = ready. Red ✗ = needs action.
-- **Reload Add-on** — hot-reloads the addon without restarting Blender.
+- **Reload Add-on** — restarts Blender so an installed add-on update takes
+  effect (relaunches the same .blend file). This quits Blender, it does
+  not hot-reload in place — a confirmation dialog appears first.
 
 **Status shown:**
 - PyNifly: installed version
@@ -208,7 +213,11 @@ PyTorch required. Set PyTorch path in Settings if not auto-detected.
 **Buttons:**
 - **Auto-Rig Mesh** — sends mesh to RigNet, returns a generated skeleton with
   weights. Best for organic shapes (creatures, NPCs).
-- **Refine Rig** — adjust RigNet output, clean up joints.
+
+*Not yet built:* a "Refine Rig" step to adjust RigNet's output and clean up
+joints automatically. For now, fix up the generated skeleton by hand in
+Edit Mode, or use Animation Helpers → Enforce Bone Limit / Normalize
+Weights afterward.
 
 **Required:** RigNet must be installed (auto-fix attempts this). PyTorch required.
 
@@ -240,14 +249,22 @@ at least one is needed for DDS conversion.
 
 ## 9. ADVISOR (Mossy AI Chat)
 
-**Purpose:** Ask Mossy anything about your mesh, mod, or FO4 workflow.
+**Purpose:** Ask Mossy anything about your mesh, mod, or FO4 workflow. All AI
+analysis in this addon goes through Mossy — there is no separate remote-LLM
+backend.
 
 **How to use:**
-1. Ensure Mossy desktop app is running (check Mossy panel → Quick Connect)
+1. Enable "Use Mossy as AI Advisor" (Mossy panel) and ensure the Mossy
+   desktop app is running
 2. Select your mesh in Blender
-3. Open the Advisor panel
-4. Type your question and press Enter or click Send
-5. Mossy analyzes your actual mesh data and answers specifically
+3. Open the Advisor panel → "Ask Mossy Anything" box
+4. Type your question in the text field and click "Ask Mossy"
+5. Mossy's answer appears below the field once it responds (runs in the
+   background so Blender stays responsive)
+
+There's also **"Ask Mossy for Advice"**, which sends Mossy your scene's
+export-readiness report instead of a free-text question — use that for a
+general review, the text box for a specific question.
 
 **What Mossy can do:**
 - Diagnose why a mesh won't export correctly
@@ -256,7 +273,7 @@ at least one is needed for DDS conversion.
 - Suggest fixes for specific error messages
 - Answer general FO4 modding questions
 
-**Requires:** Mossy desktop app running. Bridge must show ✓ in Mossy panel.
+**Requires:** Mossy desktop app running, "Use Mossy as AI Advisor" enabled.
 
 ---
 
@@ -349,14 +366,17 @@ YourMod/
 **Purpose:** Run FO4 prep and export operations on multiple objects at once.
 
 **Buttons:**
-- **Batch Prepare Selected** — runs "Prepare External Mesh for FO4" on every
-  selected object at once.
-- **Batch Export Selected** — exports each selected mesh as its own NIF.
-- **Batch Convert Textures** — converts all textures in a folder.
+- **Batch Prepare Selected** — runs the full "Convert to Fallout 4" pipeline
+  (transforms, triangulate, material, optional collision, validate) on every
+  selected mesh, one at a time.
+- **Batch Optimize** — runs mesh optimization (cleanup/triangulate) only.
 - **Batch Validate** — checks all selected objects and reports issues.
+- **Batch Export** — exports each selected mesh as its own NIF.
+- **Batch Convert Textures** — converts every selected object's material
+  textures to DDS, one object at a time.
 
-**Use case:** You have 20 imported prop meshes. Select all → "Batch Prepare" →
-"Batch Export" → done. No need to process each one individually.
+**Use case:** You have 20 imported prop meshes. Select all → "Batch Prepare
+Selected" → "Batch Export" → done. No need to process each one individually.
 
 ---
 
@@ -364,14 +384,27 @@ YourMod/
 
 **Purpose:** One-click workflow shortcuts and automation sequences.
 
-**Quick action buttons:**
-- **Full Auto-Pipeline** — completely automated: import → prepare → export.
-  Select a file, click this, get a finished NIF.
-- **Quick Static Prop** — prepare + collision + export in one step.
-- **Quick Vegetation** — prepare + wind + LOD chain in one step.
-- **Quick NPC Mesh** — prepare + skeleton + weight paint in one step.
-- **Save Workflow** — save current settings as a named workflow preset.
-- **Load Workflow** — apply a saved workflow preset.
+**One-Click Preparation:**
+- **Quick Prepare for Export** — UV check, material setup, and validation on
+  the active mesh (no geometry changes).
+
+**Quick Presets** (chain the same real steps with per-type defaults, active
+object only — not batch):
+- **Quick Static Prop** — prep + default-type collision.
+- **Quick Vegetation** — prep + vegetation-type collision + Smart Wind Setup.
+- **Quick NPC Mesh** — prep only (no static collision — rig to an armature
+  separately via Animation Helpers).
+- **Full Auto-Pipeline** — the full "Convert to Fallout 4" pipeline (see
+  Main Panel). Does not import a file for you — run it on an already-imported
+  mesh.
+
+**Save/Load Workflow** — save or load the current *panel settings* (paths,
+descriptions, resolution, glow settings) as a named preset. Distinct from
+the Preset Library panel's "Save Current Objects", which snapshots selected
+objects' transforms/materials instead.
+
+**Auto-Fix Common Issues** and the **Collision Mesh** controls below are
+unchanged single-object tools — see their own labels in-panel.
 
 ---
 
@@ -382,11 +415,16 @@ YourMod/
 **Requires:** ck-cmd configured in External Tools panel.
 
 **Buttons:**
-- **Export Animation (HKX)** — exports the active armature's animation as .hkx
-  file for use in the Creation Kit.
-- **Import HKX** — imports an .hkx animation file back into Blender for editing.
-- **Convert HKX → FBX** — converts HKX to FBX for inspection.
-- **Batch Export Animations** — exports all NLA tracks as separate .hkx files.
+- **Export Animation (HKX)** — exports the active armature's current action as
+  FBX, then converts to .hkx via ck-cmd (or Havok2FBX) for use in the
+  Creation Kit.
+- **Batch Export Animations** — runs the above for every selected armature's
+  current action, one at a time (not NLA tracks — switch actions and re-run
+  per armature for multiple animations on the same rig).
+- **Convert HKX → FBX** — the reverse direction: converts an existing game
+  .hkx animation file back to FBX via ck-cmd, so you can inspect or edit it.
+  This writes an FBX file; import it into Blender separately (File → Import)
+  if you want to edit it as an action.
 
 **Required settings:**
 - ck-cmd path: `D:\blender_tools\ck-cmd\ck-cmd.exe` (must be compiled)
@@ -406,34 +444,48 @@ YourMod/
 **Purpose:** FO4-specific armor/clothing mesh setup.
 
 **Buttons:**
-- **Setup Armor Rig** — attaches mesh to FO4 armor skeleton with correct biped slots.
-- **Assign Biped Slot** — set which armor slot (30=head, 31=hair, 32=body, etc.)
-- **Auto-Weight Armor** — assigns weights from FO4 body mesh reference.
-- **Mirror Weights** — mirrors vertex weights from left to right side.
-- **Export Armor NIF** — exports with armor-specific NIF settings and BSTriShape
-  flags for equipment.
+- **Quick FBX Armor Setup (One-Click: Clean + Scale + Auto-Weight)** — the
+  main hero button: cleans a malformed FBX armature, fixes import scale,
+  loads/reuses the FO4 skeleton, and auto-skins the mesh to it.
+- **Assign Biped Slot** — pick an armor type from a dropdown (Helmet, Chest,
+  Pauldron L/R, Gauntlet L/R, Boot, Full Body, Cape, Robe, Skirt, …); tags
+  the selected mesh(es) with that type's real biped slot(s) — see table below.
+- **Auto-Weight Armor** — Blender's built-in automatic weights: select the
+  mesh(es) plus an armature (armature active), then run this.
+- **Mirror Weights** — Blender's built-in vertex group mirror, left/right.
+- **Export All Selected Pieces (.nif each)** — exports every selected armor
+  piece to its own correctly-named NIF (vanilla FO4 armor is always separate
+  NIFs per piece, not one merged file).
 
-**Biped slot reference:**
-- 30 = Head, 31 = Hair, 32 = Body, 33 = Hands, 34 = Forearms
-- 35 = Amulet, 36 = Ring, 37 = Feet, 38 = Calves, 39 = Shield
-- 40 = Tail, 41 = Long Hair
+**Biped slot reference** (this addon's own `ARMOR_TYPE_CONFIG` mapping,
+used by Assign Biped Slot and the ESP Generator's ARMO/ARMA records):
+- Helmet = 30 · Chest = 32 · Gauntlet L = 33, 43 · Gauntlet R = 34, 44
+- Boots = 38, 39 · Pauldron L = 40, 41 · Pauldron R = 40, 42
+- Cape = 40 · Robe = 32 · Skirt = 32, 45, 46
+- Full Body = 32, 33, 34, 38, 39, 40, 41, 42, 43, 44, 45, 46
 
 ---
 
 ## 17. PRESET LIBRARY
 
-**Purpose:** Save and recall complete mesh/material/export setting configurations.
+**Purpose:** Save and recall selected objects' transforms/materials as named,
+categorized presets (Mesh, Material, Vegetation, Weapon, Armor, NPC, Item,
+World, Workflow, Script). Note: this is *object* data, not panel settings or
+tool paths — see Automation & Quick Tools → Save/Load Workflow for saving
+panel settings instead.
 
 **Buttons:**
-- **Save Current as Preset** — saves all current settings, tool paths, and object
-  properties as a named preset.
-- **Load Preset** — applies a saved preset (restores all settings).
+- **Save Current Objects** — saves the selected object(s)' transform,
+  vertex/polygon counts, and material names as a named preset.
+- **Load Preset** (per recent/popular entry) — restores that preset onto
+  the scene.
 - **Delete Preset** — removes a saved preset.
-- **Export Presets** — save your preset library to a JSON file for backup/sharing.
-- **Import Presets** — load a preset library from JSON.
+- **Export Presets** — bundle every saved preset into one portable JSON
+  file for backup/sharing between machines.
+- **Import Presets** — load presets from a bundle written by Export Presets.
 
-**Use case:** You have a "vegetation" workflow preset and an "armor" workflow
-preset. Switch between them with one click.
+**Use case:** Back up your whole preset library before reinstalling Blender,
+or share a set of vegetation/armor presets with someone else.
 
 ---
 
@@ -611,8 +663,10 @@ sneak/stealth, hit/stagger/death, creature/charge/pounce/bite, wave/point/shrug
 - Spore: Spore Cloud, Toxic Puff, Mushroom, Rainbow
 
 **Buttons:**
-- **Apply Glow Effect** (needs mesh) — generates glow material, keyframe animation,
-  and Papyrus script for in-game glowing.
+- **Apply Glow Effect** (needs mesh) — generates a glow material and keyframe
+  animation for every effect type. The Papyrus script is only generated for
+  the **Spore** effect type, and only when an Output Folder is set — Pulse/
+  Breathe/Flicker/Aurora/Rainbow get the material + animation only.
 - **Manual Settings** — opens glow settings without AI description.
 - **Bake _g Sequence** — renders the glow animation to a _g.dds texture sequence.
 
@@ -623,10 +677,15 @@ sneak/stealth, hit/stagger/death, creature/charge/pounce/bite, wave/point/shrug
 **Purpose:** Import, edit, and export Creation Kit cell layouts directly in Blender.
 
 **Import section:**
-- **Import from ESP/ESM (No xEdit needed)** — directly reads a .esp/.esm file
-  and imports the cell layout as Blender objects. Fastest method.
-- **Import from xEdit CSV** — imports a CSV exported from xEdit/FO4Edit.
-  Get CSV by: open FO4Edit → find cell → right-click → Copy as CSV → save.
+- **Check ESP/ESM Cell File** — validates that a chosen .esp/.esm/.esl file
+  exists and has the right extension, then points you at the working import
+  path below. It does **not** parse the file's cell/REFR data itself (that
+  needs a full Bethesda record parser this addon doesn't bundle yet) — despite
+  the button once being labeled "No xEdit needed", xEdit CSV export below is
+  currently the only way to actually get cell layout data into Blender.
+- **Import from xEdit CSV** — imports a CSV exported from xEdit/FO4Edit. This
+  is the real, working import path. Get CSV by: open FO4Edit → find cell →
+  right-click → Copy as CSV → save.
 
 **Edit section:**
 - **Prepare Cell for Editing** — sets up scene for editing (layers, snapping grid).
@@ -636,10 +695,11 @@ sneak/stealth, hit/stagger/death, creature/charge/pounce/bite, wave/point/shrug
 - **Export Single Object** — exports just the selected object as a NIF for use in CK.
 
 **Workflow:**
-1. Click "Import from ESP/ESM" → select your .esp/.esm file
-2. Edit objects in Blender (move, replace, add)
-3. Click "Export Cell NIF + ESP" → select output folder
-4. Open Creation Kit → load your .esp to see the changes
+1. In FO4Edit: find your cell → right-click → Copy as CSV → save the file
+2. Click "Import from xEdit CSV" → select that CSV
+3. Edit objects in Blender (move, replace, add)
+4. Click "Export Cell NIF + ESP" → select output folder
+5. Open Creation Kit → load your .esp to see the changes
 
 ---
 
@@ -663,7 +723,10 @@ WEAP (weapon), ARMO (armor), MISC (misc item), LIGH (light)
 4. The .esp + optional .pas script are created in the Output Folder
 5. Copy .esp to your FO4 Data folder, enable in mod manager
 
-**Note:** The addon uses the object name as the editor ID.
+**Note:** The addon uses the object name as the editor ID. For armor meshes
+(ARMO), a companion ARMA (armor addon) record is generated automatically and
+linked via a real in-file FormID, so the exported armor has a working model
+link rather than pointing at FormID 0.
 
 ---
 
@@ -686,7 +749,14 @@ Generates three textures:
 - `basename_n.dds` — normal map
 - `basename_s.dds` — specular
 
-**Required:** PyTorch must be available. Hunyuan3D or diffusers models needed.
+**How generation actually works:** tries Mossy's AI texture endpoint first
+(needs the Mossy desktop app running and reachable); if that's unavailable or
+fails, silently falls back to a NumPy/Pillow procedural noise texture colored
+from keywords in your description — no PyTorch, Hunyuan3D, or diffusers
+involved at all. The success message tells you which one happened ("Mossy
+generated texture set..." vs "Procedural texture generated...") — check it if
+the result looks too simple, since procedural output is a rough placeholder,
+not real AI generation.
 
 ---
 
@@ -713,7 +783,9 @@ Exports each selected mesh as its own NIF file. Object name becomes filename.
 
 ## 30. SETTLEMENT WORKSHOP *(v5.2)*
 
-**Purpose:** Prepare meshes for FO4 Settlement Workshop (buildable items).
+**Purpose:** Turn meshes into FO4 Settlement Workshop buildable items —
+including a one-click path from a raw Blender selection all the way to a
+ready-to-run xEdit script.
 
 **Snap Points section:**
 - **Add Snap Points (Auto-Detect)** — analyzes mesh geometry and places
@@ -723,21 +795,51 @@ Exports each selected mesh as its own NIF file. Object name becomes filename.
 - **Check Budget** — evaluates mesh against Workshop performance guidelines
   (triangle count, draw calls, texture resolution).
 
-**COBJ / Workshop Menu Stubs section:**
+**COBJ / Workshop Menu Stubs section (NIFs already exported by hand):**
 - **Plugin** field — your mod's .esp name
 - Category buttons: STRUCTURES, FURNITURE, POWER, FOOD, DEFENSE, LIGHTING,
   DECORATIONS, STORES, MISC
-- Click any category button with meshes selected to generate:
-  - COBJ record (crafting recipe)
-  - Workshop menu entry stubs
-  - Basic Papyrus script template
+- Click any category button with meshes selected to generate an xEdit
+  script that creates a linked STAT (the placeable object) + COBJ (the
+  free crafting recipe that builds it) for each selected mesh, assuming
+  matching NIFs already exist at `Meshes\<object name>.nif`.
 
-**Workflow:**
-1. Select your prop mesh(es)
-2. Add Snap Points
-3. Check Budget
-4. Set Plugin name → click category → click "Generate Workshop Stubs"
-5. Resulting .esp + stubs go in Output Folder
+**Batch: Selection → Workshop Mod section (recommended — does everything):**
+- **Output Folder** — your FO4 Data folder (defaults to the addon's FO4
+  Data Folder setting if left blank)
+- **Category** — one workshop menu category applied to the whole batch.
+  Each category maps to a real, verified pair of Fallout4.esm keywords
+  (workbench type + recipe filter) confirmed by parsing Fallout4.esm
+  directly and cross-checking a real published workshop mod's records —
+  e.g. Decorations uses `WorkshopWorkbenchTypeDecorations` +
+  `WorkshopRecipeFilterDecor`, the same pattern vanilla items like the
+  basketball hoop and lawn flamingo use. No manual keyword lookup needed.
+- **Generate Collision** — adds a convex-hull collision mesh per object
+  before export (skipped automatically for grass/mushroom-type meshes)
+- **Sub-Category Override** — optional; only needed to pick a more
+  specific sub-category than the plain category default (e.g.
+  `WorkshopRecipeFilterDecor02Misc` instead of the general
+  `WorkshopRecipeFilterDecor`). Leave blank to use the category default.
+- **Export N Object(s) as Workshop Objects** — for every selected mesh:
+  generates collision (optional), exports the NIF, exports its BGSM +
+  textures, then writes one `manifest.json` and one xEdit `.pas` script
+  covering the whole batch, all under
+  `<Output Folder>\_WorkshopBatch\<plugin name>\`
+
+**Running the generated script:** open your copied template ESP in
+FO4Edit so it's loaded in the tree, select that file (or any record in
+it), right-click → **Apply Script...** → pick the generated `.pas` file.
+The script adds the STAT+COBJ records directly into your selected file —
+it does not create a new blank plugin.
+
+**Workflow (batch path):**
+1. Select all the meshes for the batch (e.g. every plant in the scene)
+2. Set Output Folder and Category (sub-category override is optional)
+3. Click "Export N Object(s) as Workshop Objects"
+4. Open your template ESP in xEdit, select it, Apply Script → the
+   generated `.pas` file
+5. Enable the ESP in your mod manager — the objects are now free,
+   placeable settlement decorations
 
 ---
 
@@ -758,6 +860,13 @@ Checks selected meshes against known conflicts:
 
 **Results** printed to System Console (Window → Toggle System Console).
 Checks: skeleton compat, scale, naming, CBBE, AWKCR, slot conflicts.
+
+**AWKCR check specifics:** only runs when `AWKCR.esp` is found in the scanned
+FO4 Data Folder. It compares the biped slots of every selected mesh tagged
+with an armor type (via Armor & Clothing → Assign Biped Slot, or set by
+other armor tooling) and flags any slot claimed by more than one object.
+Meshes with no armor type tagged are skipped, and if AWKCR.esp isn't found
+this check silently contributes no results (the rest of the scan still runs).
 
 ---
 
@@ -824,9 +933,12 @@ Creates a NavMesh from selected mesh objects. Auto-triangulates and validates.
 **Decimate button** — reduces NavMesh complexity if over limits.
 
 **Cover Markers section:**
-- **Left Cover / Right Cover** — places cover marker at selected face
-- **Edge Cover** — marks an edge as cover (for lean-out)
-- **Clear** — removes cover markers from selected faces
+- **Left Cover / Right Cover** — places a cover marker empty at the 3D
+  cursor position (move the cursor there first — Shift+Right-Click in the
+  viewport — it's not placed on the selected face automatically)
+- **Edge Cover** — same, tagged as edge/ledge cover (for lean-out)
+- **Clear** — removes cover marker(s): the selected ones if any tagged
+  markers are selected, otherwise every cover marker in the scene
 
 **Workflow:**
 1. Build or import your level geometry

@@ -9,7 +9,7 @@ import threading
 import os as _os
 import datetime
 from bpy.types import Operator
-from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty
+from bpy.props import StringProperty, EnumProperty, IntProperty, FloatProperty, BoolProperty, CollectionProperty
 
 
 def _safe_import(name):
@@ -2177,6 +2177,91 @@ class FO4_OT_FlipSkeletonFacing(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_AutoWeightArmor(Operator):
+    """Auto-weight selected mesh(es) to the active armature using Blender's
+    built-in automatic weights (bpy.ops.object.parent_set(type='ARMATURE_AUTO'))."""
+    bl_idname  = "fo4.auto_weight_armor"
+    bl_label   = "Auto-Weight Armor"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        meshes = [o for o in context.selected_objects if o.type == 'MESH']
+        armature = context.active_object if (context.active_object and
+                   context.active_object.type == 'ARMATURE') else None
+        if not armature:
+            armature = next((o for o in context.selected_objects if o.type == 'ARMATURE'), None)
+        if not meshes or not armature:
+            self.report({'ERROR'},
+                "Select the mesh(es) plus an armature, with the armature active")
+            return {'CANCELLED'}
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for m in meshes:
+            m.select_set(True)
+        armature.select_set(True)
+        context.view_layer.objects.active = armature
+        try:
+            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+        except Exception as exc:
+            self.report({'ERROR'}, f"Auto-weight failed: {exc}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Auto-weighted {len(meshes)} mesh(es) to '{armature.name}'")
+        return {'FINISHED'}
+
+
+class FO4_OT_MirrorArmorWeights(Operator):
+    """Mirror the active mesh's vertex group weights left/right using
+    Blender's built-in vertex group mirror."""
+    bl_idname  = "fo4.mirror_armor_weights"
+    bl_label   = "Mirror Weights"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH' or not obj.vertex_groups:
+            self.report({'ERROR'}, "Select a skinned mesh object")
+            return {'CANCELLED'}
+        if context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
+        try:
+            bpy.ops.object.vertex_group_mirror(mirror_topology=False)
+        except Exception as exc:
+            self.report({'ERROR'}, f"Mirror weights failed: {exc}")
+            return {'CANCELLED'}
+        self.report({'INFO'}, f"Mirrored vertex group weights on '{obj.name}'")
+        return {'FINISHED'}
+
+
+class FO4_OT_AssignBipedSlot(Operator):
+    """Manually assign an FO4 armor type / biped slot to selected mesh(es),
+    overriding automatic inference. Uses the same ARMOR_TYPE_CONFIG slot
+    mapping fo4_esp_generator.py's build_armo/build_arma already rely on."""
+    bl_idname  = "fo4.assign_biped_slot"
+    bl_label   = "Assign Biped Slot"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def _armor_type_items(self, context):
+        from . import fo4_armor_animation as _fa_anim
+        return [(k, v.get("label", k), f"Biped slots: {v.get('biped_slots', [])}")
+                for k, v in _fa_anim.ARMOR_TYPE_CONFIG.items()]
+
+    armor_type: EnumProperty(name="Armor Type", items=_armor_type_items)
+
+    def execute(self, context):
+        from . import fo4_armor_animation as _fa_anim
+        objects = [o for o in context.selected_objects if o.type == 'MESH']
+        if not objects:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        slots = _fa_anim.ARMOR_TYPE_CONFIG.get(self.armor_type, {}).get("biped_slots", [])
+        for obj in objects:
+            obj["fo4_armor_type"]   = self.armor_type
+            obj["fo4_biped_slots"]  = slots
+        self.report({'INFO'},
+            f"Assigned {self.armor_type} (slots {slots}) to {len(objects)} object(s)")
+        return {'FINISHED'}
+
+
 class FO4_OT_AutoConnectArmorTextures(Operator):
     """Search the FO4 assets folder for textures matching this mesh and wire them into the material nodes.
 
@@ -2889,6 +2974,49 @@ class FO4_OT_ValidateAnimation(Operator):
                 self.report({'WARNING'}, f"  - {issue}")
                 _notify(issue, 'WARNING')
         
+        return {'FINISHED'}
+
+
+class FO4_OT_EnforceBoneLimit(Operator):
+    """Cap bone influences per vertex to FO4's 4-per-vertex limit and normalize weights"""
+    bl_idname = "fo4.enforce_bone_limit"
+    bl_label = "Enforce Bone Limit"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    max_influences: IntProperty(
+        name="Max Influences", default=4, min=1, max=8,
+        description="Maximum bone influences per vertex (FO4 limit is 4)",
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH' or not obj.vertex_groups:
+            self.report({'ERROR'}, "Select a skinned mesh object")
+            return {'CANCELLED'}
+        msg = mesh_helpers.MeshHelpers.enforce_bone_limit(obj, self.max_influences)
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+class FO4_OT_NormalizeWeights(Operator):
+    """Normalize vertex group weights on the active mesh so influences sum to 1.0"""
+    bl_idname = "fo4.normalize_weights"
+    bl_label = "Normalize Weights"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH' or not obj.vertex_groups:
+            self.report({'ERROR'}, "Select a skinned mesh object")
+            return {'CANCELLED'}
+        prev_active = context.view_layer.objects.active
+        context.view_layer.objects.active = obj
+        was_object_mode = context.mode == 'OBJECT'
+        if not was_object_mode:
+            bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.vertex_group_normalize_all(group_select_mode='ALL', lock_active=False)
+        context.view_layer.objects.active = prev_active
+        self.report({'INFO'}, f"Normalized vertex group weights on '{obj.name}'")
         return {'FINISHED'}
 
 
@@ -4732,6 +4860,118 @@ class FO4_OT_ExportAnimationHavok2FBX(Operator):
 
         return {'FINISHED'}
 
+
+class FO4_OT_BatchExportAnimations(Operator):
+    """Run 'Export Animation (FBX -> HKX)' for every selected armature's
+    current action, one at a time -- same per-armature export+convert
+    steps as the single-object operator, looped."""
+    bl_idname = "fo4.batch_export_animations"
+    bl_label = "Batch Export Animations"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        armatures = [o for o in context.selected_objects if o.type == 'ARMATURE']
+        if not armatures:
+            self.report({'ERROR'}, "Select one or more armature objects")
+            return {'CANCELLED'}
+
+        success_count, failed_count = 0, 0
+        for arm in armatures:
+            bpy.ops.object.select_all(action='DESELECT')
+            arm.select_set(True)
+            context.view_layer.objects.active = arm
+            try:
+                result = bpy.ops.fo4.export_animation_havok2fbx()
+                if 'FINISHED' in result:
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                self.report({'WARNING'}, f"{arm.name}: {str(e)}")
+
+        for arm in armatures:
+            arm.select_set(True)
+
+        self.report({'INFO'},
+            f"Batch animation export: {success_count} started, {failed_count} failed "
+            "(HKX conversion for each runs in the background)")
+        return {'FINISHED'}
+
+
+class FO4_OT_ImportHavokAnimation(Operator):
+    """Convert an existing game HKX animation back to FBX via ck-cmd.
+
+    Mirrors the working 'importanimation' (FBX -> HKX) call this addon
+    already uses in FO4_OT_ExportAnimationHavok2FBX, using the same tool's
+    documented reverse subcommand. ck-cmd itself reports success/failure
+    via its exit code and stderr -- if the exact subcommand name below
+    doesn't match your ck-cmd build, you'll see its own error message
+    here rather than a false success.
+    """
+    bl_idname = "fo4.import_havok_animation"
+    bl_label = "Convert HKX -> FBX"
+    bl_options = {'REGISTER'}
+
+    hkx_path: StringProperty(
+        name="HKX File", subtype='FILE_PATH', default="",
+        description="Existing game animation HKX file to convert",
+    )
+    output_dir: StringProperty(
+        name="Output Folder", subtype='DIR_PATH', default="",
+    )
+
+    def execute(self, context):
+        import os, subprocess
+        from . import preferences, tool_installers
+        from pathlib import Path as _Path
+
+        if not self.hkx_path or not os.path.isfile(self.hkx_path):
+            self.report({'ERROR'}, "Select an existing HKX file first")
+            return {'CANCELLED'}
+        skeleton_path = bpy.path.abspath(
+            getattr(context.scene, "fo4_havok_skeleton_path", "")).strip()
+        if not skeleton_path:
+            self.report({'ERROR'}, "Set a Skeleton HKX path in the Havok panel first")
+            return {'CANCELLED'}
+
+        ckcmd_dir = preferences.get_ckcmd_path() if preferences else None
+        if not ckcmd_dir or not tool_installers.check_ckcmd(ckcmd_dir):
+            self.report({'ERROR'}, "ck-cmd not installed -- set it up in Setup & Status")
+            return {'CANCELLED'}
+
+        ckcmd_root = _Path(ckcmd_dir)
+        exe_direct = ckcmd_root / "ck-cmd.exe"
+        exe = str(exe_direct) if exe_direct.is_file() else str(
+            next(ckcmd_root.rglob("ck-cmd.exe"), exe_direct))
+
+        out_dir = bpy.path.abspath(self.output_dir) if self.output_dir else \
+            os.path.dirname(self.hkx_path)
+        os.makedirs(out_dir, exist_ok=True)
+
+        cmd = [exe, "exportanimation", skeleton_path, self.hkx_path, f"--e={out_dir}"]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except FileNotFoundError:
+            self.report({'ERROR'}, f"ck-cmd.exe not found at {exe}")
+            return {'CANCELLED'}
+        except subprocess.TimeoutExpired:
+            self.report({'ERROR'}, "ck-cmd timed out")
+            return {'CANCELLED'}
+        except Exception as exc:
+            self.report({'ERROR'}, f"ck-cmd error: {exc}")
+            return {'CANCELLED'}
+
+        if result.returncode == 0:
+            self.report({'INFO'}, f"FBX exported to {out_dir}")
+            return {'FINISHED'}
+        err = (result.stderr or result.stdout or "unknown error").strip()
+        self.report({'ERROR'}, f"ck-cmd conversion failed: {err}")
+        return {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 
@@ -7558,6 +7798,46 @@ class FO4_OT_BatchOptimizeMeshes(Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_BatchPrepareSelected(Operator):
+    """Run the full FO4 prep pipeline (transforms, triangulate, material
+    setup, optional collision, validation) on every selected mesh, one at
+    a time -- the same per-object steps as 'Convert to Fallout 4', looped."""
+    bl_idname = "fo4.batch_prepare_selected"
+    bl_label = "Batch Prepare Selected"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        selected_objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not selected_objects:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+
+        success_count, failed_count = 0, 0
+        for obj in selected_objects:
+            # Isolate before calling the single-object operator so its
+            # internal "active object" logic only ever touches this one
+            # mesh, matching the same isolate-before-prep pattern used by
+            # fo4_batch_tools.batch_export_objects.
+            bpy.ops.object.select_all(action='DESELECT')
+            obj.select_set(True)
+            context.view_layer.objects.active = obj
+            try:
+                result = bpy.ops.fo4.convert_to_fallout4()
+                if 'FINISHED' in result:
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                failed_count += 1
+                self.report({'WARNING'}, f"{obj.name}: {str(e)}")
+
+        for obj in selected_objects:
+            obj.select_set(True)
+
+        self.report({'INFO'}, f"Batch prepared {success_count} object(s), {failed_count} failed")
+        return {'FINISHED'}
+
+
 class FO4_OT_BatchValidateMeshes(Operator):
     """Validate all selected meshes for Fallout 4"""
     bl_idname = "fo4.batch_validate_meshes"
@@ -7768,6 +8048,41 @@ class FO4_OT_SetFO4SubPath(Operator):
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
+
+
+class FO4_OT_GenerateMossyToken(Operator):
+    """Generate a fresh Mossy Link auth token and save it to preferences."""
+    bl_idname = "fo4.generate_mossy_token"
+    bl_label = "Generate New Token"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from . import mossy_link as _mossy
+        ok, result = _mossy.generate_new_token()
+        if ok:
+            self.report({'INFO'}, f"New token generated: {result}")
+        else:
+            self.report({'ERROR'}, result)
+            return {'CANCELLED'}
+        return {'FINISHED'}
+
+
+class FO4_OT_CopyMossyToken(Operator):
+    """Copy the current Mossy Link auth token to the clipboard."""
+    bl_idname = "fo4.copy_mossy_token"
+    bl_label = "Copy Token"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        from . import preferences as _prefs
+        prefs = _prefs.get_preferences()
+        token = getattr(prefs, "token", "") if prefs else ""
+        if not token:
+            self.report({'ERROR'}, "No token set yet -- generate one first")
+            return {'CANCELLED'}
+        context.window_manager.clipboard = token
+        self.report({'INFO'}, "Token copied to clipboard")
+        return {'FINISHED'}
 
 
 class FO4_OT_SetUnityAssetsPath(Operator):
@@ -8657,6 +8972,91 @@ class FO4_OT_ImportUnrealAsset(Operator):
         return context.window_manager.invoke_props_dialog(self, width=400)
 
 
+class FO4_OT_ImportSMD(Operator):
+    """Import one or more SMD (Studiomdl Data) files -- mesh, skeleton, and
+    optional animation -- for further prep and export to Fallout 4.
+
+    SMD has no native Blender support and no third-party SMD addon is
+    assumed to be installed, so this parses and builds the scene directly
+    (see smd_helpers.py). Written against real Battlefield-6-sourced SMD
+    dumps (ripped via a third-party tool, not native Source-engine content),
+    which is why import scale is an explicit, adjustable setting rather than
+    a fixed constant the way NIF's Havok-unit scale is.
+    """
+    bl_idname = "fo4.import_smd"
+    bl_label = "Import SMD"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(subtype='DIR_PATH', options={'HIDDEN'})
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement, options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.smd", options={'HIDDEN'})
+
+    import_scale: FloatProperty(
+        name="Import Scale",
+        description=(
+            "Uniform scale applied to imported positions. SMD has no fixed "
+            "unit convention the way FO4 NIFs do (÷69.99125) -- BF6/"
+            "Frostbite-sourced files land close to metres already, so 1.0 "
+            "is a reasonable starting point, but check against a reference "
+            "skeleton and adjust if the result looks wrong"
+        ),
+        default=1.0, min=0.0001, max=1000.0,
+    )
+    import_animation: BoolProperty(
+        name="Import Animation",
+        description="Build a Blender Action from any extra skeleton frames beyond the bind pose (time 0)",
+        default=True,
+    )
+
+    def execute(self, context):
+        try:
+            from . import smd_helpers
+        except ImportError:
+            self.report({'ERROR'}, "smd_helpers module not found")
+            return {'CANCELLED'}
+
+        if not self.files or not self.directory:
+            self.report({'ERROR'}, "No SMD file(s) selected")
+            return {'CANCELLED'}
+
+        imported = 0
+        errors = []
+        last_mesh = None
+        for f in self.files:
+            filepath = _os.path.join(self.directory, f.name)
+            try:
+                mesh_obj, armature_obj, msg = smd_helpers.import_smd_file(
+                    filepath, import_scale=self.import_scale,
+                    import_animation=self.import_animation,
+                )
+                if mesh_obj or armature_obj:
+                    imported += 1
+                    last_mesh = mesh_obj or armature_obj
+                    self.report({'INFO'}, msg)
+                else:
+                    errors.append(msg)
+            except Exception as exc:
+                errors.append(f"'{f.name}': {exc}")
+
+        if last_mesh:
+            bpy.context.view_layer.objects.active = last_mesh
+
+        if imported == 0:
+            self.report({'ERROR'}, "; ".join(errors) if errors else "No files imported")
+            return {'CANCELLED'}
+
+        summary = f"Imported {imported} SMD file(s)"
+        if errors:
+            summary += f"  ({len(errors)} failed: {'; '.join(errors)})"
+        self.report({'INFO'}, summary)
+        _notify(summary, 'INFO' if not errors else 'WARNING')
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 # Smart Preset Operators
 # ---------------------------------------------------------------------------
 # Data and helper logic live in mesh_helpers.SmartPresets.
@@ -8880,6 +9280,56 @@ class FO4_OT_QuickPrepareForExport(Operator):
         except Exception as e:
             self.report({'ERROR'}, f"Preparation failed: {str(e)}")
             return {'CANCELLED'}
+
+
+class FO4_OT_QuickPreset(Operator):
+    """One-click object-type presets that chain the addon's existing real
+    prep/collision/wind steps -- not new logic, just the right defaults
+    per object type instead of picking collision type and running each
+    step by hand."""
+    bl_idname = "fo4.quick_preset"
+    bl_label = "Quick Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    preset: EnumProperty(
+        name="Preset",
+        items=[
+            ('STATIC_PROP', "Quick Static Prop", "Prep + default collision"),
+            ('VEGETATION',  "Quick Vegetation",  "Prep + vegetation collision + wind"),
+            ('NPC_MESH',    "Quick NPC Mesh",    "Prep only -- no static collision"),
+            ('FULL',        "Full Auto-Pipeline", "Full Convert to Fallout 4 pipeline"),
+        ],
+        default='STATIC_PROP',
+    )
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "No mesh object selected")
+            return {'CANCELLED'}
+
+        if self.preset == 'FULL':
+            result = bpy.ops.fo4.convert_to_fallout4()
+            return result if 'FINISHED' in result else {'CANCELLED'}
+
+        result = bpy.ops.fo4.quick_prepare_export()
+        if 'FINISHED' not in result:
+            return {'CANCELLED'}
+
+        if self.preset == 'STATIC_PROP':
+            obj.fo4_collision_type = 'DEFAULT'
+            bpy.ops.fo4.generate_collision_mesh()
+        elif self.preset == 'VEGETATION':
+            obj.fo4_collision_type = 'VEGETATION'
+            bpy.ops.fo4.generate_collision_mesh()
+            if hasattr(bpy.ops.fo4, 'smart_wind_setup'):
+                bpy.ops.fo4.smart_wind_setup()
+        # NPC_MESH: prep only -- no static collision, matches how NPC
+        # meshes are actually handled elsewhere in this addon (skinned to
+        # an armature, not given standalone collision geometry).
+
+        self.report({'INFO'}, f"{obj.name}: {self.preset.replace('_',' ').title()} preset applied")
+        return {'FINISHED'}
 
 
 class FO4_OT_AutoFixCommonIssues(Operator):
@@ -11295,6 +11745,173 @@ class FO4_OT_DeletePreset(Operator):
         return context.window_manager.invoke_confirm(self, event)
 
 
+class FO4_OT_ExportPresets(Operator):
+    """Bundle every saved preset (or every preset in a chosen category) into
+    one portable JSON file for backup or sharing between machines."""
+    bl_idname = "fo4.export_presets"
+    bl_label = "Export Presets"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH', default="fo4_presets_export.json")
+
+    def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "Choose an output file")
+            return {'CANCELLED'}
+        ok, msg = preset_library.PresetLibrary.export_presets_bundle(self.filepath)
+        self.report({'INFO'} if ok else {'ERROR'}, msg)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ImportPresets(Operator):
+    """Import presets from a bundle written by Export Presets."""
+    bl_idname = "fo4.import_presets"
+    bl_label = "Import Presets"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH', default="")
+
+    def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "Choose a preset bundle file")
+            return {'CANCELLED'}
+        ok, msg = preset_library.PresetLibrary.import_presets_bundle(self.filepath)
+        self.report({'INFO'} if ok else {'ERROR'}, msg)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SavePapyrusScriptPreset(Operator):
+    """Save the current Papyrus script template as a reusable preset"""
+    bl_idname = "fo4.save_papyrus_script_preset"
+    bl_label = "Save Script as Preset"
+    bl_options = {'REGISTER'}
+
+    preset_name: StringProperty(
+        name="Preset Name",
+        description="Name for this reusable script preset",
+        default="New Script Preset"
+    )
+    description: StringProperty(
+        name="Description",
+        description="What this script does",
+        default=""
+    )
+    tags: StringProperty(
+        name="Tags",
+        description="Search tags (comma separated)",
+        default=""
+    )
+
+    def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        scene = context.scene
+        tpl_id = getattr(scene, "fo4_papyrus_template", "OBJECT")
+        # A script preset only stores the template ID, not frozen script
+        # text, so it always regenerates from whatever the installed addon's
+        # CURRENT version of that template is (future bug fixes apply
+        # automatically). Verify the template actually generates before
+        # saving a preset that points at it.
+        ok, _ = papyrus_helpers.PapyrusHelpers.generate(tpl_id, "PresetValidationCheck")
+        if not ok:
+            self.report({'ERROR'}, f"Cannot save preset: template '{tpl_id}' failed to generate")
+            return {'CANCELLED'}
+
+        preset_data = {'template_id': tpl_id}
+
+        success, message = preset_library.PresetLibrary.save_preset(
+            self.preset_name, 'SCRIPT', preset_data, self.description, self.tags
+        )
+        if success:
+            self.report({'INFO'}, message)
+            _notify(f"Script preset saved: {self.preset_name}", 'INFO')
+        else:
+            self.report({'ERROR'}, message)
+        return {'FINISHED'} if success else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+
+class FO4_OT_LoadPapyrusScriptPreset(Operator):
+    """Load a saved script preset and point the generator at its template"""
+    bl_idname = "fo4.load_papyrus_script_preset"
+    bl_label = "Load Script Preset"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Preset File",
+        description="Path to preset file",
+        subtype='FILE_PATH'
+    )
+    filter_glob: StringProperty(default="*.json", options={'HIDDEN'})
+
+    def execute(self, context):
+        if not preset_library:
+            self.report({'ERROR'}, "preset_library module unavailable")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "No preset file specified")
+            return {'CANCELLED'}
+        try:
+            from . import papyrus_helpers
+        except ImportError:
+            self.report({'ERROR'}, "papyrus_helpers module not found")
+            return {'CANCELLED'}
+
+        preset_data = preset_library.PresetLibrary.load_preset(self.filepath)
+        if not preset_data or 'template_id' not in preset_data:
+            self.report({'ERROR'}, "Not a valid script preset (missing template_id)")
+            return {'CANCELLED'}
+
+        tpl_id = preset_data['template_id']
+        valid_ids = {item[0] for item in papyrus_helpers.TEMPLATE_ENUM_ITEMS}
+        if tpl_id not in valid_ids:
+            self.report({'ERROR'},
+                f"Template '{tpl_id}' no longer exists in this addon version -- "
+                "the preset can't be regenerated.")
+            return {'CANCELLED'}
+
+        preset_library.PresetLibrary.increment_use_count(self.filepath)
+
+        # Regenerated from the LIVE template in this installed addon version
+        # (not a frozen text snapshot), so future bug fixes to the template
+        # apply automatically the next time this preset is loaded.
+        context.scene.fo4_papyrus_template = tpl_id
+
+        self.report({'INFO'},
+            f"Template set to '{tpl_id}' -- set a Script Name and click "
+            f"Generate Script (or Export .psc) to use it.")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        if self.filepath:
+            return self.execute(context)
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
 class FO4_OT_RefreshPresetLibrary(Operator):
     """Refresh the preset library"""
     bl_idname = "fo4.refresh_preset_library"
@@ -11796,6 +12413,30 @@ class FO4_OT_ClearOperationLog(Operator):
 
     def invoke(self, context, event):
         return context.window_manager.invoke_confirm(self, event)
+
+
+class FO4_OT_ExportOperationLog(Operator):
+    """Write the persistent operation log to a plain-text file."""
+    bl_idname = "fo4.export_operation_log"
+    bl_label = "Export Log"
+    bl_options = {'REGISTER'}
+
+    filepath: StringProperty(subtype='FILE_PATH', default="fo4_operation_log.txt")
+
+    def execute(self, context):
+        if not notification_system:
+            self.report({'ERROR'}, "notification_system module not available")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "Choose an output file")
+            return {'CANCELLED'}
+        ok, msg = notification_system.OperationLog.export_to_text(self.filepath)
+        self.report({'INFO'} if ok else {'ERROR'}, msg)
+        return {'FINISHED'} if ok else {'CANCELLED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
 
 
 # FO4_OT_ReloadAddon is defined in setup_operators.py and registered before
@@ -14889,6 +15530,9 @@ classes = (
     FO4_OT_AutoScaleToSkeletonLandmarks,
     FO4_OT_QuickFBXArmorSetup,
     FO4_OT_FlipSkeletonFacing,
+    FO4_OT_AutoWeightArmor,
+    FO4_OT_MirrorArmorWeights,
+    FO4_OT_AssignBipedSlot,
     FO4_OT_AutoConnectArmorTextures,
     FO4_OT_NextTutorialStep,
     FO4_OT_PreviousTutorialStep,
@@ -14903,6 +15547,8 @@ classes = (
     FO4_OT_ValidateTextures,
     FO4_OT_SetupArmature,
     FO4_OT_ValidateAnimation,
+    FO4_OT_EnforceBoneLimit,
+    FO4_OT_NormalizeWeights,
     FO4_OT_CreateIdleAnimation,
     FO4_OT_GenerateWindWeights,
     FO4_OT_AutoWeightPaint,
@@ -14935,6 +15581,8 @@ classes = (
     FO4_OT_ExportSceneAsNif,
     FO4_OT_ValidateExport,
     FO4_OT_ExportAnimationHavok2FBX,
+    FO4_OT_BatchExportAnimations,
+    FO4_OT_ImportHavokAnimation,
     # FO4_OT_InstallPythonDeps - moved to setup_operators.py (registered before this module)
     # FO4_OT_SelfTest - moved to setup_operators.py (registered before this module)
     FO4_OT_AnalyzeMeshQuality,
@@ -14950,6 +15598,7 @@ classes = (
     FO4_OT_OptimizeUVs,
     # New batch processing operators
     FO4_OT_BatchOptimizeMeshes,
+    FO4_OT_BatchPrepareSelected,
     FO4_OT_BatchValidateMeshes,
     FO4_OT_BatchExportMeshes,
     # New smart preset operators
@@ -14958,6 +15607,7 @@ classes = (
     FO4_OT_CreatePropPreset,
     # New automation operators
     FO4_OT_QuickPrepareForExport,
+    FO4_OT_QuickPreset,
     FO4_OT_ConvertToFallout4,
     FO4_OT_AutoFixCommonIssues,
     FO4_OT_GenerateCollisionMesh,
@@ -15002,6 +15652,10 @@ classes = (
     FO4_OT_SavePreset,
     FO4_OT_LoadPreset,
     FO4_OT_DeletePreset,
+    FO4_OT_ExportPresets,
+    FO4_OT_ImportPresets,
+    FO4_OT_SavePapyrusScriptPreset,
+    FO4_OT_LoadPapyrusScriptPreset,
     FO4_OT_RefreshPresetLibrary,
     # Automation system operators
     FO4_OT_StartRecording,
@@ -15024,6 +15678,7 @@ classes = (
     # Point-E AI generation operators
     # Operation log
     FO4_OT_ClearOperationLog,
+    FO4_OT_ExportOperationLog,
     # Add-on self-update / reload
     # FO4_OT_ReloadAddon - moved to setup_operators.py (registered before this module)
     # Mod folder import/export
@@ -15032,6 +15687,8 @@ classes = (
     # Game asset browsers + direct path/import/conversion operators
     FO4_OT_SetFO4AssetsPath,
     FO4_OT_SetFO4SubPath,
+    FO4_OT_GenerateMossyToken,
+    FO4_OT_CopyMossyToken,
     FO4_OT_SetUnityAssetsPath,
     FO4_OT_SetUnrealAssetsPath,
     FO4_OT_ImportFO4AssetFile,
@@ -15041,6 +15698,7 @@ classes = (
     FO4_OT_ImportUnityAsset,
     FO4_OT_BrowseUnrealAssets,
     FO4_OT_ImportUnrealAsset,
+    FO4_OT_ImportSMD,
     # UV + Texture workflow
     FO4_OT_SetupUVWithTexture,
     FO4_OT_ReUnwrapUV,
@@ -15683,6 +16341,14 @@ def register():
             subtype='DIR_PATH',
             update=_make_scene_to_pref_sync("fo4_kb_path", "knowledge_base_path"),
         )
+        bpy.types.Scene.fo4_advisor_question = bpy.props.StringProperty(
+            name="Ask Mossy",
+            description="A free-text question about your mesh/mod/workflow to send to Mossy",
+            default="",
+        )
+        bpy.types.Scene.fo4_advisor_last_answer = bpy.props.StringProperty(
+            name="Mossy's Answer", default="",
+        )
         bpy.types.Scene.fo4_ffmpeg_path = bpy.props.StringProperty(
             name="FFmpeg Path",
             description="Path to the ffmpeg executable or its containing folder",
@@ -15796,6 +16462,8 @@ def unregister():
         "fo4_advisor_interval",
         "fo4_kb_enabled",
         "fo4_kb_path",
+        "fo4_advisor_question",
+        "fo4_advisor_last_answer",
         "fo4_ffmpeg_path",
         "fo4_nvtt_path",
         "fo4_texconv_path",

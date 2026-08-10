@@ -2116,6 +2116,15 @@ class FO4_PT_AnimationPanel(_FO4SubPanel):
         row.enabled = bool(obj and obj.type == 'ARMATURE')
         row.operator("fo4.create_idle_animation", text="Create Idle Animation", icon='ACTION')
 
+        # ── Skeleton ─────────────────────────────────────────────────────────
+        skel_box = layout.box()
+        skel_box.label(text="Skeleton", icon='ARMATURE_DATA')
+        skel_box.operator("fo4.import_fo4_skeleton", text="Import FO4 Skeleton", icon='IMPORT')
+        skel_row = skel_box.row(align=True)
+        skel_row.enabled = has_mesh
+        skel_row.operator("fo4.enforce_bone_limit", text="Enforce Bone Limit", icon='BONE_DATA')
+        skel_row.operator("fo4.normalize_weights", text="Normalize Weights", icon='MOD_VERTEX_WEIGHT')
+
         # ── Thicken Flat Planes ───────────────────────────────────────────────
         thick_box = layout.box()
         thick_box.label(text="Thicken Flat Planes", icon='MOD_SOLIDIFY')
@@ -2441,7 +2450,6 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
     def draw(self, context):
         layout = self.layout
         scene  = context.scene
-        llm_enabled = getattr(scene, "fo4_llm_enabled", False)
         use_mossy   = getattr(scene, "fo4_use_mossy_ai", False)
 
         # ── Mossy AI status ──────────────────────────────────────────────
@@ -2461,29 +2469,43 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         if use_mossy:
             mossy_box.label(text="✓ Using Mossy as AI Advisor", icon='CHECKMARK')
             row = mossy_box.row(align=True)
-            # use_llm=True triggers AI analysis; analyze_scene() routes to
-            # Mossy first (local), then falls back to remote LLM if needed.
+            # use_llm=True triggers AI analysis via Mossy (the only AI
+            # backend this addon supports -- see advisor_helpers.query_mossy).
             op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
             op.use_llm = True
             _activation_op(mossy_box, 'WM_OT_MossyCheckHttp', "wm.mossy_check_http",
                             "Check Mossy HTTP", icon='QUESTION')
+
+            ask_box = mossy_box.box()
+            ask_box.label(text="Ask Mossy Anything", icon='OUTLINER_OB_LIGHT')
+            ask_box.prop(scene, "fo4_advisor_question", text="")
+            ask_box.operator("fo4.advisor_ask", text="Ask Mossy", icon='LIGHT_HEMI')
+            if getattr(scene, "fo4_advisor_last_answer", ""):
+                ans_col = ask_box.column(align=True)
+                ans_col.scale_y = 0.8
+                for line in textwrap.wrap(scene.fo4_advisor_last_answer, width=60):
+                    ans_col.label(text=line)
         else:
             mossy_box.label(text="Mossy AI not active", icon='INFO')
             mossy_box.label(text="Enable 'Use Mossy as AI Advisor' in")
             mossy_box.label(text="N panel → Fallout 4 → Settings → Mossy Link")
 
         # ── Local analysis ───────────────────────────────────────────────
+        # Only a plain local scan + Mossy exist as analysis backends -- a
+        # separate "remote LLM" button used to sit here, but its backend
+        # (a direct OpenAI-compatible API) was removed when this addon
+        # migrated to routing all AI through Mossy (see preferences.py's
+        # "LLM/OpenAI API key fields REMOVED" note); it could never return
+        # a result once Mossy was off, since that's the only backend
+        # query_mossy()/use_llm=True actually calls. Removed rather than
+        # keeping a button that always silently did nothing.
         box = layout.box()
         box.label(text="Scene Analysis", icon='INFO')
         row = box.row(align=True)
         op = row.operator("fo4.advisor_analyze", text="Analyze (Local)", icon='SHADERFX')
         op.use_llm = False
-        row = box.row(align=True)
-        row.enabled = llm_enabled and not use_mossy
-        op = row.operator("fo4.advisor_analyze", text="Analyze (Remote LLM)", icon='LIGHT_HEMI')
-        op.use_llm = True
-        if not llm_enabled and not use_mossy:
-            box.label(text="No AI configured – enable Mossy or set LLM in N-panel Settings", icon='ERROR')
+        if not use_mossy:
+            box.label(text="Enable 'Use Mossy as AI Advisor' above for AI analysis", icon='ERROR')
 
         # ── Quick Fixes ──────────────────────────────────────────────────
         fixes = layout.box()
@@ -2874,6 +2896,12 @@ class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
                 unreal_box.operator("fo4.import_unreal_asset", text="Import Unreal Asset", icon='IMPORT')
         else:
             unreal_box.label(text="unreal_game_assets module missing – reinstall add-on", icon='ERROR')
+
+        # ── SMD (Studiomdl Data) ─────────────────────────────────────────────
+        smd_box = layout.box()
+        smd_box.label(text="SMD Import", icon='MESH_DATA')
+        smd_box.label(text="Mesh + skeleton + animation, no fixed unit scale", icon='INFO')
+        smd_box.operator("fo4.import_smd", text="Import SMD File(s)…", icon='IMPORT')
 
         layout.separator()
 
@@ -3326,6 +3354,10 @@ class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
 
         row = box.row()
         row.enabled = len(selected_meshes) > 0
+        row.operator("fo4.batch_prepare_selected", text="Batch Prepare Selected", icon='TOOL_SETTINGS')
+
+        row = box.row()
+        row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_optimize_meshes", text="Batch Optimize", icon='MOD_DECIM')
 
         row = box.row()
@@ -3335,6 +3367,10 @@ class FO4_PT_BatchProcessingPanel(_FO4SubPanel):
         row = box.row()
         row.enabled = len(selected_meshes) > 0
         row.operator("fo4.batch_export_meshes", text="Batch Export", icon='EXPORT')
+
+        row = box.row()
+        row.enabled = len(selected_meshes) > 0
+        row.operator("fo4.batch_convert_textures", text="Batch Convert Textures", icon='TEXTURE')
 
         # Batch LOD & Collision
         lod_box = layout.box()
@@ -3382,6 +3418,32 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
         row.enabled = bool(obj and obj.type == 'MESH')
         row.scale_y = 1.5
         row.operator("fo4.quick_prepare_export", text="Quick Prepare for Export", icon='CHECKMARK')
+
+        # Quick presets
+        preset_box = layout.box()
+        preset_box.label(text="Quick Presets", icon='PRESET')
+        preset_box.enabled = bool(obj and obj.type == 'MESH')
+        prow1 = preset_box.row(align=True)
+        op = prow1.operator("fo4.quick_preset", text="Quick Static Prop", icon='MESH_CUBE')
+        op.preset = 'STATIC_PROP'
+        op = prow1.operator("fo4.quick_preset", text="Quick Vegetation", icon='OUTLINER_OB_FORCE_FIELD')
+        op.preset = 'VEGETATION'
+        prow2 = preset_box.row(align=True)
+        op = prow2.operator("fo4.quick_preset", text="Quick NPC Mesh", icon='OUTLINER_OB_ARMATURE')
+        op.preset = 'NPC_MESH'
+        op = prow2.operator("fo4.quick_preset", text="Full Auto-Pipeline", icon='PLAY')
+        op.preset = 'FULL'
+
+        # Workflow presets (save/load panel settings)
+        if hasattr(context.scene, 'fo4_workflow_preset_name'):
+            wf_box = layout.box()
+            wf_box.label(text="Save/Load Workflow", icon='FILE_TICK')
+            wf_box.prop(context.scene, "fo4_workflow_preset_name", text="Name")
+            wf_row = wf_box.row(align=True)
+            save_op = wf_row.operator("fo4.save_workflow_settings", text="Save Workflow", icon='FILE_TICK')
+            save_op.preset_name = context.scene.fo4_workflow_preset_name
+            wf_row.operator_menu_enum("fo4.load_workflow_settings", "preset_name",
+                                       text="Load Workflow", icon='FILE_FOLDER')
 
         # Auto-fix
         box = layout.box()
@@ -3569,6 +3631,23 @@ class FO4_PT_Havok2FBXPanel(_FO4SubPanel):
             icon='EXPORT',
         )
 
+        n_armatures = len([o for o in context.selected_objects if o.type == 'ARMATURE'])
+        batch_row = export_box.row()
+        batch_row.enabled = n_armatures > 0
+        batch_row.operator(
+            "fo4.batch_export_animations",
+            text=f"Batch Export Animations ({n_armatures} selected)",
+            icon='RENDER_ANIMATION',
+        )
+
+        reverse_box = layout.box()
+        reverse_box.label(text="Convert HKX → FBX", icon='LOOP_BACK')
+        rcol = reverse_box.column(align=True)
+        rcol.scale_y = 0.72
+        rcol.label(text="For an existing game animation HKX file.", icon='INFO')
+        rcol.label(text="Requires ck-cmd + the Skeleton HKX path above.", icon='INFO')
+        reverse_box.operator("fo4.import_havok_animation", text="Convert HKX File...", icon='IMPORT')
+
 
 
 
@@ -3694,6 +3773,18 @@ class FO4_PT_ArmorClothingPanel(_FO4SubPanel):
             text="Export All Selected Pieces (.nif each)",
             icon='EXPORT',
         )
+
+        # ── Manual weight / slot tools ────────────────────────────────────────
+        manual_box = layout.box()
+        manual_box.label(text="Manual Weight & Slot Tools", icon='MOD_VERTEX_WEIGHT')
+        mrow = manual_box.row(align=True)
+        mrow.enabled = bool(has_mesh)
+        mrow.operator("fo4.auto_weight_armor", text="Auto-Weight Armor", icon='AUTO')
+        mrow.operator("fo4.mirror_armor_weights", text="Mirror Weights", icon='MOD_MIRROR')
+        slot_row = manual_box.row(align=True)
+        slot_row.enabled = bool(has_mesh)
+        slot_row.operator_menu_enum("fo4.assign_biped_slot", "armor_type",
+                                     text="Assign Biped Slot", icon='ARMATURE_DATA')
 
         layout.separator()
 
@@ -3936,6 +4027,13 @@ class FO4_PT_PresetLibraryPanel(_FO4SubPanel):
                 row.label(text=f"{preset['name']} ({uses}x)", icon='FILE')
                 op = row.operator("fo4.load_preset", text="", icon='IMPORT')
                 op.filepath = preset['filepath']
+
+        # Export / Import
+        io_box = layout.box()
+        io_box.label(text="Export / Import Presets", icon='FILE_TICK')
+        io_row = io_box.row(align=True)
+        io_row.operator("fo4.export_presets", text="Export Presets", icon='EXPORT')
+        io_row.operator("fo4.import_presets", text="Import Presets", icon='IMPORT')
 
         # Info
         info_box = layout.box()
@@ -4607,6 +4705,9 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
         if prefs is not None:
             tcp_sub.prop(prefs, "port",      text="Listen Port")
             tcp_sub.prop(prefs, "token",     text="Auth Token")
+            tok_row = tcp_sub.row(align=True)
+            tok_row.operator("fo4.generate_mossy_token", text="Generate New Token", icon='FILE_REFRESH')
+            tok_row.operator("fo4.copy_mossy_token", text="Copy Token", icon='COPYDOWN')
             tcp_sub.prop(prefs, "autostart", text="Auto-start on load")
         else:
             if hasattr(scene, 'fo4_mossy_port'):
@@ -4759,7 +4860,9 @@ class FO4_PT_OperationLogPanel(_FO4SubPanel):
                     box.label(text=line)
 
         layout.separator()
-        layout.operator("fo4.clear_operation_log", text="Clear Log", icon='TRASH')
+        log_row = layout.row(align=True)
+        log_row.operator("fo4.export_operation_log", text="Export Log", icon='EXPORT')
+        log_row.operator("fo4.clear_operation_log", text="Clear Log", icon='TRASH')
 
 
 # ── Mossy tab ──────────────────────────────────────────────────────────────────
@@ -4825,6 +4928,9 @@ class FO4_PT_MossyPanel(_FO4SubPanel):
         if prefs is not None:
             col.prop(prefs, "port",      text="Listen Port")
             col.prop(prefs, "token",     text="Auth Token")
+            token_row = srv_box.row(align=True)
+            token_row.operator("fo4.generate_mossy_token", text="Generate New Token", icon='FILE_REFRESH')
+            token_row.operator("fo4.copy_mossy_token", text="Copy Token", icon='COPYDOWN')
             col.prop(prefs, "autostart", text="Auto-start on load")
         elif hasattr(scene, 'fo4_mossy_port'):
             col.prop(scene, "fo4_mossy_port",      text="Listen Port")
@@ -5180,9 +5286,12 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
         lod = layout.box(); lod.label(text="Batch LOD Generate + Export", icon='MOD_DECIM')
         lod.operator("fo4.batch_generate_lod", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
         pre = layout.box(); pre.label(text="Workflow Presets", icon='PRESET')
+        pre.prop(scene, "fo4_workflow_preset_name", text="Name")
         row = pre.row(align=True)
-        row.operator("fo4.save_preset", text="Save Current Settings", icon='FILE_TICK')
-        row.operator("fo4.load_preset", text="Load Preset",           icon='FILE_FOLDER')
+        save_op = row.operator("fo4.save_workflow_settings", text="Save Current Settings", icon='FILE_TICK')
+        save_op.preset_name = scene.fo4_workflow_preset_name
+        row.operator_menu_enum("fo4.load_workflow_settings", "preset_name",
+                                text="Load Preset", icon='FILE_FOLDER')
 
 
 class FO4_PT_WorkshopPanel(_FO4SubPanel):
@@ -5217,6 +5326,22 @@ class FO4_PT_WorkshopPanel(_FO4SubPanel):
             op = row2.operator("fo4.generate_workshop_stubs", text=label)
             op.category = code
             op.plugin_name = scene.fo4_plugin_name
+
+        if hasattr(scene, "fo4_workshop_batch_category"):
+            batch = box.box()
+            batch.label(text="Batch: Selection → Workshop Mod", icon='EXPORT')
+            batch.label(text=f"{len(sel)} mesh(es) selected", icon='MESH_DATA')
+            batch.prop(scene, "fo4_workshop_output_dir", text="Output Folder")
+            batch.prop(scene, "fo4_workshop_batch_category", text="Category")
+            batch.prop(scene, "fo4_workshop_generate_collision", text="Generate Collision")
+            batch.prop(scene, "fo4_workshop_filter_keyword", text="Sub-Category Override")
+            hint = batch.column(align=True); hint.scale_y = 0.72
+            hint.label(text="Category sets a verified workbench + menu keyword")
+            hint.label(text="automatically. Exports NIF+textures, then writes one")
+            hint.label(text="xEdit script that creates linked STAT+COBJ pairs")
+            go = batch.row(); go.scale_y = 1.3
+            go.operator("fo4.batch_workshop_export",
+                        text=f"Export {len(sel)} Object(s) as Workshop Objects", icon='EXPORT')
 
 
 class FO4_PT_CompatibilityPanel(_FO4SubPanel):
@@ -5300,8 +5425,9 @@ class FO4_PT_NavMeshPanel(_FO4SubPanel):
         cover = box.box(); cover.label(text="Cover Markers", icon='ANCHOR_CENTER')
         row = cover.row(align=True)
         for ctype, label in [("LEFT","Left Cover"),("RIGHT","Right Cover"),
-                              ("EDGE","Edge Cover"),("NONE","Clear")]:
+                              ("EDGE","Edge Cover")]:
             op = row.operator("fo4.add_cover_marker", text=label); op.cover_type = ctype
+        row.operator("fo4.clear_cover_markers", text="Clear", icon='TRASH')
 
 
 classes = (

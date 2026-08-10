@@ -1503,7 +1503,8 @@ class ExportHelpers:
                 pass
 
     @staticmethod
-    def _export_output_written(filepath, since_seconds: float = 300.0, after_time: float = None):
+    def _export_output_written(filepath, since_seconds: float = 300.0, after_time: float = None,
+                               retry_window: float = 2.0, retry_interval: float = 0.2):
         """Return True when a NIF that looks like this export was written to disk
         within *since_seconds* (or, if *after_time* is given, strictly after
         that timestamp — see below).
@@ -1530,53 +1531,72 @@ class ExportHelpers:
         Passing *after_time* makes check 3 exact — a file from an earlier,
         unrelated export call can never be mistaken for this one's output,
         regardless of how "fresh" it superficially looks.
+
+        *retry_window*/*retry_interval*: on a real multi-piece scene export
+        (e.g. an architecture asset with a NiSwitchNode LOD hierarchy),
+        PyNifly's actual disk write can land a beat after the ``bpy.ops``
+        call returns -- confirmed directly: an identical export re-run
+        immediately afterward succeeded on the first try, meaning the
+        original attempt's file genuinely wasn't on disk yet at check time,
+        not that the export itself had failed. A same-process retry loop
+        would have caught it. Without this, that timing gap silently
+        degrades a real NIF export into an FBX fallback. Polls up to
+        *retry_window* seconds (default 2s) before giving up -- negligible
+        cost on the common instant-success path (returns on the first
+        check), bounded cost on a genuine failure.
         """
         import time as _t
-        now = _t.time()
-        _floor = after_time if after_time is not None else (now - since_seconds)
 
-        def _fresh(p):
-            try:
-                return os.path.exists(p) and os.path.getmtime(p) > _floor
-            except Exception:
-                return False
-
-        # 1. Exact path and path-with-.nif.
-        base, ext = os.path.splitext(filepath)
-        candidates = [filepath]
-        if ext.lower() != ".nif":
-            candidates.append(filepath + ".nif")
-            candidates.append(base + ".nif")
-        for c in candidates:
-            if _fresh(c):
-                return True
-
-        # 2 & 3. Scan the target directory for a fresh .nif.
-        try:
-            target_dir = os.path.dirname(filepath) or "."
-            stem = os.path.splitext(os.path.basename(filepath))[0].lower()
-            newest = None
-            for name in os.listdir(target_dir):
-                if not name.lower().endswith(".nif"):
-                    continue
-                full = os.path.join(target_dir, name)
-                if not _fresh(full):
-                    continue
-                # Prefer an exact stem match (handles PyNifly name-sanitising).
-                if os.path.splitext(name)[0].lower() == stem:
-                    return True
+        def _check_once(floor_time) -> bool:
+            def _fresh(p):
                 try:
-                    mt = os.path.getmtime(full)
+                    return os.path.exists(p) and os.path.getmtime(p) > floor_time
                 except Exception:
-                    continue
-                if newest is None or mt > newest[1]:
-                    newest = (full, mt)
-            if newest is not None:
-                return True
-        except Exception:
-            pass
+                    return False
 
-        return False
+            base, ext = os.path.splitext(filepath)
+            candidates = [filepath]
+            if ext.lower() != ".nif":
+                candidates.append(filepath + ".nif")
+                candidates.append(base + ".nif")
+            for c in candidates:
+                if _fresh(c):
+                    return True
+
+            try:
+                target_dir = os.path.dirname(filepath) or "."
+                stem = os.path.splitext(os.path.basename(filepath))[0].lower()
+                newest = None
+                for name in os.listdir(target_dir):
+                    if not name.lower().endswith(".nif"):
+                        continue
+                    full = os.path.join(target_dir, name)
+                    if not _fresh(full):
+                        continue
+                    if os.path.splitext(name)[0].lower() == stem:
+                        return True
+                    try:
+                        mt = os.path.getmtime(full)
+                    except Exception:
+                        continue
+                    if newest is None or mt > newest[1]:
+                        newest = (full, mt)
+                if newest is not None:
+                    return True
+            except Exception:
+                pass
+            return False
+
+        now = _t.time()
+        floor_time = after_time if after_time is not None else (now - since_seconds)
+
+        deadline = now + max(retry_window, 0.0)
+        while True:
+            if _check_once(floor_time):
+                return True
+            if _t.time() >= deadline:
+                return False
+            _t.sleep(retry_interval)
 
     @staticmethod
     def _call_nif_export(op_callable, kwargs, active_object=None, selected_objects=None):

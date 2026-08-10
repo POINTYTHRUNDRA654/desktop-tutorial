@@ -105,6 +105,43 @@ def check_mesh_conflicts(objects: list, installed_mods: list) -> list:
     return issues
 
 
+def check_awkcr_conflicts(objects: list, installed_mods: list) -> list:
+    """Flag biped-slot conflicts between armor objects when AWKCR is
+    installed. AWKCR.esp was listed in KNOWN_MODS with a slot_range but
+    nothing ever read it -- a scene with two armor objects claiming the
+    same biped slot got "no issues found" even though that's exactly the
+    conflict AWKCR-aware modders check for by hand.
+    """
+    issues = []
+    if not any(m.get("name") == "AWKCR.esp" for m in installed_mods):
+        return issues
+
+    from . import fo4_armor_animation as _armor_anim
+
+    slot_owners: dict = {}
+    for obj in objects:
+        if obj.type != 'MESH':
+            continue
+        armor_type = obj.get("fo4_armor_type")
+        if not armor_type:
+            continue
+        slots = obj.get("fo4_biped_slots") or \
+            _armor_anim.ARMOR_TYPE_CONFIG.get(armor_type, {}).get("biped_slots", [])
+        for slot in slots:
+            slot_owners.setdefault(slot, []).append(obj.name)
+
+    for slot, owners in slot_owners.items():
+        if len(owners) > 1:
+            issues.append({
+                "severity": "ERROR",
+                "object":   ", ".join(owners),
+                "message":  f"AWKCR biped slot {slot} claimed by multiple objects: {', '.join(owners)}",
+                "fix":      "Reassign one object to a different fo4_armor_type, or use one "
+                            "of AWKCR's extended slots to avoid overlap",
+            })
+    return issues
+
+
 def run_full_check(data_path: str = "", objects: list = None) -> dict:
     """Run all compatibility checks. Returns report dict."""
     installed = scan_data_folder(data_path) if data_path else []
@@ -115,6 +152,7 @@ def run_full_check(data_path: str = "", objects: list = None) -> dict:
     for arm in arms:
         issues += check_skeleton_compatibility(arm)
     issues += check_mesh_conflicts(objects, installed)
+    issues += check_awkcr_conflicts(objects, installed)
 
     errors   = [i for i in issues if i.get("severity") == "ERROR"]
     warnings = [i for i in issues if i.get("severity") == "WARNING"]

@@ -144,18 +144,18 @@ class AdvisorHelpers:
                 report["suggestions"].append("Run Validate Before Export and fix blockers.")
 
     @staticmethod
-    def query_mossy(meta_report):
+    def query_mossy(meta_report, custom_question: str = None):
         """Send the advisor report to Mossy's HTTP AI endpoint and return its response.
 
-        This is the Mossy-specific AI path.  Unlike :meth:`query_llm`, which
-        requires an OpenAI-compatible remote endpoint and API key, this calls
-        Mossy's local HTTP server directly - no API key needed, no data leaves
-        your machine.
+        This calls Mossy's local HTTP server directly - no API key needed,
+        no data leaves your machine. Mossy must be running on the desktop
+        and ``use_mossy_as_ai`` must be enabled in the add-on preferences.
+        The function returns ``None`` silently when either condition is not
+        met, so callers can treat "no answer" uniformly.
 
-        Mossy must be running on the desktop and ``use_mossy_as_ai`` must be
-        enabled in the add-on preferences.  The function returns ``None``
-        silently when either condition is not met, so the caller can fall back
-        to the standard LLM path without branching logic.
+        Pass *custom_question* to ask Mossy something specific (the Advisor
+        panel's free-text box) instead of the default export-readiness
+        review -- the scene report is still attached as context either way.
         """
         prefs = preferences.get_preferences()
         if not prefs or not getattr(prefs, 'use_mossy_as_ai', False):
@@ -177,7 +177,7 @@ class AdvisorHelpers:
             "objects_checked": meta_report.get("objects_checked", 0),
             "kb":              kb_snippets[:4],
         }
-        query = (
+        query = custom_question.strip() if custom_question and custom_question.strip() else (
             "I'm working on Fallout 4 mod assets in Blender. "
             "Please review these export-readiness issues and give me clear, "
             "prioritised fixes as a beginner-friendly step-by-step list."

@@ -30,6 +30,7 @@ fo4_material_browser  = _safe_import("fo4_material_browser")
 fo4_scene_diagnostics = _safe_import("fo4_scene_diagnostics")
 fo4_reference_helpers = _safe_import("fo4_reference_helpers")
 automation_system     = _safe_import("automation_system")
+preset_library         = _safe_import("preset_library")
 
 # Cache for macro list — avoids a disk read on every panel redraw
 import time as _time
@@ -913,6 +914,28 @@ class FO4_PT_PapyrusPanel(_FO4SubPanel):
         meta_box.prop(scene, "fo4_papyrus_template",    text="Type")
         meta_box.prop(scene, "fo4_papyrus_script_name", text="Script Name")
         meta_box.prop(scene, "fo4_papyrus_mod_name",    text="Mod Prefix")
+
+        # ── Script presets (reuse across future assets, no rebuilding) ─────────
+        preset_box = layout.box()
+        preset_box.label(text="Script Presets", icon='BOOKMARKS')
+        preset_box.operator("fo4.save_papyrus_script_preset",
+                            text="Save Current Type as Preset", icon='ADD')
+        try:
+            script_presets = (preset_library.PresetLibrary.get_presets_by_category('SCRIPT')
+                              if preset_library else [])
+        except Exception:
+            script_presets = []
+        if script_presets:
+            col = preset_box.column(align=True)
+            for preset in script_presets:
+                row = col.row(align=True)
+                row.label(text=preset['name'], icon='FILE_SCRIPT')
+                op = row.operator("fo4.load_papyrus_script_preset", text="", icon='IMPORT')
+                op.filepath = preset['filepath']
+                op = row.operator("fo4.delete_preset", text="", icon='TRASH')
+                op.filepath = preset['filepath']
+        else:
+            preset_box.label(text="No saved script presets yet", icon='INFO')
 
         # ── Generate / preview ────────────────────────────────────────────────
         gen_box = layout.box()

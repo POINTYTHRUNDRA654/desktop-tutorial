@@ -281,11 +281,34 @@ class FO4_OT_AddCoverMarker(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class FO4_OT_ClearCoverMarkers(bpy.types.Operator):
+    """Remove cover marker empties. Clears the selected markers if any
+    tagged ones are selected, otherwise clears every cover marker in the
+    scene."""
+    bl_idname  = "fo4.clear_cover_markers"
+    bl_label   = "Clear Cover Markers"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        selected_markers = [o for o in context.selected_objects
+                             if o.get("fo4_cover_type") is not None]
+        targets = selected_markers or [o for o in context.scene.objects
+                                        if o.get("fo4_cover_type") is not None]
+        if not targets:
+            self.report({'INFO'}, "No cover markers to clear")
+            return {'FINISHED'}
+        for obj in targets:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        self.report({'INFO'}, f"Cleared {len(targets)} cover marker(s)")
+        return {'FINISHED'}
+
+
 _CLASSES = [
     FO4_OT_GenerateNavMesh,
     FO4_OT_ValidateNavMesh2,
     FO4_OT_DecimateNavMesh,
     FO4_OT_AddCoverMarker,
+    FO4_OT_ClearCoverMarkers,
 ]
 
 

@@ -423,7 +423,13 @@ def write_esp(output_path: str,
                                    rec.get("nif_female",""),
                                    rec.get("armor_type","CHEST"))
             elif rtype == "ARMO":
-                arma_id = rec.get("arma_formid", 0)
+                # _arma_ref points at the companion ARMA dict records_from_scene
+                # inserted immediately before this one in the list -- by now it
+                # has already been processed above and carries a real _formid,
+                # so the ARMO's model link is a valid in-file FormID instead of
+                # silently defaulting to 0 (an invalid reference).
+                arma_ref = rec.get("_arma_ref")
+                arma_id  = (arma_ref.get("_formid") if arma_ref else None) or rec.get("arma_formid", 0)
                 data = build_armo(formid, eid, name, arma_id,
                                    rec.get("armor_type","CHEST"),
                                    rec.get("weight",5.0),
@@ -593,7 +599,19 @@ def records_from_scene(nif_output_dir: str) -> List[dict]:
         if rtype == "WEAP":
             rec["weapon_type"] = obj.get("fo4_weapon_type", "PISTOL")
         if rtype == "ARMO":
-            rec["armor_type"]  = obj.get("fo4_armor_type", "CHEST")
+            armor_type = obj.get("fo4_armor_type", "CHEST")
+            rec["armor_type"] = armor_type
+            # An ARMO with no ARMA has no working mesh link (FormID 0).
+            # Emit the companion ARMA first so write_esp() can resolve a
+            # real FormID for it once processed (see the ARMO branch there).
+            arma_rec = {
+                "type":        "ARMA",
+                "editor_id":   safe_eid + "_ARMA",
+                "nif_path":    nif_path,
+                "armor_type":  armor_type,
+            }
+            records.append(arma_rec)
+            rec["_arma_ref"] = arma_rec
 
         records.append(rec)
 
