@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v5.5.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v5.6.0** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -17,9 +17,16 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.5.0)
+## 🚀 Onboarding & Installer Notes (v5.6.0)
 
-**New in v5.5.0 (Latest):**
+**New in v5.6.0 (Latest):**
+- ✅ **Background Remover** (Textures & Materials Hub) - AI background removal: a standalone local RMBG-2.0 GPU install, or a ComfyUI-RMBG backend with permissively-licensed BEN2/InSPyReNet/BEN models
+- ✅ **AI Post-Processing Pipeline** (Textures & Materials Hub) - Layer Effects, Face Detailer, Relight, and Upscale (SUPIR or UltimateSDUpscale), all running through your own local ComfyUI
+- ✅ **AI Image Studio: Transparency & Inpaint** - "Generate with transparency" toggle (LayerDiffuse, real alpha channel) plus a brush-based mask editor for crop-and-stitch inpainting
+- ✅ **One-Click ComfyUI Custom Node Installer** - every ComfyUI-based tool above installs with one click (downloads real GitHub source + Python deps + model files, restarts ComfyUI), plus a new AI Texture Tools Setup Wizard that walks through all of them right after Voice Setup on first install or Initial Install replay
+- 📄 See [CHANGELOG.md](CHANGELOG.md) for full details
+
+**From v5.5.0:**
 - ✅ **Bethel Integration** - Automatic mod enhancement system! Upload any Fallout 4 mod → Auto-enhance textures → Export as ZIP or FOMOD
   - 4x/8x/16x AI upscaling with neural networks
   - Intelligent texture classification (diffuse, normal, specular, roughness, metallic, AO)
@@ -79,7 +86,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 5.5.0)
+- Version is auto-set from `package.json` (currently 5.6.0)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 - Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
@@ -109,7 +116,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Ready to use Mossy?** Download the latest installer:
 
-👉 **[Download Mossy v5.5.0 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
+👉 **[Download Mossy v5.6.0 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
 
 ### System Requirements
 
@@ -577,7 +584,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 5.5.0.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 5.6.0.exe`).
 
 ---
 

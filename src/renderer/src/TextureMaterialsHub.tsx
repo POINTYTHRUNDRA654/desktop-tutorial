@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette, Camera } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette, Camera, Scissors, Aperture } from 'lucide-react';
 
 // Lazy-load tool panels — hub stays lightweight
 const DDSConverter = React.lazy(() =>
@@ -30,8 +30,10 @@ const MaterialDefinitionEditor = React.lazy(() =>
   import('./MaterialDefinitionEditor').then((m) => ({ default: m.MaterialDefinitionEditor }))
 );
 const AIImageStudio = React.lazy(() => import('./AIImageStudio'));
+const BackgroundRemover = React.lazy(() => import('./BackgroundRemover'));
+const PostProcessingPipeline = React.lazy(() => import('./PostProcessingPipeline'));
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio' | 'bgremover' | 'postprocess';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
@@ -45,6 +47,8 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'enhancer',  icon: Sparkles,          label: 'Enhancer',          sublabel: 'Detail extraction · PBR maps' },
   { id: 'krita',     icon: Palette,           label: 'Krita AI Paint',    sublabel: 'Diffusion · Inpaint' },
   { id: 'aistudio',  icon: Camera,            label: 'AI Image Studio',   sublabel: 'txt2img · img2img'   },
+  { id: 'bgremover', icon: Scissors,          label: 'Background Remover', sublabel: 'AI isolation · RMBG-2.0' },
+  { id: 'postprocess', icon: Aperture,        label: 'Post-Processing',   sublabel: 'Layer FX · Face · Relight · Upscale' },
 ];
 
 // ============================================================================
@@ -546,6 +550,16 @@ const TextureMaterialsHub: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         {activeTab === 'aistudio' && (
           <PanelLoader>
             <AIImageStudio />
+          </PanelLoader>
+        )}
+        {activeTab === 'bgremover' && (
+          <PanelLoader>
+            <BackgroundRemover />
+          </PanelLoader>
+        )}
+        {activeTab === 'postprocess' && (
+          <PanelLoader>
+            <PostProcessingPipeline />
           </PanelLoader>
         )}
       </div>

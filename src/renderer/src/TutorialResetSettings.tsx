@@ -18,7 +18,8 @@ const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded 
     localStorage.removeItem('mossy_tutorial_completed');
     localStorage.removeItem('mossy_tutorial_autostart');
     localStorage.removeItem('mossy_voice_setup_complete');
-    
+    localStorage.removeItem('mossy_ai_texture_tools_setup_complete');
+
     // Set flag to force onboarding to run even if scan data exists
     localStorage.setItem('mossy_force_onboarding', 'true');
     
@@ -90,6 +91,7 @@ const TutorialResetSettings: React.FC<TutorialResetSettingsProps> = ({ embedded 
                     <li>First-run onboarding completion flag</li>
                     <li>Tutorial completion status</li>
                     <li>Voice setup wizard status</li>
+                    <li>AI Texture Tools setup wizard status</li>
                     <li>Boot animation flag</li>
                     {clearScanData && (
                       <>

@@ -6,6 +6,7 @@
 
 import { LocalAIEngine } from './LocalAIEngine';
 import type { UserFeedback } from '../../shared/types';
+import { SS2_PLOT_SYSTEM_PROMPT, CITY_PLAN_SYSTEM_PROMPT } from '../../shared/ss2PracticePrompts';
 
 export interface LearningPattern {
   id: string;
@@ -31,7 +32,7 @@ export interface ImprovementOpportunity {
 
 export interface ScriptGenerationRequest {
   name?: string;
-  type: 'papyrus' | 'xedit' | 'blender' | 'quest' | 'automation';
+  type: 'papyrus' | 'xedit' | 'blender' | 'quest' | 'automation' | 'ss2-plot' | 'city-plan';
   description: string;
   requirements?: string[];
   context?: string;
@@ -294,6 +295,32 @@ export class SelfImprovementEngine {
   }
 
   /**
+   * Lets external checks (e.g. the SS2 "Reality Check" GradingEngine, which
+   * scores generated ss2-plot/city-plan design docs against real downloaded
+   * mods) report a deficiency as a tracked opportunity — same dedup-by-description
+   * pattern identifyImprovements() already uses internally, so a repeated
+   * grading deficiency strengthens an existing entry instead of piling up duplicates.
+   */
+  reportGradingOpportunity(description: string, proposedSolution: string, confidence: number, impact: ImprovementOpportunity['impact']) {
+    const existing = this.opportunities.find(o => o.type === 'response_improvement' && !o.implemented && o.description === description);
+    if (existing) {
+      existing.confidence = Math.min(1, existing.confidence + 0.05);
+      existing.createdAt = new Date().toISOString();
+    } else {
+      this.opportunities.push({
+        id: `improvement_${++this.opportunityCounter}`,
+        type: 'response_improvement',
+        description,
+        confidence: Math.max(0, Math.min(1, confidence)),
+        proposedSolution,
+        impact,
+        createdAt: new Date().toISOString()
+      });
+    }
+    this.savePersistedData();
+  }
+
+  /**
    * Implements an improvement opportunity
    */
   implementImprovement(opportunityId: string) {
@@ -324,6 +351,8 @@ export class SelfImprovementEngine {
       blender: `You are a Blender Python scripting expert specializing in Fallout 4 modding workflows (PyNifly NIF export/import, correct FO4 unit scale of 1.0, 30 FPS, applying transforms before export, BSSubIndexTriShape handling). Write a complete Blender Python script using the bpy API. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
       quest: `You are a Fallout 4 Papyrus quest-scripting expert. Write a complete Papyrus quest script (.psc, extends Quest) implementing the requested quest logic with real Fallout 4 Quest/Stage/Alias APIs. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
       automation: `You are a Python automation scripting expert for Fallout 4 modding pipelines (asset processing, batch file operations, build automation). Write a complete, runnable Python script for the requested automation task. Output only the script code in a single code block, with a one-line comment above it summarizing what it does.`,
+      'ss2-plot': SS2_PLOT_SYSTEM_PROMPT,
+      'city-plan': CITY_PLAN_SYSTEM_PROMPT,
     };
 
     const systemInstruction = SYSTEM_PROMPTS[request.type];
@@ -336,9 +365,41 @@ export class SelfImprovementEngine {
       : '';
     const query = `${request.description}${requirementsText}${request.context ? `\n\nContext: ${request.context}` : ''}`;
 
-    const response = await LocalAIEngine.generateResponse(query, systemInstruction);
-    const codeMatch = response.content.match(/```(?:\w+)?\s*\n([\s\S]*?)```/);
-    const scriptContent = (codeMatch ? codeMatch[1] : response.content).trim();
+    let responseContent: string;
+    if (request.type === 'ss2-plot' || request.type === 'city-plan') {
+      // SS2 practice generation needs to hit exact real naming conventions and
+      // property names, not just "sound plausible" — a precision task the local
+      // default (gemma4:12b) plateaus on even when shown real examples directly
+      // (confirmed: 32/32 practice sessions capped at 65/100, never improving
+      // across 8 retries). Routing this specific generation through Groq's
+      // qwen3.6-27b (already proven in the self-critique pass elsewhere in this
+      // codebase) tests whether it's a model-capability ceiling, not a prompt
+      // problem — deliberately bypassing LocalAIEngine's local-first routing for
+      // just this one precision-sensitive case.
+      const bridge = (window.electron?.api || window.electronAPI) as any;
+      const groqResp = await bridge?.aiChatGroq?.(query, systemInstruction, 'qwen/qwen3.6-27b', []);
+      if (!groqResp?.success) {
+        throw new Error(groqResp?.error || 'Groq generation failed for SS2 practice content.');
+      }
+      responseContent = String(groqResp.content || '');
+    } else {
+      // Build-guide-style generations run a much longer system prompt than an
+      // ordinary chat turn and can legitimately take longer to answer — the
+      // default 30s local-model timeout was tuned for chat latency, not this.
+      // think:false also avoids a real failure mode found in testing: a hybrid
+      // reasoning model (e.g. Ollama's qwen3.5) can burn its entire token budget
+      // on internal "thinking" and never emit the actual answer before the old
+      // timeout fired, silently producing nothing. Forcing non-thinking mode
+      // plus a longer window makes this reliable regardless of which local
+      // model is configured.
+      const response = await LocalAIEngine.generateResponse(
+        query, systemInstruction, undefined, false, undefined,
+        { timeoutMs: 120_000, think: false }
+      );
+      responseContent = response.content;
+    }
+    const codeMatch = responseContent.match(/```(?:\w+)?\s*\n([\s\S]*?)```/);
+    const scriptContent = (codeMatch ? codeMatch[1] : responseContent).trim();
     const scriptName = (request.name && request.name.trim()) || `${request.type}_${scriptId.slice(-6)}`;
 
     const generatedScript: GeneratedScript = {
@@ -353,6 +414,16 @@ export class SelfImprovementEngine {
 
     this.generatedScripts.push(generatedScript);
     this.savePersistedData();
+
+    // Feed this generation into the same interaction/pattern tracking used for
+    // chat — script practice runs should count toward "learned patterns" and
+    // tool-usage stats in the panel, not sit disconnected from the learning loop.
+    this.recordInteraction(
+      request.description,
+      scriptContent.slice(0, 500),
+      [`generateScript:${request.type}`],
+      'success'
+    );
 
     return generatedScript;
   }

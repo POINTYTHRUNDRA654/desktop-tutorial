@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Wand2, Upload, Download, RefreshCw, ImageIcon, Zap,
   AlertCircle, Loader2, ChevronDown, ChevronUp, Camera, Copy,
-  Package, CheckCircle2, XCircle, BookOpen, RotateCcw,
+  Package, CheckCircle2, XCircle, BookOpen, RotateCcw, Paintbrush,
 } from 'lucide-react';
 
 const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
@@ -51,7 +51,7 @@ const DEFAULT_NEGATIVE =
   'disfigured, mutation, extra limbs, poorly drawn, jpeg artifacts, noise, grainy, ' +
   'out of focus, overexposed, underexposed';
 
-type Mode = 'generate' | 'transform' | 'library';
+type Mode = 'generate' | 'transform' | 'inpaint' | 'library';
 type ComfyStatus = 'checking' | 'online' | 'offline';
 type DlState = 'idle' | 'downloading' | 'restarting' | 'done' | 'error';
 
@@ -71,9 +71,21 @@ const AIImageStudio: React.FC = () => {
   const [steps, setSteps]     = useState(30);
   const [cfg, setCfg]         = useState(7);
   const [denoise, setDenoise] = useState(0.65);
+  // LayerDiffuse (huchenlei/ComfyUI-layerdiffuse, Apache-2.0) — native-alpha generation.
+  // Only applies in generate mode (txt2img); ignored for transform/img2img.
+  const [transparent, setTransparent] = useState(false);
 
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [sourceFile, setSourceFile]   = useState<File | null>(null);
+
+  // Inpaint mode (lquesada/ComfyUI-Inpaint-CropAndStitch, GPL-3.0 wrapper) — brush-only
+  // mask canvas, sized to the source image's natural resolution so the exported mask
+  // stays pixel-accurate regardless of on-screen zoom.
+  const maskCanvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const drawingRef = useRef(false);
+  const [brushSize, setBrushSize] = useState(40);
+  const [hasMask, setHasMask] = useState(false);
 
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [generating, setGenerating]   = useState(false);
@@ -87,9 +99,40 @@ const AIImageStudio: React.FC = () => {
   const [restartElapsed, setRestartElapsed] = useState<Record<string, number>>({});
   const [startingComfy, setStartingComfy] = useState(false);
 
+  // Quick ComfyUI path configuration — previously the only way to set this was a
+  // completely different platform (External Integrations Hub), with no hint here that
+  // "ComfyUI not running" might just mean this was never configured at all.
+  const [showComfyPathEditor, setShowComfyPathEditor] = useState(false);
+  const [comfyPathInput, setComfyPathInput] = useState('');
+  const [savingComfyPath, setSavingComfyPath] = useState(false);
+
+  // LayerDiffuse (huchenlei/ComfyUI-layerdiffuse, Apache-2.0) availability + install,
+  // reusing the same generic install channels PostProcessingPipeline.tsx uses.
+  const [layerDiffuseAvailable, setLayerDiffuseAvailable] = useState<boolean | null>(null);
+  const [layerDiffuseInstalling, setLayerDiffuseInstalling] = useState(false);
+
+  const checkLayerDiffuse = () => {
+    bridge?.invoke?.('post-process:comfyui-check-tool', 'LayeredDiffusionApply').then((r: any) => {
+      setLayerDiffuseAvailable(!!r?.available);
+    });
+  };
+
+  const installLayerDiffuse = async () => {
+    setLayerDiffuseInstalling(true);
+    try {
+      const r = await bridge?.invoke?.('post-process:comfyui-install-node', {
+        owner: 'huchenlei', repo: 'ComfyUI-layerdiffuse', checkClassType: 'LayeredDiffusionApply',
+      });
+      if (r?.success) checkLayerDiffuse();
+    } finally {
+      setLayerDiffuseInstalling(false);
+    }
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { void checkComfyUI(); }, []);
+  useEffect(() => { if (transparent && layerDiffuseAvailable === null) checkLayerDiffuse(); }, [transparent]);
 
   useEffect(() => {
     if (mode === 'library') void refreshInstalled();
@@ -127,27 +170,58 @@ const AIImageStudio: React.FC = () => {
       if (r.online) {
         setComfyStatus('online');
         const mr = await bridge.invoke('textures:comfyui-models');
-        if (mr.success && mr.models.length > 0) {
-          setModels(mr.models);
-          setSelectedModel(mr.models[0]);
-        }
+        const liveModels: string[] = (mr.success && mr.models?.length > 0) ? mr.models : [];
+        setModels(liveModels);
+        setSelectedModel(prev => liveModels.includes(prev) ? prev : (liveModels[0] || ''));
+        // ComfyUI's own /object_info list reflects what its running process actually has
+        // indexed — it can lag behind reality (just restarted and still scanning, or its
+        // configured models path doesn't match what we scan on disk). Always refresh the
+        // disk-scanned list too so the UI can tell "genuinely nothing installed" apart from
+        // "ComfyUI hasn't picked it up yet" instead of just showing "No models" either way.
+        await refreshInstalled();
       } else {
         setComfyStatus('offline');
+        setModels([]);
       }
     } catch {
       setComfyStatus('offline');
+      setModels([]);
     }
   };
 
   const handleStartComfy = async () => {
     setStartingComfy(true);
+    setError('');
     try {
-      await bridge.invoke('textures:comfyui-restart');
+      const restart = await bridge.invoke('textures:comfyui-restart');
+      if (!restart?.success) {
+        // Previously swallowed silently — the user just saw "offline" again with zero
+        // explanation of why the restart attempt itself failed (e.g. a misconfigured
+        // ComfyUI path, per comfyuiRestartAndWait's fast-fail checks).
+        setError(restart?.error || 'Failed to start ComfyUI.');
+      }
       await checkComfyUI();
-    } catch {
-      // checkComfyUI will set status to offline if it fails
+    } catch (err: any) {
+      setError(err?.message || 'Failed to start ComfyUI.');
     } finally {
       setStartingComfy(false);
+    }
+  };
+
+  const browseComfyPath = async () => {
+    const picked = await bridge?.pickDirectory?.('Select your ComfyUI install folder (the one containing run_nvidia_gpu.bat)').catch(() => null);
+    if (picked) setComfyPathInput(picked);
+  };
+
+  const saveComfyPath = async () => {
+    const trimmed = comfyPathInput.trim();
+    setSavingComfyPath(true);
+    try {
+      await bridge?.setSettings?.({ comfyuiPath: trimmed }).catch(() => null);
+      setShowComfyPathEditor(false);
+      await handleStartComfy();
+    } finally {
+      setSavingComfyPath(false);
     }
   };
 
@@ -229,14 +303,93 @@ const AIImageStudio: React.FC = () => {
     if (file && file.type.startsWith('image/')) loadPreview(file);
   };
 
+  const setupMaskCanvas = () => {
+    const canvas = maskCanvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img || !img.naturalWidth) return;
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    setHasMask(false);
+  };
+
+  const maskPointFromEvent = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = maskCanvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height),
+    };
+  };
+
+  const paintMaskAt = (x: number, y: number) => {
+    const ctx = maskCanvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(x, y, brushSize, 0, Math.PI * 2);
+    ctx.fill();
+    setHasMask(true);
+  };
+
+  const handleMaskDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    drawingRef.current = true;
+    const p = maskPointFromEvent(e);
+    paintMaskAt(p.x, p.y);
+  };
+  const handleMaskMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const p = maskPointFromEvent(e);
+    paintMaskAt(p.x, p.y);
+  };
+  const handleMaskUp = () => { drawingRef.current = false; };
+
   const handleGenerate = async () => {
     setError('');
     if (!selectedModel)                        { setError('No model selected. Is ComfyUI running?'); return; }
     if (!prompt.trim() && mode === 'generate') { setError('Enter a prompt first.'); return; }
     if (mode === 'transform' && !sourceFile)   { setError('Upload a source image first.'); return; }
+    if (mode === 'inpaint' && !sourceFile)     { setError('Upload a source image first.'); return; }
+    if (mode === 'inpaint' && !hasMask)        { setError('Paint a mask over the area to inpaint first.'); return; }
 
     setGenerating(true);
     setResultImage(null);
+
+    if (mode === 'inpaint') {
+      try {
+        setStatusMsg('Uploading image + mask to ComfyUI...');
+        const imgB64 = await readFileAsB64(sourceFile!);
+        const upImg = await bridge.invoke('textures:comfyui-upload-image', {
+          base64: imgB64, filename: sourceFile!.name, mimeType: sourceFile!.type || 'image/png',
+        });
+        if (!upImg.success) { setError(upImg.error || 'Image upload failed.'); setGenerating(false); return; }
+
+        const maskDataUrl = maskCanvasRef.current!.toDataURL('image/png');
+        const upMask = await bridge.invoke('textures:comfyui-upload-image', {
+          base64: maskDataUrl.split(',')[1], filename: 'mossy_inpaint_mask.png', mimeType: 'image/png',
+        });
+        if (!upMask.success) { setError(upMask.error || 'Mask upload failed.'); setGenerating(false); return; }
+
+        setStatusMsg('Inpainting — this can take a minute...');
+        const result = await bridge.invoke('textures:comfyui-inpaint', {
+          model: selectedModel,
+          prompt: prompt.trim() || 'high quality, detailed, seamless',
+          negativePrompt: negPrompt,
+          uploadedImageName: upImg.name,
+          uploadedMaskName: upMask.name,
+          steps, cfg, denoise,
+          seed: Math.floor(Math.random() * 2147483647),
+        });
+        if (result.success) { setResultImage(result.imageData); setStatusMsg(''); }
+        else setError(result.error || 'Inpaint failed.');
+      } catch (err: any) {
+        setError(err.message || 'Unexpected error.');
+      } finally {
+        setGenerating(false);
+      }
+      return;
+    }
 
     try {
       let uploadedImageName: string | undefined;
@@ -272,6 +425,7 @@ const AIImageStudio: React.FC = () => {
         seed: Math.floor(Math.random() * 2147483647),
         uploadedImageName,
         denoise: mode === 'transform' ? denoise : 1.0,
+        transparent: mode === 'generate' ? transparent : false,
       });
 
       if (result.success) {
@@ -314,6 +468,7 @@ const AIImageStudio: React.FC = () => {
   const MODES: { id: Mode; icon: React.ReactNode; label: string }[] = [
     { id: 'generate',  icon: <Wand2 className="w-3.5 h-3.5" />,    label: 'Generate'  },
     { id: 'transform', icon: <ImageIcon className="w-3.5 h-3.5" />, label: 'Transform' },
+    { id: 'inpaint',   icon: <Paintbrush className="w-3.5 h-3.5" />, label: 'Inpaint'   },
     { id: 'library',   icon: <Package className="w-3.5 h-3.5" />,   label: 'Models'    },
   ];
 
@@ -338,19 +493,46 @@ const AIImageStudio: React.FC = () => {
             </div>
           </div>
           {comfyStatus === 'offline' && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <p className="text-xs text-red-300/80 leading-relaxed">
-                ComfyUI not running at <span className="font-mono text-red-300">127.0.0.1:8188</span>
-              </p>
-              <button
-                onClick={handleStartComfy}
-                disabled={startingComfy}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-600/20 border border-violet-500/40 text-xs text-violet-300 hover:bg-violet-600/30 transition-colors disabled:opacity-50"
-              >
-                {startingComfy
-                  ? <><RotateCcw className="w-3 h-3 animate-spin" /> Starting…</>
-                  : <><Zap className="w-3 h-3" /> Start ComfyUI</>}
-              </button>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-red-300/80 leading-relaxed">
+                  ComfyUI not running at <span className="font-mono text-red-300">127.0.0.1:8188</span>
+                </p>
+                <button
+                  onClick={handleStartComfy}
+                  disabled={startingComfy}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-600/20 border border-violet-500/40 text-xs text-violet-300 hover:bg-violet-600/30 transition-colors disabled:opacity-50"
+                >
+                  {startingComfy
+                    ? <><RotateCcw className="w-3 h-3 animate-spin" /> Starting…</>
+                    : <><Zap className="w-3 h-3" /> Start ComfyUI</>}
+                </button>
+                <button
+                  onClick={() => setShowComfyPathEditor(v => !v)}
+                  className="text-xs text-slate-500 hover:text-slate-300 underline transition-colors"
+                >
+                  {showComfyPathEditor ? 'Cancel' : "Wrong folder? Set ComfyUI path"}
+                </button>
+              </div>
+              {showComfyPathEditor && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text" value={comfyPathInput} onChange={e => setComfyPathInput(e.target.value)}
+                    placeholder="e.g. D:\ComfyUI_windows_portable"
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-violet-500"
+                  />
+                  <button onClick={browseComfyPath} className="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">
+                    Browse…
+                  </button>
+                  <button
+                    onClick={saveComfyPath}
+                    disabled={savingComfyPath || !comfyPathInput.trim()}
+                    className="text-xs px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-600 text-white"
+                  >
+                    {savingComfyPath ? 'Saving…' : 'Save & Start'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -379,29 +561,52 @@ const AIImageStudio: React.FC = () => {
           </div>
         )}
 
-        {mode === 'transform' && (
+        {(mode === 'transform' || mode === 'inpaint') && (
           <div>
             <label className="block text-xs text-slate-400 mb-1">Source Image</label>
-            <div
-              onDrop={handleDrop} onDragOver={e => e.preventDefault()}
-              onClick={() => fileInputRef.current?.click()}
-              className={'relative rounded-xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden ' +
-                (sourceImage ? 'border-violet-500/40' : 'border-slate-700 hover:border-violet-500/40 bg-slate-900/40')}
-              style={{ minHeight: sourceImage ? undefined : 88 }}>
-              {sourceImage
-                ? <img src={sourceImage} alt="Source" className="w-full rounded-xl object-contain max-h-48" />
-                : <div className="flex flex-col items-center justify-center gap-1 py-6">
-                    <Upload className="w-6 h-6 text-slate-500" />
-                    <p className="text-xs text-slate-500">Drop or click to browse</p>
-                    <p className="text-[10px] text-slate-600">PNG  JPG  WEBP</p>
-                  </div>}
-            </div>
+            {mode === 'inpaint' && sourceImage ? (
+              <div className="relative rounded-xl border-2 border-violet-500/40 overflow-hidden">
+                <img ref={imgRef} src={sourceImage} alt="Source" className="w-full rounded-xl object-contain max-h-64 pointer-events-none select-none"
+                  onLoad={setupMaskCanvas} />
+                <canvas
+                  ref={maskCanvasRef}
+                  className="absolute inset-0 w-full h-full opacity-40 cursor-crosshair"
+                  onMouseDown={handleMaskDown} onMouseMove={handleMaskMove} onMouseUp={handleMaskUp} onMouseLeave={handleMaskUp}
+                />
+              </div>
+            ) : (
+              <div
+                onDrop={handleDrop} onDragOver={e => e.preventDefault()}
+                onClick={() => fileInputRef.current?.click()}
+                className={'relative rounded-xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden ' +
+                  (sourceImage ? 'border-violet-500/40' : 'border-slate-700 hover:border-violet-500/40 bg-slate-900/40')}
+                style={{ minHeight: sourceImage ? undefined : 88 }}>
+                {sourceImage
+                  ? <img src={sourceImage} alt="Source" className="w-full rounded-xl object-contain max-h-48" />
+                  : <div className="flex flex-col items-center justify-center gap-1 py-6">
+                      <Upload className="w-6 h-6 text-slate-500" />
+                      <p className="text-xs text-slate-500">Drop or click to browse</p>
+                      <p className="text-[10px] text-slate-600">PNG  JPG  WEBP</p>
+                    </div>}
+              </div>
+            )}
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInput} />
             {sourceImage && (
-              <button onClick={() => { setSourceImage(null); setSourceFile(null); }}
+              <button onClick={() => { setSourceImage(null); setSourceFile(null); setHasMask(false); }}
                 className="mt-1 text-xs text-slate-500 hover:text-red-400 transition-colors">
                 Clear image
               </button>
+            )}
+            {mode === 'inpaint' && sourceImage && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-slate-400">Brush size: {brushSize}</label>
+                  <button onClick={setupMaskCanvas} className="text-xs text-slate-500 hover:text-red-400">Clear mask</button>
+                </div>
+                <input type="range" min="10" max="120" value={brushSize} onChange={e => setBrushSize(parseInt(e.target.value, 10))}
+                  className="w-full accent-violet-500" />
+                <p className="text-[10px] text-slate-600">Paint over the area you want regenerated.</p>
+              </div>
             )}
           </div>
         )}
@@ -437,6 +642,23 @@ const AIImageStudio: React.FC = () => {
               )}
             </div>
             <div>
+              <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                <input type="checkbox" checked={transparent} onChange={e => setTransparent(e.target.checked)}
+                  className="accent-violet-500" />
+                Generate with transparency
+                <span className="text-slate-600">(LayeredDiffuse — native alpha channel)</span>
+              </label>
+              {transparent && layerDiffuseAvailable === false && (
+                <div className="flex items-center gap-2 mt-1 text-xs text-red-400">
+                  <XCircle className="w-3 h-3" /> ComfyUI-layerdiffuse not detected
+                  <button onClick={installLayerDiffuse} disabled={layerDiffuseInstalling}
+                    className="bg-violet-600 hover:bg-violet-700 disabled:bg-slate-600 text-white px-2 py-0.5 rounded text-xs">
+                    {layerDiffuseInstalling ? 'Installing…' : 'Install'}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div>
               <label className="block text-xs text-slate-400 mb-1.5">Resolution</label>
               <div className="flex flex-wrap gap-1">
                 {RESOLUTIONS.map((r, i) => (
@@ -453,7 +675,7 @@ const AIImageStudio: React.FC = () => {
           </>
         )}
 
-        {mode === 'transform' && (
+        {(mode === 'transform' || mode === 'inpaint') && (
           <>
             <div>
               <label className="block text-xs text-slate-400 mb-1">
@@ -461,11 +683,11 @@ const AIImageStudio: React.FC = () => {
               </label>
               <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3}
                 className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white resize-none focus:outline-none focus:border-violet-500 placeholder-slate-600"
-                placeholder="Leave blank for auto photorealism..." />
+                placeholder={mode === 'inpaint' ? 'Describe what should replace the masked area...' : 'Leave blank for auto photorealism...'} />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-slate-400">Transformation Strength</label>
+                <label className="text-xs text-slate-400">{mode === 'inpaint' ? 'Inpaint Strength' : 'Transformation Strength'}</label>
                 <span className="text-xs font-mono text-violet-300">{denoise.toFixed(2)}</span>
               </div>
               <input type="range" min="0.3" max="0.9" step="0.05"
@@ -505,13 +727,13 @@ const AIImageStudio: React.FC = () => {
               disabled={generating || comfyStatus !== 'online' || !selectedModel}
               className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white shadow-lg shadow-violet-900/30">
               {generating
-                ? <><Loader2 className="w-4 h-4 animate-spin" />{mode === 'transform' ? 'Transforming...' : 'Generating...'}</>
-                : <><Zap className="w-4 h-4" />{mode === 'transform' ? 'Transform to Photorealistic' : 'Generate Image'}</>}
+                ? <><Loader2 className="w-4 h-4 animate-spin" />{mode === 'transform' ? 'Transforming...' : mode === 'inpaint' ? 'Inpainting...' : 'Generating...'}</>
+                : <><Zap className="w-4 h-4" />{mode === 'transform' ? 'Transform to Photorealistic' : mode === 'inpaint' ? 'Inpaint' : 'Generate Image'}</>}
             </button>
 
             {error && (
               <div className="rounded-lg border border-red-500/30 bg-red-900/20 px-3 py-2 flex gap-2 text-xs text-red-300">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span>{error}</span>
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /><span className="whitespace-pre-wrap break-words">{error}</span>
               </div>
             )}
           </>
@@ -715,6 +937,8 @@ const AIImageStudio: React.FC = () => {
                     <p className="text-slate-700 text-xs">
                       {mode === 'generate'
                         ? 'Pick a style preset or write a prompt, then click Generate'
+                        : mode === 'inpaint'
+                        ? 'Upload an image, paint a mask over the area to change, then click Inpaint'
                         : 'Upload a source image and click Transform to Photorealistic'}
                     </p>
                     {models.length === 0 && (
