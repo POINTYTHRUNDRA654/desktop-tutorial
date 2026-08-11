@@ -24539,15 +24539,44 @@ print(json.dumps(result))
     return Array.from(_brainNeurons.values()).sort((a, b) => (b.priority || 0) - (a.priority || 0));
   }
 
+  // Sane ceiling for the WHOLE neuron block, not an active content cut.
+  // Measured directly against the live brain-neurons.json on 2026-08-11:
+  // unbounded neuron content is ~155K characters (~39K tokens); combined with
+  // formatFO4KnowledgeBaseForAI() (measured separately at ~277K chars/~69K
+  // tokens), the full system prompt can exceed openai/gpt-oss-120b's 131K
+  // token context window on a single opening message. The real fix for that
+  // is automatic fallback to qwen/qwen3.6-27b (262K tokens — 2x the room) on
+  // a context-length error, now wired into groqChatWithFallback in both
+  // src/backend/routes/chat.ts and this file — that recovers the request
+  // instead of failing it, so content doesn't need to be sacrificed to stay
+  // under one specific model's window. This budget is set well above the
+  // current real total (155K) purely as a runaway-growth guard for the
+  // future, not a limit anyone should expect to actually hit day to day.
+  const BRAIN_NEURON_CHAR_BUDGET = 200_000;
+
   function buildBrainNeuronBlock(): string {
     const neurons = getAllBrainNeurons();
     if (neurons.length === 0) return '';
-    const sections = neurons.map(n =>
+
+    const included: BrainNeuron[] = [];
+    let used = 0;
+    for (const n of neurons) {
+      const size = (n.content || '').length;
+      if (used + size > BRAIN_NEURON_CHAR_BUDGET) continue;
+      included.push(n);
+      used += size;
+    }
+    if (included.length < neurons.length) {
+      const skipped = neurons.filter(n => !included.includes(n)).map(n => n.id);
+      writeMainLog(`[BrainNeurons] Budget ${BRAIN_NEURON_CHAR_BUDGET} chars: included ${included.length}/${neurons.length}, skipped: ${skipped.join(', ')}`);
+    }
+
+    const sections = included.map(n =>
       `▶ BRAIN MODULE — ${n.title} [${n.domain}]\n${n.content}`
     );
     return [
       '╔════════════════════════════════════════════════════════════╗',
-      `║  MOSSY EXTENDED BRAIN — ${neurons.length} Active Knowledge Modules`,
+      `║  MOSSY EXTENDED BRAIN — ${included.length} Active Knowledge Modules`,
       '╚════════════════════════════════════════════════════════════╝',
       ...sections,
       '╔════════════════════════════════════════════════════════════╗',

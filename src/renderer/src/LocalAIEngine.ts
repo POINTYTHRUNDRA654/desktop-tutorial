@@ -1021,8 +1021,15 @@ ANSWER THE USER NOW:`;
         return { content: responseContent, context: { citations }, reasoning: reasoningPlan || undefined };
       }
 
+      // Previously returned the raw API error string as if it were Mossy's
+      // answer (e.g. a Groq rate-limit/context-length error rendered
+      // directly in chat, looking like a malfunctioning reply). Surface it
+      // honestly instead — log the real error for diagnosis, show the user
+      // something legible.
+      const rawErr = String(resp?.error || 'Unknown error');
+      console.error('[LocalAIEngine] Groq call failed:', rawErr);
       return {
-        content: String(resp?.error || ''),
+        content: `I hit an error trying to answer that: ${rawErr}\n\nTry again, or ask something shorter if this keeps happening.`,
         context: { citations },
       };
     } catch (e) {
