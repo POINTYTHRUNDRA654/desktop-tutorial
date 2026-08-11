@@ -260,6 +260,9 @@ export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: number;
+  /** Mossy's own pre-answer deliberation, when the reasoning pre-pass ran —
+   *  optional collapsible UI trace, not part of the answer content itself. */
+  reasoning?: string;
 }
 
 // --- Security & Malware scanning types ---

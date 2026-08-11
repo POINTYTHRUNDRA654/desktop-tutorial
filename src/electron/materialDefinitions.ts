@@ -57,7 +57,7 @@ export interface MossyMaterialManifest {
     enhancedSize: number;
   };
   metadata: {
-    generator: 'Mossy v5.5.0';
+    generator: 'Mossy v5.6.0';
     blenderVersion?: string;
     gpuUsed: boolean;
     processingTimeSeconds: number;
@@ -178,7 +178,7 @@ export function generateMaterialDefinitions(
       enhancedSize: totalSize * enhancementLevel,
     },
     metadata: {
-      generator: 'Mossy v5.5.0',
+      generator: 'Mossy v5.6.0',
       gpuUsed: true,
       processingTimeSeconds: processingTime,
     },
