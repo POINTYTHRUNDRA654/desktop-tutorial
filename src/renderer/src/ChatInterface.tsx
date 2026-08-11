@@ -2255,6 +2255,36 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             setMessages(prev => [...prev, { id: Date.now().toString() + '-blacklist-warning', role: 'assistant', content: warning, timestamp: Date.now() }]);
         }
 
+        // --- DETERMINISTIC "START A MOD" NAVIGATION ---
+        // Prompt-engineering alone proved unreliable here: MossyBrain's own
+        // Quick Navigation Decision Guide already said "start a new mod" ->
+        // Mod Builder Hub, but the LLM kept asking clarifying questions
+        // anyway ("what kind of mod do you want to do?") despite explicit
+        // instructions not to — a real, confirmed regression. Project
+        // Creator (Mod Builder Hub) is a genuine universal starting point
+        // for every mod type (it branches internally by ModType), so this
+        // is a safe, unconditional trigger — not something that needs the
+        // AI to decide case-by-case. Handled here in code instead, matching
+        // the existing early-return guard pattern above (content/whitelist/
+        // blacklist checks), so it's guaranteed instead of hoped-for.
+        const startModIntent = textToSend.trim().length < 150
+            && /\b(start|begin|create|make|build)\b.{0,12}\b(a |my |the |new )?mod\b(?!\s+(organizer|manager|list|folder|order|menu))/i.test(textToSend);
+        if (startModIntent) {
+            setInputText('');
+            sessionStorage.setItem('builder_hub_tab', 'creator');
+            navigate('/mod-builder');
+            setMessages(prev => [...prev,
+            { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
+            {
+                id: Date.now().toString() + '-start-mod',
+                role: 'assistant',
+                content: "Let's get your project set up. I've taken you to the **Mod Builder Hub → Project Creator** — pick a project name and mod type there (quest, settlement, texture, weapon, NPC, worldspace edit, audio, or general) and it'll scaffold the right folder structure for it. Once that's created, come back and tell me what you're building and we'll go from there.",
+                timestamp: Date.now(),
+            }
+            ]);
+            return;
+        }
+
         const userMessage: Message = {
             id: Date.now().toString(),
             role: 'user',
