@@ -515,6 +515,7 @@ export interface Settings {
   groqPrimaryModel?: string;
   groqMaxResponseTokens?: number;
   groqSelfCritiqueEnabled?: boolean;
+  groqDeliberateReasoningEnabled?: boolean;
 
   // Local AI (optional)
   localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
@@ -609,6 +610,11 @@ export interface Settings {
   nvidiaCanvasPath?: string;
   umodelPath?: string;
   pytorchPath?: string;
+
+  // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, own Python env
+  // (independent of pytorchPath, which is forced CPU-only for Blender compatibility).
+  huggingFaceToken?: string;
+  rmbgPythonPath?: string;
 
   // Community Sharing
   communityRepo?: string; // GitHub repo in the form "owner/repo"
@@ -1051,6 +1057,7 @@ export const DEFAULT_SETTINGS: Settings = {
   nvidiaCanvasPath: '',
   umodelPath: '',
   pytorchPath: '',
+  rmbgPythonPath: '',
 
   // Papyrus
   papyrusCompilerPath: '',

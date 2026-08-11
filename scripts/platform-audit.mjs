@@ -79,10 +79,12 @@ const PLACEHOLDER_PATTERNS = [
 const IPC_PATTERNS = [
   /window\.api\./,
   /window\.electronAPI\./,
+  /window\.electron\??\.api/,  // window.electron.api.X / window.electron?.api — used throughout newer components
   /ipcRenderer\./,
   /LocalAIEngine\./,     // wraps window.electronAPI internally
   /\(window as any\)\.api/,  // TypeScript cast pattern
   /window as any.*\.api/,
+  /getBridge\(\)/,       // local helper pattern: const getBridge = () => window.electron?.api || window.electronAPI
 ];
 
 // ─── Read source files ────────────────────────────────────────────────────────
@@ -370,7 +372,9 @@ console.log('─'.repeat(100));
 
 for (const r of results) {
   const icon  = r.status === 'PASS' ? PASS : r.status === 'WARN' ? WARN : FAIL;
-  const kap   = r.info.keepAlive === true ? PASS : r.info.keepAlive ? WARN : FAIL;
+  // info.keepAlive is `true` (direct match), a truthy string like "via /dev/x" (resolved
+  // through a redirect — genuinely fine, no warn was pushed for it), or `false` (real gap).
+  const kap   = r.info.keepAlive ? PASS : FAIL;
   const ipc   = r.info.hasIpc ? PASS : r.info.ipcNote === 'hub-shell' ? '◈' : WARN;
   const lines = r.info.lines ? String(r.info.lines).padStart(5) : '  —  ';
   console.log(

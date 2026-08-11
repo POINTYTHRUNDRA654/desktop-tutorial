@@ -108,7 +108,16 @@ interface HeightStage extends PipelineStage {
   bias: number;                // POM bias
 }
 
+interface AiDetailStage extends PipelineStage {
+  model: string;                // ComfyUI checkpoint name
+  denoise: number;              // 0–1: how much of the source to redraw (higher = more new detail, less fidelity to original)
+  steps: number;
+  cfg: number;
+  promptOverride: string;       // empty = auto-build from the selected Material Surface
+}
+
 interface Pipeline {
+  aiDetail:  AiDetailStage;      // runs FIRST — generative detail synthesis via ComfyUI, before every classical stage below
   albedo:    AlbedoStage;
   normal:    NormalStage;
   roughness: RoughnessStage;
@@ -406,6 +415,9 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DEFAULT_PIPELINE: Pipeline = {
+  // Off by default — opt-in since it requires ComfyUI running and takes real
+  // generation time, unlike every classical stage below which is instant.
+  aiDetail:  { enabled: false, model: '', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '' },
   albedo:    { enabled: true,  deLighting: true, deLight_strength: 0.5, detailBoost: 1.0, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
   normal:    { enabled: true,  method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
   roughness: { enabled: true,  base: 0.7, luminanceInfluence: 0.5, variation: 0.15, invert: false },
@@ -624,6 +636,30 @@ export default function TextureEnhancer() {
   const [quality, setQuality] = useState<EnhancementQuality>('quality');
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('dds');
   const [pipeline, setPipeline] = useState<Pipeline>(DEFAULT_PIPELINE);
+
+  // ── AI Detail Synthesis (ComfyUI) ────────────────────────────────────────
+  const [comfyStatus, setComfyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [comfyModels, setComfyModels] = useState<string[]>([]);
+
+  useEffect(() => {
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (!api?.invoke) { setComfyStatus('offline'); return; }
+    (async () => {
+      try {
+        const status = await api.invoke('textures:comfyui-status');
+        if (!status?.online) { setComfyStatus('offline'); return; }
+        setComfyStatus('online');
+        const modelsResp = await api.invoke('textures:comfyui-models');
+        const models: string[] = modelsResp?.success ? (modelsResp.models ?? []) : [];
+        setComfyModels(models);
+        if (models.length > 0) {
+          setPipeline(prev => prev.aiDetail.model ? prev : { ...prev, aiDetail: { ...prev.aiDetail, model: models[0] } });
+        }
+      } catch {
+        setComfyStatus('offline');
+      }
+    })();
+  }, []);
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(['albedo', 'normal']));
@@ -935,6 +971,44 @@ export default function TextureEnhancer() {
             {/* Pipeline stages */}
             <div className="space-y-1.5">
               <p className="text-xs font-semibold text-slate-300 px-1">Pipeline Stages</p>
+
+              {/* AI Detail Synthesis — runs first, generates new fine surface detail via
+                  ComfyUI before every classical stage below derives from the result. */}
+              <div className="bg-slate-800 border border-purple-700/50 rounded-lg p-3 space-y-2">
+                <StageHeader icon={<Zap size={12} />} title="AI Detail Synthesis" subtitle="Generates new fine detail via ComfyUI (not classical sharpening)"
+                  enabled={pipeline.aiDetail.enabled} expanded={expandedStages.has('aiDetail')}
+                  onToggleEnabled={() => toggleStageEnabled('aiDetail')} onToggleExpanded={() => toggleStageExpand('aiDetail')} />
+                {comfyStatus === 'offline' && (
+                  <p className="text-xs text-red-300/80">ComfyUI not running at 127.0.0.1:8188 — start it in AI Image Studio or External Integrations Hub first.</p>
+                )}
+                {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && (
+                  <div className="pt-2 space-y-2 border-t border-slate-700">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400 w-36">Checkpoint</span>
+                      <select value={pipeline.aiDetail.model} onChange={e => updateStage('aiDetail', { model: e.target.value })}
+                        disabled={comfyStatus !== 'online' || comfyModels.length === 0}
+                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500 disabled:opacity-50">
+                        {comfyModels.length === 0 && <option value="">{comfyStatus === 'online' ? 'No checkpoints found' : 'ComfyUI offline'}</option>}
+                        {comfyModels.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <Slider label="Denoise (new detail)" value={pipeline.aiDetail.denoise} min={0.1} max={0.85} step={0.01} onChange={v => updateStage('aiDetail', { denoise: v })} />
+                    <p className="text-xs text-slate-600 -mt-1">Higher = more new detail generated, but less faithful to the original. 0.3–0.5 keeps shape/color; 0.5–0.7 repaints heavily.</p>
+                    <Slider label="Steps" value={pipeline.aiDetail.steps} min={10} max={60} step={1} onChange={v => updateStage('aiDetail', { steps: v })} />
+                    <Slider label="CFG" value={pipeline.aiDetail.cfg} min={1} max={15} step={0.5} onChange={v => updateStage('aiDetail', { cfg: v })} />
+                    <div className="space-y-1">
+                      <span className="text-xs text-slate-400">Prompt override (optional)</span>
+                      <textarea
+                        value={pipeline.aiDetail.promptOverride}
+                        onChange={e => updateStage('aiDetail', { promptOverride: e.target.value })}
+                        placeholder={`Leave empty to auto-build from the Material Surface (${SURFACE_PRESETS[surface].label})`}
+                        rows={2}
+                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500 resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Albedo */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 space-y-2">

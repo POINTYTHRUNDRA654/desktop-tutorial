@@ -44,14 +44,22 @@ export type OllamaPullResponse =
 
 export async function ollamaGenerate(
   req: OllamaGenerateRequest,
-  opts?: { baseUrl?: string }
+  opts?: {
+    baseUrl?: string
+    /** Overrides the default 30s abort timeout — some callers (e.g. long-form
+     *  build-guide generation) legitimately need more time than a chat reply. */
+    timeoutMs?: number
+    /** Explicitly forces a hybrid reasoning model's think mode on/off. Omit to
+     *  leave the model's own default behavior untouched (existing callers). */
+    think?: boolean
+  }
 ): Promise<OllamaGenerateResponse> {
   const baseUrl = (opts?.baseUrl ?? 'http://127.0.0.1:11434').replace(/\/$/, '')
   const url = `${baseUrl}/api/generate`
 
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30_000)
+    const timeout = setTimeout(() => controller.abort(), opts?.timeoutMs ?? 30_000)
 
     const res = await fetch(url, {
       method: 'POST',
@@ -60,6 +68,7 @@ export async function ollamaGenerate(
         model: req.model,
         prompt: req.prompt,
         stream: false,
+        ...(opts?.think !== undefined ? { think: opts.think } : {}),
       }),
       signal: controller.signal,
     })

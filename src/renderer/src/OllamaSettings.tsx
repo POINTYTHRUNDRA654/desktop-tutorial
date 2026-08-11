@@ -16,6 +16,7 @@ const OLLAMA_RECOMMENDED_CHAT = [
   { value: 'phi4:14b',       label: 'Phi-4 14B — Microsoft, best reasoning at 4-bit (~7GB)' },
   { value: 'mistral:7b',     label: 'Mistral 7B — reliable all-rounder, 2070-safe (~5GB)' },
   { value: 'llama3.2:3b',    label: 'Llama 3.2 3B — tiny, CPU fallback, always fits' },
+  { value: 'deepseek-v4-flash:0731-cloud', label: 'DeepSeek-V4-Flash-0731 (Ollama Cloud, free tier) — 1M context, needs "ollama signin"' },
 ];
 
 const OLLAMA_RECOMMENDED_CODE = [
@@ -121,7 +122,10 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         </div>
         <p>
           Run open-source LLMs locally — no cloud, no API key, no data leaves your machine.
-          Perfect for offline work or maximum privacy.{' '}
+          Perfect for offline work or maximum privacy. (Exception: the DeepSeek-V4-Flash-0731
+          option below is an Ollama Cloud model — it runs through this same connection but
+          requires signing in with <code className="font-mono bg-black/30 px-1 rounded">ollama signin</code> and
+          sends your prompts to Ollama's cloud. Free tier, but not fully offline.){' '}
           <a
             href="https://ollama.ai"
             target="_blank"

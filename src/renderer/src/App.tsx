@@ -12,6 +12,7 @@ import PipBoyFrame from './PipBoyFrame';
 import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
+import { AITextureToolsSetupWizard } from './AITextureToolsSetupWizard';
 import GuidedTour from './GuidedTour';
 import InteractiveTutorial from './InteractiveTutorial';
 import TutorialLaunch from './TutorialLaunch';
@@ -35,7 +36,7 @@ import { ModProject } from '../../shared/types';
 // Import Quick Wins components
 import { GlobalSearch } from './GlobalSearch';
 import { useWhatsNew } from './WhatsNewDialog';
-import WhatsNewPage from './WhatsNewPage';
+const WhatsNewPage = React.lazy(() => import('./WhatsNewPage'));
 import { getPublicAssetUrl } from './utils/publicAssetUrl';
 import { createInteractiveTutorialLauncher } from './interactiveTutorialLaunch';
 import {
@@ -394,6 +395,7 @@ const App: React.FC = () => {
           'mossy_tutorial_completed',
           'mossy_tutorial_autostart',
           'mossy_voice_setup_complete',
+          'mossy_ai_texture_tools_setup_complete',
         ];
         onboardingFlags.forEach(k => localStorage.removeItem(k));
         // NOTE: We do NOT clear mossy_scan_summary or mossy_all_detected_apps
@@ -472,6 +474,7 @@ const App: React.FC = () => {
           'mossy_onboarding_complete',
           'mossy_onboarding_completed',
           'mossy_voice_setup_complete',
+          'mossy_ai_texture_tools_setup_complete',
           'mossy_tutorial_completed',
           'mossy_tutorial_autostart',
           'mossy_tutorial_skipped',
@@ -544,6 +547,12 @@ const App: React.FC = () => {
     const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_completed') === 'true';
     const hasCompletedVoiceSetup = localStorage.getItem('mossy_voice_setup_complete') === 'true';
     return hasCompletedFirstRun && !hasCompletedVoiceSetup;
+  });
+  const [showAITextureTools, setShowAITextureTools] = useState(() => {
+    // Same pattern as showVoiceSetup — runs once, right after Voice Setup, as part of onboarding.
+    const hasCompletedFirstRun = localStorage.getItem('mossy_onboarding_completed') === 'true';
+    const hasCompletedAITextureTools = localStorage.getItem('mossy_ai_texture_tools_setup_complete') === 'true';
+    return hasCompletedFirstRun && !hasCompletedAITextureTools;
   });
 
   // Tutorial state
@@ -765,6 +774,7 @@ const App: React.FC = () => {
         localStorage.removeItem('mossy_tutorial_completed');
         localStorage.removeItem('mossy_tutorial_autostart');
         localStorage.removeItem('mossy_voice_setup_complete');
+        localStorage.removeItem('mossy_ai_texture_tools_setup_complete');
         localStorage.setItem('mossy_force_onboarding', 'true');
         localStorage.setItem('mossy_has_booted', 'true');
       } catch (err) {
@@ -1203,10 +1213,15 @@ const App: React.FC = () => {
               // showVoiceSetup's initial useState value is computed at MOUNT time, before
               // onboarding has completed, so it's always false on a genuine first launch —
               // recompute it here so VoiceSetupWizard actually gets a turn in the render
-              // priority chain (showFirstRun -> showVoiceSetup -> showOnboarding -> app).
+              // priority chain (showFirstRun -> showVoiceSetup -> showAITextureTools -> showOnboarding -> app).
               try {
                 if (localStorage.getItem('mossy_voice_setup_complete') !== 'true') {
                   setShowVoiceSetup(true);
+                }
+              } catch { /* ignore */ }
+              try {
+                if (localStorage.getItem('mossy_ai_texture_tools_setup_complete') !== 'true') {
+                  setShowAITextureTools(true);
                 }
               } catch { /* ignore */ }
               // If the user clicked "Open in Auditor" on the Spriggit digest step,
@@ -1256,6 +1271,21 @@ const App: React.FC = () => {
           onSkip={() => {
             setShowVoiceSetup(false);
             localStorage.setItem('mossy_voice_setup_complete', 'true');
+          }}
+        />
+      );
+    }
+
+    if (showAITextureTools) {
+      return (
+        <AITextureToolsSetupWizard
+          onComplete={() => {
+            setShowAITextureTools(false);
+            localStorage.setItem('mossy_ai_texture_tools_setup_complete', 'true');
+          }}
+          onSkip={() => {
+            setShowAITextureTools(false);
+            localStorage.setItem('mossy_ai_texture_tools_setup_complete', 'true');
           }}
         />
       );
@@ -1410,7 +1440,13 @@ const App: React.FC = () => {
                     />
                   }
                 />
-                <Route path="/whats-new" element={<ErrorBoundary><WhatsNewPage onDismiss={dismissWhatsNew} /></ErrorBoundary>} />
+                <Route path="/whats-new" element={
+                  <ErrorBoundary>
+                    <Suspense fallback={<div className="p-8 text-center text-slate-400 text-sm">Loading…</div>}>
+                      <WhatsNewPage onDismiss={dismissWhatsNew} />
+                    </Suspense>
+                  </ErrorBoundary>
+                } />
 
                 {/* Redirect routes */}
                 <Route path="/tools/monitor" element={<Navigate to="/diagnostics" replace />} />
