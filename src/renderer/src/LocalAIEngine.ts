@@ -18,6 +18,11 @@ import { getApprovedToolsFromStorage } from './toolPermissions';
 export interface AIResponse {
   content: string;
   context?: any;
+  /** Mossy's own pre-answer deliberation (when the reasoning pre-pass ran) —
+   *  a private planning scratchpad, not part of the answer itself. Optional
+   *  UI surfaces this as a collapsible "reasoning" trace; most callers can
+   *  ignore it entirely. */
+  reasoning?: string;
 }
 
 /** Minimal shape of a successful web search result used internally. */
@@ -1013,7 +1018,7 @@ ANSWER THE USER NOW:`;
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
 
-        return { content: responseContent, context: { citations } };
+        return { content: responseContent, context: { citations }, reasoning: reasoningPlan || undefined };
       }
 
       return {
