@@ -1,18 +1,32 @@
 import type { Router } from 'express';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { Groq, RateLimitError as GroqRateLimitError } from 'groq-sdk';
+import { Groq, RateLimitError as GroqRateLimitError, BadRequestError as GroqBadRequestError } from 'groq-sdk';
 import type { ChatCompletion } from 'groq-sdk/resources/chat/completions';
 
-// Primary model: best quality, moderate free-tier quota (6 k tokens/min, 500 req/day)
-// llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; openai/gpt-oss-120b
-// is Groq's own recommended migration target.
+// Primary model: best quality, moderate free-tier quota (6 k tokens/min, 500 req/day).
+// Also has a 131,072-token context window — the smaller of the two models
+// used here. llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17;
+// openai/gpt-oss-120b is Groq's own recommended migration target.
 const GROQ_PRIMARY_MODEL = 'openai/gpt-oss-120b';
 // Fallback model: much higher free-tier quota (20 k tokens/min, 14 400 req/day)
-// Used automatically when the primary model hits a 429 rate-limit.
-// llama-3.1-8b-instant was deprecated by Groq on 2026-06-17; qwen/qwen3.6-27b is
-// Groq's own recommended migration target.
+// AND a much larger 262,144-token context window (2x the primary model's).
+// Used automatically when the primary model hits a 429 rate-limit OR a 400
+// context-length-exceeded error — Mossy's system prompt (brain neurons + FO4
+// knowledge base + core identity text) is large enough on its own that a
+// single opening message can exceed the primary model's 131K window with
+// zero conversation history yet; this was a real, confirmed regression.
+// llama-3.1-8b-instant was deprecated by Groq on 2026-06-17; qwen/qwen3.6-27b
+// is Groq's own recommended migration target.
 const GROQ_FALLBACK_MODEL = 'qwen/qwen3.6-27b';
+
+/** True for a 400 that looks like a context-length/request-too-large error,
+ *  as opposed to some other bad-request condition retrying wouldn't fix. */
+function isContextLengthError(e: unknown): boolean {
+  if (!(e instanceof GroqBadRequestError)) return false;
+  const msg = e.message || '';
+  return /context.?length|reduce.*length|too (long|large)|shorten|maximum.*token|token.*limit/i.test(msg);
+}
 
 const ChatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
@@ -89,8 +103,10 @@ async function groqChatWithFallback(
       usage: completion.usage ?? null,
     };
   } catch (e) {
-    if (e instanceof GroqRateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
-      console.warn(`[Chat] Groq rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
+    const rateLimited = e instanceof GroqRateLimitError;
+    const tooLong = isContextLengthError(e);
+    if ((rateLimited || tooLong) && preferredModel !== GROQ_FALLBACK_MODEL) {
+      console.warn(`[Chat] ${tooLong ? 'Context length exceeded' : 'Rate-limited'} on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL} (${tooLong ? '262K' : 'higher-quota'} context)`);
       const fallback = await attempt(GROQ_FALLBACK_MODEL);
       return {
         text: fallback.choices?.[0]?.message?.content || '',
