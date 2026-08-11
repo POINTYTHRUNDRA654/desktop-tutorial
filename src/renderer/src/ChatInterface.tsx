@@ -264,6 +264,7 @@ const QuickPromptChips: React.FC<{ onSelect: (prompt: string) => void }> = ({ on
 const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMessage; onRate?: (msgId: string, rating: 'good' | 'bad', editedAnswer?: string) => void; onManualExecute?: (name: string, args: any) => void | Promise<void> }) => {
     MessageItem.displayName = 'MessageItem';
     const [showCitations, setShowCitations] = useState(false);
+    const [showReasoning, setShowReasoning] = useState(false);
     const [rating, setRating] = useState<'good' | 'bad' | null>(null);
     const [showEditBox, setShowEditBox] = useState(false);
     const [editedAnswer, setEditedAnswer] = useState('');
@@ -358,6 +359,24 @@ const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMes
                         <Box className="w-3.5 h-3.5" />
                         {runningCommand ? 'Running…' : 'Run Command'}
                     </button>
+                )}
+                {msg.role === 'assistant' && msg.reasoning && (
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setShowReasoning((prev) => !prev)}
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-800/70 border border-slate-700 text-[11px] text-slate-200 hover:bg-slate-800 hover:border-slate-600 transition-colors"
+                        >
+                            <Brain className="w-3.5 h-3.5 text-violet-400" />
+                            {showReasoning ? 'Hide reasoning' : 'Show reasoning'}
+                        </button>
+                        {showReasoning && (
+                            <div className="mt-2 bg-slate-900/70 border border-violet-800/40 rounded-lg p-3">
+                                <div className="text-[10px] uppercase tracking-wide text-violet-400 mb-1.5">Mossy's pre-answer reasoning</div>
+                                <div className="text-[11px] text-slate-300 whitespace-pre-wrap">{msg.reasoning}</div>
+                            </div>
+                        )}
+                    </div>
                 )}
                 {msg.role === 'assistant' && (msg.citations?.length || 0) > 0 && (
                     <div className="pt-2">
@@ -2321,8 +2340,9 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
 
             const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
             const citations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
+            const reasoningTrace = localResult.reasoning || undefined;
 
-            setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText, citations } : m));
+            setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText, citations, reasoning: reasoningTrace } : m));
 
             // Save chat messages to auto-save manager
             const assistantMessage: Message = {

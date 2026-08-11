@@ -26,6 +26,38 @@
 - All seven of the ComfyUI-based tools above (plus LayerDiffuse and Inpaint Crop & Stitch) can now be installed with one click, straight from wherever they're used — downloads the node's real GitHub source, installs its Python dependencies via ComfyUI's own embedded Python, pulls any needed model files, and restarts ComfyUI to load it. Mirrors the same auto-download precedent already used elsewhere in the app (e.g. the KoboldCPP setup step) — nothing here is manually hunted down by the user
 - New **AI Texture Tools Setup Wizard** runs automatically right after Voice Setup on first install, and any time you replay "Initial Install" from Settings → Tutorial & Onboarding — walks through every tool above with live install status and one-click fixes, fully skippable
 
+### Texture Enhancer — AI Detail Synthesis
+
+- New first pipeline stage: generates real new fine surface detail via your own ComfyUI install (img2img) before every classical stage runs — unlike the rest of the pipeline (Sharp-based sharpening/edge-detection, which can only amplify detail already present), this adds detail that wasn't there in the source texture, so the derived normal/roughness/AO/height maps come out richer too
+- Prompted automatically from the Material Surface you already select (organic, metal, stone, wood, fabric, etc.), with a denoise/steps/CFG slider and optional manual prompt override
+- Off by default — opt-in since it needs ComfyUI running and takes real generation time, unlike the instant classical stages
+
+### SS2 "Reality Check" Self-Improvement — Real Closed Loop
+
+- Practice → grade → regenerate loop for SS2 Plot/City Plan generation now actually closes: a graded script's real deficiencies (and the actual real property names/EditorID conventions from your reference mods) get fed back into the next attempt's prompt, instead of one-shot diagnosis-only grading
+- New Continuous Practice Session mode: runs scenario after scenario automatically (generate, grade, refine up to 8 attempts, move to a new scenario) until you hit Stop — pulled from a combinatorial pool of 27 real vanilla FO4 settlements and real SS2 Type/Tier/Size axes instead of a small fixed list of canned prompts
+- Fixed a real scoring bug where City Plan docs were penalized for lacking CK records/properties the system prompt itself says basic City Plans don't need
+- Fixed the deterministic rubric's header-matching to tolerate real wording variation (e.g. "Kitbash" vs "Kit-Bash") instead of requiring an exact string match
+- New "Build Fine-Tune Dataset from These Mods" button converts your mined reference-corpus data into a real Unsloth/ShareGPT `.jsonl` training set for actually fine-tuning a local model on real SS2 conventions
+
+### ComfyUI Reliability Fixes
+
+- Fixed AI Image Studio showing stale/empty models after a live server hiccup — model list and disk-scanned checkpoints now always refresh together
+- Fixed "Start ComfyUI" silently swallowing errors — failures now show the real reason instead of nothing happening
+- Added an in-context "Set ComfyUI path" editor directly in AI Image Studio's offline banner, instead of only being configurable from External Integrations Hub
+- Fixed the launch console window closing before a crash reason could be read — output is now captured to a log file (via PowerShell `Tee-Object`) and surfaced directly in the app, with an early ~10s failure check instead of always waiting the full 120s timeout
+
+### DeepSeek-V4-Flash-0731 — Opt-In Cloud Model
+
+- Added as an optional Ollama Cloud backend in Ollama Settings — free-tier, 1M-token context, runs through your existing local Ollama connection (no separate API key needed in Mossy)
+
+### Mossy's Brain — Reasoning, Tutoring, and Real Community Knowledge
+
+- New tutoring-methodology knowledge module: Socratic questioning, adjustable scaffolding, and honest AI-not-human framing when Mossy is in an actual teaching moment — explicitly scoped so it doesn't override her existing direct navigation guidance for "let's start a mod"-style requests
+- New reasoning-methodology module: structured problem decomposition, root-causing instead of patching symptoms, weighing real alternatives before committing to an approach
+- New real, researched FO4 modding-community knowledge module: what actually drives mod adoption (ESL flagging, FOMOD quality, compatibility patches, endorsement-driven discovery) versus abandonment (dependency cascades, F4SE version-break ripples, save-file bloat, silent-abandonment trust erosion)
+- Added a real deliberate-reasoning pass before substantive answers and a self-critique pass after — both existed as settings fields already read by the code but had no UI to ever turn them on; now real, on-by-default toggles in AI Engine Settings
+
 ## [5.5.0] — 2026-07-28
 
 ### Localization — 12 Languages (In Progress)
