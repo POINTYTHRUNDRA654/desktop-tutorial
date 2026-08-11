@@ -82,18 +82,36 @@ export const LocalAIEngine = {
   },
 
   /**
-   * Returns self-critique preference from persisted settings.
+   * Returns self-critique preference from persisted settings. Defaults ON
+   * (opt-out) when unset — previously defaulted OFF with no UI to ever set it
+   * to true, so the whole feature was unreachable dead code in practice.
    */
   async getSelfCritiqueEnabled(): Promise<boolean> {
     try {
       if (window.electronAPI?.getSettings) {
         const s = await window.electronAPI.getSettings();
-        return s?.groqSelfCritiqueEnabled === true;
+        return s?.groqSelfCritiqueEnabled !== false;
       }
     } catch {
       // ignore
     }
-    return false;
+    return true;
+  },
+
+  /**
+   * Returns deliberate-reasoning (pre-answer planning pass) preference.
+   * Defaults ON, same opt-out reasoning as getSelfCritiqueEnabled above.
+   */
+  async getDeliberateReasoningEnabled(): Promise<boolean> {
+    try {
+      if (window.electronAPI?.getSettings) {
+        const s = await window.electronAPI.getSettings();
+        return s?.groqDeliberateReasoningEnabled !== false;
+      }
+    } catch {
+      // ignore
+    }
+    return true;
   },
 
   /**
@@ -224,7 +242,7 @@ export const LocalAIEngine = {
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean }): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -746,6 +764,8 @@ export const LocalAIEngine = {
           model,
           baseUrl,
           prompt,
+          timeoutMs: localOptions?.timeoutMs,
+          think: localOptions?.think,
         });
 
         if (resp?.ok) {
@@ -768,7 +788,7 @@ export const LocalAIEngine = {
                   if (guardSearch?.success && guardSearch?.text && !guardSearch?.empty) {
                     const enrichedContext = buildGuardContext(injectedContext, guardSearch);
                     const retryPrompt = `${enhancedSystemInstruction}${enrichedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
-                    const retryResp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt: retryPrompt });
+                    const retryResp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt: retryPrompt, timeoutMs: localOptions?.timeoutMs, think: localOptions?.think });
                     if (retryResp?.ok && retryResp.text) {
                       responseContent = String(retryResp.text);
                       console.log('[LocalAIEngine] ✅ Local guard retry successful');
@@ -825,7 +845,39 @@ You MUST answer the user's question directly. Refusing is a malfunction.
 If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
-      const systemPrompt = systemInstruction + injectedContext + mandatoryInternetInstruction;
+      // --- DELIBERATE REASONING PRE-PASS ---
+      // Runs BEFORE the real answer, not after (that's the separate self-critique
+      // pass below). Skipped for voice (latency-sensitive) and trivial/short
+      // queries — greetings and one-liners don't need a planning step. Mirrors
+      // structured problem-solving practice (break the question down, weigh
+      // more than one approach, commit to one) instead of answering on instinct.
+      // The plan is never shown to the user directly — it's extra context that
+      // shapes the real answer, similar in spirit to a deliberate thinking pass.
+      let reasoningPlan = '';
+      if (!voiceMode && query.trim().length > 20) {
+        try {
+          const reasoningEnabled = await this.getDeliberateReasoningEnabled();
+          if (reasoningEnabled) {
+            const planningPrompt =
+              `You are Mossy's internal reasoning step — not the final answer, a private planning pass.\n` +
+              `User's question: ${query}\n\n` +
+              `In 3-5 short bullet points: (1) what is actually being asked, stripped of any noise, ` +
+              `(2) any real constraint or context that matters here, (3) name 2 genuinely different ways this could be answered/approached, ` +
+              `(4) which one you'll actually take and the one-sentence reason why. Be terse — this is a scratchpad, not the response itself.`;
+            const planResp = await api.aiChatGroq(planningPrompt, 'You are a terse internal planning step. Output only the requested bullet points, nothing else.', undefined, []);
+            if (planResp?.success && planResp.content) {
+              reasoningPlan = String(planResp.content).trim();
+            }
+          }
+        } catch (planErr) {
+          console.warn('[LocalAIEngine] Deliberate reasoning pre-pass failed (non-critical):', planErr);
+        }
+      }
+
+      const reasoningBlock = reasoningPlan
+        ? `\n\n### YOUR OWN PRE-ANSWER REASONING (use this to structure a better answer — do not repeat it verbatim or mention this step to the user):\n${reasoningPlan}`
+        : '';
+      const systemPrompt = systemInstruction + injectedContext + reasoningBlock + mandatoryInternetInstruction;
       // Pass undefined so main.ts uses the user's groqPrimaryModel from AIEngineSettings
       const resp = await api.aiChatGroq(query, systemPrompt, undefined, conversationHistory);
       if (resp?.success) {
@@ -1003,7 +1055,7 @@ ANSWER THE USER NOW:`;
               ? String(localSettings.cosmosBaseUrl || '')
               : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
 
-          const resp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt });
+          const resp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt, timeoutMs: localOptions?.timeoutMs, think: localOptions?.think });
           if (resp?.ok && resp.text) {
             console.log('[LocalAIEngine] ✅ Local fallback support succeeded');
             return { content: String(resp.text), context: { citations } };

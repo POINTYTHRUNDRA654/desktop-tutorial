@@ -19,6 +19,11 @@ desktop-tutorial/
 # Vault-Tec Creative Director panel — local-only UI, never pushed to the public repo
 src/renderer/src/plugin_creative_director/
 
+# SS2 plot/city-plan "Reality Check" grading engine — downloads and parses real
+# Nexus mods for local grading comparisons; local-only tooling, never pushed to the public repo
+src/mining/reference-corpus/
+src/renderer/src/grading/
+
 # Build outputs
 dist
 dist-electron

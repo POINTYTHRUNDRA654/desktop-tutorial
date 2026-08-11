@@ -222,6 +222,7 @@ const IPC_CHANNELS = {
   // Proactive Observer (Neural Link+)
   OBSERVER_NOTIFY: 'observer-notify',
   OBSERVER_SET_ACTIVE_FOLDER: 'observer-set-active-folder',
+  OBSERVER_GET_STATUS: 'observer-get-status',
 
   // Bridge & Plugin Activity — sent from Main to Renderer whenever an external
   // bridge (Desktop Bridge, Blender Bridge, MO2 Bridge, future plugins) records
@@ -2266,6 +2267,14 @@ const electronAPI = {
   },
 
   /**
+   * Proactive Observer (Neural Link+): current active/watched folder status.
+   * Handler existed in main.ts with no way for the renderer to reach it.
+   */
+  observerGetStatus: (): Promise<{ active: boolean; folder: string | null }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.OBSERVER_GET_STATUS);
+  },
+
+  /**
    * Creation Kit Link - Pick CreationKit.exe file
    */
   pickCreationKitExe: (): Promise<string> => {
@@ -2352,7 +2361,7 @@ const electronAPI = {
   /**
    * Local LLM: Generate via local runtime (Ollama)
    */
-  mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }): Promise<any> => {
+  mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string; timeoutMs?: number; think?: boolean }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
   },
 
@@ -3475,6 +3484,45 @@ const electronAPI = {
       ipcRenderer.invoke('mod-browser:endorse-mod', modId),
     getTrendingMods: (timeframe?: string): Promise<any[]> =>
       ipcRenderer.invoke('mod-browser:trending', timeframe),
+  },
+
+  // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, see main.ts
+  bgRemover: {
+    checkStatus: (): Promise<any> =>
+      ipcRenderer.invoke('bg-remover:check-status'),
+    install: (): Promise<any> =>
+      ipcRenderer.invoke('bg-remover:install'),
+    setHfToken: (token: string): Promise<any> =>
+      ipcRenderer.invoke('bg-remover:set-hf-token', token),
+    removeBackground: (imagePaths: string[]): Promise<any> =>
+      ipcRenderer.invoke('bg-remover:remove-background', imagePaths),
+    pickImages: (): Promise<any> =>
+      ipcRenderer.invoke('bg-remover:pick-images'),
+    onSetupProgress: (callback: (data: { message: string }) => void): (() => void) => {
+      const subscription = (_event: any, data: { message: string }) => callback(data);
+      ipcRenderer.on('rmbg-setup-progress', subscription);
+      return () => ipcRenderer.removeListener('rmbg-setup-progress', subscription);
+    },
+  },
+
+  // SS2 "Reality Check" reference corpus — local-only grading tooling, see main.ts
+  referenceCorpus: {
+    add: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:add', modId),
+    addFromFolder: (folderPath: string): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:add-from-folder', folderPath),
+    list: (): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:list'),
+    remove: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:remove', modId),
+    getRecords: (): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:get-records'),
+    getLog: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:get-log', modId),
+    revealLog: (modId: string): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:reveal-log', modId),
+    buildFineTuneDataset: (): Promise<any> =>
+      ipcRenderer.invoke('reference-corpus:build-finetune-dataset'),
   },
 
   // Platform 9: Load Order Management API

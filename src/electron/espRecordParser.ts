@@ -22,6 +22,16 @@
  * verified authoritative spec available and is NOT implemented — quest
  * records here expose only FormID/EDID/FULL (real, verified fields), not
  * fabricated objective data.
+ *
+ * VMAD (script attachment) is parsed for the base "attached script +
+ * properties" section — layout verified against the documented Skyrim/FO4
+ * VMAD structure (FO4 did not change this base format from Skyrim SE):
+ *   version(i16) objectFormat(i16) scriptCount(u16)
+ *   per script: name(wstring) status(u8) propertyCount(u16)
+ *     per property: name(wstring) type(u8) status(u8) value(per type)
+ * Quest/dialogue script-fragment data (TIF__ fragments on QUST/INFO/PACK/SCEN)
+ * has a distinct tail structure this does NOT attempt to parse — not needed
+ * for WEAP/MISC records, which carry no fragment tail.
  */
 
 import * as fs from 'fs';
@@ -30,6 +40,31 @@ import * as zlib from 'zlib';
 export interface ParsedSubrecord {
   type: string;
   data: Buffer;
+}
+
+export interface VmadObjectValue {
+  formId: number;
+  alias: number;
+}
+
+export interface VmadProperty {
+  name: string;
+  type: 'none' | 'object' | 'string' | 'int' | 'float' | 'bool' | 'struct' |
+        'objectArray' | 'stringArray' | 'intArray' | 'floatArray' | 'boolArray' | 'structArray' | 'unknown';
+  value: unknown;
+}
+
+export interface VmadScript {
+  scriptName: string;
+  properties: VmadProperty[];
+}
+
+export interface VmadData {
+  scripts: VmadScript[];
+  /** True if the subrecord ended before parsing could finish cleanly — the
+   *  scripts/properties gathered up to that point are still real, just partial. */
+  truncated: boolean;
+  trailingBytes: number;
 }
 
 export interface ParsedRecord {
@@ -41,6 +76,10 @@ export interface ParsedRecord {
   subrecords: ParsedSubrecord[];
   isDeleted: boolean;
   isAddition: boolean;
+  /** Populated only when a VMAD subrecord is present. */
+  vmadScripts?: VmadScript[];
+  /** Populated only for FLST records: the ordered FormIDs the list contains. */
+  formListEntries?: number[];
 }
 
 export interface ParsedRef {
@@ -70,6 +109,8 @@ export interface ParsedPlugin {
   quests: ParsedQuest[];
   /** Every record's own FormID plus the set of FormIDs its subrecords reference (best-effort, generic). */
   formIdRefs: Array<{ formId: number; recordType: string; references: number[] }>;
+  /** Full ParsedRecord objects for record types requested via parsePluginDeep's captureTypes option, keyed by type. Empty unless requested. */
+  captured: Record<string, ParsedRecord[]>;
 }
 
 const RECORD_HEADER_SIZE = 24;
@@ -138,14 +179,164 @@ function parseSubrecords(data: Buffer): ParsedSubrecord[] {
  * references — this is a heuristic scope, not fabricated data. */
 const FORMID_REFERENCE_SUBRECORD_TYPES = new Set(['NAME', 'PNAM', 'CNAM', 'SNAM', 'ANAM', 'LNAM', 'RNAM']);
 
+// Confirmed empirically against real FO4 mod data: arrays are their scalar type + 10
+// (1->11, 2->12, 3->13, 4->14, 5->15), and this holds for Struct too (7->17, StructArray) —
+// a real LevelPlan record's "StageItemSpawns" property was observed with raw type byte 17.
+const VMAD_PROPERTY_TYPES: Record<number, VmadProperty['type']> = {
+  0: 'none', 1: 'object', 2: 'string', 3: 'int', 4: 'float', 5: 'bool', 7: 'struct',
+  11: 'objectArray', 12: 'stringArray', 13: 'intArray', 14: 'floatArray', 15: 'boolArray', 17: 'structArray'
+};
+
+function parseVmad(data: Buffer): VmadData {
+  let offset = 0;
+  const scripts: VmadScript[] = [];
+  let partialScriptName: string | null = null;
+  let partialProperties: VmadProperty[] = [];
+
+  const readU8 = () => { const v = data.readUInt8(offset); offset += 1; return v; };
+  const readI16 = () => { const v = data.readInt16LE(offset); offset += 2; return v; };
+  const readU16 = () => { const v = data.readUInt16LE(offset); offset += 2; return v; };
+  const readU32 = () => { const v = data.readUInt32LE(offset); offset += 4; return v; };
+  const readI32 = () => { const v = data.readInt32LE(offset); offset += 4; return v; };
+  const readF32 = () => { const v = data.readFloatLE(offset); offset += 4; return v; };
+  const need = (n: number) => { if (offset + n > data.length) throw new Error('vmad-truncated'); };
+  const readWString = () => {
+    need(2);
+    const len = readU16();
+    need(len);
+    const text = data.toString('utf-8', offset, offset + len);
+    offset += len;
+    // Confirmed against real mod data: some tools' compiled output includes a stray
+    // trailing NUL inside the length-prefixed string itself (property/script names seen
+    // as e.g. "iLevelCount\0"), which would otherwise silently break exact-name matching
+    // downstream (same real-world-messiness handling already applied to EDID/FULL below).
+    return text.replace(/\0+$/, '');
+  };
+  // Object value layout, confirmed empirically against real, unmodified Sim Settlements 2
+  // mod files (not the commonly-cited documentation, which describes FormID-first for
+  // objectFormat 2 — that does NOT match real FO4 files): decoding a CPLayout record's
+  // ParentCityPlan property this way and resolving the FormID against that same file's own
+  // CityPlan record (found independently via its record header) produced an exact match.
+  // Real layout for objectFormat 2: Unused(u16) + Alias(u16) + FormID(u32) — FormID is the
+  // LAST 4 bytes, not the first.
+  const readObjectValue = (objectFormat: number): VmadObjectValue => {
+    need(8);
+    if (objectFormat === 1) {
+      // Not seen in any real FO4 sample during testing (FO4 plugins use objectFormat 2) —
+      // kept as an unverified defensive fallback, same field order as format 2 above.
+      readU16();
+      const alias = readU16();
+      const formId = readU32();
+      return { formId, alias };
+    }
+    readU16(); // unused
+    const alias = readU16();
+    const formId = readU32();
+    return { formId, alias };
+  };
+
+  // Struct value, confirmed empirically (FO4 adds Papyrus Struct support beyond Skyrim's
+  // VMAD spec): fieldCount(u32) followed by that many fields, each serialized exactly like
+  // a top-level property (name/type/status/value) — recursive, since a field's own value can
+  // itself be any type including another struct or array.
+  const readStructValue = (objectFormat: number): VmadProperty[] => {
+    need(4);
+    const fieldCount = readU32();
+    const fields: VmadProperty[] = [];
+    for (let f = 0; f < fieldCount; f++) {
+      const fieldName = readWString();
+      need(2);
+      const rawType = readU8();
+      readU8(); // field edit-status flags
+      const fieldType = VMAD_PROPERTY_TYPES[rawType] ?? 'unknown';
+      if (fieldType === 'unknown') throw new Error('vmad-unknown-struct-field-type');
+      fields.push({ name: fieldName, type: fieldType, value: readValueForType(fieldType, objectFormat) });
+    }
+    return fields;
+  };
+
+  function readValueForType(type: VmadProperty['type'], objectFormat: number): unknown {
+    if (type === 'object') return readObjectValue(objectFormat);
+    if (type === 'string') return readWString();
+    if (type === 'int') { need(4); return readI32(); }
+    if (type === 'float') { need(4); return readF32(); }
+    if (type === 'bool') { need(1); return readU8() !== 0; }
+    if (type === 'struct') return readStructValue(objectFormat);
+    if (type.endsWith('Array')) {
+      need(4);
+      const count = readU32();
+      const elementType = type.replace('Array', '') as VmadProperty['type'];
+      const arr: unknown[] = [];
+      for (let i = 0; i < count; i++) arr.push(readValueForType(elementType, objectFormat));
+      return arr;
+    }
+    return null; // 'none' has no value data
+  }
+
+  try {
+    need(6);
+    readI16(); // version — base script/property format is stable across the versions actually seen in FO4 plugins
+    const objectFormat = readI16();
+    const scriptCount = readU16();
+
+    for (let s = 0; s < scriptCount; s++) {
+      const scriptName = readWString();
+      partialScriptName = scriptName;
+      partialProperties = [];
+
+      need(3);
+      readU8(); // script status flags
+      const propertyCount = readU16();
+
+      for (let p = 0; p < propertyCount; p++) {
+        const propName = readWString();
+        need(2);
+        const rawType = readU8();
+        readU8(); // property edit-status flags
+        const type = VMAD_PROPERTY_TYPES[rawType] ?? 'unknown';
+
+        if (type === 'unknown') {
+          // An unrecognized type byte means we don't know the value's size —
+          // continuing would silently misalign every byte after it. Bail with
+          // what's been parsed so far rather than guess.
+          throw new Error('vmad-unknown-property-type');
+        }
+
+        const value = readValueForType(type, objectFormat);
+
+        partialProperties.push({ name: propName, type, value });
+      }
+
+      scripts.push({ scriptName, properties: partialProperties });
+      partialScriptName = null;
+    }
+
+    return { scripts, truncated: false, trailingBytes: Math.max(0, data.length - offset) };
+  } catch {
+    if (partialScriptName !== null) {
+      scripts.push({ scriptName: partialScriptName, properties: partialProperties });
+    }
+    return { scripts, truncated: true, trailingBytes: Math.max(0, data.length - offset) };
+  }
+}
+
 function extractRecord(type: string, formId: number, flags: number, data: Buffer): ParsedRecord {
   const subrecords = parseSubrecords(data);
   let editorId: string | undefined;
   let fullName: string | undefined;
+  let vmadScripts: VmadScript[] | undefined;
 
   for (const sub of subrecords) {
     if (sub.type === 'EDID') editorId = readCString(sub.data);
     else if (sub.type === 'FULL' && !fullName) fullName = readDisplayString(sub.data);
+    else if (sub.type === 'VMAD' && !vmadScripts) vmadScripts = parseVmad(sub.data).scripts;
+  }
+
+  let formListEntries: number[] | undefined;
+  if (type === 'FLST') {
+    formListEntries = subrecords
+      .filter(sub => sub.type === 'LNAM' && sub.data.length >= 4)
+      .map(sub => sub.data.readUInt32LE(0));
   }
 
   return {
@@ -156,7 +347,9 @@ function extractRecord(type: string, formId: number, flags: number, data: Buffer
     fullName,
     subrecords,
     isDeleted: (flags & FLAG_DELETED) !== 0,
-    isAddition: (flags & FLAG_INITIALLY_DISABLED) === 0
+    isAddition: (flags & FLAG_INITIALLY_DISABLED) === 0,
+    vmadScripts,
+    formListEntries
   };
 }
 
@@ -197,13 +390,13 @@ function extractRefData(record: ParsedRecord): ParsedRef {
  * depth-first walk is structurally reliable without needing to interpret
  * every GRUP label/group-type combination.
  */
-export function parsePluginDeep(filePath: string, maxBytes = 200 * 1024 * 1024): ParsedPlugin {
+export function parsePluginDeep(filePath: string, maxBytes = 200 * 1024 * 1024, captureTypes: string[] = []): ParsedPlugin {
   const fileName = filePath.split(/[\\/]/).pop() || filePath;
   const stat = fs.statSync(filePath);
   if (stat.size > maxBytes) {
     // Master files (Fallout4.esm etc.) are hundreds of MB — not meant to be
     // deep-parsed for mod-conflict analysis. Return empty rather than block the UI.
-    return { fileName, cells: [], refs: [], quests: [], formIdRefs: [] };
+    return { fileName, cells: [], refs: [], quests: [], formIdRefs: [], captured: {} };
   }
 
   const buffer = fs.readFileSync(filePath);
@@ -211,6 +404,8 @@ export function parsePluginDeep(filePath: string, maxBytes = 200 * 1024 * 1024):
   const refs: ParsedRef[] = [];
   const quests: ParsedQuest[] = [];
   const formIdRefs: Array<{ formId: number; recordType: string; references: number[] }> = [];
+  const captureTypeSet = new Set(captureTypes);
+  const captured: Record<string, ParsedRecord[]> = {};
 
   let currentCellFormId: number | null = null;
 
@@ -247,6 +442,11 @@ export function parsePluginDeep(filePath: string, maxBytes = 200 * 1024 * 1024):
 
       const record = extractRecord(tag, formId, flags, recordData);
 
+      if (captureTypeSet.has(tag)) {
+        if (!captured[tag]) captured[tag] = [];
+        captured[tag].push(record);
+      }
+
       if (tag === 'CELL') {
         currentCellFormId = formId;
         cells.push({ formId, editorId: record.editorId ?? null, fullName: record.fullName ?? null });
@@ -281,5 +481,5 @@ export function parsePluginDeep(filePath: string, maxBytes = 200 * 1024 * 1024):
     walk(0, buffer.length);
   }
 
-  return { fileName, cells, refs, quests, formIdRefs };
+  return { fileName, cells, refs, quests, formIdRefs, captured };
 }

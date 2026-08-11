@@ -1,5 +1,31 @@
 # MOSSY.SPACE Changelog
 
+## [5.6.0] — 2026-08-05
+
+### Background Remover — New Texture Hub Tab
+
+- Added AI-powered background removal with two backends: a standalone local install (BRIA AI RMBG-2.0, GPU-accelerated, runs entirely on your machine) or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models
+- RMBG-2.0 is CC BY-NC 4.0 (non-commercial only) and gated on HuggingFace — you'll need to accept BRIA's license and provide your own access token; this can't be automated and the tab walks you through it step by step
+- Both backends support batch processing (pick multiple images at once)
+
+### AI Post-Processing Pipeline — New Texture Hub Tab
+
+- Layer Effects: drop shadow, outer glow, and color matching (match a cut-out foreground's grading to a new background)
+- Face Detailer: automatic face detection and detail restoration
+- Relight: AI relighting for an already-isolated subject (IC-Light)
+- Upscale: photo-realistic detail upscaling (SUPIR — custom non-commercial license, only available because MOSSY.SPACE stays free forever) or tiled upscaling with your own checkpoints (UltimateSDUpscale, no license restrictions)
+- Every tool here talks to your own separately-installed, separately-running ComfyUI over HTTP — none of this is bundled into MOSSY.SPACE itself
+
+### AI Image Studio — Transparency & Inpaint
+
+- Added a "Generate with transparency" toggle (LayerDiffuse) — produces a real alpha channel directly from generation, no separate background-removal pass needed
+- Added a new Inpaint mode: brush a mask directly over the loaded image, then regenerate just that region via a crop-and-stitch pipeline (Inpaint Crop & Stitch) for faster, higher-quality results than whole-image inpainting
+
+### One-Click ComfyUI Custom Node Installer
+
+- All seven of the ComfyUI-based tools above (plus LayerDiffuse and Inpaint Crop & Stitch) can now be installed with one click, straight from wherever they're used — downloads the node's real GitHub source, installs its Python dependencies via ComfyUI's own embedded Python, pulls any needed model files, and restarts ComfyUI to load it. Mirrors the same auto-download precedent already used elsewhere in the app (e.g. the KoboldCPP setup step) — nothing here is manually hunted down by the user
+- New **AI Texture Tools Setup Wizard** runs automatically right after Voice Setup on first install, and any time you replay "Initial Install" from Settings → Tutorial & Onboarding — walks through every tool above with live install status and one-click fixes, fully skippable
+
 ## [5.5.0] — 2026-07-28
 
 ### Localization — 12 Languages (In Progress)

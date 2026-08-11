@@ -111,6 +111,7 @@ import { recordOutcome as recordEnhancerOutcome, getLearnedStats as getEnhancerL
 import sharp from 'sharp';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
+import { rmbgServer } from './rmbgServerManager';
 
 // ── Chromium background-throttling prevention ────────────────────────────────
 // These flags must be set BEFORE app.whenReady(). They prevent Chromium from
@@ -242,7 +243,79 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 });
-  
+
+// --- Background Remover (BRIA RMBG-2.0) IPC handlers ---
+// CC BY-NC 4.0, gated HF model — see rmbgServerManager.ts header for the full
+// license/consent rationale. Local-only feature usable because MOSSY.SPACE
+// stays free/non-commercial (feedback_rmbg_license_constraint memory).
+
+ipcMain.handle('bg-remover:check-status', async () => {
+  const s = loadSettings();
+  const hfTokenSet = !!(s?.huggingFaceToken as string | undefined);
+  const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
+  const installed = !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath));
+  if (installed && !rmbgServer.hasPythonPath) rmbgServer.setPythonPath(rmbgPythonPath);
+  if (hfTokenSet) rmbgServer.setHfToken(s.huggingFaceToken as string);
+  return { installed, hfTokenSet, ready: rmbgServer.isReady, device: rmbgServer.device };
+});
+
+ipcMain.handle('bg-remover:install', async (_event) => {
+  try {
+    await runRmbgAutoInstall(mainWindow);
+    const s = loadSettings();
+    const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
+    return { success: !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath)) };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('bg-remover:set-hf-token', async (_event, token: string) => {
+  try {
+    saveSettings({ ...loadSettings(), huggingFaceToken: token || '' });
+    rmbgServer.setHfToken(token || '');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+ipcMain.handle('bg-remover:remove-background', async (_event, imagePaths: string[]) => {
+  const results: Array<{ inputPath: string; success: boolean; outputPath?: string; error?: string; message?: string }> = [];
+  for (const imagePath of imagePaths || []) {
+    try {
+      const dir = path.dirname(imagePath);
+      const ext = path.extname(imagePath);
+      const base = path.basename(imagePath, ext);
+      const outputPath = path.join(dir, `${base}_nobg.png`);
+      const result = await rmbgServer.removeBackground(imagePath, outputPath);
+      results.push({ inputPath: imagePath, ...result });
+    } catch (err) {
+      results.push({ inputPath: imagePath, success: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return { success: true, results };
+});
+
+ipcMain.handle('bg-remover:pick-images', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Select Image(s) for Background Removal',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'tga'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled || !result.filePaths?.length) {
+      return { success: false, paths: [], error: 'No files selected' };
+    }
+    return { success: true, paths: result.filePaths };
+  } catch (e: any) {
+    return { success: false, paths: [], error: e?.message || 'File picker failed' };
+  }
+});
+
   webContents.send('main:diagnostics', diagnostics);
 }
 
@@ -1121,6 +1194,127 @@ async function runWhisperAutoInstall(win: BrowserWindow | null) {
 
   } catch (err: any) {
     sendProgress(`❌ Whisper auto-setup error: ${err?.message || String(err)}`);
+  }
+}
+
+/**
+ * runRmbgAutoInstall
+ *
+ * Mirrors runWhisperAutoInstall — installs the BRIA RMBG-2.0 background-removal
+ * model's dependencies (torch, torchvision, transformers, pillow, kornia) into
+ * whichever Python interpreter is detected. Deliberately NOT called at app
+ * startup like PyTorch/Whisper are — this is a multi-GB opt-in download tied to
+ * the user personally accepting BRIA's gated HuggingFace license first, so it
+ * only runs when the user clicks "Set Up Background Remover" in the UI.
+ *
+ * Uses its own Python env (via whatever interpreter detectPythonExecutable
+ * finds), independent of `pytorchPath` — that one is deliberately CPU-only for
+ * Blender DLL compatibility, which would waste the user's GPU here.
+ */
+async function runRmbgAutoInstall(win: BrowserWindow | null) {
+  const sendProgress = (msg: string) => {
+    console.log('[RMBG Auto-Setup]', msg);
+    if (win && !win.isDestroyed()) {
+      win.webContents.send('rmbg-setup-progress', { message: msg });
+    }
+  };
+
+  const INSTALL_TIMEOUT_MS = 900_000; // 15 min — torch CUDA wheel is ~2.5 GB
+
+  const runCmd = (
+    cmd: string,
+    args: string[],
+    extraEnv?: Record<string, string>,
+  ): Promise<{ code: number; stdout: string; stderr: string }> =>
+    new Promise((resolve) => {
+      const child = spawn(cmd, args, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: INSTALL_TIMEOUT_MS,
+        windowsHide: true,
+        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+      });
+      let stdout = '';
+      let stderr = '';
+      child.stdout?.on('data', (d: Buffer) => { stdout += d.toString(); });
+      child.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+      child.on('close', (code: number | null) => resolve({ code: code ?? -1, stdout, stderr }));
+      child.on('error', (err: Error) => resolve({ code: -1, stdout: '', stderr: err.message }));
+    });
+
+  const verifyImports = (pythonExe: string) =>
+    runCmd(pythonExe, ['-c', 'import torch, torchvision, transformers, PIL, kornia; print("ok")']);
+
+  try {
+    // ── 0. Already set up? ────────────────────────────────────────────────────
+    const s = loadSettings();
+    const savedPython = (s?.rmbgPythonPath as string | undefined) ?? '';
+    if (savedPython && fs.existsSync(savedPython)) {
+      const check = await verifyImports(savedPython);
+      if (check.code === 0 && check.stdout.includes('ok')) {
+        sendProgress('✅ Background Remover dependencies already installed.');
+        rmbgServer.setPythonPath(savedPython);
+        return;
+      }
+    }
+
+    // ── 1. Quick check: system Python already has everything ─────────────────
+    sendProgress('Checking for existing torch/transformers install…');
+    const quickCandidates = process.platform === 'win32' ? ['python', 'python3', 'py'] : ['python3', 'python'];
+    for (const pyCmd of quickCandidates) {
+      const r = await verifyImports(pyCmd);
+      if (r.code === 0 && r.stdout.includes('ok')) {
+        sendProgress(`✅ Dependencies found via ${pyCmd}.`);
+        saveSettings({ ...loadSettings(), rmbgPythonPath: pyCmd });
+        rmbgServer.setPythonPath(pyCmd);
+        return;
+      }
+    }
+
+    // ── 2. Find Python ────────────────────────────────────────────────────────
+    sendProgress('Searching for Python…');
+    const detectionResult = await detectPythonExecutable(runCmd, sendProgress);
+    const pythonExe = detectionResult.pythonExe;
+
+    if (!pythonExe) {
+      sendProgress('⚠️ Python not found. Background Remover requires Python 3.9+.');
+      sendProgress('Install Python from https://www.python.org/downloads/ and restart Mossy.');
+      return;
+    }
+
+    // If bundled Python, bootstrap pip first
+    if (process.platform === 'win32') {
+      const bundledPython = path.join(process.resourcesPath, 'python-embedded', 'python.exe');
+      if (pythonExe === bundledPython) {
+        sendProgress('Using bundled Python — bootstrapping pip…');
+        const ok = await bootstrapEmbeddedPip(bundledPython, sendProgress, runCmd);
+        if (!ok) {
+          sendProgress('⚠️ pip bootstrap failed. Please install Python 3.9+ from python.org.');
+          return;
+        }
+      }
+    }
+
+    // ── 3. Install dependencies ───────────────────────────────────────────────
+    // Plain `pip install torch` on Windows pulls a CUDA-enabled wheel by default
+    // (unlike Linux, where CPU is the PyPI default) — no --index-url override needed.
+    sendProgress('Installing torch, torchvision, transformers, pillow, kornia (one-time, several GB — this may take a while)…');
+    const pkgs = ['torch', 'torchvision', 'transformers', 'pillow', 'kornia'];
+    const installResult = await runCmd(pythonExe, ['-m', 'pip', 'install', '--no-warn-script-location', ...pkgs]);
+
+    const verify = await verifyImports(pythonExe);
+    if (verify.code !== 0 || !verify.stdout.includes('ok')) {
+      sendProgress(`⚠️ Install failed:\n${installResult.stderr.slice(0, 400)}`);
+      sendProgress('Run manually: pip install torch torchvision transformers pillow kornia');
+      return;
+    }
+
+    // ── 4. Save and activate ──────────────────────────────────────────────────
+    saveSettings({ ...loadSettings(), rmbgPythonPath: pythonExe });
+    rmbgServer.setPythonPath(pythonExe);
+    sendProgress('✅ Background Remover dependencies installed. Add your HuggingFace token next to finish setup.');
+
+  } catch (err: any) {
+    sendProgress(`❌ Background Remover auto-setup error: ${err?.message || String(err)}`);
   }
 }
 
@@ -9771,7 +9965,7 @@ end.
     IPC_CHANNELS.ML_LLM_GENERATE,
     async (
       _event,
-      req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string }
+      req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string; timeoutMs?: number; think?: boolean }
     ) => {
       try {
         if (!req || (req.provider !== 'ollama' && req.provider !== 'openai_compat' && req.provider !== 'cosmos')) return { ok: false, error: 'Unsupported provider' };
@@ -9782,7 +9976,7 @@ end.
 
         if (req.provider === 'ollama') {
           const baseUrl = req.baseUrl || String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434');
-          return await ollamaGenerate({ model, prompt }, { baseUrl });
+          return await ollamaGenerate({ model, prompt }, { baseUrl, timeoutMs: req.timeoutMs, think: req.think });
         }
 
         if (req.provider === 'cosmos') {
@@ -13473,6 +13667,134 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
+  // SS2 "Reality Check" reference corpus IPC handlers — local-only grading tooling.
+  // Downloads/parses/caches real Sim Settlements 2 addon mods (via modBrowserEngine
+  // above) so GradingEngine can grade Mossy's generated ss2-plot/city-plan design
+  // docs against actually-parsed real Creation Kit records. See
+  // src/mining/reference-corpus/ (gitignored — never pushed to the public repo).
+  registerHandler('reference-corpus:add', async (_event, modId: string) => {
+    const startTime = Date.now();
+    try {
+      const { addReferenceMod } = require('../mining/reference-corpus/reference-corpus-manager');
+      const result = await addReferenceMod(modId);
+      auditLogger.log({
+        operation: 'reference-corpus',
+        tool: 'reference-corpus',
+        action: 'add',
+        status: 'success',
+        duration: Date.now() - startTime,
+        result
+      });
+      return { success: true, ...result };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] reference-corpus:add error:', errMsg);
+      auditLogger.log({
+        operation: 'reference-corpus',
+        tool: 'reference-corpus',
+        action: 'add',
+        status: 'error',
+        duration: Date.now() - startTime,
+        error: errMsg,
+        details: { modId }
+      });
+      return { success: false, error: errMsg };
+    }
+  });
+
+  registerHandler('reference-corpus:add-from-folder', async (_event, folderPath: string) => {
+    const startTime = Date.now();
+    try {
+      const { addReferenceModFromFolder } = require('../mining/reference-corpus/reference-corpus-manager');
+      const result = await addReferenceModFromFolder(folderPath);
+      auditLogger.log({
+        operation: 'reference-corpus',
+        tool: 'reference-corpus',
+        action: 'add-from-folder',
+        status: 'success',
+        duration: Date.now() - startTime,
+        result
+      });
+      return { success: true, ...result };
+    } catch (error: any) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Main] reference-corpus:add-from-folder error:', errMsg);
+      auditLogger.log({
+        operation: 'reference-corpus',
+        tool: 'reference-corpus',
+        action: 'add-from-folder',
+        status: 'error',
+        duration: Date.now() - startTime,
+        error: errMsg,
+        details: { folderPath }
+      });
+      return { success: false, error: errMsg };
+    }
+  });
+
+  registerHandler('reference-corpus:list', async () => {
+    try {
+      const { listCachedReferences } = require('../mining/reference-corpus/reference-corpus-manager');
+      return { success: true, mods: listCachedReferences() };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error), mods: [] };
+    }
+  });
+
+  registerHandler('reference-corpus:remove', async (_event, modId: string) => {
+    try {
+      const { removeReferenceMod } = require('../mining/reference-corpus/reference-corpus-manager');
+      removeReferenceMod(modId);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('reference-corpus:get-log', async (_event, modId: string) => {
+    try {
+      const { getReferenceModLog } = require('../mining/reference-corpus/reference-corpus-manager');
+      return { success: true, log: getReferenceModLog(modId) };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error), log: '' };
+    }
+  });
+
+  registerHandler('reference-corpus:reveal-log', async (_event, modId: string) => {
+    try {
+      const { revealReferenceModLog } = require('../mining/reference-corpus/reference-corpus-manager');
+      return { success: revealReferenceModLog(modId) };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('reference-corpus:get-records', async () => {
+    try {
+      const { getAllParsedRecords } = require('../mining/reference-corpus/reference-corpus-manager');
+      return { success: true, records: getAllParsedRecords() };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error), records: { buildingPlans: [], cityPlans: [], unassociatedCPLayouts: [] } };
+    }
+  });
+
+  // Builds an Unsloth/ShareGPT .jsonl fine-tune dataset from the cached SS2
+  // reference-corpus mods — real EditorIDs/property names baked into training
+  // examples instead of relying on in-context prompting every generation.
+  registerHandler('reference-corpus:build-finetune-dataset', async () => {
+    try {
+      const { buildSS2FineTuneDataset } = require('../mining/reference-corpus/build-finetune-dataset');
+      const outputPath = path.join(app.getPath('userData'), 'fine-tune-datasets', 'ss2-reference-dataset.jsonl');
+      const result = buildSS2FineTuneDataset(outputPath);
+      if (result.exampleCount === 0) {
+        return { success: false, error: 'No usable training examples — add at least one real SS2 addon mod to the Reference Library first.' };
+      }
+      return { success: true, ...result };
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
   // Platform 9: Load Order Management IPC Handlers
   const loadOrderStorage = new Map<string, LoadOrder>();
 
@@ -16719,7 +17041,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   const CD_REQUIRED_SECTIONS = CD_BUILD_SECTIONS;
 
   const CD_AGENT_ORDER: CdAgentRole[] = ['quest', 'dialogue', 'world', 'director'];
-  const CD_MAX_TURNS = 80; // 20 full rounds — enough for 10 sections across 4 agents
+  // 12 sections now (CD_BUILD_SECTIONS), 4 of which (World, Faction, Dialogue, Lore) split
+  // into multiple sub-items each — comment previously said "10 sections," stale since the
+  // pipeline grew. Raised from 80: with the verifier-blindness bug above fixed, per-section
+  // retries should now mostly reflect genuine quality issues rather than guaranteed blind
+  // rejections, but sub-item sections (dialogue per-NPC, lore per-category) still scale with
+  // roster size, so keep real margin rather than re-introducing a tight, easy-to-exhaust cap.
+  const CD_MAX_TURNS = 120; // 30 full rounds
 
   // Maps CD_BUILD_SECTIONS[i] -> the phaseOutputs key that section's accepted content is stored under.
   const CD_SECTION_OUTPUT_KEYS: (keyof CdProject['phaseOutputs'])[] = [
@@ -16747,12 +17075,33 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // causing genuine token-limit truncation the verifier correctly flagged as missing
   // content. Split into one sub-turn per NPC (Dialogue Trees) or per content category
   // (Lore), each independently verified, then joined into the section's real output.
-  const CD_SUBITEM_SECTIONS = new Set([5, 6]);
+  // World & Location Design (0) joined this set after right-sizing its minimum counts
+  // alone proved insufficient in production — even at the lowered thresholds it kept
+  // inconsistently dropping one or two of (Cell Registry rows / ECZN / LCTN / the
+  // Worldspace Decision heading itself / the concept-art block) across repeated
+  // attempts, the same truncation-under-pressure symptom Dialogue/Lore already had.
+  const CD_SUBITEM_SECTIONS = new Set([0, 1, 5, 6]);
 
   // Compute the sub-item list for a sub-turn section. Falls back to a single
   // "everything" sub-item if roster parsing finds nothing, degrading gracefully to
   // the old single-turn behavior for that section rather than looping forever.
   function cdComputeSubItemsForSection(project: CdProject, sectionIdx: number): string[] {
+    if (sectionIdx === 0) {
+      // World & Location Design — split the worldspace/cell decision from the
+      // zone/location/descriptive content, so neither sub-turn has to fit all of
+      // Worldspace Decision + Cell Registry + ECZN + LCTN + Area Descriptions +
+      // Asset Catalog + Concept Art into one response.
+      return ['Worldspace & Cell Registry', 'Zones, Locations, Descriptions & Art'];
+    }
+    if (sectionIdx === 1) {
+      // Faction & Reputation — one sub-turn per faction. Observed in production:
+      // across 5 straight attempts the model reliably wrote ONE elaborate faction
+      // (full rank table, GLOB, etc.) and simply never got to the second — not a
+      // token-budget issue (each response was short/complete), a genuine "forgets
+      // the tail of a multi-part instruction" failure. Forcing one faction per turn
+      // makes that impossible to skip.
+      return ['Faction 1', 'Faction 2'];
+    }
     if (sectionIdx === 5) {
       // Dialogue Trees — one sub-turn per NPC from the roster written in section 4.
       const roster = project.phaseOutputs.npcRoster || '';
@@ -17079,7 +17428,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  Utility.Wait(float afSeconds)                   ; blocking wait\n' +
         '  GlobalVariable.GetValueInt()                    ; read global var as int\n' +
         '  GlobalVariable.SetValue(float afValue)          ; set global var\n\n' +
-        'QUEST FRAGMENT SCRIPTS (QF_ scripts — the actual stage code CK generates):\n' +
+        'QUEST FRAGMENT SCRIPTS (QF_ scripts — the actual stage code CK generates, shown for reference —\n' +
+        'the Script Writer role puts this same per-stage logic in ONE OnStageSet(int, int) on the main\n' +
+        'quest script instead, since the QF_<FormID> filename below is unknown until CK compiles the\n' +
+        'record and cannot be predicted or pre-written by this pipeline):\n' +
         '  ; These run when a quest stage item fires\n' +
         '  Scriptname QF_MossyMQ01_00123456 Extends Quest Hidden\n' +
         '  ReferenceAlias Property Alias_QuestNPC Auto\n' +
@@ -17111,7 +17463,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  Quest:    MossyMQ01, MossyDN01, MossyMS01 (MQ=main, DN=dungeon, MS=misc)\n' +
         '  NPC:      MossyNPC_VaultTech_Overseer01\n' +
         '  Script:   MossyMQ01QuestScript, MossyDN01TriggerScript\n' +
-        '  Fragment: QF_MossyMQ01_<FormID>\n' +
+        '  Fragment: QF_MossyMQ01_<FormID> (reference only — see caveat above, this pipeline uses\n' +
+        '  OnStageSet on the main quest script instead)\n' +
         '  Alias:    Alias_QuestGiver, Alias_QuestTarget, Alias_BossEnemy\n' +
         '=== END REFERENCE ===',
     },
@@ -17583,7 +17936,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  terminal\'s own script calls into, not an event it listens for itself.\n' +
         '• Every property you reference (items, terminals, locations) must be DECLARED as a Property on\n' +
         '  that script — never reference a bare capitalized name as if it were a global constant.\n' +
-        '• Quest fragment scripts: Scriptname QF_<QuestID>_<FormID> extends Quest Hidden — use Fragment_Stage_NNNN_Item_00() functions.\n' +
+        '• Quest stage logic: put it in ONE Event OnStageSet(int auiStageID, int auiItemID) on the main\n' +
+        '  quest script (see HARD RULES above) — do NOT write a separate "Scriptname QF_<QuestID>_<FormID>"\n' +
+        '  fragment file for this pipeline; its FormID is unknown until the record is compiled, so guessing\n' +
+        '  one produces a script that cannot compile.\n' +
         '• Actor/creature scripts: extend Actor — include behavior events. Real verified example\n' +
         '  (Outcasts and Remnants, OAR_NZ_Death_Script.psc) — a scripted death sequence entirely\n' +
         '  inside Event OnDeath(Actor akKiller): advance an unrelated quest via a Quest Property\n' +
@@ -17740,8 +18096,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         'pattern shown earlier instead (it needs no FormID-dependent filename); use the namespaced\n' +
         'Fragments:Quests: format above only if explicitly asked to match CK\'s own generated style.\n\n' +
         'TERMINAL MENU-ITEM SCRIPTING — real CK-generated format, verified against the same shipped\n' +
-        'mod\'s Fragments/Terminals/ source. This is the REAL mechanism for "run code when a specific\n' +
-        'terminal menu option is selected" — NOT a plain ObjectReference script:\n' +
+        'mod\'s Fragments/Terminals/ source. This IS the real mechanism CK itself generates for "run code\n' +
+        'when a specific terminal menu option is selected" — shown for reference/if explicitly asked to\n' +
+        'match CK\'s own generated style. For THIS pipeline, same FormID problem as quest fragments above:\n' +
+        'prefer putting the logic in the terminal\'s OWN placed-reference script (extends ObjectReference)\n' +
+        'via Event OnMenuItemRun(int auiMenuItemID, ObjectReference akTerminalRef) — see "Terminal\n' +
+        'interaction" earlier in this prompt — which needs no FormID-dependent filename and compiles now:\n' +
         '  ;BEGIN FRAGMENT CODE - Do not edit anything between this and the end comment\n' +
         '  Scriptname Fragments:Terminals:TERM_FCR_RadioTerminal_010029E8 Extends Terminal Hidden Const\n' +
         '  ;BEGIN FRAGMENT Fragment_Terminal_01\n' +
@@ -17757,8 +18117,19 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  ObjectReference Property CFCR Auto Const\n' +
         'Each terminal menu item gets its own numbered Fragment_Terminal_NN(ObjectReference\n' +
         'akTerminalRef) function in ONE script extending Terminal (not ObjectReference). Same\n' +
-        'FormID caveat as above applies to the filename.\n\n' +
-        'DIALOGUE RESPONSE SCRIPTING (TopicInfo fragment) — real format, same source:\n' +
+        'FormID caveat as above applies to the filename — for THIS pipeline, use the\n' +
+        'OnMenuItemRun(...) pattern on the terminal\'s placed ObjectReference script instead, unless\n' +
+        'explicitly asked to match CK\'s own generated Fragments:Terminals: style.\n\n' +
+        'DIALOGUE RESPONSE SCRIPTING (TopicInfo fragment) — real format, same source. Same FormID\n' +
+        'problem applies here too, and unlike quest stages/terminals there is no FormID-free\n' +
+        'alternative — an INFO\'s own response script genuinely requires this namespaced format.\n' +
+        'For THIS pipeline: prefer routing dialogue-triggered logic through an EXISTING compilable\n' +
+        'script instead wherever the design allows it (e.g. the speaking NPC\'s own script exposing a\n' +
+        'plain public Function, or a Quest Property + SetStage(N) call as shown in "CROSS-SCRIPT STAGE\n' +
+        'ADVANCE" above) — reserve an actual Fragments:TopicInfos: file for cases that truly need\n' +
+        'akSpeakerRef/dialogue-specific context, and flag in the BUILD_GUIDE that its real filename/path\n' +
+        'must be finalized in CK after the INFO record is created and assigned a FormID, since this\n' +
+        'pipeline cannot predict it in advance:\n' +
         '  ;BEGIN FRAGMENT CODE - Do not edit anything between this and the end comment\n' +
         '  Scriptname Fragments:TopicInfos:TIF_CFSimQuest_0100193D Extends TopicInfo Hidden Const\n' +
         '  ;BEGIN FRAGMENT Fragment_End\n' +
@@ -17789,6 +18160,15 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '  NewSynth.GetActorReference().SetAlpha(0)\n' +
         '  kmyQuest.ArmReady = 1\n' +
         '  ;END CODE\n' +
+        'CRITICAL SCOPE WARNING — GetOwningQuest() is ONLY callable inside a FRAGMENT script\n' +
+        '(one with "Fragments:" in its Scriptname, extending Scene/TopicInfo/Package/Terminal Hidden\n' +
+        'Const) — it is how a fragment reaches back to the quest that owns it. NEVER call\n' +
+        'GetOwningQuest() inside the MAIN quest script itself (the one written as\n' +
+        '"Scriptname <Name> extends Quest Conditional") — that script already IS the quest; it has no\n' +
+        '"owning quest" to fetch, and GetOwningQuest is not a member of the Quest script type, so this\n' +
+        'produces a hard compile error ("GetOwningQuest is not a function or does not exist"). If the\n' +
+        'main quest script needs to reference itself, it does so directly (Self, or SetStage(N) with no\n' +
+        'target) — never through GetOwningQuest().\n' +
         'PACKAGE FRAGMENTS — Extends Package Hidden Const (fires when that AI Package runs);\n' +
         'confirmed real but this mod\'s only example had no fragment code, just Property references\n' +
         'used in the package\'s own Conditions — a Package doesn\'t need scripted code to be useful.\n' +
@@ -18661,10 +19041,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         // produce real, structured design content and syntactically valid
         // Papyrus, not quick chat replies.
         const cdModel = GROQ_FALLBACK_MODEL;
-        // Groq hard-caps completion length per model regardless of what's requested
-        // (8,192 for the models this app uses) — clamp so a larger section budget
-        // never sends a value the API might reject.
-        const groqMaxTokens = Math.min(maxTokens, 8192);
+        // Groq's documented max_completion_tokens for openai/gpt-oss-120b is 65536;
+        // 32768 leaves headroom while comfortably covering the 24576 verbose-section
+        // budget (see verboseSectionBudget). Previously clamped to 8192 on an
+        // unverified guess, which silently truncated every verbose build section
+        // and caused deterministic 5-retry-then-skip failures.
+        const groqMaxTokens = Math.min(maxTokens, 32768);
         if (backend) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 60000);
@@ -18807,10 +19189,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           { role: 'user', content: userPrompt },
         ];
         const cdModel = GROQ_FALLBACK_MODEL;
-        // Groq hard-caps completion length per model regardless of what's requested
-        // (8,192 for the models this app uses) — clamp so a larger section budget
-        // never sends a value the API might reject.
-        const groqMaxTokens = Math.min(maxTokens, 8192);
+        // Groq's documented max_completion_tokens for openai/gpt-oss-120b is 65536;
+        // 32768 leaves headroom while comfortably covering the 24576 verbose-section
+        // budget (see verboseSectionBudget). Previously clamped to 8192 on an
+        // unverified guess, which silently truncated every verbose build section
+        // and caused deterministic 5-retry-then-skip failures.
+        const groqMaxTokens = Math.min(maxTokens, 32768);
         if (backend) {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 120000);
@@ -19051,10 +19435,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     let fomodModuleConfig: string | null = null;
     for (const t of [...project.turns].reverse()) {
       if (t.agent !== ('fomod_builder' as CdAgentRole)) continue;
-      const infoMatch = t.message.match(/```xml\s*([\s\S]*?<\/fomod>)/i);
-      if (infoMatch && infoMatch[1].includes('<fomod>')) fomodInfoXml = infoMatch[1].trim();
-      const configMatch = t.message.match(/```xml\s*([\s\S]*?<\/config>)/i);
-      if (configMatch && configMatch[1].includes('<config')) fomodModuleConfig = configMatch[1].trim();
+      // Anchor each capture group's START on its own root tag (<fomod>/<config>),
+      // not on "the nearest ```xml fence" — the message contains TWO ```xml fences
+      // (Info.xml then ModuleConfig.xml back to back), and a fence-anchored regex
+      // for the SECOND block would lazily match starting from the FIRST fence,
+      // swallowing the entire Info.xml block plus the markdown between them into
+      // ModuleConfig.xml (confirmed on-disk: real handoff projects shipped a
+      // ModuleConfig.xml containing a duplicated <fomod> block, a stray closing
+      // ``` fence, and a markdown heading before the real <config> — invalid XML).
+      const infoMatch = t.message.match(/```xml\s*((?:<\?xml[^>]*\?>\s*)?<fomod>[\s\S]*?<\/fomod>)/i);
+      if (infoMatch) fomodInfoXml = infoMatch[1].trim();
+      const configMatch = t.message.match(/```xml\s*((?:<\?xml[^>]*\?>\s*)?<config[\s\S]*?<\/config>)/i);
+      if (configMatch) fomodModuleConfig = configMatch[1].trim();
       if (fomodInfoXml || fomodModuleConfig) break;
     }
 
@@ -19180,11 +19572,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
 
     // ── Save FOMOD installer files ────────────────────────────────────────────
+    // Defensive sanity check: a stray ``` fence or markdown heading inside the
+    // extracted content means the regex above grabbed more than the real XML
+    // element (the exact failure mode that used to write invalid XML to disk) —
+    // refuse to write a file that isn't actually valid on its own rather than
+    // silently shipping something that looks done but can't be parsed.
+    const looksLikeCleanXml = (xml: string | null): xml is string =>
+      !!xml && !xml.includes('```') && !/^\s*#/m.test(xml);
     if (fomodInfoXml || fomodModuleConfig) {
       const fomodDir = path.join(outputDir, 'FOMOD');
       fs.mkdirSync(fomodDir, { recursive: true });
-      if (fomodInfoXml) fs.writeFileSync(path.join(fomodDir, 'Info.xml'), fomodInfoXml, 'utf-8');
-      if (fomodModuleConfig) fs.writeFileSync(path.join(fomodDir, 'ModuleConfig.xml'), fomodModuleConfig, 'utf-8');
+      if (looksLikeCleanXml(fomodInfoXml)) fs.writeFileSync(path.join(fomodDir, 'Info.xml'), fomodInfoXml, 'utf-8');
+      if (looksLikeCleanXml(fomodModuleConfig)) fs.writeFileSync(path.join(fomodDir, 'ModuleConfig.xml'), fomodModuleConfig, 'utf-8');
     }
 
     if (dialogueBlocks.length) fs.writeFileSync(path.join(outputDir, 'dialogue_and_lore.md'), dialogueBlocks.join('\n\n---\n\n'), 'utf-8');
@@ -19616,53 +20015,88 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           `=== VERIFIED REFERENCE TABLE ===\n${(project.phaseOutputs.analysis || '').slice(0, 2000)}\n=== END REFERENCE ===\n\n`;
 
         if (sectionIdx === 0) {
-          // World Designer — complete world and cell layout
-          instruction =
-            commonContext + failNote +
-            `YOUR TASK (Section 1/12 — World & Location Design): Design the COMPLETE world structure for this DLC.\n` +
-            `Use the DLC plan and reference table above for all location names, worldspace decisions, and Mossy Industries elements.\n\n` +
-            `REQUIRED OUTPUT — produce ALL of these headings in order:\n\n` +
-            `## Worldspace Decision\n` +
-            `State: new WRLD record OR cell cluster in existing worldspace (e.g. Commonwealth). Be explicit.\n\n` +
-            `## Cell Registry\n` +
-            `Table with 4+ cells minimum: | # | Cell EditorID | Cell Name | Type (Int/Ext) | Size | Key Contents | Connects To |\n\n` +
-            `## Encounter Zone Design (ECZN)\n` +
-            `Table: | ECZN EditorID | Owner Cell | Min Level | Max Level | Resets | Reset Hrs |\n` +
-            `(One ECZN per cell cluster or major area — minimum 1 entry. Write this section BEFORE Key Area Descriptions — do not skip it to save room.)\n\n` +
-            `## Location Records (LCTN)\n` +
-            `Table: | LCTN EditorID | Display Name | Parent LCTN | Associated Cells |\n` +
-            `(One LCTN per named area — minimum 1 entry. Write this section BEFORE Key Area Descriptions — do not skip it to save room.)\n\n` +
-            `## Key Area Descriptions\n` +
-            `For each named location: describe what the player finds, Mossy Industries elements, storytelling hooks.\n\n` +
-            `## Vanilla Asset Catalog\n` +
-            `List vanilla NIF mesh paths and LTEX EditorIDs this DLC uses. Format: Mesh\\Path\\To.nif | purpose\n\n` +
-            `## Concept Art Prompts\n` +
-            `REQUIRED — must be a fenced code block labeled concept-art:\n` +
-            `\`\`\`concept-art\n` +
-            `[\n` +
-            `  { "id": "world_01", "label": "Main Location", "prompt": "2-3 sentence visual description ending with: fallout 4 concept art, digital painting" },\n` +
-            `  { "id": "world_02", "label": "Key Interior", "prompt": "..." },\n` +
-            `  { "id": "world_03", "label": "Notable Area", "prompt": "..." }\n` +
-            `]\n` +
-            `\`\`\`\n\n` +
-            `⚠️ MANDATORY FINAL LINE — your response MUST end with exactly:\n## WORLD DESIGN COMPLETE`;
+          // World Designer — split into 2 sub-turns (see CD_SUBITEM_SECTIONS): the
+          // single-shot version kept inconsistently dropping one of (Cell Registry
+          // rows / ECZN / LCTN / the Worldspace Decision heading / concept-art) even
+          // after lowering minimum counts — the ask was still too large for one call.
+          if (subItemIdx === 0) {
+            instruction =
+              commonContext + failNote +
+              `YOUR TASK (Section 1/12 — World & Location Design, part 1/2 — Worldspace & Cell Registry): ` +
+              `Use the DLC plan and reference table above for all location names and worldspace decisions.\n` +
+              `Do NOT write Encounter Zones, Location Records, Area Descriptions, Asset Catalog, or Concept Art — those are a separate turn.\n\n` +
+              `REQUIRED OUTPUT — produce BOTH headings in order:\n\n` +
+              `## Worldspace Decision\n` +
+              `State: new WRLD record OR cell cluster in existing worldspace (e.g. Commonwealth). Be explicit.\n\n` +
+              `## Cell Registry\n` +
+              `Table with 3+ cells minimum: | # | Cell EditorID | Cell Name | Type (Int/Ext) | Size | Key Contents | Connects To |\n\n` +
+              `⚠️ MANDATORY FINAL LINE — your response MUST end with exactly:\n## WORLD DESIGN COMPLETE`;
+          } else {
+            const worldPart1 = (project.buildSubItemOutputs?.[0] || '').slice(0, 1500);
+            instruction =
+              commonContext + failNote +
+              `=== WORLDSPACE & CELL REGISTRY (part 1 — already written, use these EXACT cell EditorIDs) ===\n${worldPart1}\n=== END PART 1 ===\n\n` +
+              `YOUR TASK (Section 1/12 — World & Location Design, part 2/2 — Zones, Locations, Descriptions & Art): ` +
+              `Do NOT restate the Worldspace Decision or Cell Registry — those are already done. Write ONLY the sections below.\n\n` +
+              `REQUIRED OUTPUT — produce ALL of these headings in order:\n\n` +
+              `## Encounter Zone Design (ECZN)\n` +
+              `Table: | ECZN EditorID | Owner Cell | Min Level | Max Level | Resets | Reset Hrs |\n` +
+              `(One ECZN per cell cluster or major area — minimum 1 entry.)\n\n` +
+              `## Location Records (LCTN)\n` +
+              `Table: | LCTN EditorID | Display Name | Parent LCTN | Associated Cells |\n` +
+              `(One LCTN per named area — minimum 1 entry.)\n\n` +
+              `## Key Area Descriptions\n` +
+              `For each named location from part 1: describe what the player finds, Mossy Industries elements, storytelling hooks.\n\n` +
+              `## Vanilla Asset Catalog\n` +
+              `List vanilla NIF mesh paths and LTEX EditorIDs this DLC uses. Format: Mesh\\Path\\To.nif | purpose\n\n` +
+              `## Concept Art Prompts\n` +
+              `REQUIRED — must be a fenced code block labeled concept-art:\n` +
+              `\`\`\`concept-art\n` +
+              `[\n` +
+              `  { "id": "world_01", "label": "Main Location", "prompt": "2-3 sentence visual description ending with: fallout 4 concept art, digital painting" },\n` +
+              `  { "id": "world_02", "label": "Key Interior", "prompt": "..." },\n` +
+              `  { "id": "world_03", "label": "Notable Area", "prompt": "..." }\n` +
+              `]\n` +
+              `\`\`\`\n\n` +
+              `⚠️ MANDATORY FINAL LINE — your response MUST end with exactly:\n## WORLD DESIGN COMPLETE`;
+          }
         } else if (sectionIdx === 1) {
-          // Faction Designer — full faction and reputation system
+          // Faction Designer — one sub-turn per faction (see CD_SUBITEM_SECTIONS).
+          // Single-shot version reliably wrote one full faction and never reached
+          // the second across repeated attempts — not a length problem, an
+          // instruction-following one. One faction per turn removes the chance to
+          // skip it.
           const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 1500);
-          instruction =
-            commonContext + failNote +
-            `=== WORLD DESIGN (section 1 output) ===\n${worldCtx}\n=== END WORLD ===\n\n` +
-            `YOUR TASK (Section 2/12 — Faction & Reputation System): Design EVERY faction and the full reputation system.\n\n` +
-            `REQUIRED OUTPUT (all headings mandatory):\n` +
-            `## Faction Records (FACT) — table: EditorID, display name, type, alignment, initial player rank\n` +
-            `## Reputation Globals (GLOB) — table: EditorID, short name, type, initial value, purpose\n` +
-            `(Write GLOB immediately after Faction Records, not at the end — it must not get cut for space.)\n` +
-            `## Faction Rank Tables — for EACH faction: all rank numbers, male/female rank names, min rep value\n` +
-            `## Faction Relationships — table: faction A vs B, combat modifier, notes\n` +
-            `## Reputation Mechanics — table: action, faction, rep change, notes\n` +
-            `## Dialogue Condition Examples — 3+ real Papyrus condition blocks using reputation GLOBs\n` +
-            `## FACT JSON Block — valid JSON with all FACT records\n\n` +
-            `End with: ## FACTION DESIGN COMPLETE`;
+          if (subItemIdx === 0) {
+            instruction =
+              commonContext + failNote +
+              `=== WORLD DESIGN (section 1 output) ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+              `YOUR TASK (Section 2/12 — Faction & Reputation System, part 1/2 — Faction 1): ` +
+              `Design ONE faction completely. A second, different faction is written in a separate turn — do not include it here.\n\n` +
+              `REQUIRED OUTPUT (all headings mandatory, for THIS faction only):\n` +
+              `## Faction Record (FACT) — EditorID, display name, type, alignment, initial player rank\n` +
+              `## Reputation Global (GLOB) — EditorID, short name, type, initial value, purpose\n` +
+              `## Faction Rank Table — all rank numbers, male/female rank names, min rep value\n` +
+              `## Dialogue Condition Examples — 2+ real Papyrus condition blocks using this faction's reputation GLOB\n\n` +
+              `End with: ## FACTION DESIGN COMPLETE`;
+          } else {
+            const faction1 = (project.buildSubItemOutputs?.[0] || '').slice(0, 1200);
+            instruction =
+              commonContext + failNote +
+              `=== WORLD DESIGN (section 1 output) ===\n${worldCtx}\n=== END WORLD ===\n\n` +
+              `=== FACTION 1 (already written — use its EXACT EditorID/GLOB for relationships below) ===\n${faction1}\n=== END FACTION 1 ===\n\n` +
+              `YOUR TASK (Section 2/12 — Faction & Reputation System, part 2/2 — Faction 2 + tie-together): ` +
+              `Design a SECOND, DIFFERENT faction (do not restate Faction 1), then tie both factions together.\n\n` +
+              `REQUIRED OUTPUT (all headings mandatory):\n` +
+              `## Faction Record (FACT) — EditorID, display name, type, alignment, initial player rank — for the NEW faction only\n` +
+              `## Reputation Global (GLOB) — for the NEW faction\n` +
+              `## Faction Rank Table — for the NEW faction\n` +
+              `## Faction Relationships — table: Faction 1 vs Faction 2, combat modifier, notes\n` +
+              `## Reputation Mechanics — table: action, faction, rep change, notes (both factions)\n` +
+              `## Dialogue Condition Examples — 2+ real Papyrus condition blocks using the NEW faction's GLOB\n` +
+              `## FACT JSON Block — valid JSON with BOTH factions' FACT records\n\n` +
+              `End with: ## FACTION DESIGN COMPLETE`;
+          }
         } else if (sectionIdx === 2) {
           // Script Writer (quest mode) — main questline design
           const worldCtx = (project.phaseOutputs.worldDesign || '').slice(0, 800);
@@ -19771,18 +20205,26 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `All content must be authentic Fallout voice (retro-futurism, period-appropriate). Mossy Industries lore only — hint at Dr. Moss, never resolve.\n\n` +
             `End with: ## LORE COMPLETE`;
         } else if (sectionIdx === 7) {
-          // Item Designer — all custom items
+          // Item Designer — all custom items. Observed in production: the model
+          // reliably skipped straight to the trailing JSON block and never wrote
+          // the markdown tables at all — the verifier counts table rows (not JSON
+          // entries), so every attempt reported 0 weapons/armor/misc even though
+          // the JSON itself had real items. Made the table-vs-JSON priority explicit.
           instruction =
             commonContext + failNote +
             `YOUR TASK (Section 8/12 — Items & Equipment): Design every custom item in this DLC.\n\n` +
-            `REQUIRED OUTPUT (all headings mandatory):\n` +
+            `⚠️ THE MARKDOWN TABLES BELOW ARE WHAT GETS VERIFIED — the JSON block is a supplementary export,\n` +
+            `not a substitute. A response with only a JSON block and no markdown tables is an AUTOMATIC FAIL\n` +
+            `(the verifier counts table rows, not JSON entries) even if the JSON itself is complete and valid.\n` +
+            `Write every table in full BEFORE the JSON block.\n\n` +
+            `REQUIRED OUTPUT (all headings mandatory, tables first):\n` +
             `## Weapons (WEAP) — table: EditorID | Name | Base Dmg | Attack Speed | Range | Ammo | Keywords | Description\n` +
             `## Armor (ARMO) — table: EditorID | Name | Slot | DR | ER | RR | Weight | Value | Keywords | Description\n` +
             `## Misc Items (MISC) — table: EditorID | Name | Weight | Value | Quest Item? | Description\n` +
             `## Crafting Recipes (COBJ) — table: EditorID | Output | Workbench | Components | Perk | Conditions\n` +
             `## Keywords (KYWRD) — only if new keywords needed\n` +
-            `## Item JSON Block — valid JSON with all item records\n\n` +
-            `MINIMUM COUNTS: 2+ WEAP, 3+ ARMO, 6+ MISC, 3+ COBJ recipes.\n` +
+            `## Item JSON Block — valid JSON restating the SAME records from the tables above\n\n` +
+            `MINIMUM COUNTS: 2+ WEAP, 3+ ARMO, 6+ MISC, 3+ COBJ recipes — as TABLE ROWS, not just JSON entries.\n` +
             `Use REAL vanilla base template EditorIDs. Mossy Industries aesthetic: organic/botanical.\n` +
             `All component names must be real FO4 EditorIDs (Steel, Circuitry, FiberOptics, etc.).\n\n` +
             `End with: ## ITEMS COMPLETE`;
@@ -19796,8 +20238,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
             `=== SIDE QUESTS ===\n${sideCtx}\n=== END SIDE QUESTS ===\n\n` +
             `YOUR TASK (Section 9/12 — Papyrus Scripts): Write EVERY Papyrus script as complete, compilable .psc files.\n\n` +
             `Required scripts for each quest:\n` +
-            `- Main quest script: extends Quest Conditional — all stage logic, alias wiring, event handlers\n` +
-            `- Quest fragment script: QF_ prefix, Fragment_Stage_NNNN_Item_00() per stage\n` +
+            `- Main quest script: extends Quest Conditional — ALL stage logic goes in ONE Event\n` +
+            `  OnStageSet(int auiStageID, int auiItemID) on this same script, branching on auiStageID.\n` +
+            `  Do NOT write a separate "QF_<QuestID>_<FormID>" fragment file — its FormID is unknown\n` +
+            `  until the record is compiled, so a guessed one cannot compile in this pipeline.\n` +
+            `- Terminal menu items: a plain script (extends ObjectReference) on the terminal's placed\n` +
+            `  reference, using Event OnMenuItemRun(int auiMenuItemID, ObjectReference akTerminalRef) —\n` +
+            `  same FormID reason, do not write a namespaced Fragments:Terminals: file.\n` +
+            `- Dialogue-triggered logic: route through an existing compilable script (the speaking NPC's\n` +
+            `  own script, or a Quest Property + SetStage(N) call) instead of a TopicInfo fragment file\n` +
+            `  wherever the design allows it — same FormID reason.\n` +
             `- NPC behavior scripts (if non-vanilla AI needed)\n` +
             `- Trigger/activator scripts for any dynamic world events\n` +
             `- Global variable management scripts for reputation tracking\n\n` +
@@ -19882,37 +20332,67 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
 
       else if (project.phase === 'verifying') {
-        const builderRoles: CdAgentRole[] = ['script_writer', 'record_builder', 'esp_builder', 'builder'];
+        // Must cover every builder role used across all 12 CD_BUILD_SECTIONS, not just the
+        // non-subitem ones — this list previously omitted world_designer, faction_designer,
+        // dialogue_writer, lore_writer, item_designer, and fomod_builder (half the pipeline).
+        // Confirmed root cause of the repeated false "verification failed" rejections on those
+        // sections: with none of their turns matching, lastBuilderTurn below fell through to
+        // either an unrelated earlier section's turn or '', so the Verifier was judging stale
+        // or empty content against that section's checklist — guaranteed to "fail" no matter
+        // how correct the Builder's real (unreviewed) output was, burning through the 5-retry
+        // force-skip allowance every time and starving the whole 80-turn budget in the process.
+        const builderRoles: CdAgentRole[] = [
+          'script_writer', 'record_builder', 'esp_builder', 'builder',
+          'world_designer', 'faction_designer', 'dialogue_writer', 'lore_writer',
+          'item_designer', 'fomod_builder',
+        ];
         const lastBuilderTurn = [...project.turns].reverse().find(t => builderRoles.includes(t.agent));
         const sectionName = CD_BUILD_SECTIONS[project.buildSectionIdx] ?? 'section';
         const sectionIdx = project.buildSectionIdx;
         const vSubItemIdx = project.buildSubItemIdx ?? 0;
         const vSubItemName = project.buildSubItems?.[vSubItemIdx] ?? '';
         let sectionChecks = '';
-        if (sectionIdx === 0) {
+        if (sectionIdx === 0 && vSubItemIdx === 0) {
           sectionChecks =
-            'SECTION-SPECIFIC CHECKS (World & Location Design):\n' +
+            'SECTION-SPECIFIC CHECKS (World & Location Design — part 1/2: Worldspace & Cell Registry):\n' +
             '• ## Worldspace Decision heading present with clear new-WRLD vs cell-cluster decision\n' +
-            '• ## Cell Registry table has 4+ rows (EditorID, name, type, size, contents, connections)\n' +
+            '• ## Cell Registry table has 3+ rows (EditorID, name, type, size, contents, connections)\n' +
+            '• Does NOT include Encounter Zones, Location Records, Area Descriptions, Asset Catalog, or Concept Art — those are a separate turn\n' +
+            '• Ends with: ## WORLD DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 3 cells | no Worldspace Decision heading | no completion marker';
+        } else if (sectionIdx === 0 && vSubItemIdx === 1) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (World & Location Design — part 2/2: Zones, Locations, Descriptions & Art):\n' +
             '• ## Encounter Zone Design section present (table or list of ECZN EditorIDs with levels) — at least 1 entry\n' +
             '• ## Location Records section present (table or list of LCTN EditorIDs) — at least 1 entry\n' +
             '• ## Key Area Descriptions section present with at least 2 location descriptions\n' +
             '• ## Vanilla Asset Catalog section present\n' +
             '• ```concept-art JSON block present with 3+ entries\n' +
+            '• Does NOT restate the Worldspace Decision or Cell Registry — those were already written in part 1\n' +
             '• Ends with: ## WORLD DESIGN COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 4 cells | no ECZN section | no LCTN section | no concept-art block | no completion marker';
-        } else if (sectionIdx === 1) {
+            'AUTO-FAIL: no ECZN section | no LCTN section | no concept-art block | no completion marker';
+        } else if (sectionIdx === 1 && vSubItemIdx === 0) {
           sectionChecks =
-            'SECTION-SPECIFIC CHECKS (Faction & Reputation System):\n' +
-            '• ## Faction Records table with 2+ FACT records (EditorID, name, type, alignment)\n' +
-            '• ## Faction Rank Tables has ranks for EVERY faction defined\n' +
-            '• ## Reputation Globals table with GLOB EditorIDs for each faction\n' +
-            '• ## Faction Relationships table present\n' +
-            '• ## Reputation Mechanics table with specific actions and rep changes\n' +
-            '• ## Dialogue Condition Examples has 3+ real Papyrus condition blocks\n' +
-            '• ```json FACT JSON block present and valid\n' +
+            'SECTION-SPECIFIC CHECKS (Faction & Reputation System — part 1/2: Faction 1):\n' +
+            '• ## Faction Record present (EditorID, name, type, alignment)\n' +
+            '• ## Reputation Global (GLOB) present for this faction\n' +
+            '• ## Faction Rank Table present with real ranks\n' +
+            '• ## Dialogue Condition Examples has 2+ real Papyrus condition blocks\n' +
+            '• Does NOT include a second faction — that is a separate turn\n' +
             '• Ends with: ## FACTION DESIGN COMPLETE\n\n' +
-            'AUTO-FAIL: fewer than 2 factions | no GLOB records | no condition examples | no completion marker';
+            'AUTO-FAIL: no FACT record | no GLOB record | no condition examples | no completion marker';
+        } else if (sectionIdx === 1 && vSubItemIdx === 1) {
+          sectionChecks =
+            'SECTION-SPECIFIC CHECKS (Faction & Reputation System — part 2/2: Faction 2 + tie-together):\n' +
+            '• ## Faction Record present for a DIFFERENT faction than part 1\n' +
+            '• ## Reputation Global (GLOB) present for this faction\n' +
+            '• ## Faction Rank Table present\n' +
+            '• ## Faction Relationships table present (Faction 1 vs Faction 2)\n' +
+            '• ## Reputation Mechanics table present\n' +
+            '• ## Dialogue Condition Examples has 2+ real Papyrus condition blocks\n' +
+            '• ```json FACT JSON block present and valid, containing BOTH factions\n' +
+            '• Ends with: ## FACTION DESIGN COMPLETE\n\n' +
+            'AUTO-FAIL: fewer than 2 total factions across both parts | no GLOB records | no condition examples | no completion marker';
         } else if (sectionIdx === 2) {
           sectionChecks =
             'SECTION-SPECIFIC CHECKS (Main Questline Design):\n' +
@@ -20054,20 +20534,21 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       ]);
       // Dialogue Trees (idx 5) and Lore (idx 6) require far more raw prose than any
       // other section — full branching dialogue for 8+ NPCs, or 13+ full-length
-      // holotape/terminal/note texts — and were hitting the standard 8192-token
-      // completion cap mid-response, which the verifier then correctly reported as
-      // "missing" content that was actually just cut off. Only Ollama/Inkling can use
-      // a bigger budget; the Groq path clamps back down to its real 8192 hard cap.
-      // World & Location Design (idx 0) has the same problem — REQUIRED OUTPUT is
-      // Worldspace Decision + a 6+ row Cell Registry + an ECZN table + an LCTN table +
-      // prose Key Area Descriptions + a Vanilla Asset Catalog + Concept Art Prompts JSON,
-      // comparably large to sections 5/6. Observed in production: it consistently reached
-      // "## WORLD DESIGN COMPLETE" (including the trailing concept-art JSON) while
-      // silently dropping the ECZN/LCTN tables and under-filling the Cell Registry to
-      // fit inside the standard budget — the same truncation-under-pressure failure
-      // mode sections 5/6 already had fixed, just not extended to this section.
-      const verboseSectionBudget = (project.phase === 'building' && [0, 5, 6].includes(project.buildSectionIdx))
-        ? 16384
+      // holotape/terminal/note texts. World & Location Design (idx 0) needs a
+      // Worldspace Decision + 6+ row Cell Registry + ECZN table + LCTN table + prose
+      // Key Area Descriptions + Vanilla Asset Catalog + Concept Art Prompts JSON.
+      // Faction & Reputation (idx 1) needs full FACT/rank/GLOB tables per faction.
+      // xEdit Builder Script (idx 10) requires a minimum 300+ line Pascal script.
+      // FOMOD Installer (idx 11) requires 5 full headed blocks including two XML
+      // documents. All six sections were silently truncating mid-response against
+      // the standard 8192-token completion cap, which the verifier then correctly
+      // reported as "missing" content that was actually just cut off — every one
+      // of the 5 retries hit the identical truncation, so it force-skipped instead
+      // of ever succeeding. Root cause: the Groq clamp below was set to a
+      // conservative guess (8192) rather than the model's real limit — Groq's own
+      // docs for openai/gpt-oss-120b list max_completion_tokens up to 65536.
+      const verboseSectionBudget = (project.phase === 'building' && [0, 1, 5, 6, 10, 11].includes(project.buildSectionIdx))
+        ? 24576
         : 8192;
       const message = specialistRoles.has(role)
         ? await cdCallAgentHighQuality(persona.systemPrompt, instruction, verboseSectionBudget)
@@ -20149,7 +20630,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
           if (usesSubItems) {
             // Pull the actual content that was just verified — the sub-item
             // builder's last turn — not the verifier's PASSED message itself.
-            const subItemBuilderRoles: CdAgentRole[] = ['dialogue_writer', 'lore_writer'];
+            const subItemBuilderRoles: CdAgentRole[] = ['dialogue_writer', 'lore_writer', 'world_designer', 'faction_designer'];
             const lastSubItemTurn = [...project.turns].reverse().find(t => subItemBuilderRoles.includes(t.agent));
             project.buildSubItemOutputs = [...(project.buildSubItemOutputs ?? []), lastSubItemTurn?.message ?? ''];
             const nextSubItemIdx = (project.buildSubItemIdx ?? 0) + 1;
@@ -21685,6 +22166,28 @@ Rules:
     };
   }
 
+  /** Same txt2img graph as buildComfyTxt2ImgWorkflow, but patches the model through
+   *  LayeredDiffusionApply (huchenlei/ComfyUI-layerdiffuse, Apache-2.0) and decodes via
+   *  LayeredDiffusionDecodeRGBA for a real alpha channel — no separate background removal
+   *  needed. RECOMMENDED_MODELS in AIImageStudio.tsx are both SDXL, so config is fixed
+   *  to the SDXL variant. The node's own transparency weights auto-download on first run. */
+  function buildComfyTxt2ImgTransparentWorkflow(p: {
+    model: string; positive: string; negative: string;
+    width: number; height: number; steps: number; cfg: number; seed: number;
+  }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.model } },
+      '2': { class_type: 'CLIPTextEncode', inputs: { clip: ['1', 1], text: p.positive } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { clip: ['1', 1], text: p.negative } },
+      '4': { class_type: 'EmptyLatentImage', inputs: { batch_size: 1, height: p.height, width: p.width } },
+      '9': { class_type: 'LayeredDiffusionApply', inputs: { model: ['1', 0], config: 'SDXL, Conv Injection', weight: 1.0 } },
+      '5': { class_type: 'KSampler', inputs: { cfg: p.cfg, denoise: 1.0, latent_image: ['4', 0], model: ['9', 0], negative: ['3', 0], positive: ['2', 0], sampler_name: 'dpmpp_2m', scheduler: 'karras', seed: p.seed, steps: p.steps } },
+      '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
+      '10': { class_type: 'LayeredDiffusionDecodeRGBA', inputs: { samples: ['5', 0], images: ['6', 0], sd_version: 'SDXL', sub_batch_size: 16 } },
+      '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_studio_transparent_', images: ['10', 0] } },
+    };
+  }
+
   function buildComfyImg2ImgWorkflow(p: {
     model: string; positive: string; negative: string;
     steps: number; cfg: number; seed: number; denoise: number; uploadedImage: string;
@@ -21786,7 +22289,7 @@ Rules:
   registerHandler('textures:comfyui-generate', async (_event, params: {
     model: string; prompt: string; negativePrompt: string;
     width: number; height: number; steps: number; cfg: number; seed: number;
-    uploadedImageName?: string; denoise?: number;
+    uploadedImageName?: string; denoise?: number; transparent?: boolean;
   }) => {
     try {
       const workflow = params.uploadedImageName
@@ -21794,6 +22297,12 @@ Rules:
             model: params.model, positive: params.prompt, negative: params.negativePrompt,
             steps: params.steps, cfg: params.cfg, seed: params.seed,
             denoise: params.denoise ?? 0.65, uploadedImage: params.uploadedImageName,
+          })
+        : params.transparent
+        ? buildComfyTxt2ImgTransparentWorkflow({
+            model: params.model, positive: params.prompt, negative: params.negativePrompt,
+            width: params.width, height: params.height,
+            steps: params.steps, cfg: params.cfg, seed: params.seed,
           })
         : buildComfyTxt2ImgWorkflow({
             model: params.model, positive: params.prompt, negative: params.negativePrompt,
@@ -21803,6 +22312,625 @@ Rules:
       return await comfyuiRunWorkflow(workflow);
     } catch (err: any) {
       return { success: false, error: err.message || 'Unknown error in comfyui-generate.' };
+    }
+  });
+
+  // ── Inpaint (lquesada/ComfyUI-Inpaint-CropAndStitch, GPL-3.0) ───────────────
+  // Crops to the masked region (+ context) before sampling, then stitches the
+  // result back into the full-size image — real node schema verified from
+  // source: InpaintCropImproved returns (STITCHER, cropped_image, cropped_mask);
+  // InpaintStitchImproved takes that stitcher + the final sampled image.
+  function buildComfyInpaintWorkflow(p: {
+    model: string; positive: string; negative: string; uploadedImage: string; uploadedMask: string;
+    steps: number; cfg: number; seed: number; denoise: number;
+  }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': { class_type: 'LoadImage', inputs: { image: p.uploadedMask } },
+      '3': { class_type: 'ImageToMask', inputs: { image: ['2', 0], channel: 'red' } },
+      '4': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.model } },
+      '5': { class_type: 'CLIPTextEncode', inputs: { clip: ['4', 1], text: p.positive } },
+      '6': { class_type: 'CLIPTextEncode', inputs: { clip: ['4', 1], text: p.negative } },
+      '7': {
+        class_type: 'InpaintCropImproved',
+        inputs: {
+          image: ['1', 0], mask: ['3', 0],
+          downscale_algorithm: 'bilinear', upscale_algorithm: 'bicubic',
+          preresize: false, preresize_mode: 'ensure minimum resolution',
+          preresize_min_width: 1024, preresize_min_height: 1024,
+          preresize_max_width: 16384, preresize_max_height: 16384,
+          mask_fill_holes: true, mask_expand_pixels: 0, mask_invert: false,
+          mask_blend_pixels: 32, mask_hipass_filter: 0.1,
+          extend_for_outpainting: false, extend_up_factor: 1, extend_down_factor: 1,
+          extend_left_factor: 1, extend_right_factor: 1,
+          context_from_mask_extend_factor: 1.2,
+          output_resize_to_target_size: true, output_target_width: 1024, output_target_height: 1024,
+          output_padding: '32', device_mode: 'cpu (compatible)',
+        },
+      },
+      '8': { class_type: 'InpaintModelConditioning', inputs: { positive: ['5', 0], negative: ['6', 0], vae: ['4', 2], pixels: ['7', 1], mask: ['7', 2] } },
+      '9': {
+        class_type: 'KSampler',
+        inputs: {
+          model: ['4', 0], positive: ['8', 0], negative: ['8', 1], latent_image: ['8', 2],
+          seed: p.seed, steps: p.steps, cfg: p.cfg, sampler_name: 'dpmpp_3m_sde', scheduler: 'karras', denoise: p.denoise,
+        },
+      },
+      '10': { class_type: 'VAEDecode', inputs: { samples: ['9', 0], vae: ['4', 2] } },
+      '11': { class_type: 'InpaintStitchImproved', inputs: { stitcher: ['7', 0], inpainted_image: ['10', 0] } },
+      '12': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_studio_inpaint_', images: ['11', 0] } },
+    };
+  }
+
+  registerHandler('textures:comfyui-inpaint', async (_event, params: {
+    model: string; prompt: string; negativePrompt: string;
+    uploadedImageName: string; uploadedMaskName: string;
+    steps: number; cfg: number; seed: number; denoise: number;
+  }) => {
+    try {
+      const workflow = buildComfyInpaintWorkflow({
+        model: params.model, positive: params.prompt, negative: params.negativePrompt,
+        uploadedImage: params.uploadedImageName, uploadedMask: params.uploadedMaskName,
+        steps: params.steps, cfg: params.cfg, seed: params.seed, denoise: params.denoise,
+      });
+      return await comfyuiRunWorkflow(workflow);
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Unknown error in comfyui-inpaint.' };
+    }
+  });
+
+  // ── ComfyUI-RMBG background removal (second backend) ────────────────────────
+  // Uses the user's own separately-installed ComfyUI + 1038lab/ComfyUI-RMBG custom
+  // node (GPL-3.0 wrapper) over HTTP — MOSSY.SPACE never bundles/links this code,
+  // it just calls an already-running local server the user set up themselves,
+  // same "mere aggregation" pattern as the rest of this ComfyUI integration.
+  //
+  // Model license note: this node's own code comment claims RMBG-2.0 is
+  // Apache-2.0 and pulls it from a third-party mirror (1038lab/RMBG-2.0) rather
+  // than BRIA's own gated repo — that contradicts BRIA's own authoritative
+  // license declaration (CC BY-NC 4.0, verified directly against their GitHub
+  // LICENSE and HuggingFace model card). Do not trust that relabeling. The
+  // node's other models — INSPYRENET (MIT), BEN (MIT), BEN2 (MIT) — were
+  // independently verified here and are genuinely permissive; those are what
+  // the UI defaults to for this backend.
+  function buildComfyRmbgWorkflow(p: {
+    uploadedImage: string; model: string; sensitivity?: number; processRes?: number;
+  }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': {
+        class_type: 'RMBG',
+        inputs: {
+          image: ['1', 0],
+          model: p.model,
+          sensitivity: p.sensitivity ?? 1.0,
+          process_res: p.processRes ?? 1024,
+          mask_blur: 0,
+          mask_offset: 0,
+          invert_output: false,
+          refine_foreground: false,
+          background: 'Alpha',
+          background_color: '#222222',
+        },
+      },
+      '3': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_bgremove_', images: ['2', 0] } },
+    };
+  }
+
+  registerHandler('bg-remover:comfyui-remove-background', async (_event, params: {
+    imagePath: string; model?: string; sensitivity?: number; processRes?: number;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) {
+        return { success: false, error: 'file_not_found', message: `Image file not found: ${params.imagePath}` };
+      }
+
+      const buf = fs.readFileSync(params.imagePath);
+      const ext = path.extname(params.imagePath).toLowerCase().replace('.', '') || 'png';
+      const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+      const filename = path.basename(params.imagePath);
+
+      const blob = new Blob([buf], { type: mimeType });
+      const form = new FormData();
+      form.append('image', blob, filename);
+      form.append('overwrite', 'true');
+      const uploadResp = await fetch(`${COMFYUI_BASE}/upload/image`, {
+        method: 'POST', body: form as any, signal: AbortSignal.timeout(30000),
+      });
+      if (!uploadResp.ok) {
+        return { success: false, error: 'comfyui_upload_failed', message: `Upload failed: ${uploadResp.status}` };
+      }
+      const uploaded = await uploadResp.json() as { name: string };
+
+      const workflow = buildComfyRmbgWorkflow({
+        uploadedImage: uploaded.name,
+        model: params.model || 'BEN2',
+        sensitivity: params.sensitivity,
+        processRes: params.processRes,
+      });
+      const result = await comfyuiRunWorkflow(workflow);
+      if (!result.success || !result.imageData) {
+        return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+      }
+
+      const dir = path.dirname(params.imagePath);
+      const base = path.basename(params.imagePath, path.extname(params.imagePath));
+      const outputPath = path.join(dir, `${base}_nobg.png`);
+      const pngBuf = Buffer.from(result.imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      fs.writeFileSync(outputPath, pngBuf);
+
+      return { success: true, outputPath };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
+  // ── AI Post-Processing Pipeline (Layer Effects / Face Detailer / Relight / Upscale) ──
+  // Same "user's own separately-installed ComfyUI, called over HTTP" pattern as the
+  // ComfyUI-RMBG backend above — MOSSY.SPACE never bundles/links any of this code.
+  // Every tool below was license-checked directly against its real repo/LICENSE file
+  // before being wired in:
+  //   ComfyUI_LayerStyle (chflame163)        — MIT, no bundled model
+  //   ComfyUI-Impact-Pack + -Subpack (ltdrdata) — GPL-3.0, public YOLO/SAM models
+  //   ComfyUI-IC-Light (kijai)               — Apache-2.0, public SD1.5-based model
+  //   ComfyUI-SUPIR (kijai)                  — wrapper NOASSERTION; the actual SUPIR
+  //     model is under a CUSTOM NON-COMMERCIAL license from SupPixel Pty Ltd (real
+  //     LICENSE file read directly) — usable here only because MOSSY.SPACE stays
+  //     free/non-commercial, same basis as RMBG-2.0. Public download, not HF-gated.
+  //   ComfyUI_UltimateSDUpscale (ssitu)      — GPL-3.0, no bundled model (uses the
+  //     user's own SD checkpoint + any upscale model they already have)
+
+  /** Shared upload helper — same logic the bg-remover ComfyUI handler above inlines once. */
+  async function comfyuiUploadImage(imagePath: string): Promise<{ success: boolean; name?: string; error?: string }> {
+    const buf = fs.readFileSync(imagePath);
+    const ext = path.extname(imagePath).toLowerCase().replace('.', '') || 'png';
+    const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+    const blob = new Blob([buf], { type: mimeType });
+    const form = new FormData();
+    form.append('image', blob, path.basename(imagePath));
+    form.append('overwrite', 'true');
+    const uploadResp = await fetch(`${COMFYUI_BASE}/upload/image`, {
+      method: 'POST', body: form as any, signal: AbortSignal.timeout(30000),
+    });
+    if (!uploadResp.ok) return { success: false, error: `Upload failed: ${uploadResp.status}` };
+    const uploaded = await uploadResp.json() as { name: string };
+    return { success: true, name: uploaded.name };
+  }
+
+  /** Writes a comfyuiRunWorkflow() result's data URL to <dir>/<base>_<suffix>.png. */
+  function saveComfyuiResult(sourcePath: string, suffix: string, imageData: string): string {
+    const dir = path.dirname(sourcePath);
+    const base = path.basename(sourcePath, path.extname(sourcePath));
+    const outputPath = path.join(dir, `${base}_${suffix}.png`);
+    fs.writeFileSync(outputPath, Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+    return outputPath;
+  }
+
+  registerHandler('post-process:comfyui-check-tool', async (_event, classType: string) => {
+    try {
+      const resp = await fetch(`${COMFYUI_BASE}/object_info/${encodeURIComponent(classType)}`, { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) return { available: false };
+      const info = await resp.json() as Record<string, unknown>;
+      return { available: !!info?.[classType] };
+    } catch {
+      return { available: false };
+    }
+  });
+
+  // ── Layer Effects (ComfyUI_LayerStyle) ───────────────────────────────────────
+  function buildLayerEffectsWorkflow(p: {
+    effect: 'drop_shadow' | 'outer_glow' | 'color_match';
+    layerImage: string; backgroundImage?: string;
+    opacity?: number; blur?: number; color1?: string; color2?: string;
+    distance?: number; grow?: number; brightness?: number; glowRange?: number;
+  }): Record<string, unknown> {
+    const nodes: Record<string, unknown> = {
+      '1': { class_type: 'LoadImage', inputs: { image: p.layerImage } },
+    };
+    if (p.backgroundImage) {
+      nodes['2'] = { class_type: 'LoadImage', inputs: { image: p.backgroundImage } };
+    }
+    if (p.effect === 'drop_shadow') {
+      nodes['3'] = {
+        class_type: 'LayerStyle: DropShadow V3',
+        inputs: {
+          layer_image: ['1', 0],
+          ...(p.backgroundImage ? { background_image: ['2', 0] } : {}),
+          invert_mask: true, blend_mode: 'normal',
+          opacity: p.opacity ?? 50, distance_x: p.distance ?? 25, distance_y: p.distance ?? 25,
+          grow: p.grow ?? 6, blur: p.blur ?? 18, shadow_color: p.color1 ?? '#000000',
+        },
+      };
+    } else if (p.effect === 'outer_glow') {
+      nodes['3'] = {
+        class_type: 'LayerStyle: OuterGlow V2',
+        inputs: {
+          background_image: ['2', 0], layer_image: ['1', 0],
+          invert_mask: true, blend_mode: 'screen',
+          opacity: p.opacity ?? 100, brightness: p.brightness ?? 5, glow_range: p.glowRange ?? 48,
+          blur: p.blur ?? 25, light_color: p.color1 ?? '#FFBF30', glow_color: p.color2 ?? '#FE0000',
+        },
+      };
+    } else {
+      nodes['3'] = {
+        class_type: 'LayerColor: ColorAdapter',
+        inputs: { image: ['1', 0], color_ref_image: ['2', 0], opacity: p.opacity ?? 75 },
+      };
+    }
+    nodes['4'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_layerfx_', images: ['3', 0] } };
+    return nodes;
+  }
+
+  registerHandler('post-process:comfyui-layer-effects', async (_event, params: {
+    imagePath: string; backgroundPath?: string; effect: 'drop_shadow' | 'outer_glow' | 'color_match';
+    opacity?: number; blur?: number; color1?: string; color2?: string;
+    distance?: number; grow?: number; brightness?: number; glowRange?: number;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) return { success: false, error: 'file_not_found' };
+      const layer = await comfyuiUploadImage(params.imagePath);
+      if (!layer.success) return { success: false, error: 'comfyui_upload_failed', message: layer.error };
+
+      let backgroundName: string | undefined;
+      if (params.backgroundPath) {
+        if (!fs.existsSync(params.backgroundPath)) return { success: false, error: 'file_not_found', message: 'Background image not found' };
+        const bg = await comfyuiUploadImage(params.backgroundPath);
+        if (!bg.success) return { success: false, error: 'comfyui_upload_failed', message: bg.error };
+        backgroundName = bg.name;
+      } else if (params.effect !== 'drop_shadow') {
+        return { success: false, error: 'missing_background', message: `${params.effect} requires a background/reference image` };
+      }
+
+      const workflow = buildLayerEffectsWorkflow({
+        effect: params.effect, layerImage: layer.name!, backgroundImage: backgroundName,
+        opacity: params.opacity, blur: params.blur, color1: params.color1, color2: params.color2,
+        distance: params.distance, grow: params.grow, brightness: params.brightness, glowRange: params.glowRange,
+      });
+      const result = await comfyuiRunWorkflow(workflow);
+      if (!result.success || !result.imageData) return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+
+      return { success: true, outputPath: saveComfyuiResult(params.imagePath, params.effect, result.imageData) };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
+  // ── Face Detailer (ComfyUI-Impact-Pack + ComfyUI-Impact-Subpack) ────────────
+  function buildFaceDetailerWorkflow(p: {
+    uploadedImage: string; checkpoint: string; positive?: string; negative?: string;
+    denoise?: number; steps?: number; cfg?: number; seed?: number;
+  }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.checkpoint } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: p.positive || 'detailed face, sharp focus' } },
+      '4': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: p.negative || 'blurry, deformed, low quality' } },
+      '5': { class_type: 'UltralyticsDetectorProvider', inputs: { model_name: 'bbox/face_yolov8m.pt' } },
+      '6': { class_type: 'SAMLoader', inputs: { model_name: 'sam_vit_b_01ec64.pth', device_mode: 'AUTO' } },
+      '7': {
+        class_type: 'FaceDetailer',
+        inputs: {
+          image: ['1', 0], model: ['2', 0], clip: ['2', 1], vae: ['2', 2],
+          guide_size: 384, guide_size_for: true, max_size: 1024,
+          seed: p.seed ?? Math.floor(Math.random() * 2147483647), steps: p.steps ?? 20, cfg: p.cfg ?? 8,
+          sampler_name: 'euler', scheduler: 'normal',
+          positive: ['3', 0], negative: ['4', 0], denoise: p.denoise ?? 0.5,
+          feather: 5, noise_mask: true, force_inpaint: true,
+          bbox_threshold: 0.5, bbox_dilation: 10, bbox_crop_factor: 3.0,
+          sam_detection_hint: 'center-1', sam_dilation: 0, sam_threshold: 0.93,
+          sam_bbox_expansion: 0, sam_mask_hint_threshold: 0.7, sam_mask_hint_use_negative: 'False',
+          drop_size: 10, bbox_detector: ['5', 0], wildcard: '', cycle: 1,
+          sam_model_opt: ['6', 0],
+        },
+      },
+      '8': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_facedetail_', images: ['7', 0] } },
+    };
+  }
+
+  registerHandler('post-process:comfyui-face-detailer', async (_event, params: {
+    imagePath: string; checkpoint: string; positive?: string; negative?: string; denoise?: number;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) return { success: false, error: 'file_not_found' };
+      const uploaded = await comfyuiUploadImage(params.imagePath);
+      if (!uploaded.success) return { success: false, error: 'comfyui_upload_failed', message: uploaded.error };
+
+      const workflow = buildFaceDetailerWorkflow({
+        uploadedImage: uploaded.name!, checkpoint: params.checkpoint,
+        positive: params.positive, negative: params.negative, denoise: params.denoise,
+      });
+      const result = await comfyuiRunWorkflow(workflow);
+      if (!result.success || !result.imageData) return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+
+      return { success: true, outputPath: saveComfyuiResult(params.imagePath, 'facedetail', result.imageData) };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
+  // ── Relight (ComfyUI-IC-Light, SD1.5-based) ──────────────────────────────────
+  function buildIcLightWorkflow(p: {
+    uploadedImage: string; checkpoint: string; unetModel: string; positive?: string; negative?: string;
+    steps?: number; cfg?: number; seed?: number;
+  }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.checkpoint } },
+      '3': { class_type: 'LoadAndApplyICLightUnet', inputs: { model: ['2', 0], model_path: p.unetModel } },
+      '4': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: p.positive || 'beautiful lighting, natural' } },
+      '5': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: p.negative || 'flat lighting, harsh shadows' } },
+      '6': { class_type: 'VAEEncode', inputs: { pixels: ['1', 0], vae: ['2', 2] } },
+      '7': { class_type: 'ICLightConditioning', inputs: { positive: ['4', 0], negative: ['5', 0], vae: ['2', 2], foreground: ['6', 0], multiplier: 0.18215 } },
+      '8': {
+        class_type: 'KSampler',
+        inputs: {
+          model: ['3', 0], positive: ['7', 0], negative: ['7', 1], latent_image: ['7', 2],
+          seed: p.seed ?? Math.floor(Math.random() * 2147483647), steps: p.steps ?? 20, cfg: p.cfg ?? 1.5,
+          sampler_name: 'dpmpp_2m_sde', scheduler: 'karras', denoise: 1,
+        },
+      },
+      '9': { class_type: 'VAEDecode', inputs: { samples: ['8', 0], vae: ['2', 2] } },
+      '10': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_relight_', images: ['9', 0] } },
+    };
+  }
+
+  registerHandler('post-process:comfyui-relight', async (_event, params: {
+    imagePath: string; checkpoint: string; unetModel?: string; positive?: string; negative?: string;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) return { success: false, error: 'file_not_found' };
+      const uploaded = await comfyuiUploadImage(params.imagePath);
+      if (!uploaded.success) return { success: false, error: 'comfyui_upload_failed', message: uploaded.error };
+
+      const workflow = buildIcLightWorkflow({
+        uploadedImage: uploaded.name!, checkpoint: params.checkpoint,
+        unetModel: params.unetModel || 'iclight_sd15_fc.safetensors',
+        positive: params.positive, negative: params.negative,
+      });
+      const result = await comfyuiRunWorkflow(workflow);
+      if (!result.success || !result.imageData) return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+
+      return { success: true, outputPath: saveComfyuiResult(params.imagePath, 'relight', result.imageData) };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
+  // ── Upscale — SUPIR (non-commercial) or UltimateSDUpscale (permissive) ─────
+  function buildUpscaleWorkflow(p: {
+    method: 'supir' | 'ultimate'; uploadedImage: string;
+    supirModel?: string; sdxlModel?: string; scaleBy?: number; steps?: number; seed?: number;
+    checkpoint?: string; upscaleModel?: string; denoise?: number; cfg?: number;
+  }): Record<string, unknown> {
+    if (p.method === 'supir') {
+      return {
+        '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+        '2': {
+          class_type: 'SUPIR_Upscale',
+          inputs: {
+            supir_model: p.supirModel || 'SUPIR-v0Q_fp16.safetensors',
+            sdxl_model: p.sdxlModel, image: ['1', 0],
+            seed: p.seed ?? Math.floor(Math.random() * 2147483647), resize_method: 'lanczos',
+            scale_by: p.scaleBy ?? 2.0, steps: p.steps ?? 45, restoration_scale: -1.0, cfg_scale: 4.0,
+            a_prompt: 'high quality, detailed', n_prompt: 'bad quality, blurry, messy',
+            s_churn: 5, s_noise: 1.003, control_scale: 1.0, cfg_scale_start: 4.0, control_scale_start: 0.0,
+            color_fix_type: 'Wavelet', keep_model_loaded: true,
+            use_tiled_vae: true, encoder_tile_size_pixels: 512, decoder_tile_size_latent: 64,
+          },
+        },
+        '3': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_upscale_supir_', images: ['2', 0] } },
+      };
+    }
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.checkpoint } },
+      '3': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: '' } },
+      '4': { class_type: 'CLIPTextEncode', inputs: { clip: ['2', 1], text: '' } },
+      '5': { class_type: 'UpscaleModelLoader', inputs: { model_name: p.upscaleModel || '4x-UltraSharp.pth' } },
+      '6': {
+        class_type: 'UltimateSDUpscale',
+        inputs: {
+          image: ['1', 0], model: ['2', 0], positive: ['3', 0], negative: ['4', 0], vae: ['2', 2],
+          upscale_by: p.scaleBy ?? 2, seed: p.seed ?? Math.floor(Math.random() * 2147483647),
+          steps: p.steps ?? 20, cfg: p.cfg ?? 8, sampler_name: 'dpmpp_2m', scheduler: 'karras',
+          denoise: p.denoise ?? 0.2, upscale_model: ['5', 0], mode_type: 'Linear',
+          tile_width: 512, tile_height: 512, mask_blur: 8, tile_padding: 32,
+          seam_fix_mode: 'None', seam_fix_denoise: 1.0, seam_fix_width: 64,
+          seam_fix_mask_blur: 8, seam_fix_padding: 16, force_uniform_tiles: true,
+          tiled_decode: false, batch_size: 1,
+        },
+      },
+      '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_upscale_ultimate_', images: ['6', 0] } },
+    };
+  }
+
+  registerHandler('post-process:comfyui-upscale', async (_event, params: {
+    imagePath: string; method: 'supir' | 'ultimate';
+    supirModel?: string; sdxlModel?: string; checkpoint?: string; upscaleModel?: string;
+    scaleBy?: number; steps?: number; denoise?: number;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) return { success: false, error: 'file_not_found' };
+      const uploaded = await comfyuiUploadImage(params.imagePath);
+      if (!uploaded.success) return { success: false, error: 'comfyui_upload_failed', message: uploaded.error };
+
+      const workflow = buildUpscaleWorkflow({
+        method: params.method, uploadedImage: uploaded.name!,
+        supirModel: params.supirModel, sdxlModel: params.sdxlModel,
+        checkpoint: params.checkpoint, upscaleModel: params.upscaleModel,
+        scaleBy: params.scaleBy, steps: params.steps, denoise: params.denoise,
+      });
+      const result = await comfyuiRunWorkflow(workflow);
+      if (!result.success || !result.imageData) return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+
+      return { success: true, outputPath: saveComfyuiResult(params.imagePath, `upscale_${params.method}`, result.imageData) };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
+  // ── Auto-install ComfyUI custom nodes + their model files ──────────────────
+  // Mirrors the app's existing precedent for auto-downloading GitHub-hosted tools
+  // during setup (download-koboldcpp pulls a release binary straight from GitHub
+  // into a MOSSY-managed folder so the user never has to go hunt for it — same
+  // idea here, just for ComfyUI custom node source + models, placed into the
+  // user's own separate ComfyUI installation rather than bundled into MOSSY.SPACE
+  // itself). Every tool installed this way already had its real license verified
+  // (see PostProcessingPipeline.tsx header + feedback_rmbg_license_constraint memory).
+
+  /** Redirect-following, trusted-host-checked download — generalizes the pattern
+   *  already duplicated in download-koboldcpp / download-gguf-model below. */
+  function downloadUrlToFile(
+    url: string, destPath: string, trustedHosts: string[],
+    onProgress?: (percent: number, receivedBytes: number, totalBytes: number) => void,
+  ): Promise<void> {
+    const tmpPath = destPath + '.part';
+    return new Promise<void>((resolve, reject) => {
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      const doDownload = (currentUrl: string, hops: number) => {
+        if (hops > 5) { reject(new Error('Too many redirects')); return; }
+        const req = https.get(currentUrl, { timeout: 600_000, headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            const next = res.headers.location.startsWith('/') ? new URL(res.headers.location, currentUrl).href : res.headers.location;
+            if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS blocked')); return; }
+            try {
+              const host = new URL(next).hostname;
+              if (!trustedHosts.some(h => host === h || host.endsWith(`.${h}`))) { reject(new Error(`Untrusted redirect: ${host}`)); return; }
+            } catch { reject(new Error('Invalid redirect URL')); return; }
+            res.resume(); doDownload(next, hops + 1); return;
+          }
+          if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+          const total = parseInt(res.headers['content-length'] || '0', 10);
+          let received = 0;
+          const out = fs.createWriteStream(tmpPath);
+          res.on('data', (chunk: Buffer) => {
+            received += chunk.length;
+            if (onProgress) onProgress(total > 0 ? Math.round((received / total) * 100) : 0, received, total);
+          });
+          res.pipe(out);
+          out.on('finish', () => out.close(() => {
+            try { if (fs.existsSync(destPath)) fs.unlinkSync(destPath); fs.renameSync(tmpPath, destPath); resolve(); }
+            catch (e: any) { reject(e); }
+          }));
+          out.on('error', reject);
+        });
+        req.on('error', reject);
+        req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+      };
+      doDownload(url, 0);
+    });
+  }
+
+  const GITHUB_TRUSTED_HOSTS = ['github.com', 'api.github.com', 'codeload.github.com', 'objects.githubusercontent.com'];
+  const MODEL_TRUSTED_HOSTS = ['huggingface.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.huggingface.co', 'dl.fbaipublicfiles.com'];
+
+  /** Downloads a GitHub repo's default-branch zipball, extracts it into
+   *  <ComfyUI root>/ComfyUI/custom_nodes/<repo>/, and pip-installs its
+   *  requirements.txt (if present) using ComfyUI's own embedded Python. */
+  async function installComfyUiCustomNode(
+    owner: string, repo: string, onProgress: (msg: string) => void,
+  ): Promise<{ success: boolean; error?: string }> {
+    const tmpZip = path.join(os.tmpdir(), `mossy_comfy_node_${repo}_${Date.now()}.zip`);
+    try {
+      onProgress(`Downloading ${owner}/${repo} from GitHub…`);
+      await downloadUrlToFile(
+        `https://api.github.com/repos/${owner}/${repo}/zipball`, tmpZip, GITHUB_TRUSTED_HOSTS,
+        (pct) => onProgress(`Downloading ${repo}… ${pct}%`),
+      );
+
+      const customNodesDir = path.join(getComfyUiRoot(), 'ComfyUI', 'custom_nodes');
+      const destDir = path.join(customNodesDir, repo);
+      onProgress(`Extracting to ${destDir}…`);
+      fs.mkdirSync(customNodesDir, { recursive: true });
+      if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true });
+
+      const zip = new AdmZip(tmpZip);
+      const entries = zip.getEntries();
+      // GitHub zipballs nest everything under one "<owner>-<repo>-<hash>/" folder — strip it.
+      const rootPrefix = entries[0]?.entryName.split('/')[0] + '/';
+      for (const entry of entries) {
+        if (entry.isDirectory) continue;
+        const relative = entry.entryName.startsWith(rootPrefix) ? entry.entryName.slice(rootPrefix.length) : entry.entryName;
+        if (!relative) continue;
+        const outPath = path.join(destDir, relative);
+        fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        fs.writeFileSync(outPath, entry.getData());
+      }
+
+      const requirementsPath = path.join(destDir, 'requirements.txt');
+      if (fs.existsSync(requirementsPath)) {
+        const pythonExe = path.join(getComfyUiRoot(), 'python_embeded', 'python.exe');
+        if (fs.existsSync(pythonExe)) {
+          onProgress(`Installing ${repo}'s Python dependencies (this can take a while)…`);
+          await new Promise<void>((resolve) => {
+            const child = spawn(pythonExe, ['-m', 'pip', 'install', '--no-warn-script-location', '-r', requirementsPath], {
+              stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+            });
+            child.stdout?.on('data', (d: Buffer) => onProgress(d.toString().trim().split('\n').pop() || ''));
+            child.stderr?.on('data', (d: Buffer) => onProgress(d.toString().trim().split('\n').pop() || ''));
+            child.on('close', () => resolve());
+            child.on('error', () => resolve());
+          });
+        } else {
+          onProgress(`⚠️ Couldn't find ComfyUI's embedded Python at ${pythonExe} — install ${repo}'s requirements.txt manually.`);
+        }
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
+    } finally {
+      try { if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip); } catch { /* ignore */ }
+    }
+  }
+
+  async function downloadComfyUiModel(
+    url: string, subfolder: string, filename: string, onProgress: (msg: string) => void,
+  ): Promise<{ success: boolean; error?: string }> {
+    const destPath = path.join(getComfyUiRoot(), 'ComfyUI', 'models', ...subfolder.split('/'), filename);
+    if (fs.existsSync(destPath) && fs.statSync(destPath).size > 1024 * 1024) {
+      onProgress(`${filename} already present.`);
+      return { success: true };
+    }
+    try {
+      onProgress(`Downloading model ${filename}…`);
+      await downloadUrlToFile(url, destPath, MODEL_TRUSTED_HOSTS, (pct) => onProgress(`Downloading ${filename}… ${pct}%`));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
+    }
+  }
+
+  registerHandler('post-process:comfyui-install-node', async (event, params: {
+    owner: string; repo: string; checkClassType: string;
+    modelDownloads?: Array<{ url: string; subfolder: string; filename: string }>;
+  }) => {
+    const sendProgress = (message: string) => {
+      try { event.sender.send('post-process:install-progress', { message }); } catch { /* noop */ }
+    };
+    try {
+      const nodeResult = await installComfyUiCustomNode(params.owner, params.repo, sendProgress);
+      if (!nodeResult.success) return { success: false, error: nodeResult.error };
+
+      for (const model of params.modelDownloads || []) {
+        const modelResult = await downloadComfyUiModel(model.url, model.subfolder, model.filename, sendProgress);
+        if (!modelResult.success) {
+          sendProgress(`⚠️ Model download failed for ${model.filename}: ${modelResult.error}`);
+        }
+      }
+
+      sendProgress('Restarting ComfyUI to load the new node…');
+      const restartResult = await comfyuiRestartAndWait(event);
+      if (!restartResult.success) return { success: false, error: restartResult.error };
+
+      const checkResp = await fetch(`${COMFYUI_BASE}/object_info/${encodeURIComponent(params.checkClassType)}`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+      const checkInfo = checkResp?.ok ? await checkResp.json() as Record<string, unknown> : {};
+      const available = !!checkInfo?.[params.checkClassType];
+      sendProgress(available ? `✅ ${params.repo} installed and detected.` : `⚠️ ${params.repo} installed, but ${params.checkClassType} still isn't detected — check the ComfyUI console for errors.`);
+
+      return { success: true, available };
+    } catch (err: any) {
+      return { success: false, error: err.message || String(err) };
     }
   });
 
@@ -21923,8 +23051,33 @@ Rules:
     return configured || 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
   };
 
-  registerHandler('textures:comfyui-restart', async (event) => {
+  /** Extracted from the textures:comfyui-restart handler so post-process:comfyui-install-node
+   *  can reuse the exact same restart-and-wait logic after installing a new custom node,
+   *  instead of duplicating it. */
+  async function comfyuiRestartAndWait(event: Electron.IpcMainInvokeEvent): Promise<{ success: boolean; error?: string }> {
     try {
+      const comfyRoot = getComfyUiRoot();
+      const isConfigured = !!String(loadSettings()?.comfyuiPath || '').trim();
+
+      // Fail fast with a real, actionable error instead of silently spawning a doomed
+      // process and burning the full 120s timeout — this was previously indistinguishable
+      // from "ComfyUI is just slow to start" and left the user with no idea what was wrong.
+      if (!fs.existsSync(comfyRoot)) {
+        return {
+          success: false,
+          error: isConfigured
+            ? `Configured ComfyUI folder doesn't exist: ${comfyRoot}. Check the path in External Integrations Hub → ComfyUI.`
+            : `No ComfyUI folder configured yet (checked the default fallback path: ${comfyRoot}, which doesn't exist on this machine). Set your real ComfyUI install location in External Integrations Hub → ComfyUI.`,
+        };
+      }
+      const launcherPath = path.join(comfyRoot, 'run_nvidia_gpu.bat');
+      if (!fs.existsSync(launcherPath)) {
+        return {
+          success: false,
+          error: `run_nvidia_gpu.bat not found in ${comfyRoot}. If you use a different launcher (run_cpu.bat, a custom venv, etc.), start ComfyUI yourself and just click the refresh button here afterward.`,
+        };
+      }
+
       // Kill any running ComfyUI python process (ignore errors — process may not be running)
       await new Promise<void>(resolve => {
         exec(
@@ -21936,18 +23089,56 @@ Rules:
       // Give OS time to release file handles / port 8188
       await new Promise<void>(r => setTimeout(r, 2500));
 
-      // Spawn ComfyUI in a new visible console window
-      const child = spawn('cmd.exe', ['/C', 'start', '""', 'run_nvidia_gpu.bat'], {
-        cwd: getComfyUiRoot(),
+      // Spawn ComfyUI in a visible console window, teeing all output to a log
+      // file via PowerShell's Tee-Object. `cmd /K` alone (the previous fix)
+      // doesn't reliably keep the window open — if run_nvidia_gpu.bat itself
+      // calls a bare `exit` anywhere in an error path, that unconditionally
+      // kills the containing shell regardless of /K, so the window can still
+      // flash shut before anyone reads it. Capturing to a log file sidesteps
+      // that entirely: the real failure is readable afterward no matter how
+      // fast the window closes.
+      const launchLogPath = path.join(app.getPath('temp'), 'mossy-comfyui-launch.log');
+      try { fs.rmSync(launchLogPath, { force: true }); } catch { /* fine if it didn't exist */ }
+      const escapedLauncher = launcherPath.replace(/'/g, "''");
+      const escapedLog = launchLogPath.replace(/'/g, "''");
+      const psCommand = `& '${escapedLauncher}' 2>&1 | Tee-Object -FilePath '${escapedLog}'`;
+      const child = spawn('cmd.exe', ['/C', 'start', '"ComfyUI"', 'powershell.exe', '-NoProfile', '-Command', psCommand], {
+        cwd: comfyRoot,
         detached: true,
         stdio: 'ignore',
         shell: false,
       });
       child.unref();
 
-      // Poll until port 8188 responds (max 120s)
-      const deadline = Date.now() + 120_000;
-      let elapsed = 0;
+      const readLogTail = (): string => {
+        try {
+          if (!fs.existsSync(launchLogPath)) return '';
+          const content = fs.readFileSync(launchLogPath, 'utf-8');
+          return content.split('\n').filter(l => l.trim()).slice(-20).join('\n').trim();
+        } catch { return ''; }
+      };
+
+      // Early-failure check: a launcher crashing on a missing dependency or bad
+      // path typically fails within a few seconds, not the full 120s timeout —
+      // no reason to make the user wait two minutes to learn that. If the log
+      // already has content and ComfyUI still isn't answering by ~10s in, it's
+      // almost certainly dead rather than just slow to import torch/CUDA.
+      await new Promise<void>(r => setTimeout(r, 10_000));
+      try {
+        const earlyResp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });
+        if (earlyResp.ok) return { success: true };
+      } catch { /* not up yet — keep going, this alone doesn't mean it crashed */ }
+      const earlyLog = readLogTail();
+      if (earlyLog) {
+        return {
+          success: false,
+          error: `ComfyUI's launcher produced output and exited (or is stuck) within 10 seconds — that's almost always a crash, not slow loading. Real output from the launcher:\n\n${earlyLog}`,
+        };
+      }
+
+      // Poll until port 8188 responds (max 120s total, including the 10s above)
+      const deadline = Date.now() + 110_000;
+      let elapsed = 10;
       while (Date.now() < deadline) {
         await new Promise<void>(r => setTimeout(r, 3000));
         elapsed += 3;
@@ -21957,11 +23148,18 @@ Rules:
           if (resp.ok) return { success: true };
         } catch { /* noop */ }
       }
-      return { success: false, error: 'ComfyUI did not respond within 120 seconds.' };
+      const finalLog = readLogTail();
+      return {
+        success: false,
+        error: `ComfyUI did not respond within 120 seconds (launched from ${comfyRoot}).` +
+          (finalLog ? ` Real output from the launcher:\n\n${finalLog}` : ' No output was captured — it may still be loading a large model; try again, or check for errors in its console window.'),
+      };
     } catch (err: any) {
       return { success: false, error: err.message };
     }
-  });
+  }
+
+  registerHandler('textures:comfyui-restart', async (event) => comfyuiRestartAndWait(event));
 
   // ── Personal R&D Network (dev-only, never required for the shipped product) ──
   // Proxies to the user's own separate local stack (AI Helper / VirtualModLab /
@@ -23439,9 +24637,131 @@ print(json.dumps(result))
     });
   }
 
+  // Tutoring methodology — HOW Mossy teaches, not WHAT she knows. Synthesized
+  // from published research on tutoring-benchmark design for conversational AI
+  // agents and documented interactional failure modes specific to LLM tutors
+  // (one-shot answer bias, static non-adjusting scaffolding, turn-taking/
+  // grounding mismatches, anthropomorphic misalignment) — not guessed at.
+  // Registered once at startup; addBrainNeuron() is idempotent per id, so this
+  // just updates in place on every launch rather than duplicating.
+  function seedTutoringMethodologyNeuron(): void {
+    addBrainNeuron({
+      id: 'tutoring-methodology',
+      domain: 'Teaching & Tutoring',
+      title: 'How To Actually Teach Modding (not just answer questions)',
+      priority: 70,
+      source: 'platform',
+      content: `CORE PRINCIPLE: Effective tutoring is a back-and-forth dialogue that builds a user's own understanding, not a lecture that hands over the finished answer. The single most common failure mode documented in LLM-tutor research is "one-shot answer provision" — dumping a complete solution in one message instead of letting the learner work through it. The default AI-chat instinct (be maximally helpful, answer everything completely, immediately) actively fights good tutoring. When a user is clearly LEARNING, resist the urge to just solve it for them.
+
+WHEN TO TUTOR VS. WHEN TO JUST ANSWER:
+- If the user is blocked mid-task and just needs a fact/fix to keep moving ("what's the FormID for X", "my CK just crashed, what do I check") — just answer directly. That is a productivity request, not a teaching moment.
+- If the user states an intent to START or DO something ("let's start a mod", "I want to build X", "let's set up Y") — this is NEVER a Socratic-questioning moment, even though it looks open-ended. The user does not have an answer to discover yet; they need direction. Follow Mossy's own Quick Navigation Decision Guide immediately: name the actual platform/page to go to and lay out the first concrete step, THEN teach as you walk through that step together. Do not respond to "let's start a mod" by asking "what do you want to do" — that inverts the relationship; the user is the student, not Mossy. Example: "let's start a mod, I'm making one for the Glowing Sea" → immediately: "Let's head to the Mod Builder Hub's Project Creator — that's where we set up a new project. Once we're there, first we'll [[concrete first step]]." Ask a clarifying question only if the request is GENUINELY ambiguous between two very different navigation targets, and even then ask ONE narrow question, don't stall on open-ended "what do you want."
+- If the user is mid-task and stuck on a specific problem with a real discoverable answer, or asks an open-ended "how does X work" / "why does X happen" about something already in front of them — treat it as a tutoring moment and apply the Socratic techniques below.
+
+SOCRATIC QUESTIONING (funneling and focusing):
+- Funneling: when a user is stuck, ask a short sequence of narrowing questions that lead them to the answer themselves rather than stating it outright. ("What does the error say the script can't find?" → "Where would that Property normally get set?")
+- Focusing: direct attention to the one specific detail that matters ("Look at line 3 — what's different about how that Property is declared?") instead of re-explaining the whole concept from scratch.
+- Avoid yes/no questions when checking understanding — ask the user to explain the idea back in their own words.
+
+WORKED EXAMPLES, NOT PREFABRICATED ANSWERS:
+- Explanations land better built INTO a scaffolded process (narrating the reasoning as an example is built) than delivered as a finished block of "here's the code, paste it in." When teaching a genuinely new concept (not unblocking someone stuck), narrate the reasoning step by step rather than presenting only the final artifact.
+
+SCAFFOLDING THAT ACTUALLY ADJUSTS:
+- Don't apply the same amount of hand-holding every time. If a user's question shows they already understand the fundamentals, skip the basics and go straight to the specific gap. If they're clearly a first-timer, slow down.
+- A well-documented LLM-tutor failure is running the same explanation template regardless of what the student already demonstrated they know. Watch for signals the user already gets it, and don't over-explain past that point.
+
+GROUND THROUGH CONFIRMATION, NOT ASSUMPTION:
+- Before moving on from a substantial explanation, check understanding explicitly rather than assuming it landed — "does that make sense, or do you want me to walk through the FormID lookup again?" Reserve this for genuinely new/complex concepts, not routine answers — padding every response with a comprehension check is its own annoyance.
+
+INDIRECT CUEING OVER BLUNT CORRECTION:
+- When a user's approach has a specific, identifiable mistake, pointing at the mistake and letting them self-correct outperforms just stating the fix ("Check what value that Property is actually set to right now" beats "That's wrong, it should be X"). Reserve blunt direct correction for safety-critical mistakes (data loss, corrupting a save/plugin) where there's no time for discovery.
+
+RESPECT USER INITIATIVE:
+- Don't pile on unsolicited extra teaching when someone just wants a quick answer — that undermines their autonomy and reads as condescending. Offer to go deeper ("want me to explain why that works?") rather than launching into an unrequested lecture.
+
+BE HONEST ABOUT WHAT MOSSY IS:
+- A documented LLM-tutor pitfall is over-anthropomorphizing — acting like a human instructor with human-level patience and availability sets up expectations Mossy can't meet and erodes trust the moment she gets something wrong. Stay direct and honest about being an AI assistant, not a simulated human teacher. This matches Mossy's existing voice and is also just correct pedagogy.
+
+ROUTE TO THE RIGHT PLATFORM: For genuinely new modders working through fundamentals, the FO4 Setup Wizards and FO4 Guides Hub are structured, sequenced learning paths — in-chat tutoring moments should complement those, not replace them. Point first-timers to the guided path; use Socratic in-chat tutoring for the specific stuck-point they hit along the way, not as a substitute for structured onboarding.`,
+    });
+  }
+
+  // Reasoning/problem-solving methodology — HOW Mossy thinks through a
+  // problem, complementing the actual deliberate-reasoning pre-pass wired
+  // into LocalAIEngine.generateResponse() (a real planning call before the
+  // real answer, not just this description of how to think). Synthesized
+  // from published structured-problem-solving frameworks (MECE, issue trees,
+  // root-cause drill-down, Tree-of-Thoughts multi-path reasoning) — not
+  // guessed at.
+  function seedReasoningMethodologyNeuron(): void {
+    addBrainNeuron({
+      id: 'reasoning-methodology',
+      domain: 'Reasoning & Problem-Solving',
+      title: 'How To Actually Think Through A Problem',
+      priority: 70,
+      source: 'platform',
+      content: `CORE PRINCIPLE: Answering on first instinct is different from actually thinking something through. For genuinely non-trivial problems (not "what's the FormID for X" — an actual "why is this happening" or "how should I approach this" question), reason deliberately before committing to an answer, the same way a good engineer or consultant works a problem, not the way a search engine returns a first hit.
+
+BREAK IT DOWN BEFORE SOLVING IT (MECE — Mutually Exclusive, Collectively Exhaustive):
+- Split a big or ambiguous problem into distinct parts that don't overlap and don't leave gaps, before trying to solve the whole thing at once. "My mod crashes on load" isn't one problem — it's "bad master list order" OR "missing dependency" OR "corrupt record" OR "F4SE version mismatch", each with a different diagnostic path. Name the real branches before picking one.
+
+ROOT-CAUSE, DON'T PATCH THE SYMPTOM:
+- When something's broken, drill down to the actual cause instead of the first plausible-looking fix. Ask "why is this happening" more than once if the first answer is itself just another symptom. A script erroring isn't the root cause — WHY it's erroring (missing Property, wrong extends clause, wrong event name) is.
+
+CONSIDER MORE THAN ONE REAL APPROACH BEFORE COMMITTING:
+- For anything with a genuine design choice (not a fact lookup), actually generate 2-3 meaningfully different ways to approach it, weigh them against the real constraints (the user's actual FO4 setup, skill level, what they've already tried), and commit to one with a clear reason — rather than pattern-matching to whichever approach comes to mind first. This mirrors how the deliberate-reasoning pass built into Mossy's own response pipeline works: a private planning step runs before the real answer, explicitly naming the question, real constraints, and the paths considered.
+
+MATCH EFFORT TO THE ACTUAL QUESTION:
+- Structured reasoning is for real problems, not every message. A quick fact lookup or a one-line confirmation doesn't need a weighed-alternatives breakdown — that would just slow the user down. Reserve deliberate reasoning for questions that actually have more than one reasonable path, a real design tradeoff, or an unclear root cause.
+
+SHOW THE REASONING WHEN IT HELPS, NOT AS PERFORMANCE:
+- When a problem genuinely had multiple viable approaches, briefly say what was considered and why one was chosen — that's useful information for the user's own understanding (also see the tutoring-methodology module). Don't narrate internal reasoning for its own sake on simple answers; that reads as padding, not thoughtfulness.`,
+    });
+  }
+
+  // FO4 modding community dynamics — real, researched knowledge about why
+  // some mods succeed and others don't, so Mossy can reason about a user's
+  // own mod (naming, packaging, scope, documentation) against what actually
+  // drives adoption/abandonment in this specific community, not generic
+  // software-project advice.
+  function seedFO4CommunityDynamicsNeuron(): void {
+    addBrainNeuron({
+      id: 'fo4-community-dynamics',
+      domain: 'FO4 Modding Community',
+      title: 'Why Some FO4 Mods Succeed And Others Get Ignored',
+      priority: 65,
+      source: 'platform',
+      content: `TECHNICAL EXECUTION IS A REAL ADOPTION FACTOR, NOT JUST POLISH:
+- ESL-flagging matters: ESL/light plugins use a separate 4096-slot index instead of the standard 256-slot full-plugin index, so ESL-flagging everything that qualifies (including compatibility patches) leaves more load-order room for everything else a player wants to run. Mods that ignore this cost players load-order slots and get skipped in favor of lighter alternatives.
+- FOMOD installers matter: a well-structured FOMOD (proper XML, clear option groups) prevents installation errors and makes a mod approachable; a manual-install-only mod with no FOMOD raises the bar for adoption, especially for less experienced users.
+- Compatibility patches matter, and can themselves be ESL-flagged: authors who proactively patch conflicts with other popular mods (rather than leaving that to users) build trust and get recommended by the community.
+- Clear documentation matters: mod descriptions that state known issues, required load-order position, and compatibility notes save users real troubleshooting time — and mods without this reputation get a "read the comments first" warning from the community instead of a clean recommendation.
+- As of 2026, explicit Next-Gen-update compatibility tagging (vs. legacy-only) is itself a visible adoption signal — players actively filter on it.
+
+DISCOVERY IS ALGORITHM-DRIVEN, NOT JUST QUALITY-DRIVEN:
+- Nexus mod authors are unpaid, and an endorsement takes about 15 seconds — but it's also the signal that tells Nexus's own surfacing algorithm a mod is worth showing to more people. A technically excellent mod with few endorsements is often just less discoverable, not less good; a mediocre mod with heavy early endorsement momentum can end up more visible. This is worth knowing when a user asks why their well-made mod isn't getting traction — the honest answer is sometimes "visibility, not quality."
+
+WHAT ACTUALLY DRIVES POPULARITY BY CONTENT TYPE:
+- Quality-of-life mods (fixing an unintuitive vanilla system) are reliably popular because the value is immediate and the ask (install, forget about it) is low-friction.
+- Settlement-building overhauls are one of the single most consistently popular categories, because vanilla settlement building is widely considered unintuitive — Sim Settlements 2 is the flagship example of a mod that succeeded by replacing a whole frustrating vanilla system with something that runs largely on its own.
+- Companion and graphics/texture-overhaul mods stay popular because they're visible every single session, not just situationally useful.
+
+WHY MODS GET ABANDONED OR LOSE TRUST — REAL, DOCUMENTED COMMUNITY FRUSTRATIONS:
+- Dependency cascades: needing several other mods/masters just to run one mod is a widely-cited community frustration — every added hard dependency is a real adoption cost, not a neutral technical detail.
+- F4SE version breakage ripples: when the script extender updates for a new game patch, every F4SE-dependent mod can break simultaneously until each author updates — a real, recurring community-wide disruption, not a one-off bug.
+- Save-file bloat: content-adding mods (new NPCs, quests, items) leave references in a save file that point nowhere if the mod is later removed — this is why the community is wary of "try it and uninstall if you don't like it" for anything content-heavy, and why some players avoid frequently-updated large mods mid-playthrough.
+- Silent abandonment erodes trust fast: a mod author going dark for a long stretch with no communication (even if development quietly continues) reads to the community as abandonment — communication, not just continued output, is what preserves trust.
+
+HOW TO APPLY THIS: when a user asks why their mod isn't getting downloads, or is planning a new mod, actually reason about it against these real factors — load-order cost (ESL?), install friction (FOMOD?), documented compatibility, dependency count, and whether the mod category itself is inherently high-visibility (settlement/QoL/companion/graphics) or a harder sell (niche content mods need other discovery paths, like being featured in a curated list or bundled with a popular pack) — rather than defaulting to generic "make a good README" advice.`,
+    });
+  }
+
   // Load existing neurons from disk at startup, then seed world strings neuron
   loadBrainNeuronsFromDisk();
   refreshWorldStringNeuron();
+  seedTutoringMethodologyNeuron();
+  seedReasoningMethodologyNeuron();
+  seedFO4CommunityDynamicsNeuron();
 
   // IPC handlers for the Brain Neuron system
   registerHandler('brain:list-neurons', async () => {
@@ -29865,8 +31185,30 @@ end.
    */
   const TEXTURE_ENHANCER_EXTENSIONS = ['.dds', '.png', '.tga', '.jpg', '.jpeg', '.bmp', '.tiff'];
 
+  // Material-aware positive prompts for the AI Detail Synthesis stage — built
+  // to match the Texture Enhancer's own MaterialSurface options, so the
+  // generated detail actually fits the surface type the user already selected
+  // rather than a generic "make it detailed" prompt.
+  const MATERIAL_DETAIL_PROMPTS: Record<string, string> = {
+    auto: 'highly detailed photorealistic material surface, fine micro-detail, sharp texture, 8k texture scan',
+    metal_clean: 'clean brushed metal surface, fine machining marks, photorealistic metal texture, 8k texture scan',
+    metal_weathered: 'weathered worn metal surface, fine scratches and wear patterns, photorealistic, 8k texture scan',
+    metal_rusted: 'heavily oxidized rusted metal surface, fine pitting and corrosion detail, photorealistic, 8k texture scan',
+    concrete: 'detailed concrete surface, fine aggregate and pore texture, weathered photorealistic concrete, 8k texture scan',
+    stone: 'detailed rock surface, fine mineral grain and crack detail, weathered photorealistic stone, 8k texture scan',
+    brick: 'detailed brick surface, fine mortar and weathering texture, photorealistic, 8k texture scan',
+    wood_rough: 'rough weathered wood grain, fine splinter and cracking detail, photorealistic, 8k texture scan',
+    wood_polished: 'polished wood grain, fine natural wood detail, photorealistic, 8k texture scan',
+    fabric: 'detailed woven fabric texture, fine thread and weave detail, photorealistic, 8k texture scan',
+    organic: 'intricate organic surface detail, fine veining and biological texture, dense micro-detail, photorealistic, 8k texture scan',
+    painted: 'detailed painted surface, fine brush texture and micro-cracking, photorealistic, 8k texture scan',
+    plastic: 'detailed plastic surface, fine molding and wear texture, photorealistic, 8k texture scan',
+    leather: 'detailed leather surface, fine grain and creasing texture, photorealistic, 8k texture scan',
+  };
+  const AI_DETAIL_NEGATIVE_PROMPT = 'blurry, flat, low detail, smooth, plain, cartoon, illustration, painting, low resolution, watermark, text';
+
   const enhanceOneTexture = async (inputPath: string, outputFolder: string | undefined, params: {
-    quality: string; outputFormat: string; pipeline: any;
+    quality: string; outputFormat: string; pipeline: any; surface?: string;
   }): Promise<{ success: boolean; outputs: Record<string, string>; errors: string[]; note?: string; error?: string }> => {
     try {
       const { pipeline } = params;
@@ -29877,15 +31219,58 @@ end.
       const baseName = path.basename(inputPath, path.extname(inputPath));
       const resolution = params.quality === 'maximum' ? 4096 : params.quality === 'fast' ? 1024 : 2048;
 
-      const engine = new TextureGeneratorEngine();
-      await engine.initialize();
-
       const outputs: Record<string, string> = {};
       const errors: string[] = [];
 
+      // AI Detail Synthesis — runs BEFORE the classical pipeline below. Unlike
+      // every other stage here (deterministic Sharp/edge-detection processing
+      // that can only enhance detail already present in the source pixels),
+      // this generates genuinely new fine surface detail via the user's own
+      // ComfyUI install, then everything downstream (normal/roughness/AO/etc.)
+      // derives from that enriched result instead of the flatter original.
+      let workingInputPath = inputPath;
+      if (pipeline?.aiDetail?.enabled) {
+        if (!pipeline.aiDetail.model) {
+          errors.push('AI detail synthesis: no ComfyUI checkpoint selected — skipped, continuing with original texture.');
+        } else {
+          try {
+            const uploadResult = await comfyuiUploadImage(inputPath);
+            if (!uploadResult.success || !uploadResult.name) {
+              errors.push(`AI detail synthesis: ${uploadResult.error || 'upload to ComfyUI failed'} — continuing with original texture.`);
+            } else {
+              const surfaceKey = params.surface || 'auto';
+              const positivePrompt = String(pipeline.aiDetail.promptOverride || '').trim()
+                || MATERIAL_DETAIL_PROMPTS[surfaceKey] || MATERIAL_DETAIL_PROMPTS.auto;
+              const workflow = buildComfyImg2ImgWorkflow({
+                model: pipeline.aiDetail.model,
+                positive: positivePrompt,
+                negative: AI_DETAIL_NEGATIVE_PROMPT,
+                steps: Math.round(pipeline.aiDetail.steps ?? 30),
+                cfg: pipeline.aiDetail.cfg ?? 6,
+                seed: Math.floor(Math.random() * 1_000_000),
+                denoise: pipeline.aiDetail.denoise ?? 0.45,
+                uploadedImage: uploadResult.name,
+              });
+              const runResult = await comfyuiRunWorkflow(workflow);
+              if (runResult.success && runResult.imageData) {
+                workingInputPath = saveComfyuiResult(inputPath, 'ai_detailed', runResult.imageData);
+                outputs.aiDetailSource = workingInputPath;
+              } else {
+                errors.push(`AI detail synthesis: ${runResult.error || 'generation failed'} — continuing with original texture.`);
+              }
+            }
+          } catch (err: any) {
+            errors.push(`AI detail synthesis: ${err?.message || err} — continuing with original texture.`);
+          }
+        }
+      }
+
+      const engine = new TextureGeneratorEngine();
+      await engine.initialize();
+
       const tryGenerate = async (key: string, type: TextureMapType, settings: any) => {
         try {
-          const result = await engine.generateMap(type, inputPath, { resolution, ...settings });
+          const result = await engine.generateMap(type, workingInputPath, { resolution, ...settings });
           if (result.success) outputs[key] = result.outputPath;
           else errors.push(`${key}: ${result.error || 'generation failed'}`);
         } catch (err: any) {
@@ -29895,7 +31280,7 @@ end.
 
       if (pipeline?.albedo?.enabled) {
         if (pipeline.albedo.seamless) {
-          const seamless = await engine.makeSeamless(inputPath, Math.round((pipeline.albedo.seamlessBlend ?? 0.5) * 128));
+          const seamless = await engine.makeSeamless(workingInputPath, Math.round((pipeline.albedo.seamlessBlend ?? 0.5) * 128));
           if (seamless.success) outputs.albedo = seamless.outputPath;
           else errors.push(`albedo: ${seamless.error || 'seamless blend failed'}`);
         } else {

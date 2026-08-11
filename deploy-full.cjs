@@ -106,11 +106,16 @@ async function main() {
     '@simple-git/args-pathspec', '@simple-git/argv-parser', 'debug', 'ms',
     'adm-zip',
   ];
+  // Always overwrite from source (never trust a copy already sitting in the
+  // extracted asar) — a prior deploy can leave a corrupted copy behind, and
+  // skipping when dest already "exists" would just carry that corruption
+  // forward into every future deploy silently.
   const tmpNodeModules = path.join(TMP, 'node_modules');
   for (const mod of REQUIRED_MODULES) {
     const src = path.join(ROOT, 'node_modules', mod);
     const dest = path.join(tmpNodeModules, mod);
-    if (fs.existsSync(src) && !fs.existsSync(dest)) {
+    if (fs.existsSync(src)) {
+      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
       copyDir(src, dest);
       console.log('      synced node_modules/' + mod);
     }

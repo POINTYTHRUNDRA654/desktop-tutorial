@@ -4898,9 +4898,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     pageName: 'FO4 Textures & Materials',
     visualGuidePage: 10,
     route: '/textures',
-    purpose: 'Unified platform for every texture and material task in Fallout 4 modding — 11 tabs covering DDS conversion, procedural and AI texture generation, PBR material authoring, real .bgsm binary editing, mesh/script optimization, and reference documentation.',
+    purpose: 'Unified platform for every texture and material task in Fallout 4 modding — 13 tabs covering DDS conversion, procedural and AI texture generation, PBR material authoring, real .bgsm binary editing, mesh/script optimization, AI background removal, ComfyUI-powered post-processing, and reference documentation.',
     features: [
-      '11-tab consolidated workflow: DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide, BGSM Editor, Mat Editor, Mat Definitions, Optimizer, Enhancer, Krita AI Paint, AI Image Studio',
+      '13-tab consolidated workflow: DDS Converter, Texture Generator, Image Studio, FO4 Texture Guide, BGSM Editor, Mat Editor, Mat Definitions, Optimizer, Enhancer, Krita AI Paint, AI Image Studio, Background Remover, Post-Processing Pipeline',
       'Session tab persistence via sessionStorage (restores your last active tab)',
       'DDS Converter: batch BC1/BC3/BC4/BC5/BC7 conversion with mipmap control',
       'Texture Generator: PBR and procedural texture generation',
@@ -4912,6 +4912,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Optimizer: batch texture recompression (texconv), plus real mesh cleanup and Papyrus script recompilation when the right tools are configured',
       'Enhancer: detail-extraction and full PBR map generation (albedo, normal, roughness, metallic, AO, height) from a single source photo — not an upscaler',
       'Krita AI Paint / AI Image Studio: AI-assisted painting and image generation workflows',
+      'AI Image Studio: Generate, Transform, and Inpaint modes over your own local ComfyUI — including native-alpha transparent generation (LayerDiffuse) and a brush mask editor for crop-and-stitch inpainting',
+      'Background Remover: local GPU background removal (BRIA RMBG-2.0) or a ComfyUI-RMBG backend (BEN2/InSPyReNet/BEN) — one-click dependency install for either',
+      'Post-Processing Pipeline: Layer Effects (drop shadow, outer glow, color match), Face Detailer, Relight (IC-Light), and Upscale (SUPIR or UltimateSDUpscale), each running through your own local ComfyUI with one-click custom-node install',
     ],
     controls: [
       {
@@ -4967,6 +4970,24 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         type: 'button',
         description: 'Pick a single source texture (or a folder in batch mode) and run the full detail-extraction pipeline: de-lit albedo, normal map, roughness, metallic, AO, cavity, height, and a generated .bgsm referencing the outputs',
         whenToUse: 'When you have one good photo/texture and need a complete PBR material set from it',
+      },
+      {
+        name: 'AI Image Studio Tab',
+        type: 'button',
+        description: 'Generate (txt2img, with an optional "Generate with transparency" LayerDiffuse toggle for real alpha-channel output), Transform (img2img), and Inpaint (brush a mask, then regenerate just that area via Inpaint Crop & Stitch) modes, all running through your own local ComfyUI',
+        whenToUse: 'When generating new source images, restyling an existing one, or fixing/replacing a specific region of an image',
+      },
+      {
+        name: 'Background Remover Tab',
+        type: 'button',
+        description: 'Two backends: a standalone local RMBG-2.0 install (GPU, one-click dependency setup plus your own HuggingFace token — CC BY-NC 4.0, non-commercial use only), or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models',
+        whenToUse: 'When isolating a design or subject from its source photo before turning it into a texture',
+      },
+      {
+        name: 'Post-Processing Pipeline Tab',
+        type: 'button',
+        description: 'Layer Effects, Face Detailer, Relight, and Upscale (SUPIR or UltimateSDUpscale) — each mode shows whether its required ComfyUI custom node is installed and offers a one-click Install button if not',
+        whenToUse: 'For compositing effects, face/detail restoration, relighting an isolated subject, or high-end upscaling of a texture source image',
       },
       {
         name: 'Tab Memory Restore',

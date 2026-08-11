@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Save, Radio, RefreshCw, Key, Globe, Cpu } from 'lucide-react';
+import { Save, Radio, RefreshCw, Key, Globe, Cpu, Brain, ShieldCheck } from 'lucide-react';
 
 type AIEngineSettingsProps = {
   embedded?: boolean;
@@ -27,6 +27,12 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
   const [inklingModel, setInklingModel] = useState('thinkingmachines/Inkling');
   const [inklingKeySet, setInklingKeySet] = useState(false);
 
+  // Deliberate reasoning pre-pass + self-critique post-pass — both read by
+  // LocalAIEngine.ts but previously had NO UI to actually turn them on; the
+  // settings fields existed and were checked, just never set to true anywhere.
+  const [deliberateReasoningEnabled, setDeliberateReasoningEnabled] = useState(true);
+  const [selfCritiqueEnabled, setSelfCritiqueEnabled] = useState(true);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -37,6 +43,10 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
         setInklingKeySet(Boolean(s?.inklingApiKeyEnc));
         setInklingBaseUrl(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1');
         setInklingModel(s?.inklingModel || 'thinkingmachines/Inkling');
+        // Default ON (opt-out, not opt-in) — matches getDeliberateReasoningEnabled/
+        // getSelfCritiqueEnabled in LocalAIEngine.ts treating "unset" as enabled.
+        setDeliberateReasoningEnabled(s?.groqDeliberateReasoningEnabled !== false);
+        setSelfCritiqueEnabled(s?.groqSelfCritiqueEnabled !== false);
         setLoaded(true);
       } catch {
         setLoaded(true);
@@ -52,12 +62,14 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
         toast.error('Settings API unavailable');
         return;
       }
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | boolean> = {
         localAiPreferredProvider: provider,
         aiProvider: provider === 'auto' ? 'auto' : provider,
         groqPrimaryModel: '',
         inklingBaseUrl,
         inklingModel,
+        groqDeliberateReasoningEnabled: deliberateReasoningEnabled,
+        groqSelfCritiqueEnabled: selfCritiqueEnabled,
       };
       // Only send the key if the user typed something new (empty = keep existing encrypted value)
       if (inklingApiKey.trim()) payload.inklingApiKey = inklingApiKey.trim();
@@ -72,7 +84,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
     } finally {
       setSaving(false);
     }
-  }, [api, provider, inklingApiKey, inklingBaseUrl, inklingModel]);
+  }, [api, provider, inklingApiKey, inklingBaseUrl, inklingModel, deliberateReasoningEnabled, selfCritiqueEnabled]);
 
   if (!loaded) {
     return (
@@ -175,6 +187,51 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
               />
             </div>
           </div>
+        </div>
+
+        {/* Deliberate Reasoning + Self-Critique */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Brain className="w-4 h-4 text-emerald-400" />
+            <label className="text-sm font-bold text-slate-200">Deliberate Reasoning</label>
+          </div>
+          <p className="text-xs text-slate-400">
+            Two extra passes around substantive answers (skipped for quick/trivial questions): a planning pass
+            that breaks the question down and weighs approaches before answering, and a critique pass afterward
+            that checks the answer for errors or gaps and revises it if needed.
+          </p>
+          <label className="flex items-start gap-3 px-4 py-3 rounded-md border border-slate-700 bg-slate-900/40 cursor-pointer hover:border-slate-600">
+            <input
+              type="checkbox"
+              checked={deliberateReasoningEnabled}
+              onChange={(e) => setDeliberateReasoningEnabled(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-emerald-500 flex-shrink-0"
+            />
+            <div>
+              <div className="text-xs font-bold text-slate-200">Plan before answering</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                Breaks the question down, considers alternative approaches, and picks one before generating the real answer — instead of answering on the first instinct.
+              </div>
+            </div>
+          </label>
+          <label className="flex items-start gap-3 px-4 py-3 rounded-md border border-slate-700 bg-slate-900/40 cursor-pointer hover:border-slate-600">
+            <input
+              type="checkbox"
+              checked={selfCritiqueEnabled}
+              onChange={(e) => setSelfCritiqueEnabled(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-emerald-500 flex-shrink-0"
+            />
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3 h-3 text-slate-400 flex-shrink-0" />
+              <div>
+                <div className="text-xs font-bold text-slate-200">Review after answering</div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  Re-checks the answer for factual errors or missing steps and revises it before you see it.
+                </div>
+              </div>
+            </div>
+          </label>
+          <p className="text-[11px] text-slate-600">Both are on by default. Each adds one extra fast Groq call, only for substantive answers — trivial one-liners skip both.</p>
         </div>
 
         {/* Save Button */}

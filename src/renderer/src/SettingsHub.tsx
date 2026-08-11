@@ -74,6 +74,14 @@ const CredsSection: React.FC = () => {
             <li>• <strong>PyTorch</strong> — {t('settings.hub.credits.pytorch', 'ML framework by Meta (BSD)')}</li>
             <li>• <strong>NumPy</strong> — {t('settings.hub.credits.numpy', 'Numerical computing (BSD 3-Clause)')}</li>
             <li>• <strong>Krea AI Suite</strong> — {t('settings.hub.credits.krea', 'AI image, video & 3D generation (Commercial / krea.ai)')}</li>
+            <li>• <strong>BRIA AI RMBG-2.0</strong> — {t('settings.hub.credits.rmbg', 'Background removal (CC BY-NC 4.0, non-commercial use only)')}</li>
+            <li>• <strong>ComfyUI_LayerStyle</strong> — {t('settings.hub.credits.layerstyle', 'Layer compositing effects (MIT)')}</li>
+            <li>• <strong>ComfyUI-Impact-Pack / -Subpack</strong> — {t('settings.hub.credits.impactpack', 'Face detailing (GPL-3.0)')}</li>
+            <li>• <strong>ComfyUI-IC-Light</strong> — {t('settings.hub.credits.iclight', 'AI relighting (Apache 2.0)')}</li>
+            <li>• <strong>ComfyUI-SUPIR</strong> — {t('settings.hub.credits.supir', 'Photo-realistic upscaling (Custom non-commercial license, SupPixel Pty Ltd — non-commercial use only)')}</li>
+            <li>• <strong>ComfyUI_UltimateSDUpscale</strong> — {t('settings.hub.credits.ultimatesdupscale', 'Tiled SD upscaling (GPL-3.0)')}</li>
+            <li>• <strong>ComfyUI-layerdiffuse</strong> — {t('settings.hub.credits.layerdiffuse', 'Native-transparency generation (Apache 2.0)')}</li>
+            <li>• <strong>ComfyUI-Inpaint-CropAndStitch</strong> — {t('settings.hub.credits.inpaintcropstitch', 'Crop-and-stitch inpainting (GPL-3.0)')}</li>
           </ul>
         </div>
 
