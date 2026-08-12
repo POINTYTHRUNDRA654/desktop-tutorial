@@ -226,6 +226,21 @@ def init_db():
             repeat_asks     INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (user_id, skill_id)
         );
+
+        -- Recovers the measurement a 2-minute GUI pass can't give: the real
+        -- LLM-vs-keyword disagreement rate over a week of actual questions,
+        -- not a handful eyeballed by hand. Only written when the LLM call in
+        -- classify_mode() actually parses — a parse failure is already
+        -- tracked in contract_failures and isn't a real "both methods
+        -- produced a verdict" comparison.
+        CREATE TABLE IF NOT EXISTS mode_classifications (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts           TEXT NOT NULL,
+            question     TEXT NOT NULL,
+            llm_mode     TEXT NOT NULL,
+            keyword_mode TEXT NOT NULL,
+            agree        INTEGER NOT NULL
+        );
     """)
     # CREATE TABLE IF NOT EXISTS doesn't retroactively add columns to a table
     # that already existed under an older schema — needed if learner_signals
@@ -947,9 +962,68 @@ def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: 
 
 def classify_mode(question: str) -> str:
     """
-    Cheap keyword heuristic for teach / answer / debug. This is a stand-in for
-    a real router model — swap this function's body when that exists; every
-    caller already threads `mode` through, so nothing else needs to change.
+    The router role from the original four-role split (router / retriever /
+    planner / responder) — the one role that had been standing in as a
+    keyword heuristic since the very first /infer draft, silently capping
+    everything tutorial on it: if this never returns "teach", the
+    check_question card never renders and answer_level never gets exercised,
+    with no signal from the code that anything's wrong.
+
+    An LLM classification call beats keywords on exactly the cases keywords
+    can't handle — "walk me through why this keeps crashing" is legitimately
+    both teach and debug; a keyword list picks one arbitrarily by which list
+    it happens to scan first, a model can actually weigh it.
+
+    Uses Brain B's OWN already-loaded model via the same small-JSON-with-retry
+    pattern as diagnose()/contract_fields() (_generate_json), not a separate
+    Qwen2.5-Coder/Ollama call or a new Groq client threaded into this Python
+    process — both of those are real options but are a second untested
+    integration path and a new dependency (a specific local model already
+    pulled, or a new credential surface) for what's a 3-way classification
+    task Brain B's own model is already perfectly sized for. Falls back to
+    the original keyword heuristic on any parse failure, exactly like every
+    other LLM-derived field in this file — this router is not allowed to be
+    a single point of failure for the whole turn.
+    """
+    prompt = (
+        "Classify this Fallout 4 modding question into exactly one category:\n\n"
+        '- "teach": they want to understand a concept ("how does X work", "what is X", '
+        '"explain X", "what\'s the difference between X and Y")\n'
+        '- "debug": something is broken and needs fixing ("X isn\'t working", "getting an '
+        'error", "crashes when I", "won\'t compile")\n'
+        '- "answer": a direct factual/lookup question that is neither of the above '
+        '("what are the parameters of X", "where is Y defined")\n\n'
+        f"Question: {question}\n\n"
+        'Return ONLY JSON: {"mode": "teach"} or {"mode": "debug"} or {"mode": "answer"}'
+    )
+    parsed, raw, attempts = _generate_json(prompt, ["mode"], max_new_tokens=20)
+    mode = (parsed or {}).get("mode")
+    if mode in ("teach", "debug", "answer"):
+        # Always compute the keyword verdict too, even though it's not used —
+        # this is the free measurement: log both so a week of real questions
+        # gives a real disagreement rate instead of a handful eyeballed by
+        # hand during a 2-minute GUI pass.
+        log_mode_classification(question, mode, _classify_mode_keywords(question))
+        return mode
+    log_contract_failure(question, "classify_mode", raw, attempts)
+    return _classify_mode_keywords(question)
+
+
+def log_mode_classification(question: str, llm_mode: str, keyword_mode: str) -> None:
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute(
+        "INSERT INTO mode_classifications (ts, question, llm_mode, keyword_mode, agree) VALUES (?,?,?,?,?)",
+        (datetime.utcnow().isoformat(), question[:500], llm_mode, keyword_mode,
+         1 if llm_mode == keyword_mode else 0),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _classify_mode_keywords(question: str) -> str:
+    """
+    The original router: a keyword heuristic. Now the fallback for when the
+    LLM classification call above fails to parse, not the primary path.
     """
     q = question.lower()
     debug_markers = ("error", "crash", "ctd", "doesn't work", "not working", "broken",
@@ -1219,6 +1293,70 @@ def diagnose(question: str, mode: str) -> Optional[str]:
         return None
     diagnosis = str(parsed.get("diagnosis") or "").strip()
     return diagnosis or None
+
+
+def classify_and_diagnose(question: str) -> tuple[str, Optional[str]]:
+    """
+    Merges classify_mode() and diagnose() into ONE _generate_json call.
+
+    NOT wired into /infer by default. Kept ready as the fix for exactly one
+    failure mode: if the GUI pass shows unacceptable dead air from three
+    sequential small-model passes (classify, diagnose, generate) before the
+    user sees a first token — slow-but-smart loses to fast-and-decent in a
+    chat UI. mode and diagnosis operate on the same input and are both small
+    structured-output asks; _generate_json already handles multi-field
+    extraction, so asking for both together costs close to what asking for
+    one does, not double.
+
+    Deliberately built now and left inactive rather than activated
+    preemptively: the first real-GPU latency measurement should reflect the
+    architecture as actually deployed (two separate calls), not an
+    optimization applied before anyone knows it's needed. If that
+    measurement shows the dead air is a real problem, activate this by
+    replacing, in /infer:
+        mode = data.get("mode") or classify_mode(question)
+        ...
+        diagnosis = diagnose(question, mode)
+    with:
+        mode, diagnosis = data.get("mode"), None
+        if not mode:
+            mode, diagnosis = classify_and_diagnose(question)
+        elif mode == "teach":  # still want a real diagnosis even if mode was passed explicitly
+            diagnosis = diagnose(question, mode)
+
+    Falls back per field independently, matching the two-call path's
+    graceful-degradation contract: mode falls back to the keyword heuristic,
+    diagnosis falls back to None. Logs the same mode_classifications
+    comparison as classify_mode() when the merged call succeeds.
+    """
+    prompt = (
+        "Classify this Fallout 4 modding question AND diagnose what the user "
+        "actually needs, in one pass.\n\n"
+        'Mode — exactly one of "teach" (they want to understand a concept), '
+        '"debug" (something is broken and needs fixing), or "answer" (a direct '
+        "factual/lookup question that's neither).\n\n"
+        "Diagnosis — one sentence: what do they actually need to know to solve "
+        "their real problem, which may be narrower or broader than their literal "
+        "wording (e.g. someone asking for an OnTriggerEnter snippet who has never "
+        "cast an ObjectReference actually needs that prerequisite first).\n\n"
+        f"Question: {question}\n\n"
+        'Return ONLY JSON: {"mode": "teach"|"debug"|"answer", "diagnosis": "<one sentence>"}'
+    )
+    parsed, raw, attempts = _generate_json(prompt, ["mode", "diagnosis"], max_new_tokens=150)
+    keyword_mode = _classify_mode_keywords(question)
+
+    if parsed is None:
+        log_contract_failure(question, "classify_and_diagnose", raw, attempts)
+        return keyword_mode, None
+
+    mode = parsed.get("mode")
+    if mode not in ("teach", "debug", "answer"):
+        mode = keyword_mode
+    else:
+        log_mode_classification(question, mode, keyword_mode)
+
+    diagnosis = str(parsed.get("diagnosis") or "").strip() or None
+    return mode, diagnosis
 
 
 def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[str]) -> dict:
