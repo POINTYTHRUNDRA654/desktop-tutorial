@@ -531,6 +531,9 @@ export interface Settings {
   cosmosModel?: string;
   /** Brain B — Mossy's own local RAG/tutor Flask service. Default port 8766. */
   brainBBaseUrl?: string;
+  /** Stable per-install id for Brain B's learner model (see LocalAIEngine.ts's
+   *  getOrCreateUserId()) — generated once, never regenerated once set. */
+  mossyUserId?: string;
 
   // Audio Settings
   ttsEnabled: boolean;

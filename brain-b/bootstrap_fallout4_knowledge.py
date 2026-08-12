@@ -795,6 +795,8 @@ def bootstrap_chromadb(collection, embedding_fn=None) -> int:
         added = bootstrap_chromadb(coll, embedding_fn=embed)
         print(f"Added {added} entries")
     """
+    from skill_tags import tags_for_category
+
     entries = build_bootstrap_entries()
     ids = [e["id"] for e in entries]
     documents = [e["content"] for e in entries]
@@ -805,6 +807,9 @@ def bootstrap_chromadb(collection, embedding_fn=None) -> int:
             "tags": ",".join(e.get("tags", [])),
             "source": "bootstrap_v2",
             "bootstrapped_at": datetime.utcnow().isoformat(),
+            # Mapped by category, not per-entry — see skill_tags.py. Feeds the
+            # learner model's exposure tracking in gemma_service_enhanced.py.
+            "skill_tags": ",".join(tags_for_category(e.get("category", ""))),
         }
         for e in entries
     ]
