@@ -13,6 +13,7 @@ import LanguageSettings from './LanguageSettings';
 import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
+import BrainBSettings from './BrainBSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
@@ -420,6 +421,15 @@ const SettingsHub: React.FC = () => {
       content: <OllamaSettings embedded />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-slate-800 border-slate-600 text-slate-400',
+    },
+    {
+      id: 'brainb',
+      title: t('settings.hub.stepBrainB.title', 'Local RAG Tutor — Brain B'),
+      description: t('settings.hub.stepBrainB.desc', "Mossy's own local knowledge base + tutoring contract — NVIDIA GPU required, started manually."),
+      icon: Database,
+      content: <BrainBSettings embedded />,
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-violet-900/40 border-violet-700/40 text-violet-300',
     },
     {
       id: 'anythingllm',

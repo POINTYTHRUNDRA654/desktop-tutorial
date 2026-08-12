@@ -66,6 +66,18 @@ external/volttech-dist/*
 # Database
 *.db
 *.sqlite
+*.sqlite3
+
+# Brain B local build outputs (ChromaDB dirs + manifest, SQLite episodic memory) — never
+# committed; these are build artifacts, not source. Default paths live outside the repo
+# entirely (D:\Mossy-AI), but ignored here too as a safety net in case CHROMA_CURATED_PATH /
+# CHROMA_RUNTIME_PATH / MOSSY_BASE_DIR ever get pointed at a repo-relative path (e.g. a
+# non-Windows contributor overriding the Windows-only default). Committed knowledge SOURCE
+# lives in brain-b/knowledge/**/*.jsonl instead — see /LICENSING.md.
+brain-b/chroma_curated/
+brain-b/chroma_runtime/
+brain-b/data/
+brain-b/*.bin
 
 # Editor directories and files
 .vscode/*

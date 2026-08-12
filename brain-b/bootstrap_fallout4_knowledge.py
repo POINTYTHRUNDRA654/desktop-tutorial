@@ -776,14 +776,27 @@ def bootstrap_chromadb(collection, embedding_fn=None) -> int:
     Populate a ChromaDB collection with all bootstrap entries.
     Returns the number of entries added.
 
+    embedding_fn: callable(list[str]) -> list[list[float]]. Pass the SAME
+    embedding model used at query time (gemma_service_enhanced.embed, which
+    wraps BAAI/bge-small-en-v1.5) — hybrid_retrieve() embeds queries with that
+    model explicitly, so documents embedded any other way (including Chroma's
+    own default embedding function, which is what silently happened when this
+    parameter went unused) land in a different vector space and cosine
+    similarity between the two is meaningless. If omitted, falls back to
+    Chroma's default embedding function and logs a warning, since a mismatch
+    is better flagged than shipped silently.
+
     Usage:
         import chromadb
         client = chromadb.PersistentClient(path="D:/Mossy-AI/data/chroma")
         coll = client.get_or_create_collection("mossy_knowledge")
         from bootstrap_fallout4_knowledge import bootstrap_chromadb
-        added = bootstrap_chromadb(coll)
+        from gemma_service_enhanced import embed
+        added = bootstrap_chromadb(coll, embedding_fn=embed)
         print(f"Added {added} entries")
     """
+    from skill_tags import tags_for_category
+
     entries = build_bootstrap_entries()
     ids = [e["id"] for e in entries]
     documents = [e["content"] for e in entries]
@@ -794,12 +807,25 @@ def bootstrap_chromadb(collection, embedding_fn=None) -> int:
             "tags": ",".join(e.get("tags", [])),
             "source": "bootstrap_v2",
             "bootstrapped_at": datetime.utcnow().isoformat(),
+            # Mapped by category, not per-entry — see skill_tags.py. Feeds the
+            # learner model's exposure tracking in gemma_service_enhanced.py.
+            "skill_tags": ",".join(tags_for_category(e.get("category", ""))),
         }
         for e in entries
     ]
 
     # Upsert so re-running is safe (existing entries are updated, not duplicated)
-    collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    if embedding_fn is not None:
+        collection.upsert(ids=ids, documents=documents, metadatas=metadatas,
+                           embeddings=embedding_fn(documents))
+    else:
+        log.warning(
+            "bootstrap_chromadb() called without embedding_fn — falling back to "
+            "Chroma's default embedding function. This will NOT match the "
+            "BAAI/bge-small-en-v1.5 vectors hybrid_retrieve() uses for queries "
+            "at runtime, degrading retrieval quality with no visible error."
+        )
+        collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
     log.info(f"Bootstrapped {len(entries)} entries into ChromaDB collection.")
     return len(entries)
 
