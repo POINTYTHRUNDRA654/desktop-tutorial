@@ -10504,7 +10504,7 @@ end.
     messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
     maxTokens = 1024,
   ): Promise<string> => {
-    const { RateLimitError } = await import('groq-sdk');
+    const { RateLimitError, BadRequestError } = await import('groq-sdk');
     const withTimeout = <T>(p: Promise<T>): Promise<T> =>
       Promise.race([
         p,
@@ -10512,6 +10512,14 @@ end.
           setTimeout(() => reject(new Error(`Groq request timed out after ${GROQ_SDK_TIMEOUT_MS}ms`)), GROQ_SDK_TIMEOUT_MS)
         ),
       ]);
+    // Same detection as src/backend/routes/chat.ts's isContextLengthError —
+    // a 400 that's specifically an over-context-window request, not some
+    // other bad-request condition a retry wouldn't fix.
+    const isContextLengthError = (e: unknown): boolean => {
+      if (!(e instanceof BadRequestError)) return false;
+      const msg = (e as { message?: string }).message || '';
+      return /context.?length|reduce.*length|too (long|large)|shorten|maximum.*token|token.*limit/i.test(msg);
+    };
     try {
       const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens }));
       return response.choices[0]?.message?.content || '';
@@ -10520,6 +10528,31 @@ end.
         console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
         const response = await withTimeout(client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens }));
         return response.choices[0]?.message?.content || '';
+      }
+      if (isContextLengthError(e)) {
+        // GROQ_PRIMARY_MODEL (qwen/qwen3.6-27b) has the largest context
+        // window available here (262K tokens) — GROQ_FALLBACK_MODEL above is
+        // actually smaller (131K), so it exists only for rate-limit quota
+        // diversity and would make a context overflow worse, not better.
+        if (preferredModel !== GROQ_PRIMARY_MODEL) {
+          console.warn(`[Groq] Context length exceeded on ${preferredModel}, retrying with ${GROQ_PRIMARY_MODEL} (262K context)`);
+          const response = await withTimeout(client.chat.completions.create({ model: GROQ_PRIMARY_MODEL, messages, max_tokens: maxTokens }));
+          return response.choices[0]?.message?.content || '';
+        }
+        // Already on the largest model and still over budget — the injected
+        // system prompt (brain neurons + FO4 knowledge base) is the dominant
+        // contributor, not conversation history, so trimming history is a
+        // real reduction in token count, not a cosmetic retry: drop all but
+        // the latest exchange and try once more before giving up.
+        const systemMessages = messages.filter(m => m.role === 'system');
+        const nonSystemMessages = messages.filter(m => m.role !== 'system');
+        if (nonSystemMessages.length > 2) {
+          const trimmed = [...systemMessages, ...nonSystemMessages.slice(-2)];
+          console.warn(`[Groq] Still over context on ${preferredModel} after the largest model — retrying once with conversation history trimmed to the last exchange`);
+          const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages: trimmed, max_tokens: maxTokens }));
+          return response.choices[0]?.message?.content || '';
+        }
+        throw new Error('That request is too large even for the largest available model — try a shorter, more specific message.');
       }
       throw e;
     }
