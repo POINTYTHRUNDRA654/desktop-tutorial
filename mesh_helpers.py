@@ -115,6 +115,84 @@ class MeshHelpers:
             pass
 
     @staticmethod
+    def _enforce_vert_limit(collision_obj, limit: int = 255) -> None:
+        """Decimate *collision_obj* in place until its vertex count is at
+        or below *limit*, verifying after each pass rather than trusting a
+        single ratio-based Decimate to land under a hard limit.
+
+        Confirmed via a real PyNifly export crash that FO4's
+        compressed_mesh Havok shape hard-asserts a maximum of 255 verts
+        ("pack_compressed_mesh: max 255 verts per section"); a mesh-shape
+        bhkConvexVerticesShape's own real limit is 256, so 255 is used
+        uniformly here as the always-safe value for either.
+
+        Blender's Decimate modifier targets an approximate face-reduction
+        *ratio*, not an exact vertex count, and can overshoot the target by
+        a handful of vertices on a single pass (confirmed empirically: a
+        single pass aimed at exactly 255 landed at 256, still over the
+        hard limit) -- so this aims comfortably under the limit and loops
+        a bounded number of times, verifying the real count each time,
+        rather than assuming one pass was enough.
+        """
+        margin = max(1, limit // 25)  # ~4% headroom absorbs decimate overshoot
+        target = max(4, limit - margin)
+        for _ in range(5):
+            current = len(collision_obj.data.vertices)
+            if current <= limit:
+                return
+            ratio = max(0.01, min(0.95, target / current))
+            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
+            trim_mod.ratio = ratio
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
+            bm = bmesh.new()
+            bm.from_mesh(collision_obj.data)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+            bmesh.ops.triangulate(bm, faces=bm.faces[:])
+            bm.to_mesh(collision_obj.data)
+            bm.free()
+            collision_obj.data.update()
+
+    @staticmethod
+    def _enforce_vert_limit_hull(collision_obj, limit: int = 255) -> None:
+        """Same verified-iterative approach as _enforce_vert_limit, but for
+        the convex-hull collision path (add_collision_mesh /
+        collision_from_lod_mesh) -- decimating a hull's points and then
+        NOT rebuilding the hull can leave a non-convex/non-manifold shape,
+        so each pass rebuilds the hull from the decimated point set rather
+        than just triangulating in place."""
+        margin = max(1, limit // 25)
+        target = max(4, limit - margin)
+        for _ in range(5):
+            current = len(collision_obj.data.vertices)
+            if current <= limit:
+                return
+            ratio = max(0.01, min(0.95, target / current))
+            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
+            trim_mod.ratio = ratio
+            bpy.ops.object.select_all(action='DESELECT')
+            collision_obj.select_set(True)
+            bpy.context.view_layer.objects.active = collision_obj
+            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
+            bm = bmesh.new()
+            bm.from_mesh(collision_obj.data)
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
+            bm.verts.ensure_lookup_table()
+            hull = bmesh.ops.convex_hull(bm, input=bm.verts)
+            to_del = hull.get('geom_interior', []) + hull.get('geom_unused', [])
+            v_del = [g for g in to_del if isinstance(g, bmesh.types.BMVert)]
+            if v_del:
+                bmesh.ops.delete(bm, geom=v_del, context='VERTS')
+            bmesh.ops.triangulate(bm, faces=bm.faces[:])
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+            bm.normal_update()
+            bm.to_mesh(collision_obj.data)
+            bm.free()
+            collision_obj.data.update()
+
+    @staticmethod
     def infer_collision_type(obj):
         """Guess an appropriate collision type based on the object name.
 
@@ -1150,36 +1228,15 @@ class MeshHelpers:
         bm.free()
         collision_obj.data.update()
 
-        # ----------------------------------------------------------------
-        # Fallout 4's bhkConvexVerticesShape supports at most 256 vertices.
-        # If the hull exceeds that limit, decimate and rebuild so the shape
-        # stays within the engine limit and doesn't silently corrupt the NIF.
-        # ----------------------------------------------------------------
-        _FO4_CONVEX_VERT_LIMIT = 256
-        if len(collision_obj.data.vertices) > _FO4_CONVEX_VERT_LIMIT:
-            ratio = max(0.01, min(0.99, _FO4_CONVEX_VERT_LIMIT / len(collision_obj.data.vertices)))
-            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
-            trim_mod.ratio = ratio
-            bpy.ops.object.select_all(action='DESELECT')
-            collision_obj.select_set(True)
-            bpy.context.view_layer.objects.active = collision_obj
-            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
-            # Rebuild convex hull after decimation to restore a manifold surface.
-            bm2 = bmesh.new()
-            bm2.from_mesh(collision_obj.data)
-            bmesh.ops.remove_doubles(bm2, verts=bm2.verts, dist=0.001)
-            bm2.verts.ensure_lookup_table()
-            hull2 = bmesh.ops.convex_hull(bm2, input=bm2.verts)
-            del2 = hull2.get('geom_interior', []) + hull2.get('geom_unused', [])
-            v2 = [g for g in del2 if isinstance(g, bmesh.types.BMVert)]
-            if v2:
-                bmesh.ops.delete(bm2, geom=v2, context='VERTS')
-            bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
-            bmesh.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
-            bm2.normal_update()
-            bm2.to_mesh(collision_obj.data)
-            bm2.free()
-            collision_obj.data.update()
+        # Fallout 4's bhkConvexVerticesShape supports at most 256 vertices,
+        # but this shape can also be exported as a compressed_mesh (when
+        # collision_type == 'BUILDING'), whose real hard limit is 255 --
+        # confirmed via a real PyNifly export crash: "pack_compressed_mesh:
+        # max 255 verts per section". _enforce_vert_limit_hull verifies and
+        # iterates rather than trusting a single decimate pass to land
+        # under the limit (Blender's Decimate ratio is approximate and can
+        # overshoot by a few verts).
+        MeshHelpers._enforce_vert_limit_hull(collision_obj, limit=255)
 
         # parent collision mesh to the source object so they are exported as a
         # unit.  Clear parent inverse so the collision sits at the same world
@@ -1250,6 +1307,14 @@ class MeshHelpers:
             # Physics operators unavailable in this context; skip silently.
             # The UCX_ naming and parent relationship still enable export.
             pass
+
+        # Collision must render as wireframe-only, never as a solid mesh --
+        # matches add_compound_collision's _apply_ucx_props and every other
+        # collision object in the addon. Previously missing here, so a hull
+        # generated by this specific function rendered as an opaque solid
+        # shape instead of the usual see-through wire overlay.
+        collision_obj.display_type = 'WIRE'
+        collision_obj.hide_render = True
 
         # restore original object as active/selected
         bpy.context.view_layer.objects.active = obj
@@ -1357,6 +1422,22 @@ class MeshHelpers:
         bm.free()
         collision_obj.data.update()
 
+        # PyNifly's bhk_autopack.pack_compressed_mesh (the Havok shape type
+        # this function always exports as) hard-asserts a maximum of 255
+        # verts -- confirmed via a real crash on export: "pack_compressed_
+        # mesh: max 255 verts per section (got 570)". Unlike
+        # add_collision_mesh's convex-hull vert limit, this is NOT the
+        # NIF/engine's own OBND-style soft limit -- it's a hard assertion
+        # in the exporter that otherwise crashes the whole export outright
+        # with no NIF written at all. Decimate down (verified/iterative,
+        # not a single ratio pass -- see _enforce_vert_limit) if the
+        # exact-copy geometry exceeds it; still far better at preserving
+        # real openings (cave mouths, doorways -- the whole reason to use
+        # this function over add_collision_mesh) than falling back to a
+        # sealed convex hull would be, and this only engages for meshes
+        # detailed enough to actually need it.
+        MeshHelpers._enforce_vert_limit(collision_obj, limit=255)
+
         collision_obj.parent = obj
         collision_obj.matrix_parent_inverse = obj.matrix_world.inverted()
         obj["pynCollisionTarget"] = collision_obj.name
@@ -1381,6 +1462,14 @@ class MeshHelpers:
             collision_obj.rigid_body.restitution = phys['restitution']
         except Exception:
             pass
+
+        # Wireframe-only display, matching every other collision object in
+        # the addon -- was missing here, so this specific button's output
+        # rendered as a solid shape instead of a see-through wire overlay
+        # (most visible on a cave/opening mesh, since this exact-geometry
+        # collision is the one meant for those cases).
+        collision_obj.display_type = 'WIRE'
+        collision_obj.hide_render = True
 
         bpy.context.view_layer.objects.active = obj
         obj.select_set(True)
@@ -1528,32 +1617,11 @@ class MeshHelpers:
         bm.free()
         collision_obj.data.update()
 
-        # Cap at 256 vertices (FO4 bhkConvexVerticesShape engine limit).
-        _FO4_CONVEX_VERT_LIMIT = 256
-        if len(collision_obj.data.vertices) > _FO4_CONVEX_VERT_LIMIT:
-            ratio = max(0.01, min(0.99, _FO4_CONVEX_VERT_LIMIT / len(collision_obj.data.vertices)))
-            trim_mod = collision_obj.modifiers.new(name="Decimate_Limit", type='DECIMATE')
-            trim_mod.ratio = ratio
-            bpy.ops.object.select_all(action='DESELECT')
-            collision_obj.select_set(True)
-            bpy.context.view_layer.objects.active = collision_obj
-            bpy.ops.object.modifier_apply(modifier="Decimate_Limit")
-            # Rebuild convex hull after decimation to restore a manifold surface.
-            bm2 = bmesh.new()
-            bm2.from_mesh(collision_obj.data)
-            bmesh.ops.remove_doubles(bm2, verts=bm2.verts, dist=0.001)
-            bm2.verts.ensure_lookup_table()
-            hull2 = bmesh.ops.convex_hull(bm2, input=bm2.verts)
-            del2 = hull2.get('geom_interior', []) + hull2.get('geom_unused', [])
-            v2 = [g for g in del2 if isinstance(g, bmesh.types.BMVert)]
-            if v2:
-                bmesh.ops.delete(bm2, geom=v2, context='VERTS')
-            bmesh.ops.triangulate(bm2, faces=bm2.faces[:])
-            bmesh.ops.recalc_face_normals(bm2, faces=bm2.faces[:])
-            bm2.normal_update()
-            bm2.to_mesh(collision_obj.data)
-            bm2.free()
-            collision_obj.data.update()
+        # Cap at 255 vertices -- safe for both bhkConvexVerticesShape (256
+        # limit) and compressed_mesh (255 limit, confirmed via a real
+        # PyNifly export crash; used when collision_type == 'BUILDING').
+        # See the matching comment in add_collision_mesh above.
+        MeshHelpers._enforce_vert_limit_hull(collision_obj, limit=255)
 
         # Parent to source mesh so they are exported as a unit.
         collision_obj.parent = source_obj
@@ -1593,6 +1661,11 @@ class MeshHelpers:
             collision_obj.rigid_body.restitution = phys['restitution']
         except Exception:
             pass
+
+        # Wireframe-only display, matching every other collision object in
+        # the addon -- was missing here too.
+        collision_obj.display_type = 'WIRE'
+        collision_obj.hide_render = True
 
         # Restore original object as active/selected.
         bpy.context.view_layer.objects.active = source_obj

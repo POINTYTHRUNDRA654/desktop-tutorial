@@ -130,9 +130,26 @@ The root panel. Always visible at the top of the tab.
 - **Smooth Normals (FO4)** — applies Auto Smooth at 60° (FO4 standard).
 
 ### Collision
-- **Generate Collision Mesh** — creates a UCX_meshname convex collision shape.
-  *Required for static props to be solid in-game.*
+
+- **Generate Collision Mesh** — creates a UCX_meshname convex-hull collision
+  shape. *Required for static props to be solid in-game.* A convex hull
+  seals every concavity shut, so it's wrong for anything with a real
+  opening (a cave mouth, a doorway, a tunnel).
+- **Custom Collision (Exact Mesh)** — creates a UCX_meshname collision shape
+  that's an exact triangulated copy of the source mesh (no hull; never
+  decimated to *simplify* the shape). Use this instead of Generate
+  Collision Mesh whenever the mesh has an opening that must stay passable
+  — heavier at runtime than a convex hull, so keep the source mesh's poly
+  count reasonable. If the exact copy would exceed FO4's real 255-vertex
+  Havok collision limit (confirmed via a real export crash), it's
+  automatically decimated down just enough to fit — still far better at
+  preserving real openings than falling back to a sealed hull.
 - Collision type dropdown: STATIC (immovable), DYNAMIC (can be picked up)
+- All collision objects (both buttons above) render as a see-through
+  wireframe overlay in the viewport, never as a solid/textured mesh —
+  matches every other collision object in the addon, and matters most on
+  a Custom Collision mesh, since that one shares its exact geometry (and
+  can otherwise look identical to the real visible mesh at a glance).
 
 ### LOD
 - **Generate LOD Chain** — auto-decimates to LOD0/1/2/3 at 100%/50%/25%/10%
@@ -932,6 +949,15 @@ precise interior object placement.
 
 **Button: Generate NavMesh from Selected**
 Creates a NavMesh from selected mesh objects. Auto-triangulates and validates.
+Automatically skips collision (UCX_) objects, the SS2 Plot Builder's
+boundary-guide reference box/arrow, and hidden objects — none of those are
+real walkable geometry, so a selection or "no selection = whole scene"
+generation run won't accidentally sweep them in. Follows the true terrain
+shape (ramps, stairs, uneven/natural ground) rather than flattening it —
+each walkable face keeps its real shape, only nudged up slightly to avoid
+z-fighting, so adjacent faces stay exactly welded together into one
+continuous surface instead of tearing into disconnected islands with open
+edges on non-flat ground.
 
 **Validate button** (requires active mesh):
 - Checks triangle count, vertex count, manifold status
@@ -1023,9 +1049,14 @@ hand-typed.
 - **Level** (1-3) / **Stage** (any positive integer, order matters, gaps
   are fine) / **Final Stage of Level** checkbox
 - **Tag Selected as Plot Stage** — tags every selected mesh object with the
-  chosen level/stage/final. Exactly one stage per level must be marked
-  Final (the level's last/completed model); all others are intermediate
-  construction stages, exported first-to-last in stage order.
+  chosen level/stage/final. Select ALL of a stage's pieces at once and tag
+  them together with the same Level/Stage/Final — this is the normal case,
+  since real SS2 buildings are kit-bashed from many separate pieces (walls,
+  floor, roof, etc.); every piece sharing one (Level, Stage) combines into
+  a single NIF at export, exactly like Sim Settlements' own SCOL system.
+  Exactly one stage per level must be marked Final (the level's last/
+  completed model); all others are intermediate construction stages,
+  exported first-to-last in stage order.
 - A read-only summary below lists every tagged object grouped by level (the
   Final-tagged one marked with `*`) so the whole plan is visible before
   exporting.
@@ -1070,6 +1101,11 @@ hand-typed.
   - `<PlanName>_Spawns.csv` — the real 16-column Spawns.csv (only written
     if at least one spawn marker has a Form EditorID set)
   - `README_NextSteps.txt` — the exact hand-off steps (below)
+- **Safe to click Export Plot again** — re-exporting after already
+  generating collision once (e.g. touching up the build and exporting
+  again) regenerates each stage's collision fresh and correctly ignores
+  the previous run's own `UCX_` collision objects, rather than mistaking
+  them for additional plot content.
 
 **Hand-off workflow (after clicking Export Plot):**
 

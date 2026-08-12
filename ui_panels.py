@@ -5537,7 +5537,15 @@ class FO4_PT_NavMeshPanel(_FO4SubPanel):
         row = cover.row(align=True)
         for ctype, label in [("LEFT","Left Cover"),("RIGHT","Right Cover"),
                               ("EDGE","Edge Cover")]:
-            op = row.operator("fo4.add_cover_marker", text=label); op.cover_type = ctype
+            op = row.operator("fo4.add_cover_marker", text=label)
+            # layout.operator() returns None instead of raising when the
+            # idname isn't registered (e.g. a dual-install/stale-module
+            # conflict prevented fo4.add_cover_marker from registering) --
+            # setting an attribute on None used to crash this panel's
+            # entire draw() with an unhandled AttributeError. Degrade to a
+            # disabled-looking button instead of taking the whole panel down.
+            if op is not None:
+                op.cover_type = ctype
         row.operator("fo4.clear_cover_markers", text="Clear", icon='TRASH')
 
 

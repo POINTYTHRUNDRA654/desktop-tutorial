@@ -45,6 +45,7 @@ ZIP_FILE_PREFIX   = "mossy-fo4-blender-addon"
 # Files and directories to EXCLUDE from every zip
 EXCLUDE = {
     ".git", ".github", ".gitattributes", ".gitignore", ".githooks", ".vscode", ".vs", ".claude",
+    ".mcp.json", ".editorconfig",
     "build_temp", "build_addon.py", "build.ps1", "build.log", "dist",
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
@@ -60,6 +61,7 @@ EXCLUDE = {
     "test_extract",
     # Developer / session helper scripts
     "start_session.bat", "end_session.bat",
+    "dev_push_to_blender.py", "purge_large_files.bat",
     # Desktop installer scripts (dev tools, not part of the addon)
     "install_addon.bat", "install_addon.ps1",
     # Standalone test files (no use inside Blender)

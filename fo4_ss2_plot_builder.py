@@ -26,6 +26,7 @@ Real reference data used below (not guessed):
 """
 import bpy, os, math
 from typing import Optional
+from mathutils import Vector
 
 try:
     from . import export_helpers as _eh
@@ -95,11 +96,25 @@ def _safe_editor_id(name: str) -> str:
     return safe[:63] or "SS2Plot"
 
 
-def _object_bounds_game_units(obj) -> tuple:
-    """OBND half-extents (FO4 game units) from Blender-space dimensions --
-    same approach as fo4_workshop_helper._object_bounds_game_units."""
-    dims = getattr(obj, "dimensions", (1.0, 1.0, 1.0))
-    half = [max(1, min(32767, round(d * _FO4_UNIT_SCALE / 2.0))) for d in dims]
+def _group_bounds_game_units(objs) -> tuple:
+    """Combined OBND half-extents (FO4 game units) across a multi-object
+    stage group -- the real world-space bounding box of every object's
+    corners, since a single object's local .dimensions can't just be
+    summed across several differently-positioned pieces."""
+    min_v = [float('inf')] * 3
+    max_v = [float('-inf')] * 3
+    for obj in objs:
+        if obj.type != 'MESH':
+            continue
+        mw = obj.matrix_world
+        for corner in obj.bound_box:
+            world_co = mw @ Vector(corner)
+            for i in range(3):
+                min_v[i] = min(min_v[i], world_co[i])
+                max_v[i] = max(max_v[i], world_co[i])
+    if min_v[0] == float('inf'):
+        return (-1, -1, -1, 1, 1, 1)
+    half = [max(1, min(32767, round((max_v[i] - min_v[i]) * _FO4_UNIT_SCALE / 2.0))) for i in range(3)]
     return (-half[0], -half[1], -half[2], half[0], half[1], half[2])
 
 
@@ -160,40 +175,67 @@ def assign_plot_stage(obj, level: int, stage: int, is_final: bool = False) -> No
 
 
 def collect_plot_stages(objects) -> tuple:
-    """Group tagged mesh objects by level, ordered by stage.
+    """Group tagged mesh objects by level, then by stage number.
+
+    Multiple objects sharing the same (level, stage) tag are treated as
+    ONE combined stage -- exactly how real SS2 buildings are actually
+    made (kit-bashed from many pieces, see "Your First Building Model" in
+    the Add-on Maker's Toolkit) and exported as a single NIF per stage via
+    export_scene_as_single_nif, not one NIF per individual piece. Use
+    "Tag Selected as Plot Stage" with all of a stage's pieces selected at
+    once to build a multi-piece stage this way.
 
     Returns (stage_groups, error) -- stage_groups is
-    {level: [obj, ...]} in construction order (last = Final) on success,
-    or (None, "message") on a real validation failure.
+    {level: [(stage_num, is_final, [obj, ...]), ...]}, an ordered list of
+    stage groups per level (last group = Final) on success, or
+    (None, "message") on a real validation failure.
     """
-    groups = {}
+    by_level = {}
     for obj in objects:
         if obj.type != 'MESH' or "fo4_ss2_level" not in obj.keys():
+            continue
+        if obj.get("fo4_collision") or obj.name.startswith("UCX_"):
+            # A collision proxy inherits ALL of its source mesh's custom
+            # properties (including fo4_ss2_level/_stage/_stage_final) when
+            # mesh_helpers.add_custom_collision() duplicates the tagged
+            # source object to build it -- never treat that inherited tag
+            # as the collision proxy's own plot stage. Without this guard,
+            # re-running Export Plot after collision already exists (every
+            # second-or-later export) double-counts the stage: the real
+            # source mesh AND its own auto-generated collision both show up
+            # as separate objects in the same (level, stage) group.
             continue
         lvl = int(obj["fo4_ss2_level"])
         stage = int(obj.get("fo4_ss2_stage", 0))
         final = bool(obj.get("fo4_ss2_stage_final", False))
-        groups.setdefault(lvl, []).append((stage, final, obj))
+        by_level.setdefault(lvl, {}).setdefault(stage, []).append((final, obj))
 
-    if not groups:
+    if not by_level:
         return None, "No objects are tagged with a plot level/stage (use Tag Selected first)"
 
     result = {}
-    for lvl, entries in sorted(groups.items()):
-        entries.sort(key=lambda e: e[0])
-        stage_nums = [e[0] for e in entries]
-        if len(stage_nums) != len(set(stage_nums)):
-            return None, f"Level {lvl}: duplicate stage numbers {stage_nums} -- each stage in a level needs a unique number"
-        finals = [e for e in entries if e[1]]
-        if len(finals) == 0:
+    for lvl, by_stage in sorted(by_level.items()):
+        stage_groups = []
+        for stage in sorted(by_stage.keys()):
+            entries = by_stage[stage]
+            finals = {e[0] for e in entries}
+            if len(finals) > 1:
+                names = [e[1].name for e in entries]
+                return None, (f"Level {lvl} Stage {stage}: objects disagree on the Final tag "
+                               f"({names}) -- all objects sharing one stage must be tagged the same")
+            stage_groups.append((stage, finals.pop(), [e[1] for e in entries]))
+
+        final_groups = [g for g in stage_groups if g[1]]
+        if len(final_groups) == 0:
             return None, f"Level {lvl}: no stage is tagged Final -- tag the last construction stage as Final"
-        if len(finals) > 1:
-            return None, f"Level {lvl}: more than one stage tagged Final ({[e[2].name for e in finals]}) -- only the last stage should be Final"
-        if not entries[-1][1]:
-            return None, (f"Level {lvl}: the Final-tagged stage (stage {finals[0][0]}) is not the "
-                           f"highest-numbered stage (stage {entries[-1][0]} sorts last) -- fix the "
+        if len(final_groups) > 1:
+            return None, (f"Level {lvl}: more than one stage tagged Final "
+                           f"(stages {[g[0] for g in final_groups]}) -- only the last stage should be Final")
+        if not stage_groups[-1][1]:
+            return None, (f"Level {lvl}: the Final-tagged stage (stage {final_groups[0][0]}) is not the "
+                           f"highest-numbered stage (stage {stage_groups[-1][0]} sorts last) -- fix the "
                            f"stage numbers or the Final tag")
-        result[lvl] = [e[2] for e in entries]
+        result[lvl] = stage_groups
 
     return result, None
 
@@ -384,7 +426,9 @@ def build_plot_static_script(manifest: list, output_path: str, plan_name: str = 
 def build_models_csv(stage_groups: dict, editor_ids: dict, output_path: str,
                       build_material: str = "default") -> tuple:
     """Row 1 = build material name or 'default'; rows 2-4 = Level 1-3
-    stage EditorIDs in construction order, last = final model.
+    stage EditorIDs in construction order, last = final model. One
+    EditorID per stage GROUP -- every object in a multi-object stage
+    shares the same EditorID (the combined NIF they were exported into).
     Matches Spreadsheet Templates/SS2_BuildingModels_Template.csv exactly.
     """
     if not stage_groups:
@@ -392,7 +436,7 @@ def build_models_csv(stage_groups: dict, editor_ids: dict, output_path: str,
 
     lines = [build_material or "default"]
     for lvl in sorted(stage_groups.keys()):
-        row = [editor_ids[obj] for obj in stage_groups[lvl]]
+        row = [editor_ids[group_objs[0]] for (_stage, _final, group_objs) in stage_groups[lvl]]
         lines.append(",".join(row))
 
     try:
@@ -413,14 +457,14 @@ def _resolve_spawn_stage_numbers(spawn: dict, stage_groups: dict) -> tuple:
     """iStageNum/iStageEnd are 1-based and relative to the level (per the
     real SS2_ImportStageData README) -- resolve from the spawn's tagged
     fo4_ss2_spawn_stage_start/_end (raw fo4_ss2_stage values) to their
-    ordinal position within that level's ordered stage list."""
-    lvl_stages = stage_groups.get(spawn["level"], [])
+    ordinal position within that level's ordered stage-group list."""
+    lvl_groups = stage_groups.get(spawn["level"], [])
 
     def ordinal(raw_stage_value):
         if not raw_stage_value:
             return None
-        for i, obj in enumerate(lvl_stages, start=1):
-            if int(obj.get("fo4_ss2_stage", -1)) == raw_stage_value:
+        for i, (stage_num, _final, _objs) in enumerate(lvl_groups, start=1):
+            if stage_num == raw_stage_value:
                 return i
         return None
 
@@ -556,14 +600,13 @@ def export_ss2_plot(scene_objects, data_root: str, plugin_prefix: str = "MyPrefi
 
     manifest = []
     editor_ids = {}
+    exported_groups = {}
     for lvl in sorted(stage_groups.keys()):
-        objs = stage_groups[lvl]
-        for idx, obj in enumerate(objs, start=1):
-            is_final = bool(obj.get("fo4_ss2_stage_final", False))
+        for idx, (stage_num, is_final, group) in enumerate(stage_groups[lvl], start=1):
             stage_label = "Final" if is_final else f"C{idx}"
             editor_id = _safe_editor_id(f"{safe_prefix}_{safe_plan}_L{lvl}_{stage_label}")
 
-            step_label = f"L{lvl} {stage_label}: {obj.name}"
+            step_label = f"L{lvl} {stage_label}: {len(group)} object(s)"
             if _batch:
                 _batch.progress_step(step_label)
             else:
@@ -571,39 +614,79 @@ def export_ss2_plot(scene_objects, data_root: str, plugin_prefix: str = "MyPrefi
 
             try:
                 bpy.ops.object.select_all(action="DESELECT")
-                obj.select_set(True)
-                bpy.context.view_layer.objects.active = obj
+                for obj in group:
+                    obj.select_set(True)
+                bpy.context.view_layer.objects.active = group[0]
 
                 if generate_collision and _mesh:
-                    col_type = _mesh.MeshHelpers.infer_collision_type(obj)
-                    _mesh.MeshHelpers.add_custom_collision(obj, collision_type=col_type)
+                    for obj in group:
+                        col_type = _mesh.MeshHelpers.infer_collision_type(obj)
+                        _mesh.MeshHelpers.add_custom_collision(obj, collision_type=col_type)
 
                 nif_path = os.path.join(meshes_dir, editor_id + ".nif")
-                ok, msg = _eh.ExportHelpers.export_mesh_to_nif(obj, nif_path)
+                # Multiple pieces sharing one stage (a kit-bashed building,
+                # the normal SS2 case) combine into ONE NIF via the same
+                # multi-object export this addon already uses for "Export
+                # Entire Scene as NIF" -- each piece's own collision travels
+                # along automatically. A single-object stage just exports
+                # that one mesh directly, same as before.
+                #
+                # Retried once on failure: PyNifly's own export call needs a
+                # live VIEW_3D area reference to run correctly outside a
+                # normal File > Export click -- export_helpers._call_nif_export's
+                # own docstring documents the exact "No objects selected for
+                # export" / "result=set()" symptom this can produce, and
+                # already has multi-tier fallback handling for it. This loop
+                # calls the exporter repeatedly (once per stage) within a
+                # single operator run rather than once per click, which is
+                # more exposed to that transient context hiccup than a
+                # normal single export. Re-selecting and retrying once
+                # resolves it in practice without masking a real failure --
+                # if the retry also fails, the stage is still correctly
+                # reported failed, same as before.
+                ok, msg = False, ""
+                for attempt in range(2):
+                    if attempt > 0:
+                        print(f"[SS2 Plot Builder] Retrying export for {step_label}")
+                        bpy.ops.object.select_all(action="DESELECT")
+                        for obj in group:
+                            obj.select_set(True)
+                        bpy.context.view_layer.objects.active = group[0]
+                    if len(group) == 1:
+                        ok, msg = _eh.ExportHelpers.export_mesh_to_nif(group[0], nif_path)
+                    else:
+                        ok, msg = _eh.ExportHelpers.export_scene_as_single_nif(
+                            bpy.context.scene, nif_path, objects=group)
+                    if ok:
+                        break
                 if not ok:
-                    print(f"[SS2 Plot Builder] FAILED export {obj.name}: {msg}")
+                    print(f"[SS2 Plot Builder] FAILED export {step_label}: {msg}")
                     result["fail"] += 1
                     continue
 
                 if _bgsm:
-                    for ok_b, msg_b in _bgsm.export_bgsm_for_object(obj, materials_dir):
-                        if not ok_b:
-                            print(f"[SS2 Plot Builder] BGSM warning for {obj.name}: {msg_b}")
-                    for ok_t, msg_t in _bgsm.export_textures_for_object(obj, textures_dir):
-                        if not ok_t:
-                            print(f"[SS2 Plot Builder] Texture warning for {obj.name}: {msg_t}")
+                    for obj in group:
+                        for ok_b, msg_b in _bgsm.export_bgsm_for_object(obj, materials_dir):
+                            if not ok_b:
+                                print(f"[SS2 Plot Builder] BGSM warning for {obj.name}: {msg_b}")
+                        for ok_t, msg_t in _bgsm.export_textures_for_object(obj, textures_dir):
+                            if not ok_t:
+                                print(f"[SS2 Plot Builder] Texture warning for {obj.name}: {msg_t}")
 
-                editor_ids[obj] = editor_id
+                for obj in group:
+                    editor_ids[obj] = editor_id
+                display_name = group[0].name if len(group) == 1 else f"{safe_plan}_L{lvl}_{stage_label} ({len(group)} pieces)"
                 manifest.append({
-                    "name": obj.name, "editor_id": editor_id,
+                    "name": display_name, "editor_id": editor_id,
                     "nif_rel_path": f"Meshes\\{safe_prefix}\\{safe_plan}\\{editor_id}.nif",
-                    "bounds": _object_bounds_game_units(obj),
+                    "bounds": _group_bounds_game_units(group),
                     "level": lvl, "stage_label": stage_label,
                 })
+                exported_groups.setdefault(lvl, []).append((stage_num, is_final, group))
                 result["success"] += 1
 
             except Exception as exc:
-                print(f"[SS2 Plot Builder] FAILED {obj.name}: {exc}")
+                print(f"[SS2 Plot Builder] FAILED {step_label}: {exc}")
                 result["fail"] += 1
 
     if _batch:
@@ -612,14 +695,6 @@ def export_ss2_plot(scene_objects, data_root: str, plugin_prefix: str = "MyPrefi
     if not manifest:
         result["error"] = "All stage exports failed -- see console for details"
         return result
-
-    # Only keep stage_groups entries whose objects actually exported
-    # successfully, so Models.csv never references a missing EditorID.
-    exported_groups = {
-        lvl: [o for o in objs if o in editor_ids]
-        for lvl, objs in stage_groups.items()
-    }
-    exported_groups = {lvl: objs for lvl, objs in exported_groups.items() if objs}
 
     static_script_path = os.path.join(scripts_dir, safe_plan + "_Statics.pas")
     ok, msg = build_plot_static_script(manifest, static_script_path, plan_name)
@@ -633,7 +708,15 @@ def export_ss2_plot(scene_objects, data_root: str, plugin_prefix: str = "MyPrefi
     if ok:
         result["models_csv"] = models_csv_path
 
-    spawns, spawn_warnings = collect_plot_spawns(scene_objects)
+    # Re-fetch the object list rather than reusing the *scene_objects*
+    # snapshot captured at the top of this function: the stage-export loop
+    # above just ran mesh_helpers.add_custom_collision() for every stage
+    # object, which deletes-and-recreates that object's own UCX_ collision
+    # proxy. On a second (or later) export run, an old UCX_ object from a
+    # previous run is still sitting in *scene_objects* -- once deleted, that
+    # stale Python reference raises "ReferenceError: StructRNA ... has been
+    # removed" the moment collect_plot_spawns() touches it below.
+    spawns, spawn_warnings = collect_plot_spawns(list(bpy.context.scene.objects))
     for w in spawn_warnings:
         print(f"[SS2 Plot Builder] Spawn warning: {w}")
     if spawns:
@@ -785,11 +868,18 @@ _SCENE_PROPS = [
 
 def register():
     for cls in _CLASSES:
-        try: bpy.utils.register_class(cls)
-        except Exception: pass
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            # A silently-swallowed failure here previously left the panel
+            # stuck on "Loading..." forever with zero diagnostic trace --
+            # see the matching fix + comment in fo4_navmesh_generator.py.
+            print(f"⚠ Failed to register {cls.__name__} ({cls.bl_idname}): {e}")
     for name, prop in _SCENE_PROPS:
-        try: setattr(bpy.types.Scene, name, prop)
-        except Exception: pass
+        try:
+            setattr(bpy.types.Scene, name, prop)
+        except Exception as e:
+            print(f"⚠ Failed to register Scene.{name}: {e}")
 
 
 def unregister():

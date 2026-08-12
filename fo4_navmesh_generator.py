@@ -39,6 +39,16 @@ def generate_navmesh_from_scene(source_objects: list,
             continue
         if obj.name.startswith("FO4_NAV"):
             continue   # skip existing navmeshes
+        if obj.get("fo4_collision") or obj.name.startswith("UCX_"):
+            continue   # collision proxies are not walkable surfaces
+        if obj.get("fo4_ss2_boundary_guide"):
+            continue   # SS2 Plot Builder's build-reference box/arrow, never real geometry
+        try:
+            if obj.hide_get():
+                continue   # a hidden object silently contributing walkable
+                           # geometry the user can't even see is never intended
+        except (RuntimeError, AttributeError):
+            pass
 
         mw = obj.matrix_world
         me = obj.data
@@ -51,9 +61,19 @@ def generate_navmesh_from_scene(source_objects: list,
             if slope > max_slope:
                 continue
             verts_world = [(mw @ v.co) for v in face.verts]
-            # Snap to ground plane (slightly above to avoid z-fighting)
-            avg_z = sum(v.z for v in verts_world) / len(verts_world)
-            verts_flat = [Vector((v.x, v.y, avg_z + 0.01)) for v in verts_world]
+            # Nudge straight up by a small FIXED offset (not each face's
+            # own average Z) so two faces sharing an edge keep EXACTLY
+            # coincident vertices after the shift, regardless of terrain
+            # shape. Flattening every face to its own local average Z used
+            # to tear the navmesh apart into disconnected islands on any
+            # non-flat ground (ramps, stairs, natural/cave terrain) --
+            # adjacent faces at even a slightly different height ended up
+            # at different flattened Z values, so their shared edge no
+            # longer lined up, producing systematic open/non-manifold
+            # boundary edges (reported by NavmeshHelpers.validate() as
+            # "N boundary/non-manifold edge(s)") and a visibly fragmented,
+            # misshapen navmesh instead of one continuous surface.
+            verts_flat = [Vector((v.x, v.y, v.z + 0.01)) for v in verts_world]
             face_indices = list(range(vert_offset, vert_offset + len(verts_flat)))
             walkable_verts.extend(verts_flat)
             # Triangulate n-gons
@@ -314,8 +334,18 @@ _CLASSES = [
 
 def register():
     for cls in _CLASSES:
-        try: bpy.utils.register_class(cls)
-        except Exception: pass
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as e:
+            # A silently-swallowed failure here previously left e.g.
+            # bpy.ops.fo4.add_cover_marker undefined with zero diagnostic
+            # trace -- ui_panels.py's cover-marker buttons then crashed on
+            # `op.cover_type = ...` since layout.operator() returns None
+            # for an unregistered idname. Print so the real cause (often a
+            # dual-install / stale sys.modules conflict -- see
+            # __init__.py's stale-namespace purge) is visible in the
+            # console instead of only surfacing as a downstream UI crash.
+            print(f"⚠ Failed to register {cls.__name__} ({cls.bl_idname}): {e}")
 
 
 def unregister():
