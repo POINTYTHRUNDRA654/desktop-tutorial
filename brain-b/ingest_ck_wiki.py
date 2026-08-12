@@ -77,6 +77,8 @@ from typing import Optional
 
 import requests
 
+from skill_tags import tags_for_page
+
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s %(asctime)s] %(message)s",
                     datefmt="%H:%M:%S")
 log = logging.getLogger("ck-wiki-ingest")
@@ -603,6 +605,10 @@ def main():
                 "revision_id": revid or 0,
                 "license": LICENSE,
                 "ingested_at": ts,
+                # Derived per PAGE, not per chunk — see skill_tags.py. Every chunk from this
+                # page (children + parents) inherits the same tags. Feeds the learner model's
+                # exposure tracking in gemma_service_enhanced.py.
+                "skill_tags": ",".join(tags_for_page(title)),
             }
             written = write_page_jsonl(title, entries, parents, common_meta)
             pages_written += 1
