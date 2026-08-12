@@ -64,6 +64,54 @@ type LocalAiSettings = {
 };
 
 /**
+ * One id per app session (module lives for the renderer's lifetime — reset on
+ * reload/restart, stable across every chat turn within it). Passed to Brain B
+ * as `session_id` so learner_signals rows can be assembled into a per-learner
+ * trajectory instead of each being an unowned "unknown" observation — see
+ * gemma_service_enhanced.py's /infer docstring for why that mattered enough
+ * to wire through now rather than defer again now that something calls it.
+ * Not a durable per-user id (that's a bigger, separate concept) — just enough
+ * to tell "same session" apart from "different session" in the logged data.
+ */
+const APP_SESSION_ID: string =
+  (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+    ? crypto.randomUUID()
+    : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/**
+ * Stable across every session, unlike APP_SESSION_ID above — generated once,
+ * persisted via the same settings store as everything else, reused on every
+ * future launch. This is what Brain B's learner_state is actually keyed on
+ * (see gemma_service_enhanced.py's compute_answer_level()/update_learner_state()):
+ * session_id alone can only tell turns within one launch apart, but a learner
+ * model needs continuity across launches to mean anything. Memoized after
+ * first resolution so repeated calls in one session don't re-hit settings I/O.
+ */
+let _cachedUserId: string | null = null;
+async function getOrCreateUserId(): Promise<string> {
+  if (_cachedUserId) return _cachedUserId;
+  try {
+    const api = (window.electron?.api || window.electronAPI) as any;
+    const s = await api?.getSettings?.();
+    if (s?.mossyUserId && typeof s.mossyUserId === 'string') {
+      _cachedUserId = s.mossyUserId;
+      return s.mossyUserId;
+    }
+    const newId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await api?.setSettings?.({ mossyUserId: newId });
+    _cachedUserId = newId;
+    return newId;
+  } catch {
+    // Settings unavailable for some reason — fall back to session-scoped rather
+    // than block the chat turn on this. Learner continuity is lost for this
+    // launch, but nothing else breaks.
+    return APP_SESSION_ID;
+  }
+}
+
+/**
  * Minimum ratio of sanitised text length to original that must be preserved for
  * `sanitizeFinalResponse` to return the sanitised version.  If sanitisation would
  * remove more than (1 - MIN_SANITIZED_TEXT_RATIO) of the text — i.e. the response
@@ -765,10 +813,14 @@ export const LocalAIEngine = {
         // sent yet; Brain B's /infer is single-turn today (no multi-turn context parameter).
         if (provider === 'brainb') {
           const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
+          const userId = await getOrCreateUserId();
           const resp = await fetch(`${brainBBaseUrl}/infer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: query, use_langgraph: true }),
+            body: JSON.stringify({
+              question: query, use_langgraph: true,
+              session_id: APP_SESSION_ID, user_id: userId,
+            }),
             signal,
           });
           if (!resp.ok) throw new Error(`Brain B HTTP ${resp.status}`);

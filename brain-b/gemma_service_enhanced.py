@@ -38,6 +38,7 @@ import os
 import re
 import sqlite3
 import time
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -207,6 +208,23 @@ def init_db():
             stage       TEXT,
             raw_output  TEXT,
             attempts    INTEGER
+        );
+
+        -- The learner model: derived from retrieval side-effects, not a model's
+        -- self-report of how advanced someone is (that's noise — see
+        -- compute_answer_level()'s docstring). Local only, never ships — same
+        -- reason curated/runtime ChromaDB stays physically split, except this
+        -- table never needed that split to begin with: nothing here was ever
+        -- a build input.
+        CREATE TABLE IF NOT EXISTS learner_state (
+            user_id         TEXT NOT NULL,
+            skill_id        TEXT NOT NULL,
+            exposure_count  INTEGER NOT NULL DEFAULT 0,
+            first_seen      TEXT NOT NULL,
+            last_seen       TEXT NOT NULL,
+            debug_turns     INTEGER NOT NULL DEFAULT 0,
+            repeat_asks     INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, skill_id)
         );
     """)
     # CREATE TABLE IF NOT EXISTS doesn't retroactively add columns to a table
@@ -690,7 +708,8 @@ def search_episodes(query: str, limit: int = 5) -> list[str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
-                            diagnosis: Optional[str] = None) -> dict:
+                            diagnosis: Optional[str] = None,
+                            answer_level: Optional[str] = None) -> dict:
     """
     Stateful LangGraph reasoning pipeline:
     search_kb → [web_fallback] → generate → critique → [refine] → validate → return
@@ -698,6 +717,11 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
     `diagnosis` (from diagnose(), computed by the caller before this runs) is
     injected into the generation prompt so it actually shapes the answer's
     framing instead of being decorative metadata attached after the fact.
+
+    `answer_level` (from compute_answer_level(), also computed by the caller)
+    gets the same treatment for the same reason — a field that's returned but
+    never fed into generation is exactly the failure mode diagnosis had before
+    this was fixed, just moved to a new field.
 
     Returns dict with keys: answer, confidence, sources, critique_applied
     """
@@ -761,6 +785,7 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
             if episodes:
                 episode_ctx = "\n\nRELEVANT PAST SESSIONS:\n" + "\n".join(episodes)
             diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
+            level_ctx = _answer_level_prompt_fragment(answer_level)
             prompt = (
                 f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic memory, self-critique, and fine-tuning.\n"
                 f"\n"
@@ -772,7 +797,8 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 f"\n"
                 f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n"
                 f"{episode_ctx}"
-                f"{diagnosis_ctx}\n"
+                f"{diagnosis_ctx}"
+                f"{level_ctx}\n"
                 f"USER QUESTION: {state['question']}\n\n"
                 f"Provide a thorough, accurate answer. Cite specific tools, record types, "
                 f"or INI settings where relevant.\n\nMOSSY:"
@@ -868,10 +894,10 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
     except ImportError:
         # LangGraph not installed — fall back to simple single-pass
         log.warning("LangGraph not installed, falling back to simple inference.")
-        return _simple_infer(question, diagnosis=diagnosis)
+        return _simple_infer(question, diagnosis=diagnosis, answer_level=answer_level)
 
 
-def _simple_infer(question: str, diagnosis: Optional[str] = None) -> dict:
+def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: Optional[str] = None) -> dict:
     """Fallback when LangGraph is not available."""
     results = hybrid_retrieve(question, top_k=6)
     ctx = "\n\n".join(expand_to_parent(results))
@@ -881,9 +907,10 @@ def _simple_infer(question: str, diagnosis: Optional[str] = None) -> dict:
         if web:
             ctx = f"[Web]\n{web}"
     diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
+    level_ctx = _answer_level_prompt_fragment(answer_level)
     prompt = (
         f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic \n"
-        f"CONTEXT:\n{ctx}\n{diagnosis_ctx}\nQ: {question}\n\nMOSSY:"
+        f"CONTEXT:\n{ctx}\n{diagnosis_ctx}{level_ctx}\nQ: {question}\n\nMOSSY:"
     )
     answer = generate_text(prompt, max_new_tokens=512)
     return {"answer": answer, "confidence": 0.7, "sources": sources,
@@ -938,6 +965,166 @@ def classify_mode(question: str) -> str:
     if any(m in q for m in teach_markers):
         return "teach"
     return "answer"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LEARNER MODEL — derived from retrieval side-effects, not model self-report
+# ═══════════════════════════════════════════════════════════════════════════════
+# Deliberately NOT "ask the model how advanced this user is" — a 9B asked that
+# question directly answers inconsistently turn to turn, and state built on an
+# inconsistent self-report is state built on noise. Everything here instead
+# comes from facts already being logged: which skill_tags the retrieved chunks
+# carry (see skill_tags.py), how many times a skill has come up, whether those
+# turns were in debug mode. learner_signal (the model's free-text guess) stays
+# a tiebreaker for future schema design, never the source of truth for this.
+
+def extract_skill_ids(results: list[dict]) -> set[str]:
+    """Union of skill_tags across a set of retrieval results."""
+    skill_ids: set[str] = set()
+    for r in results:
+        meta = r.get("metadata") or {}
+        tags_str = meta.get("skill_tags", "")
+        if isinstance(tags_str, str) and tags_str:
+            skill_ids.update(t.strip() for t in tags_str.split(",") if t.strip())
+    return skill_ids
+
+
+def compute_answer_level(user_id: str, skill_ids: set[str], override: Optional[str] = None) -> str:
+    """
+    Deliberately crude, per the same reasoning that kept diagnosis/mode
+    simple: "crude and defensible" beats "sophisticated and hallucinated."
+    Reads state as it stood BEFORE this turn's exposure is recorded (see
+    /infer's call order) — a user's first-ever question about a skill should
+    read as "unseen", not be inflated by counting the very question that
+    revealed it.
+
+      - explicit override (settings, once a UI exists to set it) always wins
+      - unseen, or 1-2 prior exposures -> beginner
+      - >2 prior exposures AND at least one was a debug-mode turn -> intermediate
+      - >2 prior exposures with no debug-mode turn -> still beginner (repeated
+        reading without ever hitting a real problem isn't evidence of comfort
+        with the material — only stated as two conditions in the spec this
+        was built from, so no third bucket invented beyond it)
+    """
+    if override in ("beginner", "intermediate", "advanced"):
+        return override
+    if not user_id or user_id == "unknown" or not skill_ids:
+        return "beginner"
+    conn = sqlite3.connect(str(DB_PATH))
+    placeholders = ",".join("?" * len(skill_ids))
+    rows = conn.execute(
+        f"SELECT exposure_count, debug_turns FROM learner_state WHERE user_id=? AND skill_id IN ({placeholders})",
+        (user_id, *skill_ids),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return "beginner"
+    max_exposure = max(r[0] for r in rows)
+    total_debug = sum(r[1] for r in rows)
+    if max_exposure > 2 and total_debug > 0:
+        return "intermediate"
+    return "beginner"
+
+
+def update_learner_state(user_id: str, skill_ids: set[str], mode: str) -> None:
+    """
+    Increments exposure for every skill touched THIS turn. Called after
+    compute_answer_level() so the level reflects who the user was walking
+    into the question, not who they became by asking it.
+    """
+    if not user_id or user_id == "unknown" or not skill_ids:
+        return
+    ts = datetime.utcnow().isoformat()
+    is_debug = 1 if mode == "debug" else 0
+    conn = sqlite3.connect(str(DB_PATH))
+    for skill_id in skill_ids:
+        row = conn.execute(
+            "SELECT exposure_count FROM learner_state WHERE user_id=? AND skill_id=?",
+            (user_id, skill_id),
+        ).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO learner_state (user_id, skill_id, exposure_count, first_seen, last_seen, "
+                "debug_turns, repeat_asks) VALUES (?,?,1,?,?,?,0)",
+                (user_id, skill_id, ts, ts, is_debug),
+            )
+        else:
+            # repeat_asks: every re-exposure beyond the first. A coarse proxy for
+            # "came back to this skill again" — not the same signal as debug_turns
+            # (which flags specifically debugging-context exposure), and not
+            # claiming to detect near-duplicate question phrasing.
+            conn.execute(
+                "UPDATE learner_state SET exposure_count = exposure_count + 1, last_seen = ?, "
+                "debug_turns = debug_turns + ?, repeat_asks = repeat_asks + 1 "
+                "WHERE user_id=? AND skill_id=?",
+                (ts, is_debug, user_id, skill_id),
+            )
+    conn.commit()
+    conn.close()
+
+
+def suggest_next_skill(user_id: str, current_skill_ids: set[str]) -> Optional[str]:
+    """
+    Interim stand-in for a real skill graph: the tag that most often
+    co-occurs (in the same chunk's skill_tags) with what this turn touched,
+    excluding tags already in play and tags this user has already been
+    exposed to. Approximates "what usually comes next" from real document
+    co-occurrence instead of a hand-built prerequisite graph — costs one
+    ChromaDB read over the (currently small) curated collection, recomputed
+    per call rather than cached, since that's cheap at this corpus size.
+    """
+    if not current_skill_ids:
+        return None
+    coll = get_curated_collection()
+    if coll.count() == 0:
+        return None
+    result = coll.get(include=["metadatas"])
+    co_occur: Counter = Counter()
+    for meta in result["metadatas"]:
+        tags_str = (meta or {}).get("skill_tags", "")
+        doc_tags = set(t.strip() for t in tags_str.split(",") if t.strip())
+        shared = doc_tags & current_skill_ids
+        if not shared:
+            continue
+        for t in doc_tags - current_skill_ids:
+            co_occur[t] += 1
+
+    if not co_occur:
+        return None
+
+    exposed: set[str] = set()
+    if user_id and user_id != "unknown":
+        conn = sqlite3.connect(str(DB_PATH))
+        rows = conn.execute(
+            "SELECT skill_id FROM learner_state WHERE user_id=? AND exposure_count > 0", (user_id,)
+        ).fetchall()
+        conn.close()
+        exposed = {r[0] for r in rows}
+
+    for tag, _count in co_occur.most_common():
+        if tag not in exposed:
+            return tag
+    return None
+
+
+def _answer_level_prompt_fragment(answer_level: Optional[str]) -> str:
+    """
+    Turns a computed answer_level into an actual instruction in the generation
+    prompt. This is the line that decides whether answer_level is real or
+    decorative — see the validation notes near build_knowledge_db.py's
+    validate_records() for the same principle applied to a different field.
+    """
+    if answer_level == "beginner":
+        return ("\nAUDIENCE LEVEL — BEGINNER: They're new to this specific skill area. "
+                "Explain foundational terms as you use them, use a concrete analogy, "
+                "don't assume prior Papyrus/Creation Kit experience beyond what the "
+                "knowledge base context implies they already have.\n")
+    if answer_level == "intermediate":
+        return ("\nAUDIENCE LEVEL — INTERMEDIATE: They've hit this skill area repeatedly, "
+                "including while debugging. Skip re-explaining basic syntax or concepts "
+                "they've almost certainly already seen — be technical and concise, and "
+                "focus on the specific mechanism they're asking about.\n")
+    return ""
 
 
 def _extract_json(raw: str) -> Optional[dict]:
@@ -1036,14 +1223,18 @@ def diagnose(question: str, mode: str) -> Optional[str]:
 
 def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[str]) -> dict:
     """
-    The rest of the response contract, computed AFTER the answer exists.
+    The LLM-derived half of the response contract, computed AFTER the answer
+    exists: check_question and learner_signal. answer_level and next_skill are
+    NOT computed here anymore — they're data-derived, not LLM-derived (see
+    compute_answer_level()/suggest_next_skill() and /infer, which calls them
+    directly against learner_state before generation even happens). Keeping
+    them out of this function is deliberate: this one small JSON call is for
+    the two things that genuinely need the model's judgment, not a dumping
+    ground for everything in the contract.
 
-    answer_level and next_skill are ALWAYS null in v1 — there is no learner
-    table to read them from yet, and guessing would defeat the point of
-    building that table from real data later. They are never even requested
-    from the model; only `learner_signal` (free text: what the model would
-    want to know about this user to answer better next time) is, and that
-    gets logged to `learner_signals` for exactly that purpose.
+    learner_signal (free text: what the model would want to know about this
+    user to answer better next time) is still requested — it's the tiebreaker
+    for future schema design, not the source of truth for answer_level itself.
 
     check_question is only requested when mode == "teach" — this is the
     contract's bypass for non-teaching turns (see module docstring above).
@@ -1070,8 +1261,6 @@ def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[s
         parsed = {}
 
     return {
-        "answer_level": None,  # v1: nothing populates this yet, by design — not a bug
-        "next_skill": None,    # v1: nothing populates this yet, by design — not a bug
         "check_question": parsed.get("check_question") if want_check_question else None,
         "learner_signal": parsed.get("learner_signal"),
     }
@@ -1119,35 +1308,45 @@ def reflect():
 def infer():
     """
     POST /infer  { "question": "...", "use_langgraph": true, "mode": "teach|answer|debug",
-                   "session_id": "..." }
+                   "session_id": "...", "user_id": "...", "experience_level_override": "beginner" }
 
     `mode` is optional — omit it to fall back to classify_mode()'s keyword
     heuristic. Pass it explicitly once a real router exists upstream.
 
-    `session_id` is optional but SHOULD be passed once any real caller wires
-    this up — it's what lets learner_signals rows be assembled into a
-    per-learner trajectory instead of being unowned observations. No caller
-    does this yet (Brain B isn't wired into LocalAIEngine.ts/ChatInterface.tsx
-    at all currently), so it defaults to "unknown" rather than a synthesized
-    id that would look legitimate without actually identifying anyone.
+    `session_id` identifies one app session (per-launch); `user_id` identifies
+    one learner across every session (persisted client-side, e.g.
+    LocalAIEngine.ts stores it once via crypto.randomUUID() and reuses it on
+    every future launch). Both optional, both default to "unknown" rather
+    than a synthesized value that would look legitimate without identifying
+    anyone. `user_id` specifically is what learner_state is keyed on — without
+    it, no exposure tracking happens for that turn at all (see
+    update_learner_state()), so answer_level/next_skill stay at their
+    no-history defaults regardless of what was actually asked.
+
+    `experience_level_override`, if one of beginner/intermediate/advanced, wins
+    over the computed answer_level unconditionally — see compute_answer_level().
+    No settings UI sets this yet; the parameter exists so one can be added
+    without any server-side change.
 
     Returns {
       "answer": "...", "confidence": 0.8, "sources": [...],
       "mode": "teach|answer|debug",
       "diagnosis": "..." | null,
       "check_question": "..." | null,   -- only non-null when mode == "teach"
-      "answer_level": null,             -- v1: always null, see contract_fields()
-      "next_skill": null,               -- v1: always null, see contract_fields()
+      "answer_level": "beginner|intermediate|advanced" | null,
+      "next_skill": "..." | null,       -- a skill_tags.py tag, or null
       "abstained": bool,                -- true when retrieval agreement was too low to
                                          -- attempt an answer — see MIN_RETRIEVAL_AGREEMENT
       ...
     }
     """
-    data          = request.get_json(force=True)
-    question      = data.get("question", "").strip()
-    use_langgraph = data.get("use_langgraph", True)
-    mode          = data.get("mode") or classify_mode(question)
-    session_id    = data.get("session_id") or "unknown"
+    data                = request.get_json(force=True)
+    question            = data.get("question", "").strip()
+    use_langgraph       = data.get("use_langgraph", True)
+    mode                = data.get("mode") or classify_mode(question)
+    session_id          = data.get("session_id") or "unknown"
+    user_id             = data.get("user_id") or "unknown"
+    experience_override = data.get("experience_level_override")
 
     if not question:
         return jsonify({"error": "question required"}), 400
@@ -1169,6 +1368,10 @@ def infer():
                   agreement, MIN_RETRIEVAL_AGREEMENT)
         log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
                             diagnosis=None, session_id=session_id)
+        # No learner_state update on abstention — an abstained turn touched no
+        # real content, so there's nothing to attribute exposure to. "Corpus
+        # gap, not learner gap": the coverage_gaps.py signal is the right tool
+        # for this, not the learner model.
         result = {
             "answer": NO_DOCS_MESSAGE, "confidence": 0.0, "sources": [],
             "critique_applied": False, "used_web": False, "abstained": True,
@@ -1179,15 +1382,24 @@ def infer():
         # resolved interaction; saving it would pollute episodic memory.
         return jsonify(result)
 
+    # Learner model: read state BEFORE this turn's exposure is recorded, so
+    # answer_level reflects who the user was walking in, not who they became
+    # by asking. skill_ids come from the same probe used for the abstention
+    # check — no extra retrieval call needed for this.
+    skill_ids = extract_skill_ids(probe)
+    answer_level = compute_answer_level(user_id, skill_ids, experience_override)
+    update_learner_state(user_id, skill_ids, mode)
+    next_skill = suggest_next_skill(user_id, skill_ids)
+
     # Diagnose BEFORE generating, so it shapes the answer rather than just
     # describing it after the fact. Nullable — never blocks the answer.
     diagnosis = diagnose(question, mode)
 
     try:
         if use_langgraph:
-            result = run_langgraph_workflow(question, diagnosis=diagnosis)
+            result = run_langgraph_workflow(question, diagnosis=diagnosis, answer_level=answer_level)
         else:
-            result = _simple_infer(question, diagnosis=diagnosis)
+            result = _simple_infer(question, diagnosis=diagnosis, answer_level=answer_level)
     except Exception as e:
         log.exception("Inference failed: %s", e)
         # Return a generic error message to avoid leaking internal stack traces
@@ -1199,8 +1411,8 @@ def infer():
     result["mode"] = mode
     result["diagnosis"] = diagnosis
     result["check_question"] = fields["check_question"]
-    result["answer_level"] = fields["answer_level"]
-    result["next_skill"] = fields["next_skill"]
+    result["answer_level"] = answer_level
+    result["next_skill"] = next_skill
     result["abstained"] = False
 
     # Optionally auto-save episode summary
