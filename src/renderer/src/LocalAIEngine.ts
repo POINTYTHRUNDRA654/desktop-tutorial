@@ -23,6 +23,21 @@ export interface AIResponse {
    *  UI surfaces this as a collapsible "reasoning" trace; most callers can
    *  ignore it entirely. */
   reasoning?: string;
+
+  // --- Brain B tutor contract (see brain-b/gemma_service_enhanced.py's /infer) ---
+  // Only populated when Brain B answered this turn; undefined for every other
+  // provider, including when Brain B abstained (still populated then — abstained
+  // itself is the signal, not a missing response).
+  /** teach | answer | debug — set by Brain B's mode classifier. */
+  mode?: 'teach' | 'answer' | 'debug';
+  /** What Brain B decided the user actually needs, computed before generating. */
+  diagnosis?: string | null;
+  /** A verification question, only ever set when mode === 'teach'. */
+  checkQuestion?: string | null;
+  /** True when Brain B found no matching documentation and declined to guess —
+   *  `content` is already the honest "I don't know" message in that case, not
+   *  an error; render it plainly rather than as a failure. */
+  abstained?: boolean;
 }
 
 /** Minimal shape of a successful web search result used internally. */
@@ -32,7 +47,7 @@ interface WebSearchResult {
   source?: string;
 }
 
-type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
+type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'brainb' | 'off';
 
 type LocalAiSettings = {
   localAiPreferredProvider?: LocalAiPreferred;
@@ -42,6 +57,10 @@ type LocalAiSettings = {
   openaiCompatModel?: string;
   cosmosBaseUrl?: string;
   cosmosModel?: string;
+  /** Brain B — Mossy's own local RAG/tutor Flask service (brain-b/gemma_service_enhanced.py).
+   *  Default port 8766, not 8765 — that port is already claimed by the F4AI NPC-dialogue relay
+   *  this same app starts unconditionally (see src/electron/main.ts). */
+  brainBBaseUrl?: string;
 };
 
 /**
@@ -69,6 +88,7 @@ export const LocalAIEngine = {
           openaiCompatModel: s?.openaiCompatModel ?? '',
           cosmosBaseUrl: s?.cosmosBaseUrl ?? '',
           cosmosModel: s?.cosmosModel ?? '',
+          brainBBaseUrl: s?.brainBBaseUrl ?? 'http://127.0.0.1:8766',
         };
       }
     } catch {
@@ -83,6 +103,7 @@ export const LocalAIEngine = {
       openaiCompatModel: '',
       cosmosBaseUrl: '',
       cosmosModel: '',
+      brainBBaseUrl: 'http://127.0.0.1:8766',
     };
   },
 
@@ -164,6 +185,7 @@ export const LocalAIEngine = {
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'koboldcpp'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'fo4bridge'; baseUrl: string; models: string[] }
+    | { ok: true; provider: 'brainb'; baseUrl: string; models: string[] }
     | { ok: false; reason: string }
   > {
     try {
@@ -199,8 +221,25 @@ export const LocalAIEngine = {
       } catch { /* not running */ }
       const BRIDGE_BASE = 'http://127.0.0.1:28485';
 
+      // Check Brain B (default port 8766) — Mossy's own local RAG/tutor service. Optional,
+      // user-started (brain-b/gemma_service_enhanced.py), not bundled or auto-launched.
+      let brainbOk = false;
+      const BRAINB_BASE = String(settings.brainBBaseUrl || 'http://127.0.0.1:8766');
+      try {
+        const bb = await fetch(`${BRAINB_BASE}/health`, { signal: AbortSignal.timeout(1500) });
+        if (bb.ok) {
+          const bs = await bb.json();
+          brainbOk = bs?.status === 'ok';
+        }
+      } catch { /* not running */ }
+
       const pickAuto = () => {
         if (cosmosOk) return { ok: true as const, provider: 'cosmos' as const, baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] };
+        // Brain B ranks above the generic completion providers when it's up: it requires the
+        // user to have deliberately started a separate service, a stronger signal of intent
+        // than "Ollama happens to be running in the background", and it's a specialized
+        // RAG/tutor system rather than a raw completion endpoint.
+        if (brainbOk) return { ok: true as const, provider: 'brainb' as const, baseUrl: BRAINB_BASE, models: ['brain-b'] };
         if (ollamaOk) return { ok: true as const, provider: 'ollama' as const, baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] };
         if (openaiOk) return { ok: true as const, provider: 'openai_compat' as const, baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] };
         if (koboldOk) return { ok: true as const, provider: 'koboldcpp' as const, baseUrl: KOBOLD_BASE, models: ['tinyllama'] };
@@ -210,6 +249,12 @@ export const LocalAIEngine = {
 
       if (preferred === 'off') return { ok: false, reason: 'Local AI disabled in settings.' };
       if (preferred === 'auto') return pickAuto();
+
+      if (preferred === 'brainb') {
+        return brainbOk
+          ? { ok: true, provider: 'brainb', baseUrl: BRAINB_BASE, models: ['brain-b'] }
+          : { ok: false, reason: 'Brain B not detected — is gemma_service_enhanced.py running?' };
+      }
 
       if (preferred === 'cosmos') {
         return cosmosOk
@@ -711,6 +756,36 @@ export const LocalAIEngine = {
 
         const localStatusAny = localStatus as any;
         const provider = localStatusAny.provider as string | undefined;
+
+        // Brain B — Mossy's own local RAG/tutor service (brain-b/gemma_service_enhanced.py).
+        // Deliberately does NOT send `enhancedSystemInstruction`/`injectedContext`/`prompt`:
+        // Brain B builds its own system prompt server-side from knowledge-base retrieval, so
+        // the client-supplied prompt built above (for providers that need one) doesn't apply
+        // here — only the question itself goes over the wire. `conversationHistory` also isn't
+        // sent yet; Brain B's /infer is single-turn today (no multi-turn context parameter).
+        if (provider === 'brainb') {
+          const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
+          const resp = await fetch(`${brainBBaseUrl}/infer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: query, use_langgraph: true }),
+            signal,
+          });
+          if (!resp.ok) throw new Error(`Brain B HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (data?.error) throw new Error(`Brain B: ${data.error}`);
+
+          selfImprovementEngine.recordInteraction(query, String(data?.answer || ''), [], 'success');
+
+          return {
+            content: data?.answer || 'Brain B returned an empty response.',
+            context: { citations: Array.isArray(data?.sources) ? data.sources : [] },
+            mode: data?.mode,
+            diagnosis: data?.diagnosis ?? undefined,
+            checkQuestion: data?.check_question ?? undefined,
+            abstained: !!data?.abstained,
+          };
+        }
 
         // KoboldCPP — OpenAI-compatible endpoint on port 5001
         if (provider === 'koboldcpp') {

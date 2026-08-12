@@ -57,7 +57,7 @@ The server will:
 1. Auto-select the best Gemma model based on your VRAM
 2. Bootstrap ChromaDB with 100+ expert knowledge entries (first run only)
 3. Build the knowledge graph
-4. Start the Flask API on `http://localhost:8765`
+4. Start the Flask API on `http://localhost:8766`
 
 ## Configuration
 
@@ -68,7 +68,7 @@ Set environment variables before starting:
 | `MOSSY_MODEL` | auto-selected | Override model (e.g. `google/gemma-2-9b-it`) |
 | `CHROMA_PATH` | `D:\Mossy-AI\data\chroma` | ChromaDB persist directory |
 | `MODELS_PATH` | `D:\Mossy-AI\models` | HuggingFace model cache |
-| `MOSSY_PORT` | `8765` | API server port |
+| `MOSSY_PORT` | `8766` | API server port (8765 is claimed by Mossy's own Electron F4AI relay) |
 
 > No external API keys are needed. HuggingFace model downloads are free (no account required for public models).
 

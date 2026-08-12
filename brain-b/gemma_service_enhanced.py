@@ -19,13 +19,15 @@ Model weights download from HuggingFace on first run (free account not required)
 
 Deploy at: D:\\Mossy-AI\\gemma_service_enhanced.py
 Start: python gemma_service_enhanced.py
-API: http://localhost:8765
+API: http://localhost:8766
 
 Environment variables:
-  CHROMA_PATH  – ChromaDB persist dir  (default D:\\Mossy-AI\\data\\chroma)
+  CHROMA_CURATED_PATH – curated (shippable) ChromaDB dir (default D:\\Mossy-AI\\data\\chroma_curated)
+  CHROMA_RUNTIME_PATH – runtime (local-only) ChromaDB dir (default D:\\Mossy-AI\\data\\chroma_runtime)
   MODELS_PATH  – HuggingFace cache dir (default D:\\Mossy-AI\\models)
   MOSSY_MODEL  – Override model name   (default auto-selected by VRAM)
-  MOSSY_PORT   – Server port           (default 8765)
+  MOSSY_PORT   – Server port           (default 8766 — 8765 is already used by
+                 the Electron F4AI NPC-dialogue relay in src/electron/main.ts)
 """
 
 from __future__ import annotations
@@ -50,15 +52,50 @@ from rank_bm25 import BM25Okapi
 
 # ── Constants ────────────────────────────────────────────────────────────────
 BASE_DIR       = Path(os.environ.get("MOSSY_BASE_DIR", r"D:\Mossy-AI"))
-CHROMA_PATH    = os.environ.get("CHROMA_PATH",  str(BASE_DIR / "data" / "chroma"))
 MODELS_PATH    = os.environ.get("MODELS_PATH",  str(BASE_DIR / "models"))
+
+# Two SEPARATE ChromaDB persist directories, not two collections in one — a
+# physical split is much harder to accidentally blur than a same-directory
+# naming convention. CURATED is the build artifact: bootstrap entries +
+# reviewed wiki ingestion (see ingest_ck_wiki.py), versioned and shipped.
+# RUNTIME is everything written at runtime — auto_save_to_chroma()'s cached
+# web results, /knowledge/add uploads — local to one machine, never
+# packaged, never exported. hybrid_retrieve() queries both locally; only
+# CURATED_PATH is ever the target of a distributed package.
+CHROMA_CURATED_PATH = os.environ.get("CHROMA_CURATED_PATH", str(BASE_DIR / "data" / "chroma_curated"))
+CHROMA_RUNTIME_PATH = os.environ.get("CHROMA_RUNTIME_PATH", str(BASE_DIR / "data" / "chroma_runtime"))
+COLLECTION_NAME     = "mossy_knowledge"  # same name in both dirs — the directory is what separates them
 DB_PATH        = BASE_DIR / "data" / "mossy_brain.db"
 GRAPH_PATH     = BASE_DIR / "data" / "knowledge_graph.json"
 LORA_PATH      = BASE_DIR / "models" / "mossy-lora"
 DATASET_PATH   = BASE_DIR / "data" / "training_dataset.jsonl"
-PORT           = int(os.environ.get("MOSSY_PORT", 8765))
+
+# 8765 is already claimed unconditionally by the F4AI NPC-dialogue relay
+# Electron starts in src/electron/main.ts (_startF4aiBridgeServer) — that
+# server has no on/off setting, so whichever of it or this process starts
+# second silently fails to bind. Brain B defaults to 8766 instead; override
+# with MOSSY_PORT if you have a reason to.
+PORT           = int(os.environ.get("MOSSY_PORT", 8766))
 MAX_EPISODES   = 500
 CRITIQUE_CONF_THRESHOLD = 0.85
+
+# Abstention threshold: minimum vector+BM25 AGREEMENT (count of top-6 results
+# both retrievers picked independently) required to attempt an answer at all.
+# NOT an RRF score threshold — RRF's fused score is rank-derived (1/(rank+K)),
+# so a confident-looking top-1 score is identical whether the match is real or
+# just the least-bad neighbor available. Agreement between two independently-
+# computed rankings carries no such artifact and comes free from retrieval
+# already being run. Empirically on a real (if small — 8-page) corpus: every
+# genuine hit tested got 2-3 agreement in top-6; every genuine miss got 0,
+# cleanly separated with no borderline cases. Mechanism is sound regardless of
+# corpus size; re-validate this exact number as the corpus grows past 25 pages.
+MIN_RETRIEVAL_AGREEMENT = 2
+NO_DOCS_MESSAGE = (
+    "I don't have documentation covering that in my knowledge base right now, "
+    "so I'd rather tell you that plainly than guess. If you can point me at a "
+    "source (or add it via /knowledge/add), I can look at it directly — "
+    "otherwise this might be worth checking the CK wiki or F4SE docs yourself."
+)
 
 # Model selection based on VRAM
 def _select_model() -> str:
@@ -85,12 +122,18 @@ CORS(app)
 # ── Lazy globals (loaded on first use) ───────────────────────────────────────
 _model       = None
 _tokenizer   = None
-_collection  = None
+_curated_collection = None
+_runtime_collection = None
+_SERVER_TYPE = "unknown"  # set in __main__ once we know whether waitress loaded; read by /health
 _embed_model = None
 _bm25        = None
 _bm25_docs   = None
 _bm25_ids    = None
+_bm25_metas  = None
+_bm25_stores = None  # parallel array: "curated" or "runtime" per doc, so expand_to_parent() knows where to look
 _graph       = None
+
+MAX_EXPANDED_PARENTS = 4  # cap on distinct parent docs pulled into one generation's context
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -128,7 +171,51 @@ def init_db():
             quality    REAL DEFAULT 0.5,
             source     TEXT DEFAULT 'inferred'
         );
+
+        -- v1 of the tutor response contract has nowhere to READ learner state
+        -- from (no skill graph, no per-user mastery table yet). Rather than
+        -- guess that table's shape, every turn logs what the model says it
+        -- would want to know about the user to answer better. Design the real
+        -- learner-state table from patterns in this data once there's enough
+        -- of it, instead of from a guess made before any real usage existed.
+        --
+        -- session_id is the whole point of this table: without an owner key,
+        -- these rows are unassemblable observations, not a trajectory — which
+        -- defeats the reason it exists. Brain B has no caller wiring a real
+        -- session/conversation id through yet (see /infer's docstring), so
+        -- this column will read "unknown" until that's connected — visibly,
+        -- not silently, so the gap doesn't get missed until backfill time.
+        CREATE TABLE IF NOT EXISTS learner_signals (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts             TEXT NOT NULL,
+            session_id     TEXT NOT NULL DEFAULT 'unknown',
+            question       TEXT NOT NULL,
+            mode           TEXT,
+            learner_signal TEXT,
+            diagnosis      TEXT
+        );
+
+        -- Every time the small JSON contract calls (see _generate_json) fail
+        -- to parse after retries. Watch this table's growth rate — if it's a
+        -- meaningful fraction of turns, retry-on-parse-failure isn't enough
+        -- and it's time to move to constrained decoding (see _generate_json's
+        -- docstring for why that's deferred rather than done up front).
+        CREATE TABLE IF NOT EXISTS contract_failures (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts          TEXT NOT NULL,
+            question    TEXT NOT NULL,
+            stage       TEXT,
+            raw_output  TEXT,
+            attempts    INTEGER
+        );
     """)
+    # CREATE TABLE IF NOT EXISTS doesn't retroactively add columns to a table
+    # that already existed under an older schema — needed if learner_signals
+    # was created by a run of this file before session_id existed.
+    try:
+        conn.execute("ALTER TABLE learner_signals ADD COLUMN session_id TEXT NOT NULL DEFAULT 'unknown'")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
     conn.close()
     log.info("SQLite DB ready: %s", DB_PATH)
@@ -187,8 +274,12 @@ def get_embed_model():
     global _embed_model
     if _embed_model is None:
         from sentence_transformers import SentenceTransformer
-        _embed_model = SentenceTransformer("BAAI/bge-small-en-v1.5", cache_folder=MODELS_PATH)
-        log.info("Embedding model loaded: BAAI/bge-small-en-v1.5")
+        from knowledge_manifest import EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_REVISION
+        # Pinned revision, not "latest" — see knowledge_manifest.py's module docstring
+        # for why an unpinned model breaks build reproducibility.
+        _embed_model = SentenceTransformer(EMBEDDING_MODEL_NAME, revision=EMBEDDING_MODEL_REVISION,
+                                            cache_folder=MODELS_PATH)
+        log.info("Embedding model loaded: %s @ %s", EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_REVISION)
     return _embed_model
 
 
@@ -201,93 +292,244 @@ def embed(texts: list[str]) -> list[list[float]]:
 # CHROMADB + BM25 HYBRID RETRIEVAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_collection():
-    global _collection
-    if _collection is None:
+def get_curated_collection():
+    """The shippable knowledge base: bootstrap entries + reviewed wiki ingestion."""
+    global _curated_collection
+    if _curated_collection is None:
         import chromadb
-        Path(CHROMA_PATH).mkdir(parents=True, exist_ok=True)
-        client = chromadb.PersistentClient(path=CHROMA_PATH)
-        _collection = client.get_or_create_collection(
-            "mossy_knowledge", metadata={"hnsw:space": "cosine"}
+        from knowledge_manifest import check_embedding_model, EMBEDDING_MODEL_NAME
+        check_embedding_model(CHROMA_CURATED_PATH, current_model=EMBEDDING_MODEL_NAME)
+        Path(CHROMA_CURATED_PATH).mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=CHROMA_CURATED_PATH)
+        _curated_collection = client.get_or_create_collection(
+            COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
         )
-        log.info("ChromaDB collection ready (%d docs).", _collection.count())
-    return _collection
+        log.info("Curated ChromaDB collection ready (%d docs) at %s.",
+                  _curated_collection.count(), CHROMA_CURATED_PATH)
+    return _curated_collection
+
+
+def get_runtime_collection():
+    """Local-only: auto-saved web results + manual /knowledge/add uploads. Never packaged."""
+    global _runtime_collection
+    if _runtime_collection is None:
+        import chromadb
+        Path(CHROMA_RUNTIME_PATH).mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=CHROMA_RUNTIME_PATH)
+        _runtime_collection = client.get_or_create_collection(
+            COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+        )
+        log.info("Runtime ChromaDB collection ready (%d docs) at %s.",
+                  _runtime_collection.count(), CHROMA_RUNTIME_PATH)
+    return _runtime_collection
+
+
+_CAMEL_SPLIT_RE = re.compile(r'[A-Z]?[a-z0-9]+|[A-Z]+(?![a-z])')
+
+
+def _split_identifier(word: str) -> list[str]:
+    """camelCase/PascalCase -> lowercase constituent words, only if there's more than one."""
+    parts = _CAMEL_SPLIT_RE.findall(word)
+    return [p.lower() for p in parts] if len(parts) > 1 else []
+
+
+def _tokenize(text: str) -> list[str]:
+    """
+    BM25 tokenizer for a corpus that's half API-reference text.
+
+    Plain `.lower().split()` (the previous tokenizer) has two compounding
+    failures on this corpus, both confirmed empirically against real query
+    results, not theoretical: (1) it splits on whitespace only, so a
+    signature line's opening paren glues onto the identifier
+    ("setanimationvariablefloat(string" as ONE token) — even a query typing
+    the exact correct name never matches it; (2) even fixed, a compound
+    identifier like SetAnimationVariableFloat is one opaque token with zero
+    overlap against a natural query like "set an animation variable", so
+    BM25 found ~0 overlap with vector search on every code-lookup query in
+    testing and defaulted to whichever long prose document shared the most
+    stopwords.
+
+    Fix: regex-bounded alphanumeric extraction (punctuation can't glue onto
+    a token), PLUS splitting each compound identifier into its constituent
+    words as ADDITIONAL tokens — the original glued token is kept too, so an
+    exact-name query still matches directly.
+    """
+    tokens = []
+    for word in re.findall(r'[A-Za-z0-9]+', text):
+        tokens.append(word.lower())
+        tokens.extend(_split_identifier(word))
+    return tokens
 
 
 def _build_bm25():
-    """Build BM25 index from all ChromaDB documents (rebuilt on first call)."""
-    global _bm25, _bm25_docs, _bm25_ids
-    coll = get_collection()
-    count = coll.count()
-    if count == 0:
+    """Build BM25 index from BOTH collections' documents (rebuilt on first call)."""
+    global _bm25, _bm25_docs, _bm25_ids, _bm25_metas, _bm25_stores
+    docs, ids, metas, stores = [], [], [], []
+    for store_name, coll in (("curated", get_curated_collection()), ("runtime", get_runtime_collection())):
+        if coll.count() == 0:
+            continue
+        result = coll.get(include=["documents", "metadatas"])
+        docs.extend(result["documents"])
+        ids.extend(result["ids"])
+        metas.extend(result["metadatas"])
+        stores.extend([store_name] * len(result["ids"]))
+
+    if not docs:
         _bm25 = None
         return
-    result = coll.get(include=["documents"])
-    _bm25_docs = result["documents"]
-    _bm25_ids  = result["ids"]
-    tokenized  = [doc.lower().split() for doc in _bm25_docs]
+    _bm25_docs, _bm25_ids, _bm25_metas, _bm25_stores = docs, ids, metas, stores
+    tokenized = [_tokenize(doc) for doc in _bm25_docs]
     _bm25 = BM25Okapi(tokenized)
-    log.info("BM25 index built over %d documents.", len(_bm25_docs))
+    log.info("BM25 index built over %d documents (curated + runtime).", len(_bm25_docs))
+
+
+def _citation_from_result(r: dict) -> dict:
+    """
+    A hybrid_retrieve() result carries real provenance in its metadata
+    (title, source_url, license — see ingest_ck_wiki.py) but /infer was
+    returning bare chunk ids as "sources", which the chat UI can only render
+    as raw id strings, not clickable citations. Bootstrap entries don't carry
+    source_url/license (hand-authored, not ingested from an external source)
+    — falls back to just a title in that case rather than erroring.
+    """
+    meta = r.get("metadata") or {}
+    return {
+        "id": r.get("id", "unknown"),
+        "title": meta.get("title") or r.get("id", "unknown"),
+        "source_url": meta.get("source_url") or None,
+        "license": meta.get("license") or None,
+    }
 
 
 def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
     """
-    Hybrid BM25 + semantic retrieval.
-    Returns merged, deduplicated results with a combined score.
+    Hybrid BM25 + semantic retrieval across BOTH the curated (shippable) and
+    runtime (local-only) collections — a user's own cached web results or
+    manual uploads should enrich their own retrieval even though they never
+    leave their machine. Each result carries `store` ("curated"/"runtime")
+    and `metadata` (including `parent_id` when the ingesting script set one
+    — see ingest_ck_wiki.py) so callers can locate the right collection when
+    expanding to a parent section; retrieval itself always ranks against the
+    tight chunk text, never the expanded parent.
     """
-    coll = get_collection()
+    curated = get_curated_collection()
+    runtime = get_runtime_collection()
 
-    # ── Semantic (vector) retrieval ──
+    # ── Semantic (vector) retrieval — query both collections ──
     q_embed = embed([query])
-    sem_results = coll.query(
-        query_embeddings=q_embed,
-        n_results=min(top_k, max(coll.count(), 1)),
-        include=["documents", "metadatas", "distances"],
+    sem_ids, sem_docs, sem_dists, sem_metas, sem_stores = [], [], [], [], []
+    for store_name, coll in (("curated", curated), ("runtime", runtime)):
+        if coll.count() == 0:
+            continue
+        res = coll.query(
+            query_embeddings=q_embed,
+            n_results=min(top_k, coll.count()),
+            include=["documents", "metadatas", "distances"],
+        )
+        docs = res["documents"][0] if res["documents"] else []
+        ids = res["ids"][0] if res["ids"] else []
+        dists = res["distances"][0] if res["distances"] else []
+        metas = res["metadatas"][0] if res["metadatas"] else []
+        sem_ids.extend(ids); sem_docs.extend(docs); sem_dists.extend(dists); sem_metas.extend(metas)
+        sem_stores.extend([store_name] * len(ids))
+    # Re-sort the combined cross-collection list by distance (ascending = closer) and cap
+    sem_order = sorted(range(len(sem_ids)), key=lambda i: sem_dists[i])[:top_k]
+    sem_ids, sem_docs, sem_dists, sem_metas, sem_stores = (
+        [sem_ids[i] for i in sem_order], [sem_docs[i] for i in sem_order],
+        [sem_dists[i] for i in sem_order], [sem_metas[i] for i in sem_order],
+        [sem_stores[i] for i in sem_order],
     )
-    sem_docs  = sem_results["documents"][0] if sem_results["documents"] else []
-    sem_ids   = sem_results["ids"][0] if sem_results["ids"] else []
-    sem_dists = sem_results["distances"][0] if sem_results["distances"] else []
 
     # ── BM25 keyword retrieval ──
     if _bm25 is None:
         _build_bm25()
 
-    bm25_scored: list[tuple[str, str, float]] = []
+    bm25_scored: list[tuple[str, str, float, dict, str]] = []
     if _bm25 is not None and _bm25_docs:
-        scores = _bm25.get_scores(query.lower().split())
+        scores = _bm25.get_scores(_tokenize(query))
         top_idx = np.argsort(scores)[::-1][:top_k]
         for idx in top_idx:
             if scores[idx] > 0:
-                bm25_scored.append((_bm25_ids[idx], _bm25_docs[idx], float(scores[idx])))
+                meta = _bm25_metas[idx] if _bm25_metas else {}
+                bm25_scored.append((_bm25_ids[idx], _bm25_docs[idx], float(scores[idx]), meta, _bm25_stores[idx]))
 
     # ── Merge & deduplicate using Reciprocal Rank Fusion (RRF) ──
     # RRF score: sum(1 / (rank + k)) across retrieval methods.
     # No external API key or paid service required.
+    # Composite key (store, id) rather than bare id — curated and runtime are
+    # separate collections and could in principle mint the same id.
     K = 60  # standard RRF constant (higher K = smoother ranking)
 
-    rrf_scores: dict[str, float] = {}
-    doc_store: dict[str, dict] = {}
+    rrf_scores: dict[tuple[str, str], float] = {}
+    doc_store: dict[tuple[str, str], dict] = {}
 
-    for rank, (doc_id, doc, dist) in enumerate(zip(sem_ids, sem_docs, sem_dists)):
-        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1.0 / (rank + 1 + K)
-        doc_store[doc_id] = {"id": doc_id, "text": doc, "source": "vector"}
+    for rank, (doc_id, doc, dist, meta, store_name) in enumerate(zip(sem_ids, sem_docs, sem_dists, sem_metas, sem_stores)):
+        key = (store_name, doc_id)
+        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (rank + 1 + K)
+        doc_store[key] = {"id": doc_id, "store": store_name, "text": doc, "source": "vector", "metadata": meta or {}}
 
-    for rank, (doc_id, doc, bm25_score) in enumerate(bm25_scored):
-        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1.0 / (rank + 1 + K)
-        if doc_id not in doc_store:
-            doc_store[doc_id] = {"id": doc_id, "text": doc, "source": "bm25"}
+    for rank, (doc_id, doc, bm25_score, meta, store_name) in enumerate(bm25_scored):
+        key = (store_name, doc_id)
+        rrf_scores[key] = rrf_scores.get(key, 0.0) + 1.0 / (rank + 1 + K)
+        if key not in doc_store:
+            doc_store[key] = {"id": doc_id, "store": store_name, "text": doc, "source": "bm25", "metadata": meta or {}}
         else:
-            doc_store[doc_id]["source"] = "vector+bm25"
+            doc_store[key]["source"] = "vector+bm25"
 
     merged = sorted(
-        [{"id": did, "text": doc_store[did]["text"], "score": score,
-          "source": doc_store[did]["source"]}
-         for did, score in rrf_scores.items()],
+        [{"id": doc_store[key]["id"], "store": doc_store[key]["store"], "text": doc_store[key]["text"],
+          "score": score, "source": doc_store[key]["source"], "metadata": doc_store[key]["metadata"]}
+         for key, score in rrf_scores.items()],
         key=lambda x: x["score"],
         reverse=True,
-    )
+    )[:top_k]
 
-    return merged[:top_k]
+    # Visibility into whether BM25 is contributing anything at all, or RRF is
+    # leaning entirely on the dense side without it being obvious — short
+    # chunks (the function-level ones from ingest_ck_wiki.py) give BM25 weak
+    # term-frequency signal, so this is worth watching as real content scales.
+    vector_only = sum(1 for r in merged if r["source"] == "vector")
+    bm25_only = sum(1 for r in merged if r["source"] == "bm25")
+    both = sum(1 for r in merged if r["source"] == "vector+bm25")
+    log.info("hybrid_retrieve(%r): %d vector-only, %d bm25-only, %d both",
+              query[:60], vector_only, bm25_only, both)
+
+    return merged
+
+
+def expand_to_parent(results: list[dict]) -> list[str]:
+    """
+    Turn retrieval results into context text, expanding any result with a
+    `parent_id` in its metadata to that parent section's full text instead of
+    its tight chunk. Ranking already happened against the tight chunks in
+    hybrid_retrieve() — this only changes what text reaches the prompt.
+
+    Capped at MAX_EXPANDED_PARENTS distinct parents per call so one query
+    that happens to hit several chunks from the same page doesn't balloon the
+    prompt with duplicate or excessive context; results beyond the cap (or
+    with no parent_id) just use their own chunk text.
+    """
+    expanded_cache: dict[str, str] = {}
+    parts: list[str] = []
+    for r in results:
+        parent_id = (r.get("metadata") or {}).get("parent_id") or ""
+        if not parent_id:
+            parts.append(r["text"])
+            continue
+        if parent_id in expanded_cache:
+            parts.append(expanded_cache[parent_id])
+            continue
+        if len(expanded_cache) >= MAX_EXPANDED_PARENTS:
+            parts.append(r["text"])  # expansion budget spent — fall back to the tight chunk
+            continue
+        # Parent lives in whichever collection the child came from.
+        coll = get_curated_collection() if r.get("store") == "curated" else get_runtime_collection()
+        fetched = coll.get(ids=[parent_id], include=["documents"])
+        docs = fetched.get("documents") or []
+        parent_text = docs[0] if docs else r["text"]
+        expanded_cache[parent_id] = parent_text
+        parts.append(parent_text)
+    return parts
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -373,12 +615,24 @@ def web_search(query: str, max_results: int = 3) -> Optional[str]:
 
 
 def auto_save_to_chroma(query: str, web_text: str):
-    """Persist a web search result into ChromaDB for future retrieval."""
-    coll = get_collection()
+    """
+    Persist a web search result for future retrieval. RUNTIME collection only
+    — this is exactly the kind of unreviewed content that must never reach
+    the curated pack users download (see get_curated_collection()/
+    get_runtime_collection() docstrings and reset_collection.py).
+    """
+    coll = get_runtime_collection()
     doc_id = f"web-{int(time.time())}"
+    # Embed explicitly with the same model hybrid_retrieve() uses for queries
+    # (BAAI/bge-small-en-v1.5). Without this, Chroma falls back to its own
+    # default embedding function (all-MiniLM-L6-v2) for the document vector
+    # while queries are embedded with bge-small — two different vector spaces,
+    # so cosine similarity between them is meaningless and silently degrades
+    # every retrieval, with no error to signal it.
     coll.upsert(
         ids=[doc_id],
         documents=[web_text],
+        embeddings=embed([web_text]),
         metadatas=[{"source": "web", "query": query[:200], "ts": datetime.utcnow().isoformat()}],
     )
     # Rebuild BM25 next query
@@ -435,10 +689,15 @@ def search_episodes(query: str, limit: int = 5) -> list[str]:
 # LANGGRAPH REASONING WORKFLOW
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def run_langgraph_workflow(question: str, max_refine_loops: int = 2) -> dict:
+def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
+                            diagnosis: Optional[str] = None) -> dict:
     """
     Stateful LangGraph reasoning pipeline:
     search_kb → [web_fallback] → generate → critique → [refine] → validate → return
+
+    `diagnosis` (from diagnose(), computed by the caller before this runs) is
+    injected into the generation prompt so it actually shapes the answer's
+    framing instead of being decorative metadata attached after the fact.
 
     Returns dict with keys: answer, confidence, sources, critique_applied
     """
@@ -465,15 +724,16 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2) -> dict:
                 state["retrieved_context"] = ""
                 state["sources"] = []
                 return state
-            context_parts = []
-            sources = []
-            for r in results[:6]:
-                context_parts.append(r["text"])
-                sources.append(r.get("id", "unknown"))
+            top_results = results[:6]
+            context_parts = expand_to_parent(top_results)
+            source_ids = [r.get("id", "unknown") for r in top_results]
+            sources = [_citation_from_result(r) for r in top_results]
             # Graph expansion: pull in related nodes
-            expanded_ids = graph_expand(sources, hops=1)
+            expanded_ids = graph_expand(source_ids, hops=1)
             if expanded_ids:
-                coll = get_collection()
+                # graph nodes are seeded from bootstrap entries only (see
+                # _build_knowledge_graph) — always curated.
+                coll = get_curated_collection()
                 extra = coll.get(ids=expanded_ids[:4], include=["documents"])
                 for doc in (extra.get("documents") or []):
                     context_parts.append(doc)
@@ -500,6 +760,7 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2) -> dict:
             episode_ctx = ""
             if episodes:
                 episode_ctx = "\n\nRELEVANT PAST SESSIONS:\n" + "\n".join(episodes)
+            diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
             prompt = (
                 f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic memory, self-critique, and fine-tuning.\n"
                 f"\n"
@@ -510,7 +771,8 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2) -> dict:
                 f"\n"
                 f"\n"
                 f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n"
-                f"{episode_ctx}\n\n"
+                f"{episode_ctx}"
+                f"{diagnosis_ctx}\n"
                 f"USER QUESTION: {state['question']}\n\n"
                 f"Provide a thorough, accurate answer. Cite specific tools, record types, "
                 f"or INI settings where relevant.\n\nMOSSY:"
@@ -606,25 +868,213 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2) -> dict:
     except ImportError:
         # LangGraph not installed — fall back to simple single-pass
         log.warning("LangGraph not installed, falling back to simple inference.")
-        return _simple_infer(question)
+        return _simple_infer(question, diagnosis=diagnosis)
 
 
-def _simple_infer(question: str) -> dict:
+def _simple_infer(question: str, diagnosis: Optional[str] = None) -> dict:
     """Fallback when LangGraph is not available."""
     results = hybrid_retrieve(question, top_k=6)
-    ctx = "\n\n".join(r["text"] for r in results)
-    sources = [r.get("id", "?") for r in results]
+    ctx = "\n\n".join(expand_to_parent(results))
+    sources = [_citation_from_result(r) for r in results]
     if not ctx:
         web = web_search(question)
         if web:
             ctx = f"[Web]\n{web}"
+    diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
     prompt = (
         f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic \n"
-        f"CONTEXT:\n{ctx}\n\nQ: {question}\n\nMOSSY:"
+        f"CONTEXT:\n{ctx}\n{diagnosis_ctx}\nQ: {question}\n\nMOSSY:"
     )
     answer = generate_text(prompt, max_new_tokens=512)
     return {"answer": answer, "confidence": 0.7, "sources": sources,
             "critique_applied": False, "used_web": False}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RESPONSE CONTRACT — TUTORING PEDAGOGY
+# ═══════════════════════════════════════════════════════════════════════════════
+# v1 of the tutor response contract. Two design decisions worth calling out
+# explicitly rather than discovering later:
+#
+# 1. ENFORCEMENT MECHANISM: retry-on-parse-failure, not constrained decoding.
+#    Gemma is loaded via Unsloth or HF Transformers (see load_model()) — this
+#    stack does NOT run through llama.cpp, so GBNF grammars aren't available
+#    here. The HF-compatible equivalent (a logits-processor library like
+#    `outlines`) would add a new dependency to the inference path and its own
+#    compatibility risk against a 4-bit-quantized Unsloth-loaded model, for a
+#    payoff that's unproven yet. So: small JSON asks (1-2 keys, never the
+#    whole contract in one call — see diagnose()/contract_fields() below),
+#    strict-mode retry, deterministic fallback, and every failure logged to
+#    `contract_failures`. If that table's growth rate says retries aren't
+#    covering it, that's the trigger to revisit constrained decoding — as a
+#    measured decision, not a surprise.
+#
+# 2. MODE IS THE BYPASS. Not every turn is a teaching turn — someone mid-debug
+#    asking for a function signature should not get a check_question. `mode`
+#    (teach / answer / debug) controls this: check_question is only ever
+#    requested from the model when mode == "teach". classify_mode() below is
+#    a keyword heuristic standing in for the real router (split-brain idea
+#    #4 — not built yet). /infer accepts an optional `mode` in the request
+#    body specifically so a real router can override this heuristic later
+#    without any other code here changing.
+
+def classify_mode(question: str) -> str:
+    """
+    Cheap keyword heuristic for teach / answer / debug. This is a stand-in for
+    a real router model — swap this function's body when that exists; every
+    caller already threads `mode` through, so nothing else needs to change.
+    """
+    q = question.lower()
+    debug_markers = ("error", "crash", "ctd", "doesn't work", "not working", "broken",
+                      "exception", "traceback", "stack trace", "won't load", "wont load",
+                      "fails to", "papyrus log", "null reference", "won't compile",
+                      "wont compile")
+    teach_markers = ("how do i", "how does", "what is", "what's the", "explain",
+                      "why does", "why is", "teach me", "i'm new", "im new",
+                      "beginner", "walk me through", "i don't understand",
+                      "i dont understand", "difference between")
+    if any(m in q for m in debug_markers):
+        return "debug"
+    if any(m in q for m in teach_markers):
+        return "teach"
+    return "answer"
+
+
+def _extract_json(raw: str) -> Optional[dict]:
+    """Best-effort JSON object extraction from a model completion."""
+    if not raw:
+        return None
+    text = raw.strip()
+    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.S)
+    if fence:
+        text = fence.group(1)
+    else:
+        brace = re.search(r"\{.*\}", text, re.S)
+        if brace:
+            text = brace.group(0)
+    try:
+        parsed = json.loads(text)
+        return parsed if isinstance(parsed, dict) else None
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _generate_json(prompt: str, required_keys: list[str], max_new_tokens: int = 200,
+                    max_retries: int = 2) -> tuple[Optional[dict], str, int]:
+    """
+    Generate + parse a small JSON object, retrying on parse failure with a
+    stricter instruction and lower temperature each attempt.
+    Returns (parsed_dict_or_None, last_raw_output, attempts_used).
+    """
+    last_raw = ""
+    for attempt in range(max_retries + 1):
+        suffix = (
+            f"\n\nReturn ONLY a single JSON object with exactly these keys: "
+            f"{', '.join(required_keys)}. No markdown fences, no prose before or after, "
+            f"no other keys."
+            if attempt > 0 else ""
+        )
+        last_raw = generate_text(
+            prompt + suffix,
+            max_new_tokens=max_new_tokens,
+            temperature=max(0.1, 0.4 - attempt * 0.15),
+        )
+        parsed = _extract_json(last_raw)
+        if parsed is not None and all(k in parsed for k in required_keys):
+            return parsed, last_raw, attempt + 1
+    return None, last_raw, max_retries + 1
+
+
+def log_contract_failure(question: str, stage: str, raw_output: str, attempts: int):
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute(
+        "INSERT INTO contract_failures (ts, question, stage, raw_output, attempts) VALUES (?,?,?,?,?)",
+        (datetime.utcnow().isoformat(), question[:500], stage, (raw_output or "")[:2000], attempts),
+    )
+    conn.commit()
+    conn.close()
+    log.warning("[contract] parse failed after %d attempts (stage=%s): %s", attempts, stage, question[:80])
+
+
+def log_learner_signal(question: str, mode: str, learner_signal: Optional[str], diagnosis: Optional[str],
+                        session_id: str = "unknown"):
+    if not learner_signal:
+        return
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute(
+        "INSERT INTO learner_signals (ts, session_id, question, mode, learner_signal, diagnosis) VALUES (?,?,?,?,?,?)",
+        (datetime.utcnow().isoformat(), session_id or "unknown", question[:500], mode,
+         learner_signal[:500], (diagnosis or "")[:500]),
+    )
+    conn.commit()
+    conn.close()
+
+
+def diagnose(question: str, mode: str) -> Optional[str]:
+    """
+    One-sentence read on what the user actually needs vs. what they literally
+    asked, computed BEFORE the answer so it can shape the answer instead of
+    being decorative metadata attached after the fact. Nullable — a failed
+    diagnosis should never block the actual answer.
+    """
+    prompt = (
+        "You are diagnosing a Fallout 4 modding question before answering it. "
+        "In one sentence, identify what the user actually needs to know to solve "
+        "their real problem — which may be narrower or broader than their literal "
+        "wording (e.g. someone asking for an OnTriggerEnter snippet who has never "
+        "cast an ObjectReference actually needs that prerequisite first).\n\n"
+        f"Mode: {mode}\nQuestion: {question}\n\n"
+        'Return ONLY JSON: {"diagnosis": "<one sentence>"}'
+    )
+    parsed, raw, attempts = _generate_json(prompt, ["diagnosis"], max_new_tokens=120)
+    if parsed is None:
+        log_contract_failure(question, "diagnose", raw, attempts)
+        return None
+    diagnosis = str(parsed.get("diagnosis") or "").strip()
+    return diagnosis or None
+
+
+def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[str]) -> dict:
+    """
+    The rest of the response contract, computed AFTER the answer exists.
+
+    answer_level and next_skill are ALWAYS null in v1 — there is no learner
+    table to read them from yet, and guessing would defeat the point of
+    building that table from real data later. They are never even requested
+    from the model; only `learner_signal` (free text: what the model would
+    want to know about this user to answer better next time) is, and that
+    gets logged to `learner_signals` for exactly that purpose.
+
+    check_question is only requested when mode == "teach" — this is the
+    contract's bypass for non-teaching turns (see module docstring above).
+    """
+    want_check_question = mode == "teach"
+    keys = ["learner_signal"] + (["check_question"] if want_check_question else [])
+
+    prompt = (
+        "Given this Fallout 4 modding Q&A turn, fill in tutoring metadata.\n\n"
+        f"Mode: {mode}\nDiagnosis: {diagnosis or 'none'}\n"
+        f"Question: {question}\nAnswer given: {answer[:800]}\n\n"
+        '- "learner_signal": one short free-text note on what you would want to know '
+        "about this user's skill level or history to answer better next time "
+        "(e.g. \"whether they've used ObjectReference casting before\"). There is no "
+        "skill-tracking system yet — this is logged to help design one from real data.\n"
+        + ('- "check_question": one short question to verify they understood the key '
+           "concept just taught (only include this key because mode is \"teach\").\n"
+           if want_check_question else "")
+        + f"Return ONLY JSON with exactly these keys: {', '.join(keys)}"
+    )
+    parsed, raw, attempts = _generate_json(prompt, keys, max_new_tokens=180)
+    if parsed is None:
+        log_contract_failure(question, "contract_fields", raw, attempts)
+        parsed = {}
+
+    return {
+        "answer_level": None,  # v1: nothing populates this yet, by design — not a bug
+        "next_skill": None,    # v1: nothing populates this yet, by design — not a bug
+        "check_question": parsed.get("check_question") if want_check_question else None,
+        "learner_signal": parsed.get("learner_signal"),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -668,33 +1118,98 @@ def reflect():
 @app.route("/infer", methods=["POST"])
 def infer():
     """
-    POST /infer  { "question": "...", "use_langgraph": true }
-    Returns { "answer": "...", "confidence": 0.8, "sources": [...] }
+    POST /infer  { "question": "...", "use_langgraph": true, "mode": "teach|answer|debug",
+                   "session_id": "..." }
+
+    `mode` is optional — omit it to fall back to classify_mode()'s keyword
+    heuristic. Pass it explicitly once a real router exists upstream.
+
+    `session_id` is optional but SHOULD be passed once any real caller wires
+    this up — it's what lets learner_signals rows be assembled into a
+    per-learner trajectory instead of being unowned observations. No caller
+    does this yet (Brain B isn't wired into LocalAIEngine.ts/ChatInterface.tsx
+    at all currently), so it defaults to "unknown" rather than a synthesized
+    id that would look legitimate without actually identifying anyone.
+
+    Returns {
+      "answer": "...", "confidence": 0.8, "sources": [...],
+      "mode": "teach|answer|debug",
+      "diagnosis": "..." | null,
+      "check_question": "..." | null,   -- only non-null when mode == "teach"
+      "answer_level": null,             -- v1: always null, see contract_fields()
+      "next_skill": null,               -- v1: always null, see contract_fields()
+      "abstained": bool,                -- true when retrieval agreement was too low to
+                                         -- attempt an answer — see MIN_RETRIEVAL_AGREEMENT
+      ...
+    }
     """
-    data = request.get_json(force=True)
+    data          = request.get_json(force=True)
     question      = data.get("question", "").strip()
     use_langgraph = data.get("use_langgraph", True)
+    mode          = data.get("mode") or classify_mode(question)
+    session_id    = data.get("session_id") or "unknown"
 
     if not question:
         return jsonify({"error": "question required"}), 400
+    if mode not in ("teach", "answer", "debug"):
+        mode = "answer"
 
     # Episodic memory context
     episodes = search_episodes(question, limit=3)
 
+    # Abstention gate — checked BEFORE generation, not after, so a genuine miss
+    # skips the expensive LangGraph/critique pipeline entirely rather than
+    # generating from context that isn't actually relevant. See
+    # MIN_RETRIEVAL_AGREEMENT's comment for why this uses retriever agreement
+    # instead of RRF score.
+    probe = hybrid_retrieve(question, top_k=6)
+    agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
+    if agreement < MIN_RETRIEVAL_AGREEMENT:
+        log.info("Abstaining on %r — retrieval agreement %d < %d", question[:60],
+                  agreement, MIN_RETRIEVAL_AGREEMENT)
+        log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
+                            diagnosis=None, session_id=session_id)
+        result = {
+            "answer": NO_DOCS_MESSAGE, "confidence": 0.0, "sources": [],
+            "critique_applied": False, "used_web": False, "abstained": True,
+            "mode": mode, "diagnosis": None, "check_question": None,
+            "answer_level": None, "next_skill": None, "past_episodes": episodes,
+        }
+        # Deliberately NOT saved as an episode — it's a non-answer, not a
+        # resolved interaction; saving it would pollute episodic memory.
+        return jsonify(result)
+
+    # Diagnose BEFORE generating, so it shapes the answer rather than just
+    # describing it after the fact. Nullable — never blocks the answer.
+    diagnosis = diagnose(question, mode)
+
     try:
         if use_langgraph:
-            result = run_langgraph_workflow(question)
+            result = run_langgraph_workflow(question, diagnosis=diagnosis)
         else:
-            result = _simple_infer(question)
+            result = _simple_infer(question, diagnosis=diagnosis)
     except Exception as e:
         log.exception("Inference failed: %s", e)
         # Return a generic error message to avoid leaking internal stack traces
         return jsonify({"error": "Inference failed. Check server logs for details."}), 500
 
+    fields = contract_fields(question, result.get("answer", ""), mode, diagnosis)
+    log_learner_signal(question, mode, fields.get("learner_signal"), diagnosis, session_id=session_id)
+
+    result["mode"] = mode
+    result["diagnosis"] = diagnosis
+    result["check_question"] = fields["check_question"]
+    result["answer_level"] = fields["answer_level"]
+    result["next_skill"] = fields["next_skill"]
+    result["abstained"] = False
+
     # Optionally auto-save episode summary
     if result.get("answer"):
         summary = f"Q: {question[:80]} → {result['answer'][:120]}"
-        save_episode(summary, result.get("sources", [])[:5])
+        # sources is now a list of citation dicts (see _citation_from_result) — save_episode
+        # wants bare topic strings, so pull just the ids back out.
+        topic_ids = [s.get("id", "?") if isinstance(s, dict) else s for s in result.get("sources", [])][:5]
+        save_episode(summary, topic_ids)
 
     result["past_episodes"] = episodes
     return jsonify(result)
@@ -847,7 +1362,13 @@ def finetune():
 
 @app.route("/knowledge/add", methods=["POST"])
 def knowledge_add():
-    """POST /knowledge/add  { "title": "...", "content": "...", "tags": [...] }"""
+    """
+    POST /knowledge/add  { "title": "...", "content": "...", "tags": [...] }
+    RUNTIME collection only — a manual add from one user's desktop is exactly
+    the unreviewed content that must not ship in the curated pack. Promoting
+    something from here into curated is a deliberate, separate, reviewed step
+    (see reset_collection.py / ingest_ck_wiki.py for how curated gets built).
+    """
     data    = request.get_json(force=True)
     title   = data.get("title", "Untitled")
     content = data.get("content", "")
@@ -855,10 +1376,13 @@ def knowledge_add():
     if not content:
         return jsonify({"error": "content required"}), 400
     doc_id = f"user-{int(time.time())}"
-    coll = get_collection()
+    coll = get_runtime_collection()
+    # See auto_save_to_chroma() for why the embedding must be computed explicitly
+    # with the same model hybrid_retrieve() queries against.
     coll.upsert(
         ids=[doc_id],
         documents=[content],
+        embeddings=embed([content]),
         metadatas=[{"title": title, "tags": ",".join(tags), "source": "user",
                     "ts": datetime.utcnow().isoformat()}],
     )
@@ -869,8 +1393,10 @@ def knowledge_add():
 
 @app.route("/knowledge/count", methods=["GET"])
 def knowledge_count():
-    coll = get_collection()
-    return jsonify({"count": coll.count()})
+    return jsonify({
+        "curated_count": get_curated_collection().count(),
+        "runtime_count": get_runtime_collection().count(),
+    })
 
 
 @app.route("/episodes", methods=["GET"])
@@ -899,7 +1425,12 @@ def health():
         "status": "ok",
         "model": MODEL_NAME,
         "model_loaded": _model is not None,
-        "chroma_docs": get_collection().count(),
+        "curated_docs": get_curated_collection().count(),
+        "runtime_docs": get_runtime_collection().count(),
+        # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at
+        # startup is not a signal anyone actually receives; this is what BrainBSettings.tsx reads
+        # to surface the degraded case somewhere a user would actually look.
+        "server": _SERVER_TYPE,
         "gpu": gpu_info,
     })
 
@@ -912,20 +1443,23 @@ if __name__ == "__main__":
     log.info("=" * 60)
     log.info("Mossy Brain B — Enhanced Gemma Service")
     log.info("Model: %s", MODEL_NAME)
-    log.info("ChromaDB: %s", CHROMA_PATH)
+    log.info("Curated ChromaDB: %s", CHROMA_CURATED_PATH)
+    log.info("Runtime ChromaDB: %s", CHROMA_RUNTIME_PATH)
     log.info("Port: %d", PORT)
     log.info("=" * 60)
 
     # Initialize database
     init_db()
 
-    # Bootstrap knowledge base if empty
-    coll = get_collection()
+    # Bootstrap the CURATED knowledge base if empty. Runtime starts empty and
+    # stays that way until auto_save_to_chroma()/knowledge_add() write to it
+    # — nothing bootstraps it, by design.
+    coll = get_curated_collection()
     if coll.count() == 0:
-        log.info("Empty ChromaDB — running bootstrap...")
+        log.info("Empty curated ChromaDB — running bootstrap...")
         try:
             from bootstrap_fallout4_knowledge import bootstrap_chromadb
-            added = bootstrap_chromadb(coll)
+            added = bootstrap_chromadb(coll, embedding_fn=embed)
             log.info("Bootstrap complete: %d entries.", added)
             _bm25 = None  # rebuild on first query
         except Exception as e:
@@ -937,5 +1471,21 @@ if __name__ == "__main__":
     except Exception as e:
         log.warning("Knowledge graph build failed: %s", e)
 
-    log.info("Starting Flask server on port %d...", PORT)
-    app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True)
+    # Flask's built-in dev server (app.run) is explicitly documented as not
+    # production-grade — single-request-per-thread with none of a real WSGI
+    # server's robustness under concurrent/slow/malformed requests. Fine for
+    # "just me, developing" but this now serves strangers who download the
+    # app off Nexus. waitress is a pure-Python, Windows-compatible drop-in —
+    # no compiler, no C extensions — so there's no real reason not to use it.
+    try:
+        from waitress import serve
+        _SERVER_TYPE = "waitress"
+        log.info("Starting production WSGI server (waitress) on 127.0.0.1:%d...", PORT)
+        serve(app, host="127.0.0.1", port=PORT, threads=8)
+    except ImportError:
+        _SERVER_TYPE = "flask-dev"
+        log.warning("waitress not installed (pip install waitress) — falling back to "
+                    "Flask's development server. Fine for local dev; not recommended "
+                    "once anyone other than you is running this.")
+        log.info("Starting Flask dev server on 127.0.0.1:%d...", PORT)
+        app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True)
