@@ -179,7 +179,15 @@ const ProjectWizard: React.FC<{ onSubmit: (data: any) => void, onCancel: () => v
 
 // --- Sub-components for Performance ---
 
-type ChatMessage = Message & { citations?: KnowledgeCitation[] };
+type ChatMessage = Message & {
+    citations?: KnowledgeCitation[];
+    // --- Brain B tutor contract fields (see LocalAIEngine.ts's AIResponse) ---
+    // Only ever set on assistant messages Brain B answered; undefined for every
+    // other provider and for the user's own messages.
+    mode?: 'teach' | 'answer' | 'debug';
+    checkQuestion?: string | null;
+    abstained?: boolean;
+};
 
 /** One-click copy-to-clipboard button with visual confirmation. */
 const CopyButton: React.FC<{ content: string }> = ({ content }) => {
@@ -422,6 +430,29 @@ const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMes
                                 ))}
                             </div>
                         )}
+                    </div>
+                )}
+                {/* ── Brain B tutor contract: abstention notice, check question, mode badge ── */}
+                {msg.role === 'assistant' && msg.abstained && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-700/40 text-amber-300 text-xs">
+                        <Database className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Mossy has no documentation covering this — the answer above is an honest "I don't know," not a guess.</span>
+                    </div>
+                )}
+                {msg.role === 'assistant' && msg.checkQuestion && (
+                    <div className="mt-2 px-3 py-2 rounded-lg bg-violet-950/30 border border-violet-700/40">
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-violet-400 mb-1">
+                            <Brain className="w-3 h-3" />
+                            Check your understanding
+                        </div>
+                        <div className="text-xs text-violet-200">{msg.checkQuestion}</div>
+                    </div>
+                )}
+                {msg.role === 'assistant' && msg.mode && msg.mode !== 'answer' && (
+                    <div className="mt-1">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 uppercase tracking-wide">
+                            {msg.mode} mode
+                        </span>
                     </div>
                 )}
                 {/* ── Copy button + Training feedback row (assistant messages only) ── */}
@@ -2285,6 +2316,29 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             return;
         }
 
+        // --- DETERMINISTIC "START AN SS2 PLOT / CITY PLAN" NAVIGATION ---
+        // Same failure mode as the "start a mod" guard above: MossyBrain's Nav
+        // Guide can say "start a plot" -> the SS2 addon guide, but nothing stops
+        // the LLM from asking "what are you gonna do?" instead of just going
+        // there — confirmed in practice. Handled deterministically instead of
+        // trusting the model to follow the prompt every time.
+        const startPlotIntent = textToSend.trim().length < 150
+            && /\b(start|begin|create|make|build)\b.{0,15}\b(a |my |the |new )?(city plan|plot)\b(?!\s*(twist|point|hole|line|device|graph|armor|land))/i.test(textToSend);
+        if (startPlotIntent) {
+            setInputText('');
+            navigate('/guides/mods/sim-settlements');
+            setMessages(prev => [...prev,
+            { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
+            {
+                id: Date.now().toString() + '-start-plot',
+                role: 'assistant',
+                content: "Let's get you building. I've taken you to the **SS2 Addon Creation Guide** — it covers plot scripting with the SS2 API, city plan buildings, ASAM sensors, and addon pack toolkits. Skim the plot-scripting section first if you're making a standalone plot, or the city plan section if you're laying out a settlement. Come back once you've picked a direction and I'll help with the specifics.",
+                timestamp: Date.now(),
+            }
+            ]);
+            return;
+        }
+
         const userMessage: Message = {
             id: Date.now().toString(),
             role: 'user',
@@ -2369,10 +2423,30 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             }
 
             const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
-            const citations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
+            const rawCitations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
+            // Brain B's citations are {id, title, source_url, license} (see gemma_service_enhanced.py's
+            // _citation_from_result), not the KnowledgeCitation shape the citation UI expects — map them.
+            // Other providers' citations (Memory Vault lookups etc.) already arrive pre-shaped and pass
+            // through untouched.
+            const citations: KnowledgeCitation[] = rawCitations.map((c: any) =>
+                c && typeof c === 'object' && 'source_url' in c
+                    ? {
+                        title: c.title || c.id || 'Untitled',
+                        source: c.source_url ? 'Fallout 4 Creation Kit Wiki' : 'Mossy Knowledge Base',
+                        // BY-SA requires attribution — surfacing it here means it's not just
+                        // satisfied in a repo file nobody using the app will ever open.
+                        creditName: c.source_url && c.license ? `UESP (${c.license})` : undefined,
+                        creditUrl: c.source_url || undefined,
+                        trustLevel: 'official' as const,
+                    }
+                    : c
+            );
             const reasoningTrace = localResult.reasoning || undefined;
 
-            setMessages(prev => prev.map(m => m.id === streamId ? { ...m, content: aiResponseText, citations, reasoning: reasoningTrace } : m));
+            setMessages(prev => prev.map(m => m.id === streamId ? {
+                ...m, content: aiResponseText, citations, reasoning: reasoningTrace,
+                mode: localResult.mode, checkQuestion: localResult.checkQuestion, abstained: localResult.abstained,
+            } : m));
 
             // Save chat messages to auto-save manager
             const assistantMessage: Message = {
@@ -2399,6 +2473,16 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             } catch {
                 // non-critical
             }
+
+            // Release the send-lock now that the text response is in, rather than after
+            // TTS finishes speaking it. TTS playback can run many seconds; leaving
+            // isLoading/isStreaming true for that whole window silently swallowed any
+            // voice message the user sent while Mossy was still talking (handleSend's
+            // guard at the top returns with no feedback), making the mic look broken.
+            activeStreamIdRef.current = null;
+            generationAbortControllerRef.current = null;
+            setIsLoading(false);
+            setIsStreaming(false);
 
             console.log('[ChatInterface] Response received, isVoiceEnabled:', isVoiceEnabled, 'isConversationPaused:', isConversationPaused);
             if (isVoiceEnabled && aiResponseText && !isConversationPaused) {

@@ -521,7 +521,7 @@ export interface Settings {
   groqDeliberateReasoningEnabled?: boolean;
 
   // Local AI (optional)
-  localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
+  localAiPreferredProvider?: 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'brainb' | 'off';
   ollamaBaseUrl?: string;
   ollamaModel?: string;
   cdSpecialistOllamaModel?: string;
@@ -529,6 +529,8 @@ export interface Settings {
   openaiCompatModel?: string;
   cosmosBaseUrl?: string;
   cosmosModel?: string;
+  /** Brain B — Mossy's own local RAG/tutor Flask service. Default port 8766. */
+  brainBBaseUrl?: string;
 
   // Audio Settings
   ttsEnabled: boolean;
@@ -1013,6 +1015,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openaiCompatModel: '',
   cosmosBaseUrl: '',
   cosmosModel: '',
+  brainBBaseUrl: 'http://127.0.0.1:8766',
   ttsEnabled: true,
   ttsVoice: 'default',
   ttsRate: 1.0,
