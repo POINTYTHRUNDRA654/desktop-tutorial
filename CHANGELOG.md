@@ -57,6 +57,14 @@
 - New reasoning-methodology module: structured problem decomposition, root-causing instead of patching symptoms, weighing real alternatives before committing to an approach
 - New real, researched FO4 modding-community knowledge module: what actually drives mod adoption (ESL flagging, FOMOD quality, compatibility patches, endorsement-driven discovery) versus abandonment (dependency cascades, F4SE version-break ripples, save-file bloat, silent-abandonment trust erosion)
 - Added a real deliberate-reasoning pass before substantive answers and a self-critique pass after — both existed as settings fields already read by the code but had no UI to ever turn them on; now real, on-by-default toggles in AI Engine Settings
+- The deliberate-reasoning pass is no longer thrown away after use — a collapsible "Show reasoning" trace now appears under Mossy's answers so you can see her actual plan, not just the final response
+- Fixed "let's start a mod"-style requests deterministically jumping straight to Mod Builder Hub → Project Creator every time — prompt-level guidance alone wasn't reliable enough (Mossy would sometimes still ask "what kind of mod?" first), so this is now a guaranteed code-level navigation instead of an AI judgment call
+
+### Chat Backend Reliability Fixes
+
+- Fixed a real regression where a very long opening message (no conversation history yet) could overflow the primary model's context window and show a raw API error as if it were Mossy's answer — now auto-falls back to a 262K-token model instead of erroring
+- Fixed unhandled AI backend errors rendering as raw, confusing API text in chat — they now show a legible message and log the real cause for troubleshooting
+- `/health` now reports the exact deployed commit, so a live deploy can be verified directly instead of only through the hosting dashboard
 
 ## [5.5.0] — 2026-07-28
 

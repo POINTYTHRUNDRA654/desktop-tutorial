@@ -33,6 +33,8 @@ duckduckgo-search>=6.2.0      # DuckDuckGo HTML scraper — free, no API key
 # ── Web framework (Flask agent API) ──────────────────────────────────────────
 flask>=3.0.0
 flask-cors>=4.0.0
+waitress>=3.0.0               # production WSGI server — Flask's own app.run() is dev-only.
+                               # Pure-Python, Windows-compatible, no compiler needed.
 
 # ── Database (episodic memory + feedback) ────────────────────────────────────
 # SQLite is built-in to Python; no extra package needed.
