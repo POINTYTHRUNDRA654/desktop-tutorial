@@ -46,8 +46,15 @@ torch>=2.3.0                  # Must match your CUDA version — see pytorch.org
 torchvision>=0.18.0
 tqdm>=4.66.0
 psutil>=5.9.0
+python-dotenv>=1.0.0          # loads MOSSY_BACKEND_TOKEN from a local .env — see .env.example
 
-# ── All packages above are FREE and open-source. No API keys required. ────────
-# Brain B requires a GPU (NVIDIA recommended, 8GB+ VRAM).
-# Model weights download from HuggingFace on first run (free, ~5–15GB per model).
-# DuckDuckGo search is rate-limited to ~100 queries/hour on the free tier.
+# ── Retrieval, routing, diagnosis, and the tutoring contract above are FREE and ─
+# open-source, fully local — no API key needed for any of it, ever.
+# Brain B requires a GPU (NVIDIA recommended, 8GB+ VRAM) for the local model that
+# handles those roles. Model weights download from HuggingFace on first run (free,
+# ~5–15GB per model). DuckDuckGo search is rate-limited to ~100 queries/hour (free tier).
+#
+# Long-form answer generation is a separate concern: on 8GB cards it routes to Mossy's
+# shared Render backend by default (MOSSY_BACKEND_TOKEN required for full quality — see
+# .env.example), which holds the real Groq key server-side. The local model is a
+# capped/degraded offline fallback. See README.md.
