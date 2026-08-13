@@ -42,7 +42,12 @@ CHROMA_CURATED_PATH = os.environ.get("CHROMA_CURATED_PATH", str(BASE_DIR / "data
 EMBED_MODELS_PATH = os.environ.get("EMBED_MODELS_PATH", str(BASE_DIR / "models"))
 COLLECTION_NAME = "mossy_knowledge"
 
-sys.path.insert(0, str(REPO_DIR))  # for bootstrap_fallout4_knowledge, knowledge_manifest
+# Appended, not inserted at position 0: nexus/'s own local knowledge_manifest.py and
+# bootstrap_fallout4_knowledge.py must win over brain-b/'s dev-build copies of the same
+# filenames (Python already puts this script's own directory at sys.path[0] before this
+# line runs). REPO_DIR is still needed as a fallback for genuinely-shared, not-duplicated
+# modules — e.g. bootstrap_fallout4_knowledge.py's own `from skill_tags import ...`.
+sys.path.append(str(REPO_DIR))
 
 _embed_model = None
 
@@ -179,7 +184,7 @@ def main():
         coll.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
         log.info("Embedded + upserted %d/%d records", min(start + batch_size, len(records)), len(records))
 
-    from knowledge_manifest import new_manifest, save_manifest
+    from knowledge_manifest import new_manifest, save_manifest, describe_fastembed_source, EMBEDDING_CANARY_TEXT
     build_version = args.build_version or f"dev-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
     sources = {"bootstrap": {"count": bootstrap_added, "generated_by": "bootstrap_fallout4_knowledge.py"}}
     ck_wiki_count = sources_seen.get("ck_wiki_ingest", 0)
@@ -192,7 +197,13 @@ def main():
         }
     check_record_count_swing(coll.count())
 
-    manifest = new_manifest(build_version, sources, coll.count())
+    canary_vector = embed([EMBEDDING_CANARY_TEXT])[0]
+    manifest = new_manifest(
+        build_version, sources, coll.count(),
+        embedding_backend="fastembed",
+        embedding_source=describe_fastembed_source(),
+        canary_vector=canary_vector,
+    )
     save_manifest(CHROMA_CURATED_PATH, manifest)
 
     log.info("=" * 60)
