@@ -484,6 +484,54 @@ LOCAL_FALLBACK_EXHAUSTED_MESSAGE = (
 )
 
 
+_GARBAGE_SCRIPT_RANGES = (
+    # Scripts that never legitimately appear in this app's content (English UI text,
+    # Papyrus code, CK wiki citations) — even ONE character from these is a strong
+    # signal, unlike a ratio threshold. Verified against real captured garbage from
+    # this exact checkpoint: it mixes real English words with scattered characters
+    # from these ranges, so a "what fraction of the string is non-Latin" ratio check
+    # was tried first and failed (the foreign characters are too sparse to move a
+    # ratio past any reasonable threshold) — a per-character "is this ever allowed"
+    # check catches it instead.
+    (0x0370, 0x03FF),   # Greek
+    (0x0400, 0x04FF),   # Cyrillic
+    (0x0530, 0x08FF),   # Armenian through Arabic Extended
+    (0x0900, 0x0FFF),   # Devanagari through Tibetan
+    (0x1000, 0x109F),   # Myanmar
+    (0x1100, 0x11FF),   # Hangul Jamo
+    (0x3040, 0x30FF),   # Hiragana/Katakana
+    (0x3400, 0x4DBF),   # CJK Extension A
+    (0x4E00, 0x9FFF),   # CJK Unified Ideographs
+    (0xAC00, 0xD7A3),   # Hangul Syllables
+    (0xE000, 0xF8FF),   # Private Use Area
+    (0xF900, 0xFAFF),   # CJK Compatibility Ideographs
+    (0x1F300, 0x1FAFF),  # Misc symbols/pictographs/emoji
+    (0xE0000, 0xE01EF),  # Tags / variation selectors
+)
+
+
+def _looks_like_garbage(text: str) -> bool:
+    """This local checkpoint's proven failure mode isn't silence, it's confident-looking
+    word salad — verified on real hardware to mix real English words with scattered
+    private-use Unicode, CJK, Cyrillic, and other non-Latin fragments, not an obvious
+    wall of mojibake a human would catch at a glance. "Doesn't crash" and "doesn't
+    serve garbage" are different guarantees; a wrong-but-confident answer is exactly
+    the failure mode this service is designed against everywhere else (abstention,
+    honest "I don't know" over guessing) — it shouldn't sneak back in through this one
+    path.
+
+    Known gap, deliberately accepted: pure-ASCII garble (e.g. '{ =  <b>') slips
+    through this check. That's fine specifically for the JSON-mode callers
+    (classify_mode/diagnose/contract_fields via _generate_json()) — their own JSON
+    parser already fails safely on that and falls back to null/defaults. The gap that
+    actually matters is the long-form answer path, which has no such parser to catch
+    nonsense — and real captured garbage on that path does contain non-Latin
+    characters, which this catches."""
+    if not text:
+        return True
+    return any(lo <= ord(c) <= hi for c in text for lo, hi in _GARBAGE_SCRIPT_RANGES)
+
+
 def generate_answer(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
     """The one entry point for ALL generation in this service — long-form answers
     (initial draft, critique/refine loop) AND the small JSON calls (classify_mode,
@@ -514,11 +562,22 @@ def generate_answer(prompt: str, max_new_tokens: int = 512, temperature: float =
         try:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            return generate_text(prompt, min(max_new_tokens, budget), temperature)
+            result = generate_text(prompt, min(max_new_tokens, budget), temperature)
+            if _looks_like_garbage(result):
+                # Not an OOM — the call succeeded and produced text — but this
+                # checkpoint's proven failure mode is confident-looking word salad, not
+                # a crash. A shrinking token budget wouldn't fix that; it's a coherence
+                # problem, not a memory problem. No point retrying more budgets here.
+                log.warning("Local fallback produced incoherent output at max_new_tokens=%d "
+                            "— treating as failure rather than returning it. raw=%r",
+                            budget, result[:200])
+                break
+            return result
         except torch.OutOfMemoryError:
             log.warning("Local fallback OOM'd at max_new_tokens=%d, retrying smaller.", budget)
             continue
-    log.error("Local fallback OOM'd at every retry budget %s.", LOCAL_FALLBACK_RETRY_BUDGETS)
+    log.error("Local fallback exhausted (OOM or incoherent output) at every retry budget %s.",
+              LOCAL_FALLBACK_RETRY_BUDGETS)
     return LOCAL_FALLBACK_EXHAUSTED_MESSAGE
 
 
