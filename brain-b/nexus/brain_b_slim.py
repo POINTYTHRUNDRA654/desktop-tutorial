@@ -391,8 +391,8 @@ def get_curated_collection():
     global _curated_collection
     if _curated_collection is None:
         import chromadb
-        from knowledge_manifest import check_embedding_model, EMBEDDING_MODEL_NAME
-        check_embedding_model(CHROMA_CURATED_PATH, current_model=EMBEDDING_MODEL_NAME)
+        from knowledge_manifest import check_embedding_model
+        check_embedding_model(CHROMA_CURATED_PATH, embed_fn=embed)
         Path(CHROMA_CURATED_PATH).mkdir(parents=True, exist_ok=True)
         client = chromadb.PersistentClient(path=CHROMA_CURATED_PATH)
         _curated_collection = client.get_or_create_collection(
