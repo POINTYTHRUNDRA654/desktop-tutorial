@@ -1007,6 +1007,670 @@
     "revision_id": 3499,
     "source_url": "https://falloutck.uesp.net/wiki/CountLinkedRefChain_-_ObjectReference"
   },
+  "CountRefsLinkedToMe - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=CountRefsLinkedToMe_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:03.189083+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3500,
+    "source_url": "https://falloutck.uesp.net/wiki/CountRefsLinkedToMe_-_ObjectReference"
+  },
+  "Create - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Create_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:03.816738+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3503,
+    "source_url": "https://falloutck.uesp.net/wiki/Create_-_InputEnableLayer"
+  },
+  "CreateDetectionEvent - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=CreateDetectionEvent_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:04.441996+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3501,
+    "source_url": "https://falloutck.uesp.net/wiki/CreateDetectionEvent_-_ObjectReference"
+  },
+  "CreateWire - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=CreateWire_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:05.067714+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3502,
+    "source_url": "https://falloutck.uesp.net/wiki/CreateWire_-_ObjectReference"
+  },
+  "Custom Papyrus Events": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Custom_Papyrus_Events&action=history",
+    "ingested_at": "2026-08-13T23:18:05.698989+00:00",
+    "jsonl_records": 5,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3542,
+    "source_url": "https://falloutck.uesp.net/wiki/Custom_Papyrus_Events"
+  },
+  "DamageObject - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DamageObject_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:07.920457+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3543,
+    "source_url": "https://falloutck.uesp.net/wiki/DamageObject_-_ObjectReference"
+  },
+  "DamageTypeInfo Struct - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DamageTypeInfo_Struct_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:18:08.544600+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3548,
+    "source_url": "https://falloutck.uesp.net/wiki/DamageTypeInfo_Struct_-_InstanceData"
+  },
+  "DamageValue - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DamageValue_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:09.184467+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3549,
+    "source_url": "https://falloutck.uesp.net/wiki/DamageValue_-_ObjectReference"
+  },
+  "Debug Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Debug_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:09.820511+00:00",
+    "jsonl_records": 29,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3610,
+    "source_url": "https://falloutck.uesp.net/wiki/Debug_Script"
+  },
+  "Default Value Reference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Default_Value_Reference&action=history",
+    "ingested_at": "2026-08-13T23:18:10.438471+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3707,
+    "source_url": "https://falloutck.uesp.net/wiki/Default_Value_Reference"
+  },
+  "DefaultObject Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DefaultObject_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:11.079649+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3671,
+    "source_url": "https://falloutck.uesp.net/wiki/DefaultObject_Script"
+  },
+  "DegreesToRadians - Math": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DegreesToRadians_-_Math&action=history",
+    "ingested_at": "2026-08-13T23:18:11.709619+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3708,
+    "source_url": "https://falloutck.uesp.net/wiki/DegreesToRadians_-_Math"
+  },
+  "Delete - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Delete_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:12.331880+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3710,
+    "source_url": "https://falloutck.uesp.net/wiki/Delete_-_InputEnableLayer"
+  },
+  "Delete - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Delete_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:12.951488+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3711,
+    "source_url": "https://falloutck.uesp.net/wiki/Delete_-_ObjectReference"
+  },
+  "DeleteWhenAble - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DeleteWhenAble_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:13.571439+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3709,
+    "source_url": "https://falloutck.uesp.net/wiki/DeleteWhenAble_-_ObjectReference"
+  },
+  "Differences from Previous Scripting": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Differences_from_Previous_Scripting&action=history",
+    "ingested_at": "2026-08-13T23:18:14.248971+00:00",
+    "jsonl_records": 13,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3719,
+    "source_url": "https://falloutck.uesp.net/wiki/Differences_from_Previous_Scripting"
+  },
+  "Differences from Skyrim to Fallout 4": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Differences_from_Skyrim_to_Fallout_4&action=history",
+    "ingested_at": "2026-08-13T23:18:15.000530+00:00",
+    "jsonl_records": 13,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3720,
+    "source_url": "https://falloutck.uesp.net/wiki/Differences_from_Skyrim_to_Fallout_4"
+  },
+  "Disable - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Disable_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:15.625985+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3746,
+    "source_url": "https://falloutck.uesp.net/wiki/Disable_-_ObjectReference"
+  },
+  "DisableAll - RefCollectionAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DisableAll_-_RefCollectionAlias&action=history",
+    "ingested_at": "2026-08-13T23:18:16.323785+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3739,
+    "source_url": "https://falloutck.uesp.net/wiki/DisableAll_-_RefCollectionAlias"
+  },
+  "DisableLinkChain - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DisableLinkChain_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:16.947074+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3740,
+    "source_url": "https://falloutck.uesp.net/wiki/DisableLinkChain_-_ObjectReference"
+  },
+  "DisableNoWait - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DisableNoWait_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:17.708926+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3742,
+    "source_url": "https://falloutck.uesp.net/wiki/DisableNoWait_-_ObjectReference"
+  },
+  "DisablePlayerControls - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DisablePlayerControls_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:18.484810+00:00",
+    "jsonl_records": 2,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3745,
+    "source_url": "https://falloutck.uesp.net/wiki/DisablePlayerControls_-_InputEnableLayer"
+  },
+  "DisallowCompanion - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DisallowCompanion_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:19.101382+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3748,
+    "source_url": "https://falloutck.uesp.net/wiki/DisallowCompanion_-_Actor"
+  },
+  "Dismember - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Dismember_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:19.726421+00:00",
+    "jsonl_records": 2,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3749,
+    "source_url": "https://falloutck.uesp.net/wiki/Dismember_-_Actor"
+  },
+  "Dismount - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Dismount_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:20.347693+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3750,
+    "source_url": "https://falloutck.uesp.net/wiki/Dismount_-_Actor"
+  },
+  "Dispel - ActiveMagicEffect": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Dispel_-_ActiveMagicEffect&action=history",
+    "ingested_at": "2026-08-13T23:18:21.027241+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3753,
+    "source_url": "https://falloutck.uesp.net/wiki/Dispel_-_ActiveMagicEffect"
+  },
+  "DispelAllSpells - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DispelAllSpells_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:21.657982+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3751,
+    "source_url": "https://falloutck.uesp.net/wiki/DispelAllSpells_-_Actor"
+  },
+  "DispelSpell - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DispelSpell_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:22.317854+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3752,
+    "source_url": "https://falloutck.uesp.net/wiki/DispelSpell_-_Actor"
+  },
+  "DoCombatSpellApply - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DoCombatSpellApply_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:22.941629+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3755,
+    "source_url": "https://falloutck.uesp.net/wiki/DoCombatSpellApply_-_Actor"
+  },
+  "DogDropItems - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DogDropItems_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:23.563840+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3756,
+    "source_url": "https://falloutck.uesp.net/wiki/DogDropItems_-_Actor"
+  },
+  "DogPlaceInMouth - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DogPlaceInMouth_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:24.199902+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3758,
+    "source_url": "https://falloutck.uesp.net/wiki/DogPlaceInMouth_-_Actor"
+  },
+  "Door Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Door_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:24.826101+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3761,
+    "source_url": "https://falloutck.uesp.net/wiki/Door_Script"
+  },
+  "DrawWeapon - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DrawWeapon_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:25.455943+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3762,
+    "source_url": "https://falloutck.uesp.net/wiki/DrawWeapon_-_Actor"
+  },
+  "Drop - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Drop_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:26.091575+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3766,
+    "source_url": "https://falloutck.uesp.net/wiki/Drop_-_ObjectReference"
+  },
+  "DropFirstObject - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DropFirstObject_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:26.723613+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3764,
+    "source_url": "https://falloutck.uesp.net/wiki/DropFirstObject_-_ObjectReference"
+  },
+  "DropObject - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DropObject_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:27.347658+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3765,
+    "source_url": "https://falloutck.uesp.net/wiki/DropObject_-_ObjectReference"
+  },
+  "DumpAliasData - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DumpAliasData_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:27.969374+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3770,
+    "source_url": "https://falloutck.uesp.net/wiki/DumpAliasData_-_Debug"
+  },
+  "DumpEventRegistrations - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=DumpEventRegistrations_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:28.600147+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3771,
+    "source_url": "https://falloutck.uesp.net/wiki/DumpEventRegistrations_-_Debug"
+  },
+  "EffectShader Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EffectShader_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:29.219211+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3787,
+    "source_url": "https://falloutck.uesp.net/wiki/EffectShader_Script"
+  },
+  "Elric": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Elric&action=history",
+    "ingested_at": "2026-08-13T23:18:29.849396+00:00",
+    "jsonl_records": 4,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3804,
+    "source_url": "https://falloutck.uesp.net/wiki/Elric"
+  },
+  "Enable - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Enable_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:30.473676+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3840,
+    "source_url": "https://falloutck.uesp.net/wiki/Enable_-_ObjectReference"
+  },
+  "EnableAI - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableAI_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:31.717912+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3806,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableAI_-_Actor"
+  },
+  "EnableAI - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableAI_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:32.339644+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3807,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableAI_-_Debug"
+  },
+  "EnableActivate - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableActivate_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:31.094387+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3809,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableActivate_-_InputEnableLayer"
+  },
+  "EnableAll - RefCollectionAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableAll_-_RefCollectionAlias&action=history",
+    "ingested_at": "2026-08-13T23:18:32.970635+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3810,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableAll_-_RefCollectionAlias"
+  },
+  "EnableAmbientParticles - Weather": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableAmbientParticles_-_Weather&action=history",
+    "ingested_at": "2026-08-13T23:18:33.599550+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3811,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableAmbientParticles_-_Weather"
+  },
+  "EnableCamSwitch - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableCamSwitch_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:34.230371+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3812,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableCamSwitch_-_InputEnableLayer"
+  },
+  "EnableCollisions - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableCollisions_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:34.853310+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3813,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableCollisions_-_Debug"
+  },
+  "EnableDetection - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableDetection_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:35.477036+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3814,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableDetection_-_Debug"
+  },
+  "EnableFastTravel - Cell": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableFastTravel_-_Cell&action=history",
+    "ingested_at": "2026-08-13T23:18:36.104173+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3815,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableFastTravel_-_Cell"
+  },
+  "EnableFastTravel - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableFastTravel_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:36.733153+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3817,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableFastTravel_-_InputEnableLayer"
+  },
+  "EnableFastTravel - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableFastTravel_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:38.061378+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3818,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableFastTravel_-_ObjectReference"
+  },
+  "EnableFavorites - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableFavorites_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:38.697483+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3820,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableFavorites_-_InputEnableLayer"
+  },
+  "EnableFighting - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableFighting_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:39.638845+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3821,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableFighting_-_InputEnableLayer"
+  },
+  "EnableJournal - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableJournal_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:40.263029+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3822,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableJournal_-_InputEnableLayer"
+  },
+  "EnableJumping - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableJumping_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:41.473214+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3823,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableJumping_-_InputEnableLayer"
+  },
+  "EnableLinkChain - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableLinkChain_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:42.099140+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3824,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableLinkChain_-_ObjectReference"
+  },
+  "EnableLooking - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableLooking_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:42.719483+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3825,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableLooking_-_InputEnableLayer"
+  },
+  "EnableMenu - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableMenu_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:43.338371+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3827,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableMenu_-_InputEnableLayer"
+  },
+  "EnableMenus - Debug": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableMenus_-_Debug&action=history",
+    "ingested_at": "2026-08-13T23:18:44.156803+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3829,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableMenus_-_Debug"
+  },
+  "EnableMovement - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableMovement_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:45.089906+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3830,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableMovement_-_InputEnableLayer"
+  },
+  "EnableNoWait - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableNoWait_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:18:45.716275+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3831,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableNoWait_-_ObjectReference"
+  },
+  "EnablePipboyHDRMask - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnablePipboyHDRMask_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:18:46.339821+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3832,
+    "source_url": "https://falloutck.uesp.net/wiki/EnablePipboyHDRMask_-_Game"
+  },
+  "EnablePlayerControls - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnablePlayerControls_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:46.979029+00:00",
+    "jsonl_records": 2,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3834,
+    "source_url": "https://falloutck.uesp.net/wiki/EnablePlayerControls_-_InputEnableLayer"
+  },
+  "EnableRunning - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableRunning_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:47.716068+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3835,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableRunning_-_InputEnableLayer"
+  },
+  "EnableSneaking - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableSneaking_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:48.341453+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3836,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableSneaking_-_InputEnableLayer"
+  },
+  "EnableSprinting - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableSprinting_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:48.960576+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3837,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableSprinting_-_InputEnableLayer"
+  },
+  "EnableVATS - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableVATS_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:49.724960+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3838,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableVATS_-_InputEnableLayer"
+  },
+  "EnableZKey - InputEnableLayer": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EnableZKey_-_InputEnableLayer&action=history",
+    "ingested_at": "2026-08-13T23:18:51.057057+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3839,
+    "source_url": "https://falloutck.uesp.net/wiki/EnableZKey_-_InputEnableLayer"
+  },
+  "Enchantment Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Enchantment_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:51.836545+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3880,
+    "source_url": "https://falloutck.uesp.net/wiki/Enchantment_Script"
+  },
+  "EncounterZone Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EncounterZone_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:52.456261+00:00",
+    "jsonl_records": 8,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3887,
+    "source_url": "https://falloutck.uesp.net/wiki/EncounterZone_Script"
+  },
+  "EndDeferredKill - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EndDeferredKill_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:53.086128+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3895,
+    "source_url": "https://falloutck.uesp.net/wiki/EndDeferredKill_-_Actor"
+  },
+  "EquipItem - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EquipItem_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:53.707244+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3896,
+    "source_url": "https://falloutck.uesp.net/wiki/EquipItem_-_Actor"
+  },
+  "EquipSlot Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EquipSlot_Script&action=history",
+    "ingested_at": "2026-08-13T23:18:54.344259+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3900,
+    "source_url": "https://falloutck.uesp.net/wiki/EquipSlot_Script"
+  },
+  "EquipSpell - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EquipSpell_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:54.962546+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3901,
+    "source_url": "https://falloutck.uesp.net/wiki/EquipSpell_-_Actor"
+  },
+  "Error - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Error_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:18:57.103375+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3905,
+    "source_url": "https://falloutck.uesp.net/wiki/Error_-_Game"
+  },
+  "EvaluateAll - RefCollectionAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EvaluateAll_-_RefCollectionAlias&action=history",
+    "ingested_at": "2026-08-13T23:18:57.790691+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3906,
+    "source_url": "https://falloutck.uesp.net/wiki/EvaluateAll_-_RefCollectionAlias"
+  },
+  "EvaluatePackage - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=EvaluatePackage_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:18:58.412326+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3907,
+    "source_url": "https://falloutck.uesp.net/wiki/EvaluatePackage_-_Actor"
+  },
+  "Events Reference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Events_Reference&action=history",
+    "ingested_at": "2026-08-13T23:18:59.022975+00:00",
+    "jsonl_records": 3,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3911,
+    "source_url": "https://falloutck.uesp.net/wiki/Events_Reference"
+  },
+  "Exp - Math": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Exp_-_Math&action=history",
+    "ingested_at": "2026-08-13T23:18:59.654079+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3914,
+    "source_url": "https://falloutck.uesp.net/wiki/Exp_-_Math"
+  },
+  "Explosion Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Explosion_Script&action=history",
+    "ingested_at": "2026-08-13T23:19:00.909163+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3933,
+    "source_url": "https://falloutck.uesp.net/wiki/Explosion_Script"
+  },
+  "Expression Reference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Expression_Reference&action=history",
+    "ingested_at": "2026-08-13T23:19:01.548605+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3935,
+    "source_url": "https://falloutck.uesp.net/wiki/Expression_Reference"
+  },
+  "Extending Scripts (Papyrus)": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Extending_Scripts_%28Papyrus%29&action=history",
+    "ingested_at": "2026-08-13T23:19:02.170971+00:00",
+    "jsonl_records": 5,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3938,
+    "source_url": "https://falloutck.uesp.net/wiki/Extending_Scripts_%28Papyrus%29"
+  },
   "F4SE Script": {
     "history_url": "https://falloutck.uesp.net/w/index.php?title=F4SE_Script&action=history",
     "ingested_at": "2026-08-12T22:26:14.673256+00:00",
@@ -1023,6 +1687,38 @@
     "revision_id": 3977,
     "source_url": "https://falloutck.uesp.net/wiki/Faction_Script"
   },
+  "FadeOutGame - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FadeOutGame_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:03.048313+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3981,
+    "source_url": "https://falloutck.uesp.net/wiki/FadeOutGame_-_Game"
+  },
+  "FailAllObjectives - Quest": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FailAllObjectives_-_Quest&action=history",
+    "ingested_at": "2026-08-13T23:19:03.668748+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 3985,
+    "source_url": "https://falloutck.uesp.net/wiki/FailAllObjectives_-_Quest"
+  },
+  "FanMotorOn - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FanMotorOn_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:04.314931+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4009,
+    "source_url": "https://falloutck.uesp.net/wiki/FanMotorOn_-_ObjectReference"
+  },
+  "FastTravel - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FastTravel_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:04.946881+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4011,
+    "source_url": "https://falloutck.uesp.net/wiki/FastTravel_-_Game"
+  },
   "FavoritesManager Script": {
     "history_url": "https://falloutck.uesp.net/w/index.php?title=FavoritesManager_Script&action=history",
     "ingested_at": "2026-08-12T22:26:14.264466+00:00",
@@ -1031,6 +1727,318 @@
     "revision_id": 4014,
     "source_url": "https://falloutck.uesp.net/wiki/FavoritesManager_Script"
   },
+  "Find - Array": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Find_-_Array&action=history",
+    "ingested_at": "2026-08-13T23:19:05.688330+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4051,
+    "source_url": "https://falloutck.uesp.net/wiki/Find_-_Array"
+  },
+  "Find - FormList": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Find_-_FormList&action=history",
+    "ingested_at": "2026-08-13T23:19:06.310568+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4052,
+    "source_url": "https://falloutck.uesp.net/wiki/Find_-_FormList"
+  },
+  "Find - RefCollectionAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Find_-_RefCollectionAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:06.935506+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4054,
+    "source_url": "https://falloutck.uesp.net/wiki/Find_-_RefCollectionAlias"
+  },
+  "FindAllReferencesOfType - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindAllReferencesOfType_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:07.557106+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4021,
+    "source_url": "https://falloutck.uesp.net/wiki/FindAllReferencesOfType_-_ObjectReference"
+  },
+  "FindAllReferencesWithKeyword - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindAllReferencesWithKeyword_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:08.183312+00:00",
+    "jsonl_records": 2,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4026,
+    "source_url": "https://falloutck.uesp.net/wiki/FindAllReferencesWithKeyword_-_ObjectReference"
+  },
+  "FindClosestActor - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestActor_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:08.961082+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4030,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestActor_-_Game"
+  },
+  "FindClosestActorFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestActorFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:09.597276+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4028,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestActorFromRef_-_Game"
+  },
+  "FindClosestReferenceOfAnyTypeInList - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestReferenceOfAnyTypeInList_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:10.226390+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8622,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestReferenceOfAnyTypeInList_-_Game"
+  },
+  "FindClosestReferenceOfAnyTypeInListFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestReferenceOfAnyTypeInListFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:10.850287+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8624,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestReferenceOfAnyTypeInListFromRef_-_Game"
+  },
+  "FindClosestReferenceOfType - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestReferenceOfType_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:11.495428+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4036,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestReferenceOfType_-_Game"
+  },
+  "FindClosestReferenceOfTypeFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindClosestReferenceOfTypeFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:12.123514+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4035,
+    "source_url": "https://falloutck.uesp.net/wiki/FindClosestReferenceOfTypeFromRef_-_Game"
+  },
+  "FindInReferenceAliasArray - CommonArrayFunctions": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindInReferenceAliasArray_-_CommonArrayFunctions&action=history",
+    "ingested_at": "2026-08-13T23:19:12.758468+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4037,
+    "source_url": "https://falloutck.uesp.net/wiki/FindInReferenceAliasArray_-_CommonArrayFunctions"
+  },
+  "FindRandomActor - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomActor_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:13.380304+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4041,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomActor_-_Game"
+  },
+  "FindRandomActorFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomActorFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:14.006600+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4039,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomActorFromRef_-_Game"
+  },
+  "FindRandomReferenceOfAnyTypeInList - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomReferenceOfAnyTypeInList_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:14.635802+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8623,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomReferenceOfAnyTypeInList_-_Game"
+  },
+  "FindRandomReferenceOfAnyTypeInListFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomReferenceOfAnyTypeInListFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:15.255902+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8625,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomReferenceOfAnyTypeInListFromRef_-_Game"
+  },
+  "FindRandomReferenceOfType - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomReferenceOfType_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:16.113817+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4045,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomReferenceOfType_-_Game"
+  },
+  "FindRandomReferenceOfTypeFromRef - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindRandomReferenceOfTypeFromRef_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:16.746396+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4044,
+    "source_url": "https://falloutck.uesp.net/wiki/FindRandomReferenceOfTypeFromRef_-_Game"
+  },
+  "FindStruct - Array": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindStruct_-_Array&action=history",
+    "ingested_at": "2026-08-13T23:19:17.366423+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4048,
+    "source_url": "https://falloutck.uesp.net/wiki/FindStruct_-_Array"
+  },
+  "FindWeather - Weather": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FindWeather_-_Weather&action=history",
+    "ingested_at": "2026-08-13T23:19:17.998279+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4049,
+    "source_url": "https://falloutck.uesp.net/wiki/FindWeather_-_Weather"
+  },
+  "Fire - Weapon": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Fire_-_Weapon&action=history",
+    "ingested_at": "2026-08-13T23:19:18.622185+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4056,
+    "source_url": "https://falloutck.uesp.net/wiki/Fire_-_Weapon"
+  },
+  "Flag Reference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Flag_Reference&action=history",
+    "ingested_at": "2026-08-13T23:19:19.251768+00:00",
+    "jsonl_records": 4,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4057,
+    "source_url": "https://falloutck.uesp.net/wiki/Flag_Reference"
+  },
+  "Floor - Math": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Floor_-_Math&action=history",
+    "ingested_at": "2026-08-13T23:19:19.875415+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4060,
+    "source_url": "https://falloutck.uesp.net/wiki/Floor_-_Math"
+  },
+  "Flora Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Flora_Script&action=history",
+    "ingested_at": "2026-08-13T23:19:20.494232+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4066,
+    "source_url": "https://falloutck.uesp.net/wiki/Flora_Script"
+  },
+  "FollowerFollow - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FollowerFollow_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:21.116871+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4067,
+    "source_url": "https://falloutck.uesp.net/wiki/FollowerFollow_-_Actor"
+  },
+  "FollowerSetDistanceFar - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FollowerSetDistanceFar_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:21.745307+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4068,
+    "source_url": "https://falloutck.uesp.net/wiki/FollowerSetDistanceFar_-_Actor"
+  },
+  "FollowerSetDistanceMedium - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FollowerSetDistanceMedium_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:22.364720+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4069,
+    "source_url": "https://falloutck.uesp.net/wiki/FollowerSetDistanceMedium_-_Actor"
+  },
+  "FollowerSetDistanceNear - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FollowerSetDistanceNear_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:22.982841+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4070,
+    "source_url": "https://falloutck.uesp.net/wiki/FollowerSetDistanceNear_-_Actor"
+  },
+  "FollowerWait - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FollowerWait_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:24.050837+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4071,
+    "source_url": "https://falloutck.uesp.net/wiki/FollowerWait_-_Actor"
+  },
+  "ForceActive - Weather": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceActive_-_Weather&action=history",
+    "ingested_at": "2026-08-13T23:19:25.086916+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4073,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceActive_-_Weather"
+  },
+  "ForceAddRagdollToWorld - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceAddRagdollToWorld_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:25.708146+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4074,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceAddRagdollToWorld_-_ObjectReference"
+  },
+  "ForceDisableSSRGodraysDirLight - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceDisableSSRGodraysDirLight_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:26.771816+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4075,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceDisableSSRGodraysDirLight_-_Game"
+  },
+  "ForceFirstPerson - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceFirstPerson_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:27.395104+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4076,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceFirstPerson_-_Game"
+  },
+  "ForceLocationTo - LocationAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceLocationTo_-_LocationAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:28.058726+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4077,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceLocationTo_-_LocationAlias"
+  },
+  "ForceRefIfEmpty - ReferenceAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceRefIfEmpty_-_ReferenceAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:28.680490+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4078,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceRefIfEmpty_-_ReferenceAlias"
+  },
+  "ForceRefTo - ReferenceAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceRefTo_-_ReferenceAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:29.307063+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4079,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceRefTo_-_ReferenceAlias"
+  },
+  "ForceRemoveRagdollFromWorld - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceRemoveRagdollFromWorld_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:29.943233+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4080,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceRemoveRagdollFromWorld_-_ObjectReference"
+  },
+  "ForceStart - Scene": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceStart_-_Scene&action=history",
+    "ingested_at": "2026-08-13T23:19:30.567546+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4082,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceStart_-_Scene"
+  },
+  "ForceThirdPerson - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=ForceThirdPerson_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:31.439582+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4083,
+    "source_url": "https://falloutck.uesp.net/wiki/ForceThirdPerson_-_Game"
+  },
   "Form Script": {
     "history_url": "https://falloutck.uesp.net/w/index.php?title=Form_Script&action=history",
     "ingested_at": "2026-08-12T22:26:13.855198+00:00",
@@ -1038,6 +2046,366 @@
     "license": "CC BY-SA 2.5",
     "revision_id": 4105,
     "source_url": "https://falloutck.uesp.net/wiki/Form_Script"
+  },
+  "FormList Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=FormList_Script&action=history",
+    "ingested_at": "2026-08-13T23:19:32.858313+00:00",
+    "jsonl_records": 4,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4096,
+    "source_url": "https://falloutck.uesp.net/wiki/FormList_Script"
+  },
+  "Function Reference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Function_Reference&action=history",
+    "ingested_at": "2026-08-13T23:19:33.485866+00:00",
+    "jsonl_records": 5,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4109,
+    "source_url": "https://falloutck.uesp.net/wiki/Function_Reference"
+  },
+  "Furniture Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Furniture_Script&action=history",
+    "ingested_at": "2026-08-13T23:19:34.109233+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4117,
+    "source_url": "https://falloutck.uesp.net/wiki/Furniture_Script"
+  },
+  "Game Script": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Game_Script&action=history",
+    "ingested_at": "2026-08-13T23:19:34.800924+00:00",
+    "jsonl_records": 65,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8693,
+    "source_url": "https://falloutck.uesp.net/wiki/Game_Script"
+  },
+  "GameTimeToString - Utility": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GameTimeToString_-_Utility&action=history",
+    "ingested_at": "2026-08-13T23:19:35.420890+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4121,
+    "source_url": "https://falloutck.uesp.net/wiki/GameTimeToString_-_Utility"
+  },
+  "Get - DefaultObject": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Get_-_DefaultObject&action=history",
+    "ingested_at": "2026-08-13T23:19:36.053796+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4624,
+    "source_url": "https://falloutck.uesp.net/wiki/Get_-_DefaultObject"
+  },
+  "Get - UI": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=Get_-_UI&action=history",
+    "ingested_at": "2026-08-13T23:19:36.682475+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4629,
+    "source_url": "https://falloutck.uesp.net/wiki/Get_-_UI"
+  },
+  "GetAccuracyBonus - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAccuracyBonus_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:37.705880+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4144,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAccuracyBonus_-_InstanceData"
+  },
+  "GetActionPointCost - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActionPointCost_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:38.609312+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4146,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActionPointCost_-_InstanceData"
+  },
+  "GetActorBase - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorBase_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:39.232317+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4147,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorBase_-_Actor"
+  },
+  "GetActorOwner - Cell": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorOwner_-_Cell&action=history",
+    "ingested_at": "2026-08-13T23:19:41.315556+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4151,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorOwner_-_Cell"
+  },
+  "GetActorOwner - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorOwner_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:41.933963+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4152,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorOwner_-_ObjectReference"
+  },
+  "GetActorRefOwner - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorRefOwner_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:43.564668+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4153,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorRefOwner_-_ObjectReference"
+  },
+  "GetActorReference - ReferenceAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorReference_-_ReferenceAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:42.946033+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4155,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorReference_-_ReferenceAlias"
+  },
+  "GetActors - EncounterZone": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActors_-_EncounterZone&action=history",
+    "ingested_at": "2026-08-13T23:19:44.218637+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4157,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActors_-_EncounterZone"
+  },
+  "GetActorsLinkedToMe - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetActorsLinkedToMe_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:44.849401+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4156,
+    "source_url": "https://falloutck.uesp.net/wiki/GetActorsLinkedToMe_-_ObjectReference"
+  },
+  "GetAggressionAV - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAggressionAV_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:45.727960+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4158,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAggressionAV_-_Game"
+  },
+  "GetAgilityAV - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAgilityAV_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:19:46.368088+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4159,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAgilityAV_-_Game"
+  },
+  "GetAlias - Quest": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAlias_-_Quest&action=history",
+    "ingested_at": "2026-08-13T23:19:47.001859+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8647,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAlias_-_Quest"
+  },
+  "GetAllCombatTargets - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAllCombatTargets_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:19:47.630728+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4162,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAllCombatTargets_-_Actor"
+  },
+  "GetAllLinkedLocations - Location": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAllLinkedLocations_-_Location&action=history",
+    "ingested_at": "2026-08-13T23:19:48.251925+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4163,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAllLinkedLocations_-_Location"
+  },
+  "GetAllMods - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAllMods_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:48.879998+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4167,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAllMods_-_ObjectReference"
+  },
+  "GetAmmo - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAmmo_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:49.952864+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8448,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAmmo_-_InstanceData"
+  },
+  "GetAmmo - Weapon": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAmmo_-_Weapon&action=history",
+    "ingested_at": "2026-08-13T23:19:50.586560+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8292,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAmmo_-_Weapon"
+  },
+  "GetAmmoCapacity - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAmmoCapacity_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:51.222336+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8286,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAmmoCapacity_-_InstanceData"
+  },
+  "GetAngleX - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAngleX_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:51.994589+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4172,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAngleX_-_ObjectReference"
+  },
+  "GetAngleY - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAngleY_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:52.619214+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4173,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAngleY_-_ObjectReference"
+  },
+  "GetAngleZ - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAngleZ_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:53.239223+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4176,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAngleZ_-_ObjectReference"
+  },
+  "GetAnimationVariableBool - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAnimationVariableBool_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:54.211482+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4179,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAnimationVariableBool_-_ObjectReference"
+  },
+  "GetAnimationVariableFloat - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAnimationVariableFloat_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:54.826026+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4181,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAnimationVariableFloat_-_ObjectReference"
+  },
+  "GetAnimationVariableInt - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAnimationVariableInt_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:19:55.449621+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4183,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAnimationVariableInt_-_ObjectReference"
+  },
+  "GetArmorHealth - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetArmorHealth_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:56.073002+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4184,
+    "source_url": "https://falloutck.uesp.net/wiki/GetArmorHealth_-_InstanceData"
+  },
+  "GetArmorRating - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetArmorRating_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:56.698170+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4185,
+    "source_url": "https://falloutck.uesp.net/wiki/GetArmorRating_-_InstanceData"
+  },
+  "GetAssociatedForm - Furniture": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAssociatedForm_-_Furniture&action=history",
+    "ingested_at": "2026-08-13T23:19:57.317916+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4186,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAssociatedForm_-_Furniture"
+  },
+  "GetAssociatedSkill - MagicEffect": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAssociatedSkill_-_MagicEffect&action=history",
+    "ingested_at": "2026-08-13T23:19:57.936508+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4187,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAssociatedSkill_-_MagicEffect"
+  },
+  "GetAt - FormList": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAt_-_FormList&action=history",
+    "ingested_at": "2026-08-13T23:19:58.558924+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4188,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAt_-_FormList"
+  },
+  "GetAt - RefCollectionAlias": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAt_-_RefCollectionAlias&action=history",
+    "ingested_at": "2026-08-13T23:19:59.177142+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4189,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAt_-_RefCollectionAlias"
+  },
+  "GetAttackDamage - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAttackDamage_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:19:59.802025+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4190,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAttackDamage_-_InstanceData"
+  },
+  "GetAttackDelay - InstanceData": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetAttackDelay_-_InstanceData&action=history",
+    "ingested_at": "2026-08-13T23:20:00.427659+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4191,
+    "source_url": "https://falloutck.uesp.net/wiki/GetAttackDelay_-_InstanceData"
+  },
+  "GetBaseObject - ActiveMagicEffect": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetBaseObject_-_ActiveMagicEffect&action=history",
+    "ingested_at": "2026-08-13T23:20:01.050984+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4192,
+    "source_url": "https://falloutck.uesp.net/wiki/GetBaseObject_-_ActiveMagicEffect"
+  },
+  "GetBaseObject - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetBaseObject_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:20:01.700632+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4193,
+    "source_url": "https://falloutck.uesp.net/wiki/GetBaseObject_-_ObjectReference"
+  },
+  "GetBaseValue - ObjectReference": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetBaseValue_-_ObjectReference&action=history",
+    "ingested_at": "2026-08-13T23:20:02.331861+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4194,
+    "source_url": "https://falloutck.uesp.net/wiki/GetBaseValue_-_ObjectReference"
+  },
+  "GetBodyWeight - ActorBase": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetBodyWeight_-_ActorBase&action=history",
+    "ingested_at": "2026-08-13T23:20:02.954686+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4198,
+    "source_url": "https://falloutck.uesp.net/wiki/GetBodyWeight_-_ActorBase"
+  },
+  "GetBribeAmount - Actor": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetBribeAmount_-_Actor&action=history",
+    "ingested_at": "2026-08-13T23:20:03.573640+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 4199,
+    "source_url": "https://falloutck.uesp.net/wiki/GetBribeAmount_-_Actor"
+  },
+  "GetCameraState - Game": {
+    "history_url": "https://falloutck.uesp.net/w/index.php?title=GetCameraState_-_Game&action=history",
+    "ingested_at": "2026-08-13T23:20:04.458082+00:00",
+    "jsonl_records": 1,
+    "license": "CC BY-SA 2.5",
+    "revision_id": 8282,
+    "source_url": "https://falloutck.uesp.net/wiki/GetCameraState_-_Game"
   },
   "Keyword Script": {
     "history_url": "https://falloutck.uesp.net/w/index.php?title=Keyword_Script&action=history",
