@@ -79,6 +79,24 @@ brain-b/chroma_runtime/
 brain-b/data/
 brain-b/*.bin
 
+# Nexus edition build artifacts — all reproducible from build_nexus_package.py +
+# the same committed knowledge/**/*.jsonl source of truth. Never hand-edit or commit;
+# a released build's assets go through GitHub Releases (or equivalent), not git.
+brain-b/nexus/.venv-test/
+brain-b/nexus/build/
+brain-b/nexus/dist/
+brain-b/nexus/dist-package/
+brain-b/nexus/pyinstaller-build/
+brain-b/nexus/*.spec
+brain-b/nexus/*.env
+brain-b/nexus/.env
+# Built release binary + checksum manifest — 200+MB, hosted as GitHub Release assets
+# (see build_nexus_package.py), never as git blobs. GitHub hard-blocks files >100MB
+# via plain git push anyway; Git LFS is not set up on this repo and isn't needed here
+# since the release-asset path already solves large-file distribution.
+brain-b/nexus/*.zip
+brain-b/nexus/*.manifest.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,23 @@
+# Mossy Brain B — Nexus edition (CPU-only, cloud generation)
+# Deliberately minimal — no torch, no transformers, no unsloth, no langgraph.
+# See brain_b_slim.py's module docstring for why.
+#
+# fastembed, not sentence-transformers: verified sentence-transformers hard-depends
+# on torch even for CPU-only use, pulling in ~900MB of transitive weight (torch +
+# transformers + scipy + sympy + sklearn) for one small embedding model. fastembed
+# uses onnxruntime instead — same BAAI/bge-small-en-v1.5 model, no torch at all.
+# Pin this version — it determines which ONNX export of the model gets used (see
+# get_embed_model()'s comment in brain_b_slim.py).
+
+flask>=3.0.0
+flask-cors>=4.0.0
+waitress>=3.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+duckduckgo-search>=6.2.0
+networkx>=3.3
+numpy>=1.26.0
+rank_bm25>=0.2.2
+chromadb>=0.5.0
+fastembed==0.8.0
+pyinstaller>=6.10.0
