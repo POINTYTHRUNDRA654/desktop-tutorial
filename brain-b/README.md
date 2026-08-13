@@ -1,6 +1,32 @@
-# Mossy Brain B — Local Gemma AI Stack
+# Mossy Brain B — Local Retrieval + Router Service
 
-Brain B is Mossy's optional local AI service: a Python/Flask server running a quantized Gemma model with advanced RAG, episodic memory, self-critique, LangGraph reasoning, and a fine-tune pipeline.
+Brain B is Mossy's optional local AI service: a Python/Flask server that owns retrieval
+(ChromaDB, BM25, RRF merging) and episodic memory locally — and calls out to Mossy's own
+shared Render backend for ALL generation, including the tutoring-contract logic
+(mode routing, need-diagnosis, check_question) as well as long-form answers. That's the
+same backend the Electron app itself calls (`src/backend/`, deployed at
+`mossy.onrender.com`), which holds the real Groq API key server-side; Brain B
+authenticates with a shared token instead, the same way the Electron client does.
+
+**This is a deliberate architecture choice, not a limitation being worked around** — for
+two independent, both real, reasons verified on real hardware:
+
+1. **VRAM.** On an 8GB card, this service's local 9B model (Gemma-2, Unsloth 4-bit) has
+   ~7GB of fixed weight+overhead footprint before a single token generates. Long-form
+   generation OOMs well under 100 tokens of real RAG context, and doesn't move much with
+   prompt trimming or KV-cache quantization.
+2. **Checkpoint quality.** Independent of VRAM, this exact quantized checkpoint produced
+   garbage or empty output on every small JSON call (classify_mode/diagnose/
+   contract_fields) all night, on trivial prompts that don't come close to the VRAM
+   ceiling — ruled out double-BOS, missing chat template, wrong attention_mask/pad_token,
+   and fp16-vs-bf16 as causes. The same prompts sent to the cloud backend produced
+   correct output immediately in every case.
+
+Both point the same direction: this local model isn't reliable for generation on this
+hardware, period, not just for long answers. **The local model is not decorative** — it
+remains available as an automatic offline/degraded fallback (shrinking-budget retry,
+degrading to an honest message rather than crashing) when the backend is unreachable, and
+retrieval stays fully local regardless.
 
 ## Architecture
 
@@ -8,25 +34,40 @@ Brain B is Mossy's optional local AI service: a Python/Flask server running a qu
 Brain A (always on)                    Brain B (optional, local)
 ─────────────────────────────          ──────────────────────────────────────
 MossyBrain.ts (system prompt)          gemma_service_enhanced.py (Flask API)
-ChatInterface → Groq Cloud API    ←→   ├── ChromaDB (vector store, RAG)
-LocalAIEngine.ts                       ├── BM25 keyword index (hybrid search)
-SettingsHub → AIEngineSettings         ├── Reciprocal Rank Fusion (RRF merging)
-                                       ├── SQLite (episodes + feedback)
-                                       ├── NetworkX knowledge graph
-                                       ├── DuckDuckGo web search (free)
-                                       ├── LangGraph multi-step workflow
+ChatInterface ─┐                       ├── ChromaDB (vector store, RAG) — local
+LocalAIEngine.ts│                      ├── BM25 keyword index (hybrid search) — local
+SettingsHub     │                      ├── Reciprocal Rank Fusion (RRF merging) — local
+                │                      ├── SQLite (episodes + feedback) — local
+                ▼                      ├── NetworkX knowledge graph — local
+   mossy.onrender.com/v1/chat  ←───────┤   DuckDuckGo web search (free) — local
+   (src/backend/, holds the            ├── LangGraph multi-step workflow — orchestration
+    real Groq key server-side)         ├── ALL generation — mode routing, diagnosis,
+                                       │   tutoring contract fields, long-form answers —
+                                       │   shared Render backend by default; local 9B
+                                       │   model as degrading fallback
                                        └── LoRA fine-tune pipeline
 ```
 
-> **All Brain B components are free and open-source. No API keys required.**
-> Model weights download from HuggingFace automatically on first run.
+> Retrieval and episodic memory are fully local and free — no token needed for either.
+> **Everything that involves generation needs `MOSSY_BACKEND_TOKEN`** to run reliably;
+> without it, Brain B falls back to the local model's degrading-budget retry, and mode
+> routing keeps working via a keyword heuristic even then — but diagnosis and
+> check_question will likely come back null on this specific local checkpoint (see
+> Configuration below).
 
 ## Prerequisites
 
 - Python 3.10+
-- NVIDIA GPU with 8GB+ VRAM (for 9B model at 4-bit), 12GB+ for 12B, 24GB+ for 27B
-- CUDA 12.1+ and cuDNN
-- ~50GB disk space for model weights + data
+- NVIDIA GPU with 8GB+ VRAM for the local fallback model (9B at 4-bit), 12GB+ for 12B,
+  24GB+ for 27B. **Not required for normal operation** — with `MOSSY_BACKEND_TOKEN` set,
+  the local model only loads when the cloud backend is unavailable.
+- CUDA 12.1+ and cuDNN (for the local fallback model)
+- ~50GB disk space for model weights + data (for the local fallback model)
+- `MOSSY_BACKEND_TOKEN` for reliable operation — the same shared-secret the Electron
+  app sends to `mossy.onrender.com`. This is a separate Python process with its own
+  environment; the Electron app's encrypted settings-file value isn't readable here, so
+  the token needs to be provided to this process directly (see Configuration below). This
+  is NOT a Groq API key — the backend already holds that server-side.
 
 ## Quick Start
 
@@ -54,7 +95,14 @@ pip install -r requirements.txt
 #    entries + brain-b/knowledge/**/*.jsonl) — do this before first start
 python build_knowledge_db.py
 
-# 7. Start the server
+# 7. Set MOSSY_BACKEND_TOKEN so long-form answers use the shared Render backend
+#    instead of the local model's degrading fallback. This is a separate process
+#    from the Electron app, so its own encrypted settings-file value doesn't carry
+#    over. Easiest: copy .env.example to .env in this directory and fill it in —
+#    it's gitignored and loads automatically. Or set the env var directly:
+$env:MOSSY_BACKEND_TOKEN = "..."
+
+# 8. Start the server
 python gemma_service_enhanced.py
 ```
 
@@ -84,13 +132,19 @@ Set environment variables before starting:
 | `CHROMA_RUNTIME_PATH` | `D:\Mossy-AI\data\chroma_runtime` | Local-only: auto-saved web results, manual `/knowledge/add` uploads. Never packaged, never shipped. |
 | `MODELS_PATH` | `D:\Mossy-AI\models` | HuggingFace model cache |
 | `MOSSY_PORT` | `8766` | API server port (8765 is claimed by Mossy's own Electron F4AI relay) |
+| `MOSSY_BACKEND_URL` | `https://mossy.onrender.com` | The shared Render backend base URL. Matches `main.ts`'s own fallback — only override if you're running your own deployment. |
+| `MOSSY_BACKEND_TOKEN` | *(none)* | Required for full-quality long-form answers. Without it, generation falls back to the local model's shrinking-budget retry — see the architecture note above for why. NOT a Groq key; it's the shared secret that authenticates against the Render backend, which holds the real Groq key. Not read from the Electron app's encrypted settings; set it directly in this process's environment, or via `.env` (see `.env.example`). |
+| `BRAINB_GENERATION_BACKEND` | `cloud` | Set to `local` to force local-only generation (same shrinking-budget retry) — e.g. for an offline demo, or if you'd rather not configure the backend token at all. |
 
 > `CHROMA_PATH` (singular, no curated/runtime split) was the original variable
 > before the knowledge base was partitioned — no code reads it anymore. If
 > you have an old `D:\Mossy-AI\data\chroma\` from before this split, it's
 > orphaned; safe to delete once `chroma_curated`/`chroma_runtime` exist.
 
-> No external API keys are needed. HuggingFace model downloads are free (no account required for public models).
+> Retrieval, routing, diagnosis, and the tutoring contract need no token and never will.
+> HuggingFace model downloads are free (no account required for public models). Only
+> long-form answer generation needs `MOSSY_BACKEND_TOKEN` to run at full quality — see
+> the architecture note at the top of this file.
 
 ## API Endpoints
 
@@ -175,15 +229,19 @@ Check server status, model load state, VRAM usage, doc count.
 
 ## Model Selection
 
-Brain B auto-selects based on VRAM:
+Brain B auto-selects a local model based on VRAM. This model handles routing, diagnosis,
+retrieval, and the tutoring contract in every configuration — it does **not** need to be
+large enough for long-form generation, since that's Groq's job by default:
 
-| VRAM | Model | Quality |
+| VRAM | Model | Local long-form generation (fallback only, capped at 120 tokens) |
 |---|---|---|
-| 7–9 GB | `google/gemma-2-9b-it` | Good |
-| 10–21 GB | `google/gemma-3-12b-it` | Great |
-| 22+ GB | `google/gemma-3-27b-it` | Best |
+| 7–9 GB | `google/gemma-2-9b-it` | Tight — this is the configuration that motivated routing generation to Groq |
+| 10–21 GB | `google/gemma-3-12b-it` | Untested; likely still tight for uncapped generation |
+| 22+ GB | `google/gemma-3-27b-it` | Untested; more headroom, but Groq is still the default primary path |
 
-Override with `MOSSY_MODEL=google/gemma-3-27b-it` env var.
+Override with `MOSSY_MODEL=google/gemma-3-27b-it` env var. A bigger local model doesn't
+change whether Groq is used by default — it only changes how good the capped local
+fallback is when Groq isn't available.
 
 ## Fine-Tuning Mossy's Brain
 
@@ -213,7 +271,14 @@ Brain B uses **Reciprocal Rank Fusion (RRF)** to merge BM25 keyword results and 
 
 ## Troubleshooting
 
-**Out of VRAM:** Set `MOSSY_MODEL=google/gemma-2-9b-it` (smallest model, needs ~7GB VRAM)
+**Out of VRAM during generation (not routing/diagnosis):** Expected on 8GB cards if
+`MOSSY_BACKEND_TOKEN` isn't set — you're hitting the local fallback path, which retries
+at shrinking token budgets and degrades to an honest message rather than crashing if
+even the smallest budget OOMs. Set `MOSSY_BACKEND_TOKEN` for real answers; don't try to
+fix this by raising `max_new_tokens` on the local path, it will OOM again (verified —
+see architecture note above).
+
+**Out of VRAM (routing/diagnosis, not generation):** Set `MOSSY_MODEL=google/gemma-2-9b-it` (smallest model, needs ~7GB VRAM)
 
 **Slow first response:** Model is loading from disk (~2–5 minutes for 12B+) — subsequent queries are fast
 
