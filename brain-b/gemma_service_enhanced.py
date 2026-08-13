@@ -1,21 +1,35 @@
 #!/usr/bin/env python3
 """
-gemma_service_enhanced.py — Brain B: Mossy Local AI Service
-============================================================
-Full-featured local Gemma inference server with:
-  • Hybrid BM25 + semantic RAG retrieval
-  • Reciprocal Rank Fusion (RRF) for result merging — NO external API key needed
-  • Episodic memory (SQLite episodes table)
-  • Self-critique loop via /reflect
-  • LangGraph multi-step reasoning workflow
-  • DuckDuckGo web search grounding (free, no API key)
-  • NetworkX knowledge graph
-  • User feedback endpoint + learning loop
-  • LoRA fine-tune pipeline endpoint
-  • Model selection (9B / 12B / 27B based on VRAM)
+gemma_service_enhanced.py — Brain B: Mossy Local Retrieval + Router Service
+=============================================================================
+A local retrieval and routing service with:
+  • Hybrid BM25 + semantic RAG retrieval — fully local, NO external API key needed
+  • Episodic memory (SQLite episodes table) — fully local
+  • Mode routing, need-diagnosis, and tutoring contract fields (check_question,
+    learner_signal), and long-form answer generation — see GENERATION below for why
+    none of this is local-only
+  • LangGraph multi-step reasoning workflow (orchestration only — see below for
+    where the actual answer text comes from)
+  • DuckDuckGo web search grounding (free, no API key) — fully local
+  • NetworkX knowledge graph — fully local
+  • User feedback endpoint + learning loop, LoRA fine-tune pipeline endpoint
 
-ALL components are FREE and open-source. No API keys required.
-Model weights download from HuggingFace on first run (free account not required).
+GENERATION (long-form answers AND the small JSON calls — classify_mode, diagnose,
+contract_fields) is NOT reliably local on this hardware. Verified on real 8GB-card
+hardware: this service's local 9B model (Gemma-2, Unsloth 4-bit) consumes ~7GB of
+fixed weight+overhead before a single token generates, so long answers OOM well under
+100 tokens of real RAG context — and independent of that, this exact quantized
+checkpoint produced garbage/empty output on every JSON-mode call all night, on
+trivial prompts, ruling out prompt-formatting bugs (double-BOS, missing chat
+template, wrong attention_mask/pad_token, fp16-vs-bf16 all tested and ruled out). The
+same prompts sent to the cloud model produced correct output immediately in both
+cases. So ALL generation defaults to Mossy's own shared Render backend
+(mossy.onrender.com/v1/chat — the same proxy the Electron app calls, which holds the
+real Groq key server-side; MOSSY_BACKEND_TOKEN required), with the local model as an
+automatic fallback that retries at shrinking token budgets when the backend is
+unavailable, degrading to an honest message rather than crashing if even that fails.
+Force local-only with BRAINB_GENERATION_BACKEND=local — expect degraded quality on
+this specific checkpoint if you do. See README.md.
 
 Deploy at: D:\\Mossy-AI\\gemma_service_enhanced.py
 Start: python gemma_service_enhanced.py
@@ -28,6 +42,19 @@ Environment variables:
   MOSSY_MODEL  – Override model name   (default auto-selected by VRAM)
   MOSSY_PORT   – Server port           (default 8766 — 8765 is already used by
                  the Electron F4AI NPC-dialogue relay in src/electron/main.ts)
+  MOSSY_BACKEND_URL   – Shared Render backend base URL (default https://mossy.onrender.com,
+                 matching main.ts's own fallback)
+  MOSSY_BACKEND_TOKEN – Required for real long-form answers. Same shared-secret the
+                 Electron app sends (must match MOSSY_API_TOKEN on the Render side).
+                 Encrypted at rest in the Electron app's .env.encrypted/settings.json —
+                 not readable by this separate Python process. Set it directly in this
+                 process's environment, or put it in a .env file next to this script
+                 (loaded automatically via python-dotenv; see .env.example). NEVER
+                 commit a real .env — it's already covered by the repo's root
+                 .gitignore (bare ".env" pattern matches at any depth), but double
+                 check before committing anything in this directory.
+  BRAINB_GENERATION_BACKEND – "cloud" (default) or "local" to force local-only
+                             generation (shrinking-budget retry; see above)
 """
 
 from __future__ import annotations
@@ -45,11 +72,18 @@ from typing import Any, Optional
 
 import networkx as nx
 import numpy as np
+import requests
 import torch
+from dotenv import load_dotenv
 from duckduckgo_search import DDGS
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from rank_bm25 import BM25Okapi
+
+# Loads a .env file from the current working directory if one exists (silently does
+# nothing otherwise) — lets MOSSY_BACKEND_TOKEN persist across restarts without having
+# to re-set an env var by hand each time. See .env.example; never commit a real .env.
+load_dotenv()
 
 # ── Constants ────────────────────────────────────────────────────────────────
 BASE_DIR       = Path(os.environ.get("MOSSY_BASE_DIR", r"D:\Mossy-AI"))
@@ -79,6 +113,34 @@ DATASET_PATH   = BASE_DIR / "data" / "training_dataset.jsonl"
 PORT           = int(os.environ.get("MOSSY_PORT", 8766))
 MAX_EPISODES   = 500
 CRITIQUE_CONF_THRESHOLD = 0.85
+
+# Long-form answer generation (draft/critique/refine) — NOT classify_mode/diagnose/
+# contract_fields, which stay local always. Verified on real 8GB-card hardware: this
+# service's 9B local model has ~7GB of fixed weight+overhead footprint before a single
+# token generates, and the KV cache wall for a real RAG-context answer lands around
+# 120-200 tokens — nowhere near enough for a useful answer. Short local calls (router,
+# diagnosis, small JSON extraction) are proven to work; long local answers are not.
+# Groq is the primary path for the same reason Brain A (the cloud layer) already exists:
+# this was always meant to be a router+retriever role, not a full local inference engine
+# on 8GB. See README.md.
+#
+# Goes through Mossy's shared Render backend (src/backend/routes/chat.ts, deployed at
+# mossy.onrender.com), NOT a direct Groq API call with its own key. That backend already
+# holds the real Groq API key server-side and is exactly what the Electron app itself
+# calls (main.ts) — reusing it means this process needs a shared AUTH TOKEN, not a
+# second copy of a provider API key floating around. MOSSY_BACKEND_TOKEN is encrypted
+# at rest in the Electron app's .env.encrypted / settings.json and isn't readable by
+# this separate Python process — set it directly in the environment this server runs
+# in (or via .env — see .env.example). It must match MOSSY_API_TOKEN configured on the
+# Render service (src/backend/middleware/auth.ts) — same shared-secret both the
+# Electron client and this process authenticate with.
+MOSSY_BACKEND_URL   = os.environ.get("MOSSY_BACKEND_URL", "https://mossy.onrender.com")
+MOSSY_BACKEND_TOKEN = os.environ.get("MOSSY_BACKEND_TOKEN", "")
+# "cloud" (default) or "local" — force local-only generation (e.g. offline demos, or a
+# card with enough VRAM headroom to not need this at all). Falling back to local on any
+# backend failure (down, unconfigured, cold-start timeout) happens regardless of this
+# setting; this only controls whether the cloud backend is tried FIRST.
+GENERATION_BACKEND = os.environ.get("BRAINB_GENERATION_BACKEND", "cloud").lower()
 
 # Abstention threshold: minimum vector+BM25 AGREEMENT (count of top-6 results
 # both retrievers picked independently) required to attempt an answer at all.
@@ -134,7 +196,17 @@ _bm25_metas  = None
 _bm25_stores = None  # parallel array: "curated" or "runtime" per doc, so expand_to_parent() knows where to look
 _graph       = None
 
-MAX_EXPANDED_PARENTS = 4  # cap on distinct parent docs pulled into one generation's context
+MAX_EXPANDED_PARENTS = 2  # cap on distinct parent docs pulled into one generation's context
+# Was 4 — each parent is a full section of up to 10 functions' worth of reference text, so
+# 4 parents could add thousands of tokens to the prompt. Verified on an 8GB card: the
+# 9B model's real-answer generation (with retrieved context, not the short JSON-mode calls)
+# OOMs at a consistent decode step regardless of max_new_tokens — trimming the KV cache's
+# starting size via less context is a direct lever on that. (A quantized-KV-cache
+# experiment was also tried here and removed — untested against Unsloth's custom
+# fast-path attention kernels, and correctness, not just memory, turned out to be the
+# real problem in this codepath; see generate_text()'s tokenization fix instead.)
+# Doesn't change which documents retrieval finds, only how much surrounding material
+# rides along per parent.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -265,9 +337,16 @@ def load_model():
     log.info("Loading model: %s", MODEL_NAME)
     try:
         from unsloth import FastLanguageModel
+        # Verified on real hardware: loading Unsloth's pre-quantized bnb-4bit checkpoint
+        # through plain transformers.AutoModelForCausalLM (with or without device_map="auto"
+        # multi-GPU splitting) produces degenerate output — a repeated garbage token,
+        # regardless of GPU count. That checkpoint is packaged for Unsloth's own loader,
+        # which applies model-specific patches vanilla transformers skips. Do not "fix" the
+        # VRAM ceiling by dropping this path again without re-verifying real generated text,
+        # not just the absence of an OOM.
         _model, _tokenizer = FastLanguageModel.from_pretrained(
             model_name=MODEL_NAME,
-            max_seq_length=8192,
+            max_seq_length=4096,
             dtype=None,          # auto-detect float16/bfloat16
             load_in_4bit=True,
             cache_dir=MODELS_PATH,
@@ -286,17 +365,161 @@ def load_model():
 
 def generate_text(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
     load_model()
-    inputs = _tokenizer(prompt, return_tensors="pt").to(_model.device)
+    # The 9B model's weights + fixed overhead already consume ~7GB of an 8GB card at rest —
+    # there's very little headroom left for the KV cache to grow into during generation.
+    # Freeing cached-but-unused reserved memory here measurably reduces OOM risk on 8GB cards.
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    # gemma-2-9b-it is instruction-tuned and expects its chat template (<start_of_turn>
+    # user/model turns) — this was previously MISSING here entirely, sending raw
+    # completion-style prompts to a chat-tuned model. Verified on real hardware: every
+    # classify_mode/diagnose/contract_fields call failed JSON parsing on every test run
+    # before this fix.
+    #
+    # Tokenize directly via apply_chat_template(tokenize=True) rather than round-tripping
+    # through a string — round-tripping was tried first and is a real, confirmed bug:
+    # apply_chat_template's STRING output already embeds <bos>, and _tokenizer(str, ...)
+    # adds its OWN default BOS on top, producing <bos><bos>... Verified via raw token IDs
+    # on real hardware: a double-BOS prompt is badly out-of-distribution input and
+    # produced empty output under greedy decoding, garbled multi-script noise under
+    # sampling.
+    #
+    # apply_chat_template(tokenize=True, return_tensors="pt") returns a bare input_ids
+    # tensor with NO attention_mask — unlike a normal tokenizer() call, which returns
+    # both. Must build attention_mask explicitly (all-ones; no padding in a single
+    # unbatched sequence) or transformers tries to INFER it from pad-token positions.
+    try:
+        input_ids = _tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}],
+            tokenize=True, add_generation_prompt=True, return_tensors="pt",
+            truncation=True, max_length=4096 - max_new_tokens,
+        ).to(_model.device)
+    except Exception as e:
+        log.warning("apply_chat_template failed (%s), using manual Gemma2 template "
+                    "(default add_special_tokens=True is correct here — the manual "
+                    "template doesn't already include <bos>, unlike the string path "
+                    "apply_chat_template would otherwise take).", e)
+        manual_prompt = f"<start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model\n"
+        input_ids = _tokenizer(manual_prompt, return_tensors="pt", truncation=True,
+                                max_length=4096 - max_new_tokens)["input_ids"].to(_model.device)
+    attention_mask = torch.ones_like(input_ids)
+    # This tokenizer has its own distinct pad token (id 0) separate from eos (id 1) —
+    # forcing pad_token_id=eos_token_id (a common workaround for tokenizers that lack a
+    # real pad token) broke attention-mask inference here instead, since it made pad and
+    # eos indistinguishable. Use the tokenizer's real pad token; attention_mask above
+    # makes any inference moot anyway, but this stays correct if that ever changes.
     with torch.no_grad():
         outputs = _model.generate(
-            **inputs,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             do_sample=temperature > 0,
-            pad_token_id=_tokenizer.eos_token_id,
+            pad_token_id=_tokenizer.pad_token_id,
         )
-    decoded = _tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    decoded = _tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
     return decoded.strip()
+
+
+def generate_text_backend(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
+    """Long-form generation via Mossy's shared Render backend (src/backend/routes/chat.ts),
+    the same proxy the Electron app itself calls — NOT a direct Groq API call. Mirrors its
+    exact contract: POST /v1/chat, {"messages":[...], "maxTokens":..., "temperature":...},
+    Authorization: Bearer <MOSSY_BACKEND_TOKEN>, response {"ok":true,"text":"...",...} or
+    {"ok":false,"error":...,"message":...}. The backend itself already owns Groq's
+    primary/fallback model selection and rate-limit retry — this function doesn't
+    duplicate that logic, just calls through.
+
+    Render's free tier cold-starts after idling (30-60s) — timeout is generous to survive
+    that rather than fail a request that would have succeeded 20s later. Raises on
+    failure; callers (generate_answer()) decide the fallback, this function doesn't hide
+    errors.
+
+    max_new_tokens here is NOT a 1:1 token budget for the visible answer — the backend's
+    default model (openai/gpt-oss-120b) is a reasoning model requested at high reasoning
+    effort (see chat.ts's reasoningEffortFor()), and reasoning tokens count against the
+    same maxTokens budget as the final answer. Verified directly against the live
+    backend: a 50-token budget produced 48 reasoning tokens and an EMPTY answer; 512
+    produced 385 reasoning tokens and a real (if short) answer. Callers pass the budget
+    they want for the actual ANSWER; this pads it with headroom for reasoning tokens so
+    that budget doesn't silently starve to zero on harder questions with more context.
+    """
+    if not MOSSY_BACKEND_TOKEN:
+        raise RuntimeError("MOSSY_BACKEND_TOKEN not set")
+    reasoning_headroom = 1536
+    resp = requests.post(
+        f"{MOSSY_BACKEND_URL}/v1/chat",
+        headers={"Authorization": f"Bearer {MOSSY_BACKEND_TOKEN}", "Content-Type": "application/json"},
+        json={
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "maxTokens": max_new_tokens + reasoning_headroom,
+        },
+        timeout=90,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("ok"):
+        raise RuntimeError(f"backend chat failed: {data.get('message') or data.get('error') or data}")
+    text = (data.get("text") or "").strip()
+    if not text:
+        usage = data.get("usage") or {}
+        log.warning("Backend returned empty text despite ok:true — likely reasoning-token "
+                    "budget exhaustion even with headroom. usage=%s", usage)
+    return text
+
+
+# Verified on real 8GB-card hardware that a single fixed cap isn't reliably safe: the
+# actual ceiling depends on how much retrieved context landed in THIS prompt, not just
+# max_new_tokens. One measured data point on a real answer-generation prompt (1826
+# prompt tokens): max_new_tokens=20 succeeded, 40 OOM'd — a much tighter margin than
+# the 120 that works fine for classify_mode/diagnose's short, generic prompts. A
+# heavier-context query would have even less headroom. So: shrinking-budget retry
+# instead of trusting one constant across every possible prompt size.
+LOCAL_FALLBACK_RETRY_BUDGETS = (60, 30, 15)
+LOCAL_FALLBACK_EXHAUSTED_MESSAGE = (
+    "I'm having trouble generating a full answer locally right now — this device is "
+    "tight on VRAM for how much context this question pulled in. Configure "
+    "MOSSY_BACKEND_TOKEN for reliable answers, or try a shorter, more specific question."
+)
+
+
+def generate_answer(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
+    """The one entry point for ALL generation in this service — long-form answers
+    (initial draft, critique/refine loop) AND the small JSON calls (classify_mode,
+    diagnose, contract_fields, via _generate_json()). Originally the JSON calls were
+    local-only on the theory that they were small enough to fit this 8GB card
+    reliably; verified false on real hardware instead — this exact quantized local
+    checkpoint produced garbage/empty output on every JSON-mode call all night,
+    independent of prompt size, and the same prompts sent to the cloud backend
+    produced correct output immediately. So everything routes through here now.
+
+    Routes to the shared Render backend first by default (GENERATION_BACKEND != "local"
+    and a token is configured); falls back to the local model on ANY backend failure —
+    down, unconfigured, cold-start timeout, or an empty response — so the local
+    responder keeps working as a degraded/offline fallback rather than the request just
+    failing. The local path retries at shrinking token budgets on OOM rather than
+    trusting one fixed cap (see LOCAL_FALLBACK_RETRY_BUDGETS — the safe ceiling varies
+    per-prompt). Force local-only (same retry behavior applies) with
+    BRAINB_GENERATION_BACKEND=local."""
+    if GENERATION_BACKEND != "local" and MOSSY_BACKEND_TOKEN:
+        try:
+            backend_text = generate_text_backend(prompt, max_new_tokens, temperature)
+            if backend_text:
+                return backend_text
+            log.warning("Backend returned empty text — falling back to local model.")
+        except Exception as e:
+            log.warning("Backend generation failed (%s) — falling back to local model.", e)
+    for budget in LOCAL_FALLBACK_RETRY_BUDGETS:
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            return generate_text(prompt, min(max_new_tokens, budget), temperature)
+        except torch.OutOfMemoryError:
+            log.warning("Local fallback OOM'd at max_new_tokens=%d, retrying smaller.", budget)
+            continue
+    log.error("Local fallback OOM'd at every retry budget %s.", LOCAL_FALLBACK_RETRY_BUDGETS)
+    return LOCAL_FALLBACK_EXHAUSTED_MESSAGE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -308,10 +531,14 @@ def get_embed_model():
     if _embed_model is None:
         from sentence_transformers import SentenceTransformer
         from knowledge_manifest import EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_REVISION
+        # Keep this off the LLM's GPU (cuda:0) when a second card is present — the LLM's
+        # KV cache is already tight against 8GB, and this model is small enough to run
+        # anywhere.
+        embed_device = "cuda:1" if torch.cuda.device_count() > 1 else None
         # Pinned revision, not "latest" — see knowledge_manifest.py's module docstring
         # for why an unpinned model breaks build reproducibility.
         _embed_model = SentenceTransformer(EMBEDDING_MODEL_NAME, revision=EMBEDDING_MODEL_REVISION,
-                                            cache_folder=MODELS_PATH)
+                                            cache_folder=MODELS_PATH, device=embed_device)
         log.info("Embedding model loaded: %s @ %s", EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_REVISION)
     return _embed_model
 
@@ -818,7 +1045,7 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 f"Provide a thorough, accurate answer. Cite specific tools, record types, "
                 f"or INI settings where relevant.\n\nMOSSY:"
             )
-            state["draft_answer"] = generate_text(prompt, max_new_tokens=768)
+            state["draft_answer"] = generate_answer(prompt, max_new_tokens=768)
             state["confidence"] = 0.7 if ctx else 0.4
             return state
 
@@ -832,7 +1059,7 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 f"Q: {state['question']}\nA: {state['draft_answer']}\n\n"
                 f"List specific errors or omissions in 2–3 bullets. If correct, reply: LGTM"
             )
-            state["critique"] = generate_text(prompt, max_new_tokens=256, temperature=0.3)
+            state["critique"] = generate_answer(prompt, max_new_tokens=256, temperature=0.3)
             return state
 
         # ── Node: refine ─────────────────────────────────────────────────────
@@ -847,7 +1074,7 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 f"Critique: {state['critique']}\n\n"
                 f"Write the improved answer:\nMOSSY:"
             )
-            refined = generate_text(prompt, max_new_tokens=768)
+            refined = generate_answer(prompt, max_new_tokens=768)
             if len(refined) > 80:
                 state["draft_answer"] = refined
                 state["confidence"] = min(state["confidence"] + 0.1, 0.95)
@@ -927,7 +1154,7 @@ def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: 
         f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic \n"
         f"CONTEXT:\n{ctx}\n{diagnosis_ctx}{level_ctx}\nQ: {question}\n\nMOSSY:"
     )
-    answer = generate_text(prompt, max_new_tokens=512)
+    answer = generate_answer(prompt, max_new_tokens=512)
     return {"answer": answer, "confidence": 0.7, "sources": sources,
             "critique_applied": False, "used_web": False}
 
@@ -1226,6 +1453,17 @@ def _generate_json(prompt: str, required_keys: list[str], max_new_tokens: int = 
     Generate + parse a small JSON object, retrying on parse failure with a
     stricter instruction and lower temperature each attempt.
     Returns (parsed_dict_or_None, last_raw_output, attempts_used).
+
+    Routes through generate_answer() (cloud-first, local fallback), same as long-form
+    answers — NOT generate_text() (pure local) directly. This used to be local-only on
+    the theory that classify_mode/diagnose/contract_fields were small enough to fit this
+    card's local budget reliably; verified false on real hardware instead: this exact
+    quantized checkpoint produced garbage/empty output on every JSON-mode call all
+    night, on trivial prompts, independent of prompt size — ruled out double-BOS,
+    missing chat template, wrong attention_mask/pad_token, and fp16-vs-bf16 as causes.
+    The same style of prompt sent to the cloud backend instead produced correct,
+    coherent output immediately. Whatever the checkpoint issue is, it isn't specific to
+    long-form generation.
     """
     last_raw = ""
     for attempt in range(max_retries + 1):
@@ -1235,7 +1473,7 @@ def _generate_json(prompt: str, required_keys: list[str], max_new_tokens: int = 
             f"no other keys."
             if attempt > 0 else ""
         )
-        last_raw = generate_text(
+        last_raw = generate_answer(
             prompt + suffix,
             max_new_tokens=max_new_tokens,
             temperature=max(0.1, 0.4 - attempt * 0.15),
@@ -1254,7 +1492,12 @@ def log_contract_failure(question: str, stage: str, raw_output: str, attempts: i
     )
     conn.commit()
     conn.close()
-    log.warning("[contract] parse failed after %d attempts (stage=%s): %s", attempts, stage, question[:80])
+    # The raw output is what tells you WHICH failure this is — truncated JSON, prose
+    # wrapped around JSON, and empty string are three different bugs with three
+    # different fixes, and a parse exception alone can't distinguish them. Full raw
+    # output is in contract_failures (this table) if 300 chars isn't enough.
+    log.warning("[contract] parse failed after %d attempts (stage=%s): %s | raw_output=%r",
+                attempts, stage, question[:80], (raw_output or "")[:300])
 
 
 def log_learner_signal(question: str, mode: str, learner_signal: Optional[str], diagnosis: Optional[str],
@@ -1425,7 +1668,7 @@ def reflect():
         f"Q: {question}\nA: {answer}\n\n"
         f"List specific errors or important missing steps (2–4 bullets). If accurate, reply: LGTM"
     )
-    critique = generate_text(critique_prompt, max_new_tokens=256, temperature=0.3)
+    critique = generate_answer(critique_prompt, max_new_tokens=256, temperature=0.3)
 
     if critique.upper().startswith("LGTM"):
         return jsonify({"critique": "LGTM", "refined": answer, "improved": False})
@@ -1434,7 +1677,7 @@ def reflect():
         f"Improve this answer based on the critique:\n\n"
         f"Q: {question}\nA: {answer}\n\nCritique: {critique}\n\nImproved answer:\n"
     )
-    refined = generate_text(refine_prompt, max_new_tokens=512)
+    refined = generate_answer(refine_prompt, max_new_tokens=512)
     return jsonify({"critique": critique, "refined": refined, "improved": True})
 
 
