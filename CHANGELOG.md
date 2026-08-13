@@ -2,6 +2,25 @@
 
 ## [5.6.0] — 2026-08-05
 
+### Brain B — AI Tutoring, New Optional Component
+
+- New one-click-install AI tutoring feature: ask Mossy anything about FO4 modding and get an answer grounded in real, cited Creation Kit/F4SE/Papyrus documentation, with the question diagnosed before answering and a check-question afterward when Mossy's actually teaching a concept (not just answering a lookup)
+- Fully automatic setup — no Python, no GPU, and no manual configuration required. A single consent screen shows exactly what gets installed, its approximate size, where it comes from, and under what license, before anything downloads
+- Retrieval (hybrid keyword + semantic search over the bundled knowledge base) and the tutoring logic (what mode you're in, what you actually need, the follow-up check question) run entirely on your machine; answer generation is handled by Mossy's backend service — the same one AI Chat already uses — so there's no local GPU requirement and no separate API key to configure
+- Knowledge base ships prebuilt and bundled — nothing needs to be indexed or downloaded from a wiki on your machine
+- Everything under the hood is free, open-source, and license-clean: MIT-licensed embedding model, and the documentation content itself is CC BY-SA 2.5 with full UESP attribution
+
+### Mossy Link — Blender Add-On (Runtime Hub → Desktop Bridge)
+
+- New downloadable Blender add-on that gives Mossy a live connection into your Blender session — install it once via Blender's own Add-ons preferences, then Mossy can see your actual scene and run real FO4 pipeline operations directly, instead of guessing from a text description
+- **Live scene awareness**: Mossy can read your active object, selection, mesh stats (vertex/triangle/UV/material counts), armature and animation state, units, FPS, and viewport settings in real time
+- **Real FO4 export validation**, not generic advice — checks FPS against FO4's actual HKX (30) vs. studio-bake (60) conventions, unit system/scale mismatches, unapplied object scale, triangle count against FO4's hard limit, missing UV layers, armature bone counts against the recommended max, and missing pose markers on animations HKX needs them for
+- **One-click FO4 automation presets**, runnable from Blender's own UI or triggered by Mossy directly: studio scene setup (metric/60fps/18mm FOV) and HKX-pipeline alignment (imperial/30fps) as two distinct presets for the two different stages of a real FO4 pipeline, transform application, mesh cleanup (remove doubles/delete loose/dissolve degenerate), rig prep, UV check, lightmap UV generation, LOD setup, and batch export to FBX/OBJ
+- AI-proposed Python code blocks in chat get a real **Run Command** button when Blender is in scope, sending them straight to your running Blender session
+- One-click **Download Mossy Link** button (ships bundled with the app, no separate download); step-by-step install instructions shown directly in the tab, plus a **Download Blender** link for anyone who doesn't have it yet
+- **Check for Blender Add-on** does a live local connection check and flips to a clear "Using Installed Add-on" state once it detects the add-on running — no guessing whether it's actually connected
+- The add-on's security token is **not an API key to any external service** — it's a random value generated locally on your machine the first time the add-on runs, used only so Mossy Desktop and your local Blender session can recognize each other. The connection itself never leaves your computer (127.0.0.1 only); nothing about this token or connection is sent anywhere, including to Mossy's own servers
+
 ### Background Remover — New Texture Hub Tab
 
 - Added AI-powered background removal with two backends: a standalone local install (BRIA AI RMBG-2.0, GPU-accelerated, runs entirely on your machine) or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models
