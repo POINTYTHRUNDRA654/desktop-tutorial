@@ -4138,6 +4138,26 @@ const electronAPI = {
   startKobold: (): Promise<any> => ipcRenderer.invoke('start-kobold'),
   stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
   koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
+
+  // Brain B (Nexus edition) — one-click install + lifecycle. CPU-only, offered
+  // identically on both Mossy editions.
+  brainBScan: (): Promise<any> => ipcRenderer.invoke('brainb:scan'),
+  brainBCheckLatest: (): Promise<any> => ipcRenderer.invoke('brainb:check-latest'),
+  brainBInstall: (): Promise<any> => ipcRenderer.invoke('brainb:install'),
+  onBrainBInstallProgress: (callback: (data: any) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('brainb-install-progress', sub);
+    return () => ipcRenderer.removeListener('brainb-install-progress', sub);
+  },
+  onBrainBServerStatus: (callback: (data: any) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('brainb-server-status', sub);
+    return () => ipcRenderer.removeListener('brainb-server-status', sub);
+  },
+  startBrainB: (): Promise<any> => ipcRenderer.invoke('brainb:start'),
+  stopBrainB: (): Promise<any> => ipcRenderer.invoke('brainb:stop'),
+  brainBStatus: (): Promise<any> => ipcRenderer.invoke('brainb:status'),
+
   f4aiBridgeStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-bridge-status'),
   // F4AI NPC Director
   f4aiStoreStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-store-status'),
