@@ -6,10 +6,14 @@ specifically so this never has to be reconstructed from a lost chat scrollback
 again — see the "runs" list in the result file for the history of what
 changed between eval passes and why.
 
-Grown from 5 to 15 queries (2026-08-13) so the next threshold/signal decision
-has more than 5 data points behind it — see MIN_RETRIEVAL_AGREEMENT's comment
-for how the original 5-query, 8-page eval's result (threshold=2) didn't
-survive a 25x corpus increase unexamined.
+Grown 5 -> 15 (2026-08-13) -> 20 (2026-08-14) queries so threshold/signal
+decisions have more than a handful of data points behind them — see
+MIN_RETRIEVAL_AGREEMENT's history for how the original 5-query, 8-page eval's
+result (threshold=2) didn't survive a 25x corpus increase unexamined, and
+retrieval_tuning.py's docstring for how HEDGE_BM25_MARGIN_MIN alone (a single
+line reused for both "enters hedge" and "is confident") left a real wrong
+match only 0.36 above the line after the 15-query pass — not a validated
+margin of safety, just where one small sample happened to land.
 
 Query categories, matching gemma_service_enhanced.py's actual abstention
 mechanism:
@@ -70,6 +74,11 @@ QUERIES = [
     ("deliberate_miss_geography", "What's the capital of Australia?"),
     ("synonym_precision_disable", "How do I make an object disappear from the game world without deleting it?"),
     ("in_domain_objectmod_priority", "How do I get the priority value of an object mod?"),
+    ("in_domain_perk_rank", "How do I check how many ranks of a perk an actor has?"),
+    ("in_domain_message_display", "How do I show a message box to the player from Papyrus?"),
+    ("in_domain_actor_damage", "How do I damage an actor's health from a script?"),
+    ("deliberate_miss_history", "Who was the first president of the United States?"),
+    ("synonym_precision_teleport", "How do I move an object to a different location instantly?"),
 ]
 
 PROBE_K = 30
@@ -79,28 +88,28 @@ results = []
 for name, q in QUERIES:
     probe, diag = svc.hybrid_retrieve(q, top_k=TOP_K, probe_k=PROBE_K, return_diagnostics=True)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
-    abstain = agreement < svc.MIN_RETRIEVAL_AGREEMENT
 
     sem_dists = diag["sem_dists"]
     bm25_scores = diag["bm25_scores"]
     vector_margin = (sem_dists[-1] - sem_dists[0]) if len(sem_dists) >= 2 else None
     bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
+    tier = svc.classify_retrieval(agreement, bm25_margin)
 
     top6_ids = [r["id"] for r in probe[:TOP_K]]
     in_probe_window = [r["id"] for r in probe]
 
     results.append({
         "name": name, "query": q, "agreement": agreement,
-        "abstained": abstain,
+        "tier": tier, "abstained": tier == "abstain", "hedged": tier == "hedge",
         "vector_margin": vector_margin, "bm25_margin": bm25_margin,
         "top6": top6_ids,
     })
 
+    is_miss = "miss" in name
+    flag = "  <<< FALSE POSITIVE" if (is_miss and tier == "confident") else ""
     print(f"\n=== {name} ===")
     print(f"Q: {q}")
-    print(f"agreement={agreement} (threshold={svc.MIN_RETRIEVAL_AGREEMENT}, probe_k={PROBE_K}) -> "
-          f"{'ABSTAIN' if abstain else 'ANSWER'}")
-    print(f"vector_margin={vector_margin}, bm25_margin={bm25_margin}")
+    print(f"agreement={agreement} bm25_margin={bm25_margin} -> {tier.upper()}{flag}")
     for r in probe[:6]:
         print(f"  [{r['source']:>12}] {r['id']}")
     if name == "precision_collision":
@@ -115,9 +124,9 @@ run_entry = {
     "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "corpus_docs": curated_count,
     "probe_k": PROBE_K, "top_k": TOP_K,
-    "note": "Widened probe_k (was implicitly 6, same as top_k) to decouple "
-            "'what goes in the prompt' from 'does an answer exist'. Margin "
-            "computed as a candidate second signal, not yet gating.",
+    "note": "20 queries (grown from 15). classify_retrieval() now has two "
+            "separate bm25_margin thresholds (hedge floor 6.0, confident bar "
+            "8.0) instead of one shared line — see retrieval_tuning.py.",
     "results": results,
 }
 
