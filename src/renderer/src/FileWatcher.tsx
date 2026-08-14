@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FolderOpen, Eye, AlertTriangle, FileCode, FileImage, Box, Zap, CheckCircle2, Clock } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface WatchedFile {
   path: string;
@@ -70,7 +71,7 @@ export const FileWatcher: React.FC = () => {
 
     // Fall back to HTTP Desktop Bridge
     try {
-      const response = await fetch('http://localhost:21337/files/watch', {
+      const response = await bridgeFetch('/files/watch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: watchPath })
@@ -101,7 +102,7 @@ export const FileWatcher: React.FC = () => {
       }
 
       try {
-        const response = await fetch('http://localhost:21337/files/changes');
+        const response = await bridgeFetch('/files/changes');
         if (response.ok) {
           const data = await response.json();
           if (data.files && data.files.length > 0) {

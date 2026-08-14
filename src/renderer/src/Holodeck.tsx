@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { useWheelScrollProxyFrom } from './components/useWheelScrollProxy';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface TestScenario {
     id: string;
@@ -569,7 +570,7 @@ const Holodeck = () => {
                 // Fallback: ask Bridge server for AppData Plugins.txt
                 if (!pluginsText) {
                     try {
-                        const resp = await fetch('http://127.0.0.1:21337/loadorder/read', {
+                        const resp = await bridgeFetch('/loadorder/read', {
                             signal: AbortSignal.timeout(2000),
                         });
                         if (resp.ok) {

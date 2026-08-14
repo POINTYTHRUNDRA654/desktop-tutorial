@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { Link, useNavigate } from 'react-router-dom';
 import { Archive, FolderOpen, ArrowDownToLine, Upload, FileArchive, HardDrive, AlertCircle, Info, Merge, Plus, X, Search } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface BA2File {
   name: string;
@@ -66,7 +67,7 @@ export const BA2Manager: React.FC = () => {
     setLoading(true);
     try {
       // In real implementation, this calls Desktop Bridge endpoint
-      const response = await fetch('http://localhost:21337/ba2/extract', {
+      const response = await bridgeFetch('/ba2/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -105,7 +106,7 @@ export const BA2Manager: React.FC = () => {
 
     try {
       // Route through Desktop Bridge (consistent with extract/pack/list operations above)
-      const response = await fetch('http://localhost:21337/ba2/merge', {
+      const response = await bridgeFetch('/ba2/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ inputArchives, outputArchive, archiveType }),
@@ -155,7 +156,7 @@ export const BA2Manager: React.FC = () => {
     setLoading(true);
     setShowPackDialog(false);
     try {
-      const response = await fetch('http://localhost:21337/ba2/pack', {
+      const response = await bridgeFetch('/ba2/pack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -197,7 +198,7 @@ export const BA2Manager: React.FC = () => {
     
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:21337/ba2/list', {
+      const response = await bridgeFetch('/ba2/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ archive: archivePath })

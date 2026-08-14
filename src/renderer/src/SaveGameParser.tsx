@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Save, Upload, User, MapPin, Package, Scroll, AlertTriangle, Cpu } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface SaveData {
   playerName: string;
@@ -29,7 +30,7 @@ export const SaveGameParser: React.FC = () => {
 
     try {
       // Real implementation would use Desktop Bridge with resaver library
-      const response = await fetch('http://localhost:21337/savegame/parse', {
+      const response = await bridgeFetch('/savegame/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: savePath })

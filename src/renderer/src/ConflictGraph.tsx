@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Network, ZoomIn, ZoomOut, Maximize2, AlertTriangle, Info, RefreshCw } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface ModNode {
   id: string;
@@ -39,7 +40,7 @@ export const ConflictGraph: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('http://localhost:21337/loadorder/graph');
+      const response = await bridgeFetch('/loadorder/graph');
       if (response.ok) {
         const data = await response.json();
         setNodes(data.nodes);

@@ -1,6 +1,7 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Clock, Save, Undo, FolderOpen, Upload, GitBranch, ArrowDownToLine, Trash2, AlertCircle, X } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface Snapshot {
   id: string;
@@ -70,7 +71,7 @@ export const BackupManager: React.FC = () => {
       return;
     }
     try {
-      const response = await fetch(`http://127.0.0.1:21337/git/status?path=${encodeURIComponent(workspacePath)}`);
+      const response = await bridgeFetch(`/git/status?path=${encodeURIComponent(workspacePath)}`);
       if (response.ok) {
         const data = await response.json();
         setGitStatus(data);
@@ -91,7 +92,7 @@ export const BackupManager: React.FC = () => {
   const createRealBackup = async (snapshotId: string): Promise<{ fileCount: number; totalBytes: number } | null> => {
     if (!workspacePath) return null;
     try {
-      const response = await fetch('http://localhost:21337/backup/create', {
+      const response = await bridgeFetch('/backup/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ snapshotId, workspacePath }),
@@ -157,7 +158,7 @@ export const BackupManager: React.FC = () => {
     if (!ok) return;
 
     try {
-      const response = await fetch('http://localhost:21337/backup/restore', {
+      const response = await bridgeFetch('/backup/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ snapshotId: snapshot.id, workspacePath })
@@ -190,7 +191,7 @@ export const BackupManager: React.FC = () => {
     setCommitMsgInput('');
 
     try {
-      const response = await fetch('http://localhost:21337/git/commit', {
+      const response = await bridgeFetch('/git/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, path: workspacePath })
@@ -209,7 +210,7 @@ export const BackupManager: React.FC = () => {
   const gitPush = async () => {
     if (!workspacePath) return;
     try {
-      const response = await fetch('http://localhost:21337/git/push', {
+      const response = await bridgeFetch('/git/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: workspacePath }),
@@ -227,7 +228,7 @@ export const BackupManager: React.FC = () => {
 
   const exportSnapshot = async (snapshot: Snapshot) => {
     try {
-      const response = await fetch(`http://localhost:21337/backup/export/${snapshot.id}`);
+      const response = await bridgeFetch(`/backup/export/${snapshot.id}`);
       if (response.ok) {
         toast.success(`Snapshot "${snapshot.name}" exported as ZIP.`);
       } else {

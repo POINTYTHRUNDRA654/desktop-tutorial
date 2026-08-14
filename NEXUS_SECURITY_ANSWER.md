@@ -1,6 +1,8 @@
 # Mossy AI — Security & Privacy Q&A (for Nexus mod page)
 
-*Written in response to a detailed security audit from a Nexus user. Every answer below reflects the actual code in v5.4.62+.*
+*Written in response to a detailed security audit from a Nexus user.*
+
+**Correction (2026-08-14):** an earlier version of this document, covering v5.4.62+, stated that the Bridge Server validated the `Origin` header and had removed wildcard CORS. **Those statements were inaccurate** — the shipped code at that time still had `Access-Control-Allow-Origin: '*'` and no Origin check anywhere, on every version through the one this correction accompanies. Combined with zero authentication on any Bridge Server endpoint, this meant any webpage open in any browser tab while Mossy was running could reach the Bridge — including, until this release, an unused-by-Mossy's-own-UI-but-still-live `/execute` handler that ran arbitrary OS shell commands via Node's `exec()`. This section now describes what is actually true as of this release, not what an earlier draft assumed had already shipped. See the GitHub Security Advisory for this repository for the full writeup and affected version range.
 
 ---
 
@@ -11,25 +13,26 @@ Mossy runs **two local servers** while the app is open:
 **Port 8787 — Python backend**
 Hosts the AI chat and (optional) cloud Whisper transcription routes. This port is bound to `0.0.0.0` (all interfaces) because the Electron renderer needs to reach it. It is only active when the backend process is running. Routes require a valid internal bearer token (`MOSSY_BACKEND_TOKEN`) for all AI calls.
 
-**Port 21337 — Bridge Server ("Neural Link")**
-Provides hardware telemetry, file listing, and Blender addon communication. This port is bound strictly to `127.0.0.1` (localhost only) — it is unreachable from any other device on your network.
+**An OS-assigned ephemeral port — Bridge Server ("Desktop Bridge")**
+Provides hardware telemetry, file listing, and Blender add-on communication. Bound strictly to `127.0.0.1` (localhost only) — unreachable from any other device on your network. **As of this release, every request must carry a valid internal authentication token** (a random value generated locally on first launch, stored in your own settings file, and attached automatically by Mossy's own renderer — you never see or manage it directly). The port itself is also no longer fixed at a predictable number, for the same reason a lock matters more than a doorknob — it removes trivial discoverability but the token is what actually gates access.
 
 Both ports are only open while the Mossy app is running. They close when you exit the app.
 
 ---
 
-## 2. Can any endpoint execute shell commands, and what protects against browser/localhost abuse?
+## 2. Can any endpoint execute shell commands, and what actually protects against browser/localhost abuse?
 
-**No endpoint executes arbitrary shell commands.** A previous version of the Bridge Server contained a `/execute?type=shell` handler that could run any shell command — this was removed in v5.4.62.
+**No endpoint executes arbitrary shell commands.** A `/execute?type=shell` handler that could run any shell command existed in the code — unused by Mossy's own UI, but still live and reachable by anyone who knew the wire format — until this release, when it was removed outright rather than gated. The only endpoint that shells out to anything (`/install_package`, for `pip install`) takes a specific package name, sanitizes it, and does not accept an arbitrary command string.
 
-The remaining `/execute` endpoint only forwards Python scripts to the Blender addon socket (port 9999). It does not touch your shell.
+The `/execute` endpoint's remaining paths only forward Python scripts to the Blender add-on socket (port 9999), for a user-initiated "run this in Blender" action in the chat UI.
 
-**Protection against browser/localhost abuse (DNS rebinding):**
-- The Bridge Server validates the `Origin` header on every request. Only the Electron renderer (`null` origin, i.e. `file://`) and the local Vite dev server are allowed. Any other origin receives a `403 Forbidden` response immediately.
-- CORS headers reflect the validated origin only — wildcard `*` was removed.
-- `Access-Control-Allow-Private-Network: true` was removed. This header was the attack vector for DNS rebinding; without it, browsers block cross-origin requests to localhost from web pages.
+**What actually protects against browser/localhost abuse:**
+- **A required, per-launch authentication token** (`X-Mossy-Token` header), compared using a timing-safe comparison, on every single Bridge Server request with no exceptions and no fallback-open state. This is the real protection — see the note below on why CORS restrictions alone would not have been sufficient even if implemented.
+- The Bridge Server's own listening port is OS-assigned at each launch rather than a fixed, publicly-documented number.
 
-In plain English: a malicious website cannot send requests to Mossy's local ports, even if you have the app open.
+**Why this wasn't "just fix CORS"**: CORS headers only govern whether a webpage's own JavaScript is allowed to *read* a cross-origin response — they do not prevent the request from being sent, or from taking effect on the server. A same-origin-restricted CORS policy does not stop a malicious page from POSTing to a local server and having that POST's server-side action occur; it only stops the page's script from seeing what came back. An unauthenticated endpoint is exploitable regardless of CORS configuration. The token is what closes this, not CORS.
+
+In plain English: a malicious website cannot make Mossy's Bridge Server do anything without knowing a secret that only Mossy's own renderer holds.
 
 ---
 
@@ -72,4 +75,4 @@ Mossy does not call `Add-MpPreference` or any similar command. No exclusions are
 
 ## Short summary for the mod page description
 
-> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. The only data sent to the internet is the text of your chat messages, which go to the AI provider via a secure relay. No API keys required — the developer covers AI costs, Mossy is free. No shell command execution endpoints exist. The local Bridge Server only accepts connections from the app itself (origin-locked, localhost-only). First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder.
+> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. The only data sent to the internet is the text of your chat messages, which go to the AI provider via a secure relay. No API keys required — the developer covers AI costs, Mossy is free. The local Bridge Server requires a per-launch authentication token on every request and runs on a non-fixed port — a website cannot make it do anything without that token, which only Mossy's own interface holds. First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder. **A prior version of this document overstated protections that hadn't actually shipped yet — see the correction note at the top and the linked Security Advisory for the honest history.**

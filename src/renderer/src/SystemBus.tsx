@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 const SystemBus: React.FC = () => {
     // We use a ref to prevent overlapping polls if one takes too long
@@ -77,34 +78,14 @@ const SystemBus: React.FC = () => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
 
-                // Helper: true when the error is an OS-level network suspension
-                // (sleep/wake, background throttle). Not a real bridge failure.
-                const isNetworkSuspended = (e: any): boolean => {
-                    const msg: string = e?.message || '';
-                    return msg.includes('NETWORK_IO_SUSPENDED') ||
-                           msg.includes('net::ERR_NETWORK_IO_SUSPENDED') ||
-                           msg.includes('NetworkError');
-                };
-
-                // Try IP first, then localhost if it fails for a non-suspension reason
-                let response;
-                try {
-                    response = await fetch('http://127.0.0.1:21337/health', {
-                        signal: controller.signal,
-                        method: 'GET',
-                        mode: 'cors'
-                    });
-                } catch (e) {
-                    // Don't try the fallback if the network stack is suspended —
-                    // localhost will fail identically and generate a second DevTools error.
-                    if (isNetworkSuspended(e)) throw e;
-                    // Fallback to localhost for IPv6/DNS resolution differences
-                    response = await fetch('http://localhost:21337/health', {
-                        signal: controller.signal,
-                        method: 'GET',
-                        mode: 'cors'
-                    });
-                }
+                // bridgeFetch always targets 127.0.0.1 directly with the live
+                // discovered port — the old IP-then-localhost fallback existed for
+                // IPv6/DNS resolution differences between the two hostnames, which
+                // no longer applies now that there's only ever one hostname.
+                const response = await bridgeFetch('/health', {
+                    signal: controller.signal,
+                    method: 'GET',
+                });
 
                 clearTimeout(timeoutId);
 
