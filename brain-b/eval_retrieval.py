@@ -1,22 +1,34 @@
 #!/usr/bin/env python3
 """
-eval_retrieval.py — 5-query retrieval/abstention eval, run against the dev
-ChromaDB. Kept in the repo (and its output kept as eval_queries_result.json)
+eval_retrieval.py — retrieval/abstention eval, run against the dev ChromaDB.
+Kept in the repo (and its output kept as eval_queries_result.json)
 specifically so this never has to be reconstructed from a lost chat scrollback
 again — see the "runs" list in the result file for the history of what
 changed between eval passes and why.
 
-Tests, matching gemma_service_enhanced.py's actual abstention mechanism:
+Grown from 5 to 15 queries (2026-08-13) so the next threshold/signal decision
+has more than 5 data points behind it — see MIN_RETRIEVAL_AGREEMENT's comment
+for how the original 5-query, 8-page eval's result (threshold=2) didn't
+survive a 25x corpus increase unexamined.
 
-  1. Precision/collision test — GetName is documented on its own dedicated
-     page (getname-form.jsonl) AND mentioned as one line among ~50 sibling
-     functions in Form's class-overview page (form-script.jsonl). Does the
-     dedicated page rank first, or even appear in the probe window at all?
-  2. Deliberate out-of-domain miss — a question with zero legitimate overlap
-     with FO4/Papyrus/CK modding. Correct behavior is agreement < threshold
-     (abstain).
-  3-5. Genuine in-domain queries spanning different function classes, to
-     confirm agreement holds broadly, not just for cherry-picked cases.
+Query categories, matching gemma_service_enhanced.py's actual abstention
+mechanism:
+
+  - Precision/collision — GetName is documented on its own dedicated page
+    (getname-form.jsonl) AND (after the FUNC_START_RE fix) as its own chunk
+    within Form's class-overview page. Does either surface, or does a short/
+    generic chunk lose to noisier neighbors in a large corpus?
+  - Deliberate out-of-domain misses (3 flavors: unrelated real-world topic,
+    a plausible-SOUNDING but nonexistent Papyrus function, a second unrelated
+    real-world topic) — correct behavior is agreement < threshold (abstain)
+    in every case, not just the easy one.
+  - Synonym precision — "make an object disappear" should resolve to
+    Disable/Enable-ObjectReference (the actual FO4 terms of art), testing
+    whether retrieval bridges natural phrasing to domain vocabulary.
+  - In-domain queries spanning many different function classes (Actor,
+    ObjectReference, Quest, Location, Faction, Weather, GlobalVariable, Game,
+    ObjectMod) — breadth check that agreement holds broadly, not just for
+    cherry-picked cases from one class.
 
 Computes two signals per query:
   - agreement: count of docs found by BOTH vector and BM25 within the probe
@@ -44,10 +56,20 @@ import gemma_service_enhanced as svc
 
 QUERIES = [
     ("precision_collision", "How do I get the name of an actor or object in Papyrus?"),
-    ("deliberate_miss", "What's the healthiest way to cook salmon?"),
+    ("deliberate_miss_food", "What's the healthiest way to cook salmon?"),
     ("in_domain_wait", "How do I make a script wait for a specific amount of time before continuing?"),
     ("in_domain_combat", "How do I check if an actor is currently in combat?"),
     ("in_domain_inventory", "How do I detect when a container's inventory changes in Papyrus?"),
+    ("in_domain_quest_stage", "How do I check if a specific quest stage has already been completed?"),
+    ("in_domain_location_cleared", "How do I check if a location has already been cleared by the player?"),
+    ("in_domain_faction_bounty", "How do I find out how much bounty gold a faction has on the player?"),
+    ("in_domain_weather", "How do I get the current sky mode of a weather record?"),
+    ("in_domain_globalvariable", "How do I read the current value of a global variable in Papyrus?"),
+    ("in_domain_player_level", "How do I find out what level the player character is?"),
+    ("deliberate_miss_fake_function", "How do I use the Actor.TeleportToMoon() function?"),
+    ("deliberate_miss_geography", "What's the capital of Australia?"),
+    ("synonym_precision_disable", "How do I make an object disappear from the game world without deleting it?"),
+    ("in_domain_objectmod_priority", "How do I get the priority value of an object mod?"),
 ]
 
 PROBE_K = 30
@@ -86,10 +108,12 @@ for name, q in QUERIES:
         print(f"getname-form present anywhere in probe_k={PROBE_K} window: {found_in_probe}")
         results[-1]["target_doc_in_probe_window"] = found_in_probe
 
+curated_count = svc.get_curated_collection().count()
+
 result_path = r"D:\Projects\desktop-tutorial\brain-b\eval_queries_result.json"
 run_entry = {
     "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "corpus_pages": 616, "corpus_docs": 1445,
+    "corpus_docs": curated_count,
     "probe_k": PROBE_K, "top_k": TOP_K,
     "note": "Widened probe_k (was implicitly 6, same as top_k) to decouple "
             "'what goes in the prompt' from 'does an answer exist'. Margin "
