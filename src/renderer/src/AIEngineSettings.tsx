@@ -10,7 +10,7 @@ type ProviderOption = 'auto' | 'ollama' | 'brainb' | 'off';
 
 const PROVIDER_OPTIONS: { value: ProviderOption; label: string; hint: string }[] = [
   { value: 'auto',   label: 'Auto (Recommended)',  hint: 'Mossy uses the Render backend for all chat — fast, always up-to-date. Falls back to Brain B or Ollama when offline, whichever is running.' },
-  { value: 'brainb', label: 'Local Only (Brain B)', hint: 'Always use Brain B — Mossy\'s own local RAG/tutor service (NVIDIA GPU required, must be started manually). Configure it below.' },
+  { value: 'brainb', label: 'Local Only (Brain B)', hint: 'Always use Brain B — Mossy\'s own local RAG/tutor service (CPU-only, no GPU required). Enable and configure it below.' },
   { value: 'ollama', label: 'Local Only (Ollama)',  hint: 'Always use your local Ollama — 100% offline, no internet needed. Configure Ollama in the section below.' },
   { value: 'off',    label: 'Off',                  hint: 'Disable all AI features — responses return a placeholder.' },
 ];

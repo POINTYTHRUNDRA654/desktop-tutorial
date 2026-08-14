@@ -32727,6 +32727,43 @@ function setupWizardIpcHandlers(): void {
 
 // ── KoboldCPP process state (module-level so will-quit can reach it) ────────
 let _koboldProcess: import('child_process').ChildProcess | null = null;
+
+// ── Brain B process state (module-level so will-quit can reach it) ─────────
+let _brainBProcess: import('child_process').ChildProcess | null = null;
+const BRAINB_PORT = 8766; // matches BrainBSettings.tsx's default base URL and brain_b_slim.py's MOSSY_PORT default
+const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
+const BRAINB_VERSION = '1.0.0'; // bump when a new Nexus package version is released
+const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
+const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
+const BRAINB_EXE = () => path.join(BRAINB_DIR(), 'brain_b_slim', 'brain_b_slim.exe');
+
+// Fetches and JSON-parses a small file (the release manifest) over HTTPS with
+// redirect-following + a trusted-host allowlist, mirroring the download
+// handlers below but for a response small enough to buffer in memory.
+function _brainBFetchJson(url: string): Promise<any> {
+  const trustedHosts = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+  return new Promise((resolve, reject) => {
+    const doGet = (u: string, hops: number) => {
+      if (hops > 5) { reject(new Error('Too many redirects')); return; }
+      https.get(u, { timeout: 30_000, headers: { 'User-Agent': 'Mossy-Desktop' } }, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          const next = res.headers.location.startsWith('/') ? new URL(res.headers.location, u).href : res.headers.location;
+          if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS blocked')); return; }
+          try {
+            const host = new URL(next).hostname;
+            if (!trustedHosts.some(h => host === h || host.endsWith(`.${h}`))) { reject(new Error(`Untrusted redirect: ${host}`)); return; }
+          } catch { reject(new Error('Invalid redirect URL')); return; }
+          res.resume(); doGet(next, hops + 1); return;
+        }
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode} fetching ${u}`)); return; }
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => { try { resolve(JSON.parse(body)); } catch (e) { reject(e); } });
+      }).on('error', reject);
+    };
+    doGet(url, 0);
+  });
+}
 const KOBOLD_PORT = 5001;
 
 // ── AnythingLLM process state ────────────────────────────────────────────────
@@ -34248,6 +34285,286 @@ app.whenReady().then(() => {
     }
   });
 
+  // ── Brain B (Nexus edition) install + lifecycle ─────────────────────────
+  // CPU-only, no GPU, edition-agnostic (unlike KoboldCPP's model download,
+  // this is offered identically on Mossy NVIDIA and Mossy Universal). See
+  // brain-b/nexus/ in the repo for what's actually in the downloaded package
+  // and docs/ARCHITECTURE.md for the wider Brain B design.
+
+  const BRAINB_TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+
+  // Local-only: disk free space + whether something's already installed. No
+  // network call happens in this handler — that's the point of keeping it
+  // separate from 'brainb:check-latest' below, so the consent screen can
+  // truthfully say "this step never leaves your computer."
+  lateHandle('brainb:scan', async () => {
+    const destDir = BRAINB_DIR();
+    let freeBytes: number | null = null;
+    try {
+      const driveLetter = path.parse(destDir).root.replace(/[\\:]/g, '');
+      const out = await new Promise<string>((resolve, reject) => {
+        const ps = spawn('powershell', ['-NoProfile', '-Command',
+          `(Get-PSDrive -Name '${driveLetter}').Free`], { windowsHide: true, timeout: 10_000 });
+        let stdout = '';
+        ps.stdout?.on('data', (c: Buffer) => { stdout += c.toString(); });
+        ps.on('error', reject);
+        ps.on('close', (code) => code === 0 ? resolve(stdout) : reject(new Error(`Get-PSDrive exited ${code}`)));
+      });
+      const parsed = parseInt(out.trim(), 10);
+      freeBytes = Number.isFinite(parsed) ? parsed : null;
+    } catch { /* leave null — UI shows "couldn't determine" rather than fabricating a number */ }
+
+    let installedVersion: string | null = null;
+    try {
+      const record = JSON.parse(fs.readFileSync(BRAINB_INSTALL_RECORD(), 'utf-8'));
+      installedVersion = record?.version ? String(record.version) : null;
+    } catch { /* no install record yet */ }
+
+    return {
+      ok: true,
+      freeDiskBytes: freeBytes,
+      installed: fs.existsSync(BRAINB_EXE()),
+      installedVersion,
+      destDir,
+    };
+  });
+
+  // Fetches the release's manifest.json (a few hundred bytes: version, sha256,
+  // size) — NOT the 227MB package itself. Kept separate from 'brainb:scan' so
+  // the UI can label this step honestly as "checks GitHub for the current
+  // version" rather than folding it into the local-only claim above.
+  lateHandle('brainb:check-latest', async () => {
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
+    try {
+      const manifest = await _brainBFetchJson(manifestUrl);
+      return { ok: true, manifest };
+    } catch (error: any) {
+      return { ok: false, error: error?.message || String(error) };
+    }
+  });
+
+  lateHandle('brainb:install', async (event) => {
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
+    const zipUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.zip`;
+    const TIMEOUT_MS = 600_000;
+
+    const destDir = BRAINB_DIR();
+    const partPath = path.join(destDir, 'brain-b-nexus.zip.part');
+    const zipPath = path.join(destDir, 'brain-b-nexus.zip');
+    const stagingDir = path.join(destDir, `.staging-${Date.now()}`);
+
+    try {
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+      event.sender.send('brainb-install-progress', { phase: 'manifest', percent: 0, message: 'Fetching release info…' });
+      const manifest = await _brainBFetchJson(manifestUrl);
+      const expectedSha256 = String(manifest.sha256 || '').toLowerCase();
+      const expectedSize = Number(manifest.size_bytes || 0);
+      if (!expectedSha256 || !expectedSize) throw new Error('Release manifest is missing checksum or size');
+
+      // Resumable download: a 227MB transfer failing partway is common, not
+      // exceptional. If a .part file already exists from a prior interrupted
+      // attempt, resume it via a Range request instead of restarting from
+      // zero. Falls back to a full restart if the server doesn't honor Range
+      // (some CDN edges don't) or the existing partial is already complete/
+      // oversized (stale from a different version).
+      let startByte = 0;
+      if (fs.existsSync(partPath)) {
+        startByte = fs.statSync(partPath).size;
+        if (startByte >= expectedSize) { startByte = 0; try { fs.unlinkSync(partPath); } catch { /* ignore */ } }
+      }
+
+      const MAX_ATTEMPTS = 4;
+      let lastError: Error | null = null;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const doDownload = (url: string, hops: number) => {
+              if (hops > 5) { reject(new Error('Too many redirects')); return; }
+              const headers: Record<string, string> = startByte > 0 ? { Range: `bytes=${startByte}-` } : {};
+              const req = https.get(url, { timeout: TIMEOUT_MS, headers }, (res) => {
+                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                  const next = res.headers.location.startsWith('/') ? new URL(res.headers.location, url).href : res.headers.location;
+                  if (!/^https:\/\//i.test(next)) { reject(new Error('Redirect to non-HTTPS blocked')); return; }
+                  try {
+                    const host = new URL(next).hostname;
+                    if (!BRAINB_TRUSTED_HOSTS.some(h => host === h || host.endsWith(`.${h}`))) { reject(new Error(`Untrusted redirect: ${host}`)); return; }
+                  } catch { reject(new Error('Invalid redirect URL')); return; }
+                  res.resume(); doDownload(next, hops + 1); return;
+                }
+                // 200 while we asked for a Range means the server ignored it —
+                // restart from scratch rather than double-writing the file.
+                if (res.statusCode === 200 && startByte > 0) {
+                  startByte = 0;
+                  try { fs.unlinkSync(partPath); } catch { /* ignore */ }
+                } else if (res.statusCode !== 200 && res.statusCode !== 206) {
+                  reject(new Error(`HTTP ${res.statusCode}`)); return;
+                }
+                let received = startByte;
+                const out = fs.createWriteStream(partPath, { flags: startByte > 0 ? 'a' : 'w' });
+                res.on('data', (chunk: Buffer) => {
+                  received += chunk.length;
+                  event.sender.send('brainb-install-progress', {
+                    phase: 'downloading', percent: Math.round((received / expectedSize) * 100),
+                    bytesReceived: received, totalBytes: expectedSize,
+                  });
+                });
+                res.pipe(out);
+                out.on('finish', () => out.close(() => resolve()));
+                out.on('error', reject);
+              });
+              req.on('error', reject);
+              req.on('timeout', () => { req.destroy(); reject(new Error('Download timed out')); });
+            };
+            doDownload(zipUrl, 0);
+          });
+          lastError = null;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          startByte = fs.existsSync(partPath) ? fs.statSync(partPath).size : 0;
+          if (attempt < MAX_ATTEMPTS) {
+            event.sender.send('brainb-install-progress', { phase: 'retrying', percent: 0, message: `Download interrupted (attempt ${attempt}/${MAX_ATTEMPTS}) — retrying…` });
+            await new Promise(r => setTimeout(r, 2000 * attempt));
+          }
+        }
+      }
+      if (lastError) throw lastError;
+
+      // Verify BEFORE touching any existing install — a truncated/corrupted
+      // download is silent otherwise: it extracts fine and looks installed,
+      // then fails or returns garbage retrieval weeks later.
+      event.sender.send('brainb-install-progress', { phase: 'verifying', percent: 0, message: 'Verifying download…' });
+      const actualSha256 = await new Promise<string>((resolve, reject) => {
+        const hash = crypto.createHash('sha256');
+        const stream = fs.createReadStream(partPath);
+        stream.on('data', (c) => hash.update(c));
+        stream.on('end', () => resolve(hash.digest('hex')));
+        stream.on('error', reject);
+      });
+      if (actualSha256.toLowerCase() !== expectedSha256) {
+        try { fs.unlinkSync(partPath); } catch { /* ignore */ }
+        throw new Error('Checksum mismatch — the downloaded file is corrupted. Please try again.');
+      }
+      fs.renameSync(partPath, zipPath);
+
+      // Extract to a staging dir first. Only a fully successful extraction
+      // gets swapped into place — a failure here must never leave a half-
+      // installed Brain B where a working one used to be.
+      event.sender.send('brainb-install-progress', { phase: 'extracting', percent: 0, message: 'Extracting…' });
+      if (fs.existsSync(stagingDir)) fs.rmSync(stagingDir, { recursive: true, force: true });
+      fs.mkdirSync(stagingDir, { recursive: true });
+      const psQuote = (v: string) => v.replace(/'/g, "''");
+      await new Promise<void>((resolve, reject) => {
+        const ps = spawn('powershell', ['-NoProfile', '-Command',
+          `Expand-Archive -LiteralPath '${psQuote(zipPath)}' -DestinationPath '${psQuote(stagingDir)}' -Force`],
+          { windowsHide: true, timeout: 300_000 });
+        let stderr = '';
+        ps.stderr?.on('data', (c: Buffer) => { stderr += c.toString(); });
+        ps.on('error', reject);
+        ps.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr.trim() || `Expand-Archive exited ${code}`)));
+      });
+
+      const stagedExe = path.join(stagingDir, 'brain_b_slim', 'brain_b_slim.exe');
+      if (!fs.existsSync(stagedExe)) throw new Error('Extracted package is missing brain_b_slim.exe — install aborted, nothing was replaced');
+
+      // Atomic-ish swap: stop the running process first (it holds an open
+      // handle on the exe on Windows, which would block replacing it), then
+      // replace each top-level folder only now that a verified-complete
+      // extraction is in hand.
+      if (_brainBProcess) { try { _brainBProcess.kill(); } catch { /* ignore */ } _brainBProcess = null; }
+      for (const name of ['brain_b_slim', 'knowledge', 'embed-model']) {
+        const live = path.join(destDir, name);
+        if (fs.existsSync(live)) fs.rmSync(live, { recursive: true, force: true });
+        const staged = path.join(stagingDir, name);
+        if (fs.existsSync(staged)) fs.renameSync(staged, live);
+      }
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+      try { fs.unlinkSync(zipPath); } catch { /* not fatal — extraction already succeeded */ }
+
+      fs.writeFileSync(BRAINB_INSTALL_RECORD(), JSON.stringify({
+        version: String(manifest.version || BRAINB_VERSION),
+        sha256: expectedSha256,
+        installedAt: new Date().toISOString(),
+      }, null, 2), 'utf-8');
+
+      event.sender.send('brainb-install-progress', { phase: 'done', percent: 100, message: 'Brain B installed.' });
+      return { success: true };
+    } catch (error: any) {
+      // Leave any PREVIOUS install untouched on failure — only the new
+      // download/staging artifacts are cleaned up. A failed update must not
+      // regress a user from "working" to "not installed."
+      try { if (fs.existsSync(stagingDir)) fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      const msg = error?.message || String(error);
+      event.sender.send('brainb-install-progress', { phase: 'error', percent: 0, message: msg });
+      return { success: false, error: msg };
+    }
+  });
+
+  lateHandle('brainb:start', async (event) => {
+    const exePath = BRAINB_EXE();
+    if (!fs.existsSync(exePath)) return { ok: false, error: 'Brain B is not installed yet.' };
+    if (_brainBProcess && !_brainBProcess.killed) return { ok: true, alreadyRunning: true, port: BRAINB_PORT };
+    try {
+      const destDir = BRAINB_DIR();
+      const runtimeDataDir = path.join(destDir, 'runtime-data');
+      if (!fs.existsSync(runtimeDataDir)) fs.mkdirSync(runtimeDataDir, { recursive: true });
+      event.sender.send('brainb-server-status', { phase: 'starting', port: BRAINB_PORT });
+      _brainBProcess = spawn(exePath, [], {
+        detached: false,
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          MOSSY_PORT: String(BRAINB_PORT),
+          // The shipped package's own layout — not brain_b_slim.py's dev-build
+          // defaults, which assume a different subfolder structure.
+          CHROMA_CURATED_PATH: path.join(destDir, 'knowledge', 'chroma_curated'),
+          EMBED_MODELS_PATH: path.join(destDir, 'embed-model'),
+          MOSSY_BASE_DIR: runtimeDataDir,
+        },
+      });
+      _brainBProcess.on('exit', () => { _brainBProcess = null; });
+      _brainBProcess.on('error', () => { _brainBProcess = null; });
+      // Poll /health until it responds (up to 60s — mostly ChromaDB/fastembed cold start)
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const http = await import('http');
+          await new Promise<void>((res, rej) => {
+            const req = http.get(`http://127.0.0.1:${BRAINB_PORT}/health`, { timeout: 1500 }, (r2) => { r2.resume(); r2.on('end', res); });
+            req.on('error', rej); req.on('timeout', rej);
+          });
+          event.sender.send('brainb-server-status', { phase: 'ready', port: BRAINB_PORT });
+          return { ok: true, port: BRAINB_PORT };
+        } catch { /* still starting */ }
+      }
+      return { ok: false, error: 'Brain B did not respond within 60s' };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  lateHandle('brainb:stop', async () => {
+    if (_brainBProcess) { try { _brainBProcess.kill(); } catch { /* ignore */ } _brainBProcess = null; }
+    return { ok: true };
+  });
+
+  lateHandle('brainb:status', async () => {
+    // Always probe the port, not just the handle — Brain B may have been
+    // started in a previous app session and left running, or launched
+    // externally for debugging.
+    try {
+      const http = await import('http');
+      await new Promise<void>((res, rej) => {
+        const req = http.get(`http://127.0.0.1:${BRAINB_PORT}/health`, { timeout: 2000 }, (r2) => { r2.resume(); r2.on('end', res); });
+        req.on('error', rej); req.on('timeout', rej);
+      });
+      return { running: true, port: BRAINB_PORT };
+    } catch {
+      return { running: false, port: BRAINB_PORT };
+    }
+  });
+
   // ── F4AI bridge composite status ──────────────────────────────────────────
   lateHandle('f4ai-bridge-status', async () => {
     // Re-discover the mod path if it wasn't found at startup (e.g. MO2 wasn't
@@ -34349,6 +34666,7 @@ app.on('will-quit', () => {
   f4aiBridge.stop();
   if (_koboldProcess) { try { _koboldProcess.kill(); } catch { /* ignore */ } _koboldProcess = null; }
   if (_anythingllmProcess) { try { _anythingllmProcess.kill(); } catch { /* ignore */ } _anythingllmProcess = null; }
+  if (_brainBProcess) { try { _brainBProcess.kill(); } catch { /* ignore */ } _brainBProcess = null; }
 });
 
 // Handle second instance (ensure single instance) - MOVED INSIDE app.whenReady()
