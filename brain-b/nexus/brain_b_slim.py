@@ -261,6 +261,25 @@ def init_db():
             keyword_mode TEXT NOT NULL,
             agree        INTEGER NOT NULL
         );
+
+        -- Written UNCONDITIONALLY on every /infer turn (unlike learner_signals,
+        -- which only gets a row when a signal string happens to be produced) —
+        -- the point is two real distributions (wrong-match margins vs.
+        -- genuine-hit margins) to check retrieval_tuning.py's thresholds
+        -- against after real usage, not just the ~20-query eval they were set
+        -- from. See retrieval_tuning.py's docstring: the gap between the
+        -- known wrong match (6.359) and the lowest known genuine hit (7.610)
+        -- is ~1.25 wide, and 20 queries hasn't found a counterexample — which
+        -- is absence of evidence, not evidence of a real margin of safety, at
+        -- a sample size this mechanism has already been wrong at twice.
+        CREATE TABLE IF NOT EXISTS retrieval_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts          TEXT NOT NULL,
+            session_id  TEXT NOT NULL DEFAULT 'unknown',
+            agreement   INTEGER NOT NULL,
+            bm25_margin REAL,
+            tier        TEXT NOT NULL
+        );
     """)
     # CREATE TABLE IF NOT EXISTS doesn't retroactively add columns to a table
     # that already existed under an older schema — needed if learner_signals
@@ -1184,6 +1203,18 @@ def log_contract_failure(question: str, stage: str, raw_output: str, attempts: i
                 attempts, stage, question[:80], (raw_output or "")[:300])
 
 
+def log_retrieval(session_id: str, agreement: int, bm25_margin: Optional[float], tier: str):
+    """Unconditional, every turn — see retrieval_log's CREATE TABLE comment
+    for why this exists separately from log_learner_signal."""
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute(
+        "INSERT INTO retrieval_log (ts, session_id, agreement, bm25_margin, tier) VALUES (?,?,?,?,?)",
+        (datetime.utcnow().isoformat(), session_id or "unknown", agreement, bm25_margin, tier),
+    )
+    conn.commit()
+    conn.close()
+
+
 def log_learner_signal(question: str, mode: str, learner_signal: Optional[str], diagnosis: Optional[str],
                         session_id: str = "unknown"):
     if not learner_signal:
@@ -1435,6 +1466,7 @@ def infer():
     bm25_scores = _retrieval_diag["bm25_scores"]
     bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
     retrieval_tier = classify_retrieval(agreement, bm25_margin)
+    log_retrieval(session_id, agreement, bm25_margin, retrieval_tier)
     if retrieval_tier == "abstain":
         log.info("Abstaining on %r — retrieval agreement %d, bm25_margin %s", question[:60],
                   agreement, bm25_margin)
