@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { Activity, Cpu, Zap, Eye, RefreshCw, Play, Square, AlertTriangle, TrendingUp } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface GameMetrics {
   // Real, process/driver-level data — always populated while the game is running.
@@ -62,7 +63,7 @@ export const LiveGameMonitor: React.FC = () => {
 
   const connectToGame = async () => {
     try {
-      const resp = await fetch('http://localhost:21337/game/connect', {
+      const resp = await bridgeFetch('/game/connect', {
         method: 'POST'
       });
 
@@ -84,7 +85,7 @@ export const LiveGameMonitor: React.FC = () => {
 
   const pollMetrics = async () => {
     try {
-      const response = await fetch('http://localhost:21337/game/metrics');
+      const response = await bridgeFetch('/game/metrics');
       if (response.ok) {
         const data = await response.json();
         setMetrics(data);
@@ -110,7 +111,7 @@ export const LiveGameMonitor: React.FC = () => {
 
   const hotReload = async () => {
     try {
-      const resp = await fetch('http://localhost:21337/game/hotreload', { method: 'POST' });
+      const resp = await bridgeFetch('/game/hotreload', { method: 'POST' });
       const data = await resp.json();
       if (data.success) {
         toast.success(data.message || 'Scripts recompiled!');

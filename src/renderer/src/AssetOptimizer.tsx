@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Zap, Image, Box, FileArchive, ArrowDownToLine, Settings, Play, CheckCircle, AlertCircle } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 interface OptimizationJob {
   id: string;
@@ -43,7 +44,7 @@ export const AssetOptimizer: React.FC = () => {
     setJobs(prev => [newJob, ...prev]);
 
     try {
-      const response = await fetch('http://localhost:21337/optimize/start', {
+      const response = await bridgeFetch('/optimize/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -76,7 +77,7 @@ export const AssetOptimizer: React.FC = () => {
   const pollProgress = async (jobId: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:21337/optimize/progress/${jobId}`);
+        const response = await bridgeFetch(`/optimize/progress/${jobId}`);
         if (response.ok) {
           const data = await response.json();
           

@@ -79,6 +79,7 @@ const IPC_CHANNELS = {
   GET_SETTINGS: 'get-settings',
   SET_SETTINGS: 'set-settings',
   SETTINGS_UPDATED: 'settings-updated',
+  GET_BRIDGE_CONNECTION: 'get-bridge-connection',
 
   // voice history persistence
   SAVE_VOICE_HISTORY: 'save-voice-history',
@@ -482,6 +483,15 @@ const electronAPI = {
    */
   getSettings: (): Promise<IpcResponse<any>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GET_SETTINGS);
+  },
+
+  /**
+   * Live BridgeServer.ts connection info — ephemeral port + the internal auth
+   * token every request must carry as an X-Mossy-Token header. See
+   * BridgeServer.ts's class-level SECURITY comment.
+   */
+  getBridgeConnection: (): Promise<{ port: number; token: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GET_BRIDGE_CONNECTION);
   },
 
   /**

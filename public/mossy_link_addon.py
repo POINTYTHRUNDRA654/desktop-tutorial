@@ -64,6 +64,7 @@ import sys
 import os
 import traceback
 import secrets
+import hmac
 import subprocess
 from io import StringIO
 
@@ -814,27 +815,35 @@ class MossyLinkServer:
         """
         Validate the authentication token from the client.
         Returns (is_valid: bool, error_message: str|None)
-        
-        If no token is set in preferences, validation passes (backward compatible).
-        If a token IS set, the client must provide the exact same token.
+
+        SECURITY: never fail open. A missing/empty configured token used to
+        mean "allow all connections" — meaning any user who hadn't yet done
+        the manual copy-paste-into-preferences step (the default state for a
+        brand new install, before the pairing step in Mossy's Desktop Bridge
+        panel) was running with zero authentication on this port. The add-on
+        auto-generates a token on first load (_ensure_token_initialized(),
+        called before the server starts accepting connections) specifically
+        so "no token configured" should not normally happen — but the old
+        code treated that state as trusted anyway instead of as the error
+        condition it actually is.
         """
         prefs = _get_prefs()
         if not prefs:
-            return True, None  # No preferences available, allow anyway
-        
+            return False, "Mossy Link preferences unavailable — cannot verify the connection token."
+
         required_token = prefs.token.strip() if hasattr(prefs, 'token') else ""
-        
-        # If no token configured in Blender, allow all connections (backward compatible)
+
         if not required_token:
-            return True, None
-        
-        # Token is required - check client token
+            return False, "No Mossy Link token is configured in Blender's add-on preferences. Re-enable the add-on (or reopen its preferences panel) to generate one, then enter the matching value in Mossy's Desktop Bridge settings."
+
         if not token_from_client:
             return False, "Mossy Link token required. Set Add-ons → Blender Game Tools → Mossy Link Token in Blender, then enter the same value in Mossy settings."
-        
-        if token_from_client.strip() != required_token:
+
+        # Timing-safe comparison — hmac.compare_digest takes the same time
+        # regardless of where the strings first differ, unlike Python's `!=`.
+        if not hmac.compare_digest(token_from_client.strip(), required_token):
             return False, "Mossy Link token mismatch. Token does not match the one set in Blender add-on preferences."
-        
+
         return True, None
 
     def _execute_command(self, command):

@@ -1,5 +1,6 @@
 
 import http from 'http';
+import crypto from 'crypto';
 import { exec, spawn } from 'child_process';
 import net from 'net';
 import os from 'os';
@@ -11,8 +12,26 @@ import { extractFormIDs } from './espParser';
 
 /**
  * Mossy Bridge Server
- * Listens on port 21337 to provide a "Real Assistant" experience.
- * This server handles hardware telemetry, file system access, and tool execution.
+ * Loopback-only HTTP server (127.0.0.1) providing screen/clipboard/hardware
+ * access, file operations, and the Blender relay to the renderer process.
+ *
+ * SECURITY: every request (except CORS preflight) must carry a valid
+ * X-Mossy-Token header, checked with a timing-safe comparison against
+ * bridgeAuthToken in settings.json. Before this existed, this server had
+ * zero authentication and Access-Control-Allow-Origin: '*' — since it's
+ * bound to loopback but reachable by ANY page a user has open in ANY
+ * browser tab (loopback binding restricts by network interface, not by
+ * origin), that meant any website could silently screenshot the desktop,
+ * read the clipboard, or (via a since-removed `/execute` type:'shell'
+ * branch that called Node's exec() directly) run arbitrary OS commands —
+ * all with zero user interaction beyond having the tab open while Mossy
+ * ran. CORS headers do NOT protect against this on their own: they gate
+ * whether the calling page's JS can read the response, not whether the
+ * request is sent or its server-side effect happens — a same-origin CORS
+ * policy does not stop a simple cross-origin POST from executing here. The
+ * token is the actual fix; CORS stays permissive only because the token
+ * check already closes the hole regardless of what Access-Control-Allow-
+ * Origin says.
  */
 export class BridgeServer {
     private server: http.Server | null = null;
@@ -31,9 +50,19 @@ export class BridgeServer {
         details: string[];
     }>();
 
-    constructor(addonPort: number = 9999, port: number = 21337) {
+    constructor(addonPort: number = 9999, port: number = 0) {
         this.addonPort = addonPort;
+        // 0 = OS-assigned ephemeral port. Was a fixed 21337 — changed alongside
+        // the auth-token fix (see class-level SECURITY comment): a random port
+        // isn't a substitute for authentication, but it removes trivial
+        // discoverability (an attacker's page has to scan rather than know).
         this.port = port;
+    }
+
+    /** The real bound port, valid only after start()'s listen callback has
+     *  fired. 0 (or the constructor's pre-bind default) beforehand. */
+    getPort(): number {
+        return this.port;
     }
 
     /** Set the Python executable to use for package installs. */
@@ -542,18 +571,44 @@ export class BridgeServer {
         };
     }
 
+    /** Timing-safe comparison against bridgeAuthToken in settings.json. No token
+     *  configured means reject everything, never fail open — see the class-level
+     *  SECURITY comment for why. */
+    private _checkAuth(req: http.IncomingMessage): boolean {
+        const settings = this._readSettings();
+        const expected = String(settings.bridgeAuthToken || '');
+        if (!expected) return false;
+        const provided = String(req.headers['x-mossy-token'] || '');
+        const expectedBuf = Buffer.from(expected, 'utf-8');
+        const providedBuf = Buffer.from(provided, 'utf-8');
+        if (expectedBuf.length !== providedBuf.length) return false;
+        try {
+            return crypto.timingSafeEqual(expectedBuf, providedBuf);
+        } catch {
+            return false;
+        }
+    }
+
     start() {
         this.server = http.createServer(async (req, res) => {
             console.log('[Bridge] incoming request', req.method, req.url);
             // Set CORS headers
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Allow-Private-Network');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Mossy-Token, Access-Control-Allow-Private-Network');
             res.setHeader('Access-Control-Allow-Private-Network', 'true');
 
             if (req.method === 'OPTIONS') {
                 res.writeHead(204);
                 res.end();
+                return;
+            }
+
+            // SECURITY: every non-preflight request must present a valid token —
+            // see the class-level comment above for why this exists at all.
+            if (!this._checkAuth(req)) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: 'Missing or invalid X-Mossy-Token header.' }));
                 return;
             }
 
@@ -739,12 +794,12 @@ export class BridgeServer {
                                     res.end(JSON.stringify({ status: 'success', message: 'Blender export_obj', response }));
                                 } catch (e: any) { blenderErrResponse(e, 'OBJ export'); }
 
-                            } else if (type === 'shell') {
-                                exec(script, (err, stdout, stderr) => {
-                                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                                    res.end(JSON.stringify({ status: 'success', stdout, stderr, code: err ? 1 : 0 }));
-                                });
                             } else {
+                                // 'shell' (arbitrary exec(script)) was removed here — no caller in this
+                                // codebase ever sent it; it existed purely as unused, unauthenticated
+                                // attack surface. /install_package (below) is the pattern for anything
+                                // that genuinely needs to shell out: a named operation with sanitized,
+                                // constrained parameters, not a raw command string.
                                 res.writeHead(400);
                                 res.end(JSON.stringify({ error: 'Unsupported execution type' }));
                             }
@@ -1563,6 +1618,10 @@ export class BridgeServer {
         });
 
         this.server.listen(this.port, '127.0.0.1', () => {
+            const addr = this.server?.address();
+            if (addr && typeof addr === 'object') {
+                this.port = addr.port; // capture the real OS-assigned port
+            }
             console.log(`[MOSSY] Neural Bridge Server active on port ${this.port}`);
         });
     }

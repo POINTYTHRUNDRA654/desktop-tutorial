@@ -1,6 +1,7 @@
 import { logMossyError, getErrorReport } from './MossyErrorReporter';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { isDuplicateVaultEntry, pruneAutoFetchedVaultItems } from './knowledgeRetrieval';
+import { bridgeFetch } from './lib/bridgeClient';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -85,7 +86,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await fetch('http://localhost:21337/execute', {
+            const response = await bridgeFetch('/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -555,7 +556,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             try {
-                const response = await fetch('http://127.0.0.1:21337/files', {
+                const response = await bridgeFetch('/files', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path: args.path || 'C:\\' })
@@ -1526,13 +1527,13 @@ Check your Downloads folder or the location where files are saved.`;
         const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
         if (bridgeActive) {
             try {
-                const response = await fetch('http://localhost:21337/execute', {
+                const response = await bridgeFetch('/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        type: 'blender', 
+                    body: JSON.stringify({
+                        type: 'blender',
                         script: args.script,
-                        target: 'active_instance' 
+                        target: 'active_instance'
                     })
                 });
                 if (response.ok) {
@@ -1554,10 +1555,10 @@ Check your Downloads folder or the location where files are saved.`;
 
         if (bridgeActive) {
             try {
-                const response = await fetch('http://localhost:21337/execute', {
+                const response = await bridgeFetch('/execute', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         type: 'text',
                         script: safeScript,
                         name: scriptName,

@@ -1789,6 +1789,22 @@ const loadSettings = (): any => {
         tokenInitialized = true;
       }
 
+      // Bridge auth token — required on every BridgeServer.ts HTTP request (see
+      // its class-level SECURITY comment). Separate from blenderLinkToken:
+      // that one authenticates Electron->Blender over TCP; this one authenticates
+      // the renderer->Electron loopback HTTP server, which (before this existed)
+      // had zero auth and wide-open CORS — any webpage open in any tab while
+      // Mossy was running could reach it, including an arbitrary-shell-exec path.
+      // This is the INTERNAL/full-access token for Mossy's own renderer, not a
+      // general-purpose credential — see docs/ARCHITECTURE.md's "Bridge auth"
+      // section for the intended per-client, scoped-token design once
+      // third-party tools become real clients of this server. Don't hand this
+      // value to anything other than Mossy's own renderer.
+      if (!next.bridgeAuthToken) {
+        next.bridgeAuthToken = crypto.randomBytes(32).toString('hex');
+        tokenInitialized = true;
+      }
+
       if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
@@ -1938,6 +1954,11 @@ const loadSettings = (): any => {
 
     // Blender Link security token
     blenderLinkToken: crypto.randomBytes(16).toString('hex'),
+
+    // Bridge (BridgeServer.ts, loopback HTTP) security token — required on
+    // every request; see the comment where bridgeAuthToken is initialized
+    // for existing settings.json files, below in loadSettings().
+    bridgeAuthToken: crypto.randomBytes(32).toString('hex'),
 
     // AnythingLLM RAG Engine
     anythingllmUrl: 'http://127.0.0.1:3001',
@@ -3656,6 +3677,16 @@ function setupIpcHandlers() {
       backendTokenConfigured,
       githubTokenConfigured,
     });
+  });
+
+  // Live bridge connection info for the renderer's HTTP calls to BridgeServer.ts.
+  // Port is ephemeral (OS-assigned) and only known after bridge.start()'s listen
+  // callback fires, so this can't just be baked into settings.json like the
+  // token — it has to be queried live. See BridgeServer.ts's class-level
+  // SECURITY comment for why both of these exist at all.
+  registerHandler('get-bridge-connection', async () => {
+    const settings = loadSettings();
+    return { port: bridge.getPort(), token: String(settings?.bridgeAuthToken || '') };
   });
 
   registerHandler('set-settings', async (_event, newSettings: any) => {
