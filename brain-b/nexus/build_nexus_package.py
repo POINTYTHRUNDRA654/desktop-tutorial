@@ -62,13 +62,24 @@ def run(cmd: list[str]) -> None:
 def main():
     python = sys.executable
 
-    missing_dlls = [d for d in REQUIRED_DLLS if not (CONDA_LIB_BIN / d).exists()]
-    if missing_dlls:
-        print(f"ERROR: expected DLLs not found under {CONDA_LIB_BIN}: {missing_dlls}")
-        print("Set MOSSY_CONDA_ENV to the correct conda environment path, or if you're")
-        print("not using conda, remove the --add-binary args for these from this script")
-        print("(a standard python.org install typically bundles them already).")
-        sys.exit(1)
+    # Only relevant for a conda-distributed Python (see module docstring, gotcha #1).
+    # A standard python.org / actions/setup-python install keeps these DLLs under the
+    # regular DLLs/ folder that PyInstaller's own hooks already find — bundling them
+    # explicitly is unnecessary there, not just harmless-if-skipped, so this is a
+    # skip-with-a-note rather than an error when CONDA_LIB_BIN doesn't exist at all.
+    # It's still a real error if CONDA_LIB_BIN exists but is missing an expected DLL —
+    # that means MOSSY_CONDA_ENV points at a broken/incomplete env, not a different
+    # (non-conda) Python that doesn't need this step.
+    use_conda_dll_bundling = CONDA_LIB_BIN.exists()
+    if use_conda_dll_bundling:
+        missing_dlls = [d for d in REQUIRED_DLLS if not (CONDA_LIB_BIN / d).exists()]
+        if missing_dlls:
+            print(f"ERROR: {CONDA_LIB_BIN} exists but is missing: {missing_dlls}")
+            print("MOSSY_CONDA_ENV points at an incomplete conda environment.")
+            sys.exit(1)
+    else:
+        print(f"No conda env found at {CONDA_LIB_BIN} — skipping conda-specific DLL "
+              f"bundling (expected on a stock Python install, e.g. CI).")
 
     # 1. Build the knowledge pack (fastembed-embedded — see build_knowledge_db_nexus.py's
     #    own docstring for why this must stay in sync with brain_b_slim.py's embed()).
@@ -107,8 +118,9 @@ def main():
         "--collect-data", "fastembed",
         "--collect-data", "tokenizers",
     ]
-    for dll in REQUIRED_DLLS:
-        pyinstaller_cmd += ["--add-binary", f"{CONDA_LIB_BIN / dll};."]
+    if use_conda_dll_bundling:
+        for dll in REQUIRED_DLLS:
+            pyinstaller_cmd += ["--add-binary", f"{CONDA_LIB_BIN / dll};."]
     pyinstaller_cmd += ["--noconfirm", "brain_b_slim.py"]
     run(pyinstaller_cmd)
 
