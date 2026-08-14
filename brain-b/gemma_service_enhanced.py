@@ -166,6 +166,18 @@ GENERATION_BACKEND = os.environ.get("BRAINB_GENERATION_BACKEND", "cloud").lower(
 # within one retriever) was also measured in the same eval as a candidate
 # second signal that shouldn't degrade with corpus size the way cross-
 # retriever convergence does — see eval_retrieval.py for the comparison.
+#
+# KNOWN OPEN GAP (2026-08-14): after fixing a separate chunking bug that grew
+# the corpus 1445->2025 docs, re-running the (now 15-query) eval found 2 of 3
+# deliberate out-of-domain misses became FALSE POSITIVES at agreement@30 —
+# including a plausible-sounding but nonexistent function name confidently
+# answered. bm25_margin showed a cleaner gap (misses ~2.5-4.4, real hits
+# ~5.6-23.4) in that same run, but that's ~15 data points, not a validated
+# threshold — do not wire margin into gating or raise/lower this constant
+# off that alone. Deliberately left as-is pending a larger eval set; if
+# you're reading this because it's still 2, that's intentional, not
+# neglect — check eval_queries_result.json's run history before assuming
+# either the gap or the fix status.
 MIN_RETRIEVAL_AGREEMENT = 2
 NO_DOCS_MESSAGE = (
     "I don't have documentation covering that in my knowledge base right now, "
