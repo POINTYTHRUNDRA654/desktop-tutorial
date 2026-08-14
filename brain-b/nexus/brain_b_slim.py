@@ -57,6 +57,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from rank_bm25 import BM25Okapi
 
+from retrieval_tuning import MIN_RETRIEVAL_AGREEMENT, classify_retrieval  # noqa: F401 (MIN_RETRIEVAL_AGREEMENT referenced in comments elsewhere)
+
 # Loads a .env file from the current working directory if one exists (silently does
 # nothing otherwise) — lets MOSSY_BACKEND_TOKEN persist across restarts without having
 # to re-set an env var by hand each time. See .env.example; never commit a real .env.
@@ -112,21 +114,16 @@ BACKEND_UNAVAILABLE_MESSAGE = (
     "try again once you're back online."
 )
 
-# Abstention threshold: minimum vector+BM25 AGREEMENT, counted over a probe
-# window WIDER than what reaches the prompt (see hybrid_retrieve's probe_k
-# and the /infer call site — probe_k=30, only the first 6 of that get used
-# for generation). NOT an RRF score threshold — see gemma_service_enhanced.py's
-# copy of this comment for the full rationale.
-#
-# This file was forked from gemma_service_enhanced.py before its 2026-08-13
-# probe-width fix existed, and silently kept the old top_k=6-for-everything
-# behavior through a full corpus rebuild and a real GitHub Release publish —
-# found by explicitly re-testing THIS file against the actual shipped corpus
-# rather than assuming a fix made in the dev build had propagated here too.
-# Ported the same fix on 2026-08-14. If you're editing retrieval/abstention
-# logic in either file, check the other for drift — they are not kept in
-# sync automatically.
-MIN_RETRIEVAL_AGREEMENT = 2
+# MIN_RETRIEVAL_AGREEMENT and the abstain/hedge/confident decision itself
+# (classify_retrieval) live in retrieval_tuning.py (../retrieval_tuning.py,
+# copied here fresh by build_nexus_package.py on every build — never hand-
+# edit brain-b/nexus/retrieval_tuning.py directly). This file was forked
+# from gemma_service_enhanced.py before its 2026-08-13 probe-width fix
+# existed, silently kept the old behavior through a full corpus rebuild and
+# a real GitHub Release publish, and only got the fix after someone
+# explicitly re-tested THIS file against the actual shipped data instead of
+# assuming a dev-build fix had propagated. The shared module exists so that
+# class of bug is structurally impossible going forward, not just documented.
 NO_DOCS_MESSAGE = (
     "I don't have documentation covering that in my knowledge base right now, "
     "so I'd rather tell you that plainly than guess. If you can point me at a "
@@ -1403,8 +1400,12 @@ def infer():
       "check_question": "..." | null,   -- only non-null when mode == "teach"
       "answer_level": "beginner|intermediate|advanced" | null,
       "next_skill": "..." | null,       -- a skill_tags.py tag, or null
-      "abstained": bool,                -- true when retrieval agreement was too low to
-                                         -- attempt an answer — see MIN_RETRIEVAL_AGREEMENT
+      "abstained": bool,                -- true when retrieval was too weak to attempt any
+                                         -- answer at all — see retrieval_tuning.py
+      "hedged": bool,                   -- true when an answer WAS generated but retrieval
+                                         -- was only ambiguous, not strong — the answer text
+                                         -- is prefixed with a "closest match" disclaimer
+                                         -- naming the actual top citation
       ...
     }
     """
@@ -1424,19 +1425,19 @@ def infer():
     episodes = search_episodes(question, limit=3)
 
     # Abstention gate — checked BEFORE generation, not after, so a genuine miss
-    # skips the expensive LangGraph/critique pipeline entirely rather than
-    # generating from context that isn't actually relevant. See
-    # MIN_RETRIEVAL_AGREEMENT's comment for why this uses retriever agreement
-    # instead of RRF score.
-    # probe_k=30: widened past the 6 docs that actually reach the prompt — see
-    # MIN_RETRIEVAL_AGREEMENT's comment. Ported from gemma_service_enhanced.py's
-    # 2026-08-13 fix after this file (a copy made before that fix existed) was
-    # found to have never received it.
-    probe = hybrid_retrieve(question, top_k=6, probe_k=30)
+    # skips the expensive critique pipeline entirely rather than generating
+    # from context that isn't actually relevant. classify_retrieval is the
+    # single shared decision boundary — see retrieval_tuning.py's module
+    # docstring for the full history (probe_k=30, and why a binary abstain/
+    # confident split stopped being enough at this corpus size).
+    probe, _retrieval_diag = hybrid_retrieve(question, top_k=6, probe_k=30, return_diagnostics=True)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
-    if agreement < MIN_RETRIEVAL_AGREEMENT:
-        log.info("Abstaining on %r — retrieval agreement %d < %d", question[:60],
-                  agreement, MIN_RETRIEVAL_AGREEMENT)
+    bm25_scores = _retrieval_diag["bm25_scores"]
+    bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
+    retrieval_tier = classify_retrieval(agreement, bm25_margin)
+    if retrieval_tier == "abstain":
+        log.info("Abstaining on %r — retrieval agreement %d, bm25_margin %s", question[:60],
+                  agreement, bm25_margin)
         log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
                             diagnosis=None, session_id=session_id)
         # No learner_state update on abstention — an abstained turn touched no
@@ -1445,7 +1446,7 @@ def infer():
         # for this, not the learner model.
         result = {
             "answer": NO_DOCS_MESSAGE, "confidence": 0.0, "sources": [],
-            "critique_applied": False, "used_web": False, "abstained": True,
+            "critique_applied": False, "used_web": False, "abstained": True, "hedged": False,
             "mode": mode, "diagnosis": None, "check_question": None,
             "answer_level": None, "next_skill": None, "past_episodes": episodes,
         }
@@ -1485,6 +1486,19 @@ def infer():
     result["answer_level"] = answer_level
     result["next_skill"] = next_skill
     result["abstained"] = False
+    result["hedged"] = retrieval_tier == "hedge"
+
+    # Hedge tier: still generate a real answer from the same retrieved context
+    # (unlike abstain) — but lead with an explicit "closest I have" framing
+    # naming the actual top citation, rather than presenting it with the same
+    # confidence as a genuine strong match. See retrieval_tuning.py.
+    if result["hedged"] and result.get("answer") and probe:
+        top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
+        result["answer"] = (
+            f"I don't have documentation directly covering this — the closest match "
+            f"I have is *{top_title}*. Treating that as a lead, not a confirmed answer:\n\n"
+            + result["answer"]
+        )
 
     # Optionally auto-save episode summary
     if result.get("answer"):

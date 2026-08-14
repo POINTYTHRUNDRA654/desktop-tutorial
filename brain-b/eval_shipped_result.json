@@ -1,0 +1,218 @@
+{
+  "corpus_docs": 2025,
+  "source": "shipped brain-b-nexus-v1.0.0.zip (fastembed)",
+  "probe_k": 30,
+  "top_k": 6,
+  "results": [
+    {
+      "name": "precision_collision",
+      "query": "How do I get the name of an actor or object in Papyrus?",
+      "agreement": 4,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getvoicetype-objectreference-b788f8495f",
+        "ckwiki-actor-value-parent-0",
+        "ckwiki-papyrus-introduction-ed6077d221",
+        "ckwiki-inter-mod-communication-f3e0d88aaf",
+        "ckwiki-identifier-reference-394d298cb7",
+        "ckwiki-scripting-tutorial-pressure-plate-8e7c47ea2b"
+      ]
+    },
+    {
+      "name": "deliberate_miss_food",
+      "query": "What's the healthiest way to cook salmon?",
+      "agreement": 0,
+      "abstained": true,
+      "top6": [
+        "ckwiki-getconsumespell-watertype-137c9b0854",
+        "ckwiki-papyrus-introduction-d42a1bd64e",
+        "ck-001",
+        "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+        "ckwiki-instancedata-script-getarmorhealth",
+        "ckwiki-papyrus-introduction-3004bb34a3"
+      ]
+    },
+    {
+      "name": "in_domain_wait",
+      "query": "How do I make a script wait for a specific amount of time before continuing?",
+      "agreement": 6,
+      "abstained": false,
+      "top6": [
+        "ckwiki-scripting-tutorial-pressure-plate-df3073629a",
+        "ckwiki-differences-from-previous-scripting-fa86a4a586",
+        "ckwiki-getcurrentrealtime-utility-4cb928952f",
+        "ckwiki-differences-from-previous-scripting-e04f809b73",
+        "ckwiki-using-states-in-papyrus-471d9c4562",
+        "ckwiki-objectreference-script-playanimationandwait"
+      ]
+    },
+    {
+      "name": "in_domain_combat",
+      "query": "How do I check if an actor is currently in combat?",
+      "agreement": 6,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getcombattarget-actor-4f2858047b",
+        "ckwiki-getcombatstate-actor-4f360b8a5c",
+        "ckwiki-actor-script-isincombat",
+        "ckwiki-getallcombattargets-actor-594063590b",
+        "ckwiki-actor-script-parent-9",
+        "ckwiki-actor-script-parent-4"
+      ]
+    },
+    {
+      "name": "in_domain_inventory",
+      "query": "How do I detect when a container's inventory changes in Papyrus?",
+      "agreement": 10,
+      "abstained": false,
+      "top6": [
+        "ckwiki-ini-settings-papyrus-a682fa9675",
+        "ckwiki-getinventoryitems-objectreference-537baa9240",
+        "ckwiki-console-commands-papyrus-41000edd6a",
+        "ckwiki-additem-objectreference-8f6baa3051",
+        "ckwiki-getcontainer-objectreference-cba3accac6",
+        "ckwiki-objectreference-script-onitemremoved"
+      ]
+    },
+    {
+      "name": "in_domain_quest_stage",
+      "query": "How do I check if a specific quest stage has already been completed?",
+      "agreement": 13,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getqueststagedone-quest-cac6696bad",
+        "ckwiki-quest-script-getqueststagedone",
+        "ckwiki-quest-script-parent-1",
+        "ckwiki-getcurrentstageid-quest-f295516391",
+        "ckwiki-quest-script-iscompleted",
+        "ckwiki-quest-script-setqueststage"
+      ]
+    },
+    {
+      "name": "in_domain_location_cleared",
+      "query": "How do I check if a location has already been cleared by the player?",
+      "agreement": 6,
+      "abstained": false,
+      "top6": [
+        "ckwiki-haseverbeencleared-location-d354c428bf",
+        "ckwiki-location-script-haseverbeencleared",
+        "ckwiki-location-script-onlocationcleared",
+        "ckwiki-commonarrayfunctions-script-checklocationagainstarray",
+        "ckwiki-commonarrayfunctions-script-checklocationagainstlocationaliasarray",
+        "ckwiki-location-script-parent-1"
+      ]
+    },
+    {
+      "name": "in_domain_faction_bounty",
+      "query": "How do I find out how much bounty gold a faction has on the player?",
+      "agreement": 20,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getcrimegold-faction-a18d6d7cdc",
+        "ckwiki-getcrimegoldviolent-faction-2949373894",
+        "ckwiki-getcrimegoldnonviolent-faction-dd6c8829ff",
+        "ckwiki-canpaycrimegold-faction-b011ce9219",
+        "ckwiki-getbribeamount-actor-bf14b39bee",
+        "ckwiki-faction-script-getcrimegold"
+      ]
+    },
+    {
+      "name": "in_domain_weather",
+      "query": "How do I get the current sky mode of a weather record?",
+      "agreement": 9,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getskymode-weather-0756bd769b",
+        "ckwiki-getcurrentweather-weather-845371746e",
+        "ckwiki-getcurrentweathertransition-weather-d3bcfc97e9",
+        "ckwiki-findweather-weather-ad8a4d6a0e",
+        "ckwiki-getoutgoingweather-weather-8c4c052aae",
+        "ckwiki-forceactive-weather-0919900a81"
+      ]
+    },
+    {
+      "name": "in_domain_globalvariable",
+      "query": "How do I read the current value of a global variable in Papyrus?",
+      "agreement": 7,
+      "abstained": false,
+      "top6": [
+        "ckwiki-globalvariable-script-parent-0",
+        "ckwiki-getvalue-globalvariable-c26d1779e1",
+        "ckwiki-debug-script-traceconditionalglobal",
+        "ckwiki-getvalueint-globalvariable-a6c42e1331",
+        "ckwiki-console-commands-papyrus-41000edd6a",
+        "ckwiki-globalvariable-script-getvalue"
+      ]
+    },
+    {
+      "name": "in_domain_player_level",
+      "query": "How do I find out what level the player character is?",
+      "agreement": 9,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getplayerlevel-game-73569f9601",
+        "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+        "ckwiki-getlevelexact-actorbase-c9b699c421",
+        "ckwiki-game-script-getplayerlevel",
+        "ckwiki-getlevel-actor-9920488076",
+        "ckwiki-getlevel-actorbase-76073859ba"
+      ]
+    },
+    {
+      "name": "deliberate_miss_fake_function",
+      "query": "How do I use the Actor.TeleportToMoon() function?",
+      "agreement": 4,
+      "abstained": false,
+      "top6": [
+        "ckwiki-objectreference-script-getteleportcell",
+        "ckwiki-objectreference-script-parent-8",
+        "ckwiki-objectreference-script-isteleportarealoaded",
+        "ckwiki-objectreference-script-gettransitioncell",
+        "ckwiki-debug-script-playermovetoandwait",
+        "ckwiki-getteleportcell-objectreference-499ae19c44"
+      ]
+    },
+    {
+      "name": "deliberate_miss_geography",
+      "query": "What's the capital of Australia?",
+      "agreement": 2,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getmappedcontrol-input-56e6113c01",
+        "ckwiki-getcontainer-objectreference-cba3accac6",
+        "ckwiki-getworldspace-objectreference-7a86ca0b56",
+        "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+        "ckwiki-hascommonparent-location-c320c2b859",
+        "ckwiki-papyrus-introduction-3004bb34a3"
+      ]
+    },
+    {
+      "name": "synonym_precision_disable",
+      "query": "How do I make an object disappear from the game world without deleting it?",
+      "agreement": 4,
+      "abstained": false,
+      "top6": [
+        "ckwiki-objectreference-script-forceremoveragdollfromworld",
+        "ckwiki-forceremoveragdollfromworld-objectreference-bf66a73993",
+        "ckwiki-papyrus-introduction-ed6077d221",
+        "ckwiki-papyrus-introduction-38adf132e5",
+        "ckwiki-inter-mod-communication-68a5fb9b5e",
+        "ckwiki-attachmodtoinventoryitem-objectreference-3a8868127e"
+      ]
+    },
+    {
+      "name": "in_domain_objectmod_priority",
+      "query": "How do I get the priority value of an object mod?",
+      "agreement": 11,
+      "abstained": false,
+      "top6": [
+        "ckwiki-getpriority-constructibleobject-efc1620264",
+        "ckwiki-getpriority-objectmod-c53fd1a213",
+        "ckwiki-constructibleobject-script-getpriority",
+        "ckwiki-inter-mod-communication-a70cffdeb8",
+        "ckwiki-constructibleobject-script-setpriority",
+        "ckwiki-inter-mod-communication-ae7875da11"
+      ]
+    }
+  ]
+}

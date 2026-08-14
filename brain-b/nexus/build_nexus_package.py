@@ -81,6 +81,18 @@ def main():
         print(f"No conda env found at {CONDA_LIB_BIN} — skipping conda-specific DLL "
               f"bundling (expected on a stock Python install, e.g. CI).")
 
+    # 0. Copy the shared retrieval-tuning module fresh from its single source of
+    #    truth (../retrieval_tuning.py — also imported directly by
+    #    gemma_service_enhanced.py, since that file lives alongside it). Never
+    #    hand-edit brain-b/nexus/retrieval_tuning.py — this copy is a build
+    #    artifact (gitignored) and gets overwritten here on every build, which
+    #    is the actual fix for the two files' abstention logic having silently
+    #    diverged once already — see retrieval_tuning.py's own docstring.
+    print("=" * 70)
+    print("[0/3] Copying shared retrieval_tuning.py...")
+    print("=" * 70)
+    shutil.copyfile(NEXUS_DIR.parent / "retrieval_tuning.py", NEXUS_DIR / "retrieval_tuning.py")
+
     # 1. Build the knowledge pack (fastembed-embedded — see build_knowledge_db_nexus.py's
     #    own docstring for why this must stay in sync with brain_b_slim.py's embed()).
     print("=" * 70)
@@ -112,6 +124,7 @@ def main():
         "--hidden-import=onnxruntime",
         "--hidden-import=fastembed",
         "--hidden-import=knowledge_manifest",
+        "--hidden-import=retrieval_tuning",
         "--hidden-import=bootstrap_fallout4_knowledge",
         "--collect-all", "chromadb",
         "--collect-all", "chromadb_rust_bindings",

@@ -80,6 +80,8 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from rank_bm25 import BM25Okapi
 
+from retrieval_tuning import MIN_RETRIEVAL_AGREEMENT, classify_retrieval  # noqa: F401 (MIN_RETRIEVAL_AGREEMENT used in log lines / comments elsewhere in this file)
+
 # Loads a .env file from the current working directory if one exists (silently does
 # nothing otherwise) — lets MOSSY_BACKEND_TOKEN persist across restarts without having
 # to re-set an env var by hand each time. See .env.example; never commit a real .env.
@@ -142,43 +144,14 @@ MOSSY_BACKEND_TOKEN = os.environ.get("MOSSY_BACKEND_TOKEN", "")
 # setting; this only controls whether the cloud backend is tried FIRST.
 GENERATION_BACKEND = os.environ.get("BRAINB_GENERATION_BACKEND", "cloud").lower()
 
-# Abstention threshold: minimum vector+BM25 AGREEMENT, counted over a probe
-# window WIDER than what reaches the prompt (see hybrid_retrieve's probe_k
-# and the /infer call site — probe_k=30, only the first 6 of that get used
-# for generation). NOT an RRF score threshold — RRF's fused score is
-# rank-derived (1/(rank+K)), so a confident-looking top-1 score is identical
-# whether the match is real or just the least-bad neighbor available.
-# Agreement between two independently-computed rankings carries no such
-# artifact and comes free from retrieval already being run.
-#
-# Re-validated 2026-08-13 at 616 pages / 1445 docs (brain-b/eval_retrieval.py,
-# results in brain-b/eval_queries_result.json — kept as a real file this time,
-# unlike the original 8-page eval which was never saved and had to be
-# reconstructed from scratch). The threshold itself (2) still holds, but the
-# probe window it counted over did NOT: at the original top_k=6 probe width,
-# 2 of 3 genuine in-domain queries incorrectly abstained even though a real
-# answer existed in the corpus (one of them, BM25 had already found it — the
-# agreement count just never got wide enough to notice). Root cause: top_k=6
-# was silently serving two jobs — prompt content width and "does an answer
-# exist" — and those stopped being nearly the same question once the corpus
-# grew past a few dozen pages. Widening the probe to 30 while keeping the
-# prompt at 6 fixed this. A margin-based signal (rank-1 vs. tail score gap
-# within one retriever) was also measured in the same eval as a candidate
-# second signal that shouldn't degrade with corpus size the way cross-
-# retriever convergence does — see eval_retrieval.py for the comparison.
-#
-# KNOWN OPEN GAP (2026-08-14): after fixing a separate chunking bug that grew
-# the corpus 1445->2025 docs, re-running the (now 15-query) eval found 2 of 3
-# deliberate out-of-domain misses became FALSE POSITIVES at agreement@30 —
-# including a plausible-sounding but nonexistent function name confidently
-# answered. bm25_margin showed a cleaner gap (misses ~2.5-4.4, real hits
-# ~5.6-23.4) in that same run, but that's ~15 data points, not a validated
-# threshold — do not wire margin into gating or raise/lower this constant
-# off that alone. Deliberately left as-is pending a larger eval set; if
-# you're reading this because it's still 2, that's intentional, not
-# neglect — check eval_queries_result.json's run history before assuming
-# either the gap or the fix status.
-MIN_RETRIEVAL_AGREEMENT = 2
+# MIN_RETRIEVAL_AGREEMENT and the abstain/hedge/confident decision itself
+# (classify_retrieval) now live in retrieval_tuning.py, shared with
+# brain-b/nexus/brain_b_slim.py — see that module's docstring for the full
+# history (why probe_k=30, why a binary abstain/confident split stopped
+# being enough, where the hedge boundary came from) and for why this is a
+# shared module in the first place rather than two copies of the same
+# constants: the two copies already diverged once, silently, and shipped
+# the stale one in a real release before anyone noticed.
 NO_DOCS_MESSAGE = (
     "I don't have documentation covering that in my knowledge base right now, "
     "so I'd rather tell you that plainly than guess. If you can point me at a "
@@ -1827,8 +1800,12 @@ def infer():
       "check_question": "..." | null,   -- only non-null when mode == "teach"
       "answer_level": "beginner|intermediate|advanced" | null,
       "next_skill": "..." | null,       -- a skill_tags.py tag, or null
-      "abstained": bool,                -- true when retrieval agreement was too low to
-                                         -- attempt an answer — see MIN_RETRIEVAL_AGREEMENT
+      "abstained": bool,                -- true when retrieval was too weak to attempt any
+                                         -- answer at all — see retrieval_tuning.py
+      "hedged": bool,                   -- true when an answer WAS generated but retrieval
+                                         -- was only ambiguous, not strong — the answer text
+                                         -- is prefixed with a "closest match" disclaimer
+                                         -- naming the actual top citation
       ...
     }
     """
@@ -1861,11 +1838,18 @@ def infer():
     # retrievers failing to agree in a 6-slot window is expected even when a
     # real answer exists somewhere in the top 30. See ADR note near
     # MIN_RETRIEVAL_AGREEMENT for the eval that caught this.
-    probe = hybrid_retrieve(question, top_k=6, probe_k=30)
+    probe, _retrieval_diag = hybrid_retrieve(question, top_k=6, probe_k=30, return_diagnostics=True)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
-    if agreement < MIN_RETRIEVAL_AGREEMENT:
-        log.info("Abstaining on %r — retrieval agreement %d < %d", question[:60],
-                  agreement, MIN_RETRIEVAL_AGREEMENT)
+    bm25_scores = _retrieval_diag["bm25_scores"]
+    bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
+    # classify_retrieval is the single shared decision boundary — see
+    # retrieval_tuning.py's module docstring for why a binary abstain/confident
+    # split stopped being adequate at this corpus size (2 of 3 deliberate
+    # out-of-domain misses were passing agreement alone) and what "hedge" means.
+    retrieval_tier = classify_retrieval(agreement, bm25_margin)
+    if retrieval_tier == "abstain":
+        log.info("Abstaining on %r — retrieval agreement %d, bm25_margin %s", question[:60],
+                  agreement, bm25_margin)
         log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
                             diagnosis=None, session_id=session_id)
         # No learner_state update on abstention — an abstained turn touched no
@@ -1874,7 +1858,7 @@ def infer():
         # for this, not the learner model.
         result = {
             "answer": NO_DOCS_MESSAGE, "confidence": 0.0, "sources": [],
-            "critique_applied": False, "used_web": False, "abstained": True,
+            "critique_applied": False, "used_web": False, "abstained": True, "hedged": False,
             "mode": mode, "diagnosis": None, "check_question": None,
             "answer_level": None, "next_skill": None, "past_episodes": episodes,
         }
@@ -1917,6 +1901,23 @@ def infer():
     result["answer_level"] = answer_level
     result["next_skill"] = next_skill
     result["abstained"] = False
+    result["hedged"] = retrieval_tier == "hedge"
+
+    # Hedge tier: still generate a real answer from the same retrieved context
+    # (unlike abstain, which skips generation entirely) — but lead with an
+    # explicit "closest I have" framing rather than presenting it with the
+    # same confidence as a genuine strong match. The disclaimer names the
+    # actual top citation, not a vague hedge, so it's still useful even when
+    # it turns out to be exactly right (see the objectmod_priority case in
+    # retrieval_tuning.py's docstring — hedging a real hit costs tone, not
+    # correctness).
+    if result["hedged"] and result.get("answer") and probe:
+        top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
+        result["answer"] = (
+            f"I don't have documentation directly covering this — the closest match "
+            f"I have is *{top_title}*. Treating that as a lead, not a confirmed answer:\n\n"
+            + result["answer"]
+        )
 
     # Optionally auto-save episode summary
     if result.get("answer"):
