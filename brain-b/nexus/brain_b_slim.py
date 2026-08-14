@@ -112,16 +112,20 @@ BACKEND_UNAVAILABLE_MESSAGE = (
     "try again once you're back online."
 )
 
-# Abstention threshold: minimum vector+BM25 AGREEMENT (count of top-6 results
-# both retrievers picked independently) required to attempt an answer at all.
-# NOT an RRF score threshold — RRF's fused score is rank-derived (1/(rank+K)),
-# so a confident-looking top-1 score is identical whether the match is real or
-# just the least-bad neighbor available. Agreement between two independently-
-# computed rankings carries no such artifact and comes free from retrieval
-# already being run. Empirically on a real (if small — 8-page) corpus: every
-# genuine hit tested got 2-3 agreement in top-6; every genuine miss got 0,
-# cleanly separated with no borderline cases. Mechanism is sound regardless of
-# corpus size; re-validate this exact number as the corpus grows past 25 pages.
+# Abstention threshold: minimum vector+BM25 AGREEMENT, counted over a probe
+# window WIDER than what reaches the prompt (see hybrid_retrieve's probe_k
+# and the /infer call site — probe_k=30, only the first 6 of that get used
+# for generation). NOT an RRF score threshold — see gemma_service_enhanced.py's
+# copy of this comment for the full rationale.
+#
+# This file was forked from gemma_service_enhanced.py before its 2026-08-13
+# probe-width fix existed, and silently kept the old top_k=6-for-everything
+# behavior through a full corpus rebuild and a real GitHub Release publish —
+# found by explicitly re-testing THIS file against the actual shipped corpus
+# rather than assuming a fix made in the dev build had propagated here too.
+# Ported the same fix on 2026-08-14. If you're editing retrieval/abstention
+# logic in either file, check the other for drift — they are not kept in
+# sync automatically.
 MIN_RETRIEVAL_AGREEMENT = 2
 NO_DOCS_MESSAGE = (
     "I don't have documentation covering that in my knowledge base right now, "
@@ -495,7 +499,8 @@ def _citation_from_result(r: dict) -> dict:
     }
 
 
-def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
+def hybrid_retrieve(query: str, top_k: int = 10, probe_k: int | None = None,
+                     return_diagnostics: bool = False):
     """
     Hybrid BM25 + semantic retrieval across BOTH the curated (shippable) and
     runtime (local-only) collections — a user's own cached web results or
@@ -505,7 +510,21 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
     — see ingest_ck_wiki.py) so callers can locate the right collection when
     expanding to a parent section; retrieval itself always ranks against the
     tight chunk text, never the expanded parent.
+
+    probe_k, if given, widens the per-retriever candidate pool (and the RRF
+    fusion pool) beyond top_k, and the function returns up to probe_k merged
+    results instead of top_k. This exists because "how many docs go in the
+    prompt" and "does an answer exist at all" are different questions with
+    different right answers — see MIN_RETRIEVAL_AGREEMENT's comment. Callers
+    doing prompt-building should still only use the first top_k of whatever
+    comes back. Left unset, behavior is unchanged from before this existed.
+
+    return_diagnostics, if True, returns (merged, diagnostics) instead of just
+    merged — diagnostics carries the raw per-retriever sorted score arrays
+    (sem_dists ascending, bm25_scores descending), used for a margin-based
+    signal measured alongside agreement but not (yet) gating on it.
     """
+    width = probe_k if probe_k is not None else top_k
     curated = get_curated_collection()
     runtime = get_runtime_collection()
 
@@ -517,7 +536,7 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
             continue
         res = coll.query(
             query_embeddings=q_embed,
-            n_results=min(top_k, coll.count()),
+            n_results=min(width, coll.count()),
             include=["documents", "metadatas", "distances"],
         )
         docs = res["documents"][0] if res["documents"] else []
@@ -527,7 +546,7 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
         sem_ids.extend(ids); sem_docs.extend(docs); sem_dists.extend(dists); sem_metas.extend(metas)
         sem_stores.extend([store_name] * len(ids))
     # Re-sort the combined cross-collection list by distance (ascending = closer) and cap
-    sem_order = sorted(range(len(sem_ids)), key=lambda i: sem_dists[i])[:top_k]
+    sem_order = sorted(range(len(sem_ids)), key=lambda i: sem_dists[i])[:width]
     sem_ids, sem_docs, sem_dists, sem_metas, sem_stores = (
         [sem_ids[i] for i in sem_order], [sem_docs[i] for i in sem_order],
         [sem_dists[i] for i in sem_order], [sem_metas[i] for i in sem_order],
@@ -541,7 +560,7 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
     bm25_scored: list[tuple[str, str, float, dict, str]] = []
     if _bm25 is not None and _bm25_docs:
         scores = _bm25.get_scores(_tokenize(query))
-        top_idx = np.argsort(scores)[::-1][:top_k]
+        top_idx = np.argsort(scores)[::-1][:width]
         for idx in top_idx:
             if scores[idx] > 0:
                 meta = _bm25_metas[idx] if _bm25_metas else {}
@@ -576,7 +595,7 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
          for key, score in rrf_scores.items()],
         key=lambda x: x["score"],
         reverse=True,
-    )[:top_k]
+    )[:width]
 
     # Visibility into whether BM25 is contributing anything at all, or RRF is
     # leaning entirely on the dense side without it being obvious — short
@@ -588,7 +607,15 @@ def hybrid_retrieve(query: str, top_k: int = 10) -> list[dict]:
     log.info("hybrid_retrieve(%r): %d vector-only, %d bm25-only, %d both",
               query[:60], vector_only, bm25_only, both)
 
-    return merged
+    if not return_diagnostics:
+        return merged
+
+    bm25_scores_sorted = [s[2] for s in bm25_scored]  # already descending (argsort by -score)
+    diagnostics = {
+        "sem_dists": sem_dists,
+        "bm25_scores": bm25_scores_sorted,
+    }
+    return merged, diagnostics
 
 
 def expand_to_parent(results: list[dict]) -> list[str]:
@@ -1401,7 +1428,11 @@ def infer():
     # generating from context that isn't actually relevant. See
     # MIN_RETRIEVAL_AGREEMENT's comment for why this uses retriever agreement
     # instead of RRF score.
-    probe = hybrid_retrieve(question, top_k=6)
+    # probe_k=30: widened past the 6 docs that actually reach the prompt — see
+    # MIN_RETRIEVAL_AGREEMENT's comment. Ported from gemma_service_enhanced.py's
+    # 2026-08-13 fix after this file (a copy made before that fix existed) was
+    # found to have never received it.
+    probe = hybrid_retrieve(question, top_k=6, probe_k=30)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
     if agreement < MIN_RETRIEVAL_AGREEMENT:
         log.info("Abstaining on %r — retrieval agreement %d < %d", question[:60],
@@ -1425,8 +1456,11 @@ def infer():
     # Learner model: read state BEFORE this turn's exposure is recorded, so
     # answer_level reflects who the user was walking in, not who they became
     # by asking. skill_ids come from the same probe used for the abstention
-    # check — no extra retrieval call needed for this.
-    skill_ids = extract_skill_ids(probe)
+    # check — no extra retrieval call needed for this. Sliced to the first 6
+    # (probe is now up to 30 wide for the agreement check) so exposure
+    # tracking still reflects only the docs actually relevant enough to
+    # answer with, not the full wide diagnostic window.
+    skill_ids = extract_skill_ids(probe[:6])
     answer_level = compute_answer_level(user_id, skill_ids, experience_override)
     update_learner_state(user_id, skill_ids, mode)
     next_skill = suggest_next_skill(user_id, skill_ids)
