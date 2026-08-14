@@ -32741,7 +32741,7 @@ const BRAINB_EXE = () => path.join(BRAINB_DIR(), 'brain_b_slim', 'brain_b_slim.e
 // redirect-following + a trusted-host allowlist, mirroring the download
 // handlers below but for a response small enough to buffer in memory.
 function _brainBFetchJson(url: string): Promise<any> {
-  const trustedHosts = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+  const trustedHosts = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'release-assets.githubusercontent.com'];
   return new Promise((resolve, reject) => {
     const doGet = (u: string, hops: number) => {
       if (hops > 5) { reject(new Error('Too many redirects')); return; }
@@ -34075,7 +34075,7 @@ app.whenReady().then(() => {
 
   lateHandle('download-koboldcpp', async (event) => {
     const KOBOLD_DOWNLOAD_URL = 'https://github.com/LostRuins/koboldcpp/releases/latest/download/koboldcpp.exe';
-    const TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+    const TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'release-assets.githubusercontent.com'];
     const TIMEOUT_MS = 300_000;
     const runtimeDir = path.join(app.getPath('userData'), 'runtime');
     const destPath = path.join(runtimeDir, 'koboldcpp.exe');
@@ -34291,7 +34291,7 @@ app.whenReady().then(() => {
   // brain-b/nexus/ in the repo for what's actually in the downloaded package
   // and docs/ARCHITECTURE.md for the wider Brain B design.
 
-  const BRAINB_TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com'];
+  const BRAINB_TRUSTED_HOSTS = ['github.com', 'objects.githubusercontent.com', 'github-releases.githubusercontent.com', 'release-assets.githubusercontent.com'];
 
   // Local-only: disk free space + whether something's already installed. No
   // network call happens in this handler — that's the point of keeping it
