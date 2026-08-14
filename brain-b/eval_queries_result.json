@@ -1,0 +1,202 @@
+{
+  "runs": [
+    {
+      "corpus_docs": 1445,
+      "corpus_pages": 616,
+      "results": [
+        {
+          "name": "precision_collision",
+          "query": "How do I get the name of an actor or object in Papyrus?",
+          "agreement": 0,
+          "abstained": true,
+          "top3": [
+            {
+              "id": "ckwiki-actor-value-parent-0",
+              "source": "vector"
+            },
+            {
+              "id": "ckwiki-identifier-reference-394d298cb7",
+              "source": "bm25"
+            },
+            {
+              "id": "ckwiki-getvoicetype-objectreference-b788f8495f",
+              "source": "vector"
+            }
+          ]
+        },
+        {
+          "name": "deliberate_miss",
+          "query": "What's the healthiest way to cook salmon?",
+          "agreement": 0,
+          "abstained": true,
+          "top3": [
+            {
+              "id": "ckwiki-getconsumespell-watertype-137c9b0854",
+              "source": "vector"
+            },
+            {
+              "id": "ckwiki-papyrus-introduction-d42a1bd64e",
+              "source": "bm25"
+            },
+            {
+              "id": "ck-001",
+              "source": "vector"
+            }
+          ]
+        },
+        {
+          "name": "in_domain_wait",
+          "query": "How do I make a script wait for a specific amount of time before continuing?",
+          "agreement": 3,
+          "abstained": false,
+          "top3": [
+            {
+              "id": "ckwiki-scripting-tutorial-pressure-plate-df3073629a",
+              "source": "vector+bm25"
+            },
+            {
+              "id": "ckwiki-differences-from-previous-scripting-fa86a4a586",
+              "source": "vector+bm25"
+            },
+            {
+              "id": "ckwiki-getcurrentrealtime-utility-4cb928952f",
+              "source": "vector+bm25"
+            }
+          ]
+        },
+        {
+          "name": "in_domain_combat",
+          "query": "How do I check if an actor is currently in combat?",
+          "agreement": 4,
+          "abstained": false,
+          "top3": [
+            {
+              "id": "ckwiki-getcombattarget-actor-4f2858047b",
+              "source": "vector+bm25"
+            },
+            {
+              "id": "ckwiki-getcombatstate-actor-4f360b8a5c",
+              "source": "vector+bm25"
+            },
+            {
+              "id": "ckwiki-actor-script-followersetdistancefar",
+              "source": "vector+bm25"
+            }
+          ]
+        },
+        {
+          "name": "in_domain_inventory",
+          "query": "How do I detect when a container's inventory changes in Papyrus?",
+          "agreement": 0,
+          "abstained": true,
+          "top3": [
+            {
+              "id": "ckwiki-console-commands-papyrus-41000edd6a",
+              "source": "vector"
+            },
+            {
+              "id": "ckwiki-getinventoryitems-objectreference-537baa9240",
+              "source": "bm25"
+            },
+            {
+              "id": "ckwiki-differences-from-skyrim-to-fallout-4-1b72d124ab",
+              "source": "vector"
+            }
+          ]
+        }
+      ],
+      "note": "First run: top_k=6 used as the probe width too (the bug this eval found)."
+    },
+    {
+      "run_at": "2026-08-14T00:15:28Z",
+      "corpus_pages": 616,
+      "corpus_docs": 1445,
+      "probe_k": 30,
+      "top_k": 6,
+      "note": "Widened probe_k (was implicitly 6, same as top_k) to decouple 'what goes in the prompt' from 'does an answer exist'. Margin computed as a candidate second signal, not yet gating.",
+      "results": [
+        {
+          "name": "precision_collision",
+          "query": "How do I get the name of an actor or object in Papyrus?",
+          "agreement": 6,
+          "abstained": false,
+          "vector_margin": 0.05957883596420288,
+          "bm25_margin": 3.843788087577604,
+          "top6": [
+            "ckwiki-getvoicetype-objectreference-b788f8495f",
+            "ckwiki-actor-value-parent-0",
+            "ckwiki-identifier-reference-394d298cb7",
+            "ckwiki-inter-mod-communication-f3e0d88aaf",
+            "ckwiki-papyrus-introduction-3004bb34a3",
+            "ckwiki-papyrus-introduction-ed6077d221"
+          ],
+          "target_doc_in_probe_window": false
+        },
+        {
+          "name": "deliberate_miss",
+          "query": "What's the healthiest way to cook salmon?",
+          "agreement": 0,
+          "abstained": true,
+          "vector_margin": 0.038035035133361816,
+          "bm25_margin": 2.9804664495362676,
+          "top6": [
+            "ckwiki-getconsumespell-watertype-137c9b0854",
+            "ckwiki-papyrus-introduction-d42a1bd64e",
+            "ck-001",
+            "ckwiki-differences-from-previous-scripting-f8b3de95cd",
+            "ckwiki-debug-script-enablemenus",
+            "ckwiki-differences-from-previous-scripting-024fc8090f"
+          ]
+        },
+        {
+          "name": "in_domain_wait",
+          "query": "How do I make a script wait for a specific amount of time before continuing?",
+          "agreement": 6,
+          "abstained": false,
+          "vector_margin": 0.12110519409179688,
+          "bm25_margin": 9.80130343342123,
+          "top6": [
+            "ckwiki-scripting-tutorial-pressure-plate-df3073629a",
+            "ckwiki-differences-from-previous-scripting-fa86a4a586",
+            "ckwiki-getcurrentrealtime-utility-4cb928952f",
+            "ckwiki-differences-from-previous-scripting-e04f809b73",
+            "ckwiki-using-states-in-papyrus-471d9c4562",
+            "ckwiki-papyrus-introduction-2c80d42e16"
+          ]
+        },
+        {
+          "name": "in_domain_combat",
+          "query": "How do I check if an actor is currently in combat?",
+          "agreement": 9,
+          "abstained": false,
+          "vector_margin": 0.12175929546356201,
+          "bm25_margin": 8.213902781209386,
+          "top6": [
+            "ckwiki-getcombattarget-actor-4f2858047b",
+            "ckwiki-getcombatstate-actor-4f360b8a5c",
+            "ckwiki-actor-script-followersetdistancefar",
+            "ckwiki-getallcombattargets-actor-594063590b",
+            "ckwiki-actor-script-parent-3",
+            "ckwiki-actor-script-parent-10"
+          ]
+        },
+        {
+          "name": "in_domain_inventory",
+          "query": "How do I detect when a container's inventory changes in Papyrus?",
+          "agreement": 11,
+          "abstained": false,
+          "vector_margin": 0.06087315082550049,
+          "bm25_margin": 9.100613177859053,
+          "top6": [
+            "ckwiki-ini-settings-papyrus-a682fa9675",
+            "ckwiki-differences-from-skyrim-to-fallout-4-1b72d124ab",
+            "ckwiki-getinventoryitems-objectreference-537baa9240",
+            "ckwiki-console-commands-papyrus-41000edd6a",
+            "ckwiki-additem-objectreference-8f6baa3051",
+            "ckwiki-objectreference-script-removeitem"
+          ]
+        }
+      ]
+    }
+  ]
+}
