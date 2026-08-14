@@ -1,0 +1,78 @@
+name: Brain B Nexus Package Build and Upload
+
+# Builds the CPU-only, no-GPU Brain B package (brain_b_slim.exe + curated
+# knowledge base + embed model — see brain-b/nexus/) and uploads it as a
+# GitHub Release asset. Deliberately separate from release.yml (the main
+# Mossy app release): this package has its own independent version
+# (MOSSY_BRAINB_VERSION / the workflow input below), not tied to the app's
+# package.json version or git tags.
+#
+# Runs entirely on the GitHub Actions runner, including the upload — the
+# runner's network path to GitHub's own release-asset storage is what
+# actually matters for a ~230MB file, not a contributor's home connection.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Brain B Nexus package version (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+      draft:
+        description: 'Create/update as draft release'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-upload:
+    name: Build and Upload Brain B Nexus Package
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: brain-b/nexus
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-nexus.txt
+
+      - name: Build Nexus package
+        working-directory: brain-b/nexus
+        run: python build_nexus_package.py
+        env:
+          MOSSY_BRAINB_VERSION: ${{ github.event.inputs.version }}
+          HF_HUB_DISABLE_XET: '1'
+
+      - name: Verify build output
+        working-directory: brain-b/nexus
+        shell: pwsh
+        run: |
+          $zip = "brain-b-nexus-v${{ github.event.inputs.version }}.zip"
+          $manifest = "brain-b-nexus-v${{ github.event.inputs.version }}.manifest.json"
+          if (-not (Test-Path $zip)) { throw "Missing build output: $zip" }
+          if (-not (Test-Path $manifest)) { throw "Missing build output: $manifest" }
+          $sizeMB = [math]::Round((Get-Item $zip).Length / 1MB, 2)
+          Write-Host "Built $zip ($sizeMB MB)"
+          Get-Content $manifest
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: brain-b-nexus-v${{ github.event.inputs.version }}
+          name: Brain B (Nexus edition) v${{ github.event.inputs.version }}
+          draft: ${{ github.event.inputs.draft }}
+          files: |
+            brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.zip
+            brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
