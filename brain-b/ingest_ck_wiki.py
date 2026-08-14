@@ -239,7 +239,23 @@ def wikitext_to_text(wikitext: str) -> str:
 # "Function Foo(" / "Event Foo(", even with zero params ("Foo()"). Defense in
 # depth alongside the bullet-depth fix above, in case some other formatting
 # quirk produces a "- Event <word>" line that isn't a real declaration.
-FUNC_START_RE = re.compile(r'^- (Function|Event|Global Function)\s+(\w+)\s*\(', re.M)
+#
+# Optional non-capturing return-type token before Function/Event: this wiki's
+# convention for a non-void function is "- <ReturnType> Function Name(...)"
+# ("- int Function GetFormID()", "- string Function GetName()"), vs. a void
+# function's "- Function Name(...)" with no type prefix at all. The original
+# pattern only matched the void form — confirmed empirically (2026-08-13) via
+# a corpus-wide eval: EVERY Get*/Has*/Is*-style function across every
+# multi-function class page (actor-script.jsonl, form-script.jsonl, etc.) —
+# 0 of 149 non-parent chunks in actor-script.jsonl — silently fell through to
+# the page's large diluted parent block instead of getting its own precise,
+# rankable chunk. Void functions (Set*, Add*, Start*, ...) were unaffected and
+# already had sharp chunks, which is why this went unnoticed until retrieval
+# was actually measured at scale rather than assumed correct from the void
+# cases working. [\w\[\]]+ covers simple types and array-of-type return
+# values (ObjectReference[], Form[], ...); Papyrus has no multi-word types so
+# no whitespace is needed inside the class.
+FUNC_START_RE = re.compile(r'^- (?:[\w\[\]]+\s+)?(Function|Event|Global Function)\s+(\w+)\s*\(', re.M)
 PARENT_MAX_CHARS = 3000
 PARENT_GROUP_SIZE = 10  # functions per section-parent — see chunk_page docstring
 
