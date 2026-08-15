@@ -13,8 +13,8 @@ Mossy runs **two local servers** while the app is open:
 **Port 8787 — Python backend**
 Hosts the AI chat and (optional) cloud Whisper transcription routes. This port is bound to `0.0.0.0` (all interfaces) because the Electron renderer needs to reach it. It is only active when the backend process is running. Routes require a valid internal bearer token (`MOSSY_BACKEND_TOKEN`) for all AI calls.
 
-**An OS-assigned ephemeral port — Bridge Server ("Desktop Bridge")**
-Provides hardware telemetry, file listing, and Blender add-on communication. Bound strictly to `127.0.0.1` (localhost only) — unreachable from any other device on your network. **As of this release, every request must carry a valid internal authentication token** (a random value generated locally on first launch, stored in your own settings file, and attached automatically by Mossy's own renderer — you never see or manage it directly). The port itself is also no longer fixed at a predictable number, for the same reason a lock matters more than a doorknob — it removes trivial discoverability but the token is what actually gates access.
+**Port 21337 — Bridge Server ("Desktop Bridge")**
+Provides hardware telemetry, file listing, and Blender add-on communication. Bound strictly to `127.0.0.1` (localhost only) — unreachable from any other device on your network. **As of this release, every request must carry a valid internal authentication token** (a random value generated locally on first launch, stored in your own settings file, and attached automatically by Mossy's own renderer — you never see or manage it directly). The token is what actually gates access — the port stays fixed so the Blender add-on can keep reaching it at a known address.
 
 Both ports are only open while the Mossy app is running. They close when you exit the app.
 
@@ -28,7 +28,6 @@ The `/execute` endpoint's remaining paths only forward Python scripts to the Ble
 
 **What actually protects against browser/localhost abuse:**
 - **A required, per-launch authentication token** (`X-Mossy-Token` header), compared using a timing-safe comparison, on every single Bridge Server request with no exceptions and no fallback-open state. This is the real protection — see the note below on why CORS restrictions alone would not have been sufficient even if implemented.
-- The Bridge Server's own listening port is OS-assigned at each launch rather than a fixed, publicly-documented number.
 
 **Why this wasn't "just fix CORS"**: CORS headers only govern whether a webpage's own JavaScript is allowed to *read* a cross-origin response — they do not prevent the request from being sent, or from taking effect on the server. A same-origin-restricted CORS policy does not stop a malicious page from POSTing to a local server and having that POST's server-side action occur; it only stops the page's script from seeing what came back. An unauthenticated endpoint is exploitable regardless of CORS configuration. The token is what closes this, not CORS.
 
@@ -75,4 +74,4 @@ Mossy does not call `Add-MpPreference` or any similar command. No exclusions are
 
 ## Short summary for the mod page description
 
-> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. The only data sent to the internet is the text of your chat messages, which go to the AI provider via a secure relay. No API keys required — the developer covers AI costs, Mossy is free. The local Bridge Server requires a per-launch authentication token on every request and runs on a non-fixed port — a website cannot make it do anything without that token, which only Mossy's own interface holds. First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder. **A prior version of this document overstated protections that hadn't actually shipped yet — see the correction note at the top and the linked Security Advisory for the honest history.**
+> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. The only data sent to the internet is the text of your chat messages, which go to the AI provider via a secure relay. No API keys required — the developer covers AI costs, Mossy is free. The local Bridge Server requires a per-launch authentication token on every request — a website cannot make it do anything without that token, which only Mossy's own interface holds. First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder. **A prior version of this document overstated protections that hadn't actually shipped yet — see the correction note at the top and the linked Security Advisory for the honest history.**
