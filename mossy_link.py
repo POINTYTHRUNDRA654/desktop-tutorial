@@ -492,6 +492,76 @@ def _process_command_queue() -> "float | None":
     return 0.1 if _active else None
 
 
+def _get_addon_version() -> list:
+    """Live bl_info version, not a hardcoded duplicate — a stale copy of the
+    version number would be exactly the kind of silent-drift bug get_context
+    itself was added to stop. Degrades to [0, 0, 0] rather than raising if
+    addon_utils can't find this module for any reason."""
+    try:
+        import addon_utils
+        for mod in addon_utils.modules():
+            if mod.__name__ == __package__:
+                return list(mod.bl_info.get("version", (0, 0, 0)))
+    except Exception:
+        pass
+    return [0, 0, 0]
+
+
+def _build_scene_context(bpy) -> dict:
+    """
+    Full FO4-aware scene snapshot for Mossy's Bridge to pull on demand
+    (get_context command, see _execute_command_on_main_thread). Field shape
+    matches desktop-tutorial's public/mossy_link_addon.py _build_scene_context
+    exactly (activeObject, selected, meshCount, etc.) — that file's pull-based
+    get_context was the reference implementation this add-on converged onto
+    as the single source of truth for the Blender side of the integration;
+    keeping the same field names means Mossy's client code (LocalAIEngine.ts,
+    BridgeServer.ts) needed zero changes when the add-ons converged.
+    """
+    scene    = bpy.context.scene
+    active   = bpy.context.active_object
+    selected = [o.name for o in bpy.context.selected_objects]
+
+    active_action, pose_markers = None, 0
+    if active and active.animation_data and active.animation_data.action:
+        act           = active.animation_data.action
+        active_action = act.name
+        pose_markers  = len(act.pose_markers)
+
+    ctx = {
+        "blender_version": bpy.app.version_string,
+        "scene":           scene.name,
+        "mode":            bpy.context.mode,
+        "activeObject":    active.name if active else None,
+        "activeType":      active.type if active else None,
+        "selected":        selected,
+        "objectCount":     len(bpy.data.objects),
+        "meshCount":       len(bpy.data.meshes),
+        "armatureCount":   len(bpy.data.armatures),
+        "unitSystem":      scene.unit_settings.system,
+        "unitScale":       round(scene.unit_settings.scale_length, 6),
+        "fps":             scene.render.fps,
+        "frameStart":      scene.frame_start,
+        "frameEnd":        scene.frame_end,
+        "activeAction":    active_action,
+        "actionPoseMarkers": pose_markers,
+        "addonVersion":    _get_addon_version(),
+    }
+
+    if active and active.type == "MESH":
+        mesh    = active.data
+        tri_est = sum(max(0, len(p.vertices) - 2) for p in mesh.polygons)
+        ctx["activeMesh"] = {
+            "vertices":         len(mesh.vertices),
+            "polygons":         len(mesh.polygons),
+            "triangleEstimate": tri_est,
+            "uvLayers":         len(mesh.uv_layers),
+            "materials":        len(active.material_slots),
+            "modifiers":        [m.name for m in active.modifiers],
+        }
+    return ctx
+
+
 def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
     """Execute a single command dict.  Must run on the Blender main thread."""
     global _pytorch_path
@@ -566,6 +636,28 @@ def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
             return {"status": "ok", "result": str(result)}
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+    if cmd_type == "get_context":
+        return {"status": "success", "context": _build_scene_context(bpy)}
+
+    if cmd_type == "get_capabilities":
+        return {
+            "status": "success",
+            "addon_version": _get_addon_version(),
+            # Mossy's Bridge (BridgeServer.ts) queries this before relying on a
+            # feature this add-on might not have — added alongside get_context
+            # specifically because the two add-ons that both listen on this
+            # port (this one, and desktop-tutorial's public/mossy_link_addon.py
+            # before it converged onto this file as the single source of
+            # truth) had silently diverged on supported commands with no way
+            # for Mossy to tell which one it was actually talking to. See
+            # desktop-tutorial's ARCHITECTURE.md "Bridge auth" section for the
+            # incident this closes.
+            "supported_commands": [
+                "script", "text", "operator", "set_pytorch_path",
+                "get_context", "get_capabilities",
+            ],
+        }
 
     return {"status": "error", "message": f"Unknown command type: {cmd_type!r}"}
 
