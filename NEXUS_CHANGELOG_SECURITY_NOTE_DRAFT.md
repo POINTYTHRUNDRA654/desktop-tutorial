@@ -23,8 +23,7 @@ now requires a private key generated on your own machine that no web page
 can access. If you can't update right away, close Mossy when you're not
 using it and avoid browsing while it's open in the background.
 
-Full technical writeup: (link to the GitHub Security Advisory once
-published).
+Full technical writeup: <https://github.com/POINTYTHRUNDRA654/desktop-tutorial/security/advisories/GHSA-j6pr-83hv-46q5>
 
 If you use the Blender add-on: this release also fixes a separate bug where
 the add-on would accept connections with no password if you hadn't yet set
