@@ -5,7 +5,7 @@
  * Handles window creation, IPC communication for program detection and launching.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net, Menu, MenuItem } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, screen, net, Menu, MenuItem, clipboard } from 'electron';
 
 // File-based logging to debug main process startup
 const mainProcessLogPath = `${process.env.APPDATA || process.env.HOME}/.mossy-desktop/main-process.log`;
@@ -4354,10 +4354,17 @@ function setupIpcHandlers() {
         payload.image_path = commandData.imagePath || '';
         payload.output_path = commandData.outputPath || '';
       } else if (commandType === 'run_automation') {
-        // mossy_link_addon.py's run_automation reads command["preset"]/["params"] — this
-        // branch didn't exist, so the "preset" field DesktopBridge.tsx sends was silently
-        // dropped and every automation preset request (fo4_setup_scene, fo4_check, etc.)
-        // ran with an empty preset name.
+        // 'run_automation' (and 'call_tool'/'query_mossy'/'pytorch_inference' above) were
+        // command types the now-retired public/mossy_link_addon.py supported. The add-on
+        // this converged onto (POINTYTHRUNDRA654/Blender-add-on's mossy_link.py — see
+        // ARCHITECTURE.md's "Bridge auth" section) never implemented any of these; it
+        // exposes equivalent FO4 automation through named Blender operators via the
+        // 'operator' command type instead. DesktopBridge.tsx's automation buttons
+        // (sendBlenderCommandWithToken('run_automation', ...) / ('call_tool', ...)) will
+        // get "Unknown command type" from the real add-on until those buttons are ported
+        // to 'operator' calls against real operator ids — not done yet, flagged rather
+        // than guessed at, since that requires knowing the other repo's actual operator
+        // surface.
         payload.preset = commandData.preset || '';
         payload.params = commandData.params || {};
       }
@@ -30845,6 +30852,15 @@ end.
 
   registerHandler(IPC_CHANNELS.CLIPBOARD_WATCH_STOP, async () => {
     return clipboardWatchStop();
+  });
+
+  registerHandler(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, async (_event: any, text: string) => {
+    try {
+      clipboard.writeText(String(text ?? ''));
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
   });
 
 

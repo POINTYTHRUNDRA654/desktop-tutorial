@@ -79,6 +79,17 @@ brain-b/chroma_runtime/
 brain-b/data/
 brain-b/*.bin
 
+# Third-party tools cloned into the project root for local reference/use — each has its own
+# .git and license, not MOSSY.SPACE source. Found sitting untracked in the working tree
+# 2026-08-15; never committed, but not excluded either, so a careless `git add -A` would have
+# swept them in.
+/krita-ai-diffusion/
+/superpowers/
+
+# Nexus Mods upload staging (compiled installer .exe/.zip) — local release workflow only,
+# never source, never committed.
+/nexus_upload_v*/
+
 # Nexus edition build artifacts — all reproducible from build_nexus_package.py +
 # the same committed knowledge/**/*.jsonl source of truth. Never hand-edit or commit;
 # a released build's assets go through GitHub Releases (or equivalent), not git.

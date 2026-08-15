@@ -380,6 +380,7 @@ const IPC_CHANNELS = {
   CLIPBOARD_WATCH_START: 'clipboard-watch-start',
   CLIPBOARD_WATCH_STOP: 'clipboard-watch-stop',
   CLIPBOARD_DETECTED: 'clipboard-detected',
+  CLIPBOARD_WRITE_TEXT: 'clipboard-write-text',
 
   // Mossy Brain Feature 7: Background Task Queue
   TASK_ENQUEUE: 'task-enqueue',
@@ -3437,6 +3438,16 @@ const electronAPI = {
     const listener = (_event: any, detection: any) => callback(detection);
     ipcRenderer.on(IPC_CHANNELS.CLIPBOARD_DETECTED, listener);
     return () => ipcRenderer.off(IPC_CHANNELS.CLIPBOARD_DETECTED, listener);
+  },
+
+  /**
+   * Writes via Electron's native clipboard module in the main process —
+   * bypasses navigator.clipboard.writeText(), which can resolve successfully
+   * in a sandboxed BrowserWindow without the text actually reaching the OS
+   * clipboard.
+   */
+  copyToClipboard: (text: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, text);
   },
 
   // ============================================================================

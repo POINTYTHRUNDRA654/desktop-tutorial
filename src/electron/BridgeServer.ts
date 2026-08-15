@@ -50,17 +50,25 @@ export class BridgeServer {
         details: string[];
     }>();
 
-    constructor(addonPort: number = 9999, port: number = 0) {
+    constructor(addonPort: number = 9999, port: number = 21337) {
         this.addonPort = addonPort;
-        // 0 = OS-assigned ephemeral port. Was a fixed 21337 — changed alongside
-        // the auth-token fix (see class-level SECURITY comment): a random port
-        // isn't a substitute for authentication, but it removes trivial
-        // discoverability (an attacker's page has to scan rather than know).
+        // REVERTED (2026-08-14, same day as the auth fix): briefly changed this
+        // to 0 (OS-assigned ephemeral) as defense-in-depth alongside the token
+        // fix. That broke a live integration — the released Blender add-on
+        // (mossy_link.py, POINTYTHRUNDRA654/Blender-add-on.) pushes scene
+        // context to a hardcoded 21337 (push_blender_context() ->
+        // POST http://localhost:21337/blender_context), and has an install
+        // base that can't be asked to reconfigure. The token is what actually
+        // secures this endpoint (see class-level SECURITY comment) —
+        // discoverability of the port was worth very little on its own, and
+        // not worth breaking a shipped integration for. Fixed port + token is
+        // both secure and compatible.
         this.port = port;
     }
 
-    /** The real bound port, valid only after start()'s listen callback has
-     *  fired. 0 (or the constructor's pre-bind default) beforehand. */
+    /** The real bound port. Fixed at 21337 by default (see constructor) —
+     *  only meaningfully "pending" before start()'s listen callback fires if
+     *  a caller ever passes port=0 explicitly. */
     getPort(): number {
         return this.port;
     }
@@ -263,7 +271,7 @@ export class BridgeServer {
     }
 
     /**
-     * Sends a command to the Mossy Link Blender add-on (mossy_link_addon.py) on port 9999 —
+     * Sends a command to the Mossy Link Blender add-on (POINTYTHRUNDRA654/Blender-add-on, mossy_link.py) on port 9999 —
      * same real wire protocol as main.ts's send-blender-command handler. Used to run real
      * Python inside the user's live Blender session (e.g. PyNifly mesh import/cleanup/export)
      * rather than hand-parsing NIF binary data in this process.
@@ -604,16 +612,26 @@ export class BridgeServer {
                 return;
             }
 
-            // SECURITY: every non-preflight request must present a valid token —
-            // see the class-level comment above for why this exists at all.
-            if (!this._checkAuth(req)) {
+            const url = req.url || '/';
+            const method = req.method;
+
+            // GET /health is exempt from the token gate: it returns nothing beyond
+            // "Mossy is running" + a version string, none of which is sensitive
+            // (unlike every other route here, which can screenshot, read the
+            // clipboard, or reach Blender). The Blender add-on's check_bridge()
+            // relies on this being callable with no token — see its own docstring
+            // ("1. Test outbound connections (no token needed)") — so gating it
+            // broke Quick Connect / the add-on's connection-status check with a
+            // 401 it has no legitimate way to clear.
+            const isUnauthenticatedHealthCheck = url === '/health' && method === 'GET';
+
+            // SECURITY: every other non-preflight request must present a valid
+            // token — see the class-level comment above for why this exists at all.
+            if (!isUnauthenticatedHealthCheck && !this._checkAuth(req)) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'error', message: 'Missing or invalid X-Mossy-Token header.' }));
                 return;
             }
-
-            const url = req.url || '/';
-            const method = req.method;
 
             try {
                 // Health Check
@@ -773,6 +791,20 @@ export class BridgeServer {
                                     res.writeHead(200, { 'Content-Type': 'application/json' });
                                     res.end(JSON.stringify({ status: 'success', message: 'Blender context', response }));
                                 } catch (e: any) { blenderErrResponse(e, 'context fetch'); }
+
+                            } else if (type === 'capabilities') {
+                                // Version handshake — added alongside get_context's real-world
+                                // rollout finding that an outdated add-on's "Unknown command
+                                // type" response looked identical to "Blender isn't running" from
+                                // the client's side, so a stale add-on just silently abstained
+                                // instead of telling the user to update. Callers should check
+                                // this BEFORE relying on get_context, not just try get_context
+                                // and guess why it came back empty.
+                                try {
+                                    const response = await this._blenderSend({ type: 'get_capabilities' }, 3_000);
+                                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                                    res.end(JSON.stringify({ status: 'success', message: 'Blender capabilities', response }));
+                                } catch (e: any) { blenderErrResponse(e, 'capabilities fetch'); }
 
                             } else if (type === 'export_fbx') {
                                 try {
@@ -1644,8 +1676,25 @@ export class BridgeServer {
 
             socket.setTimeout(timeoutMs);
 
+            // The Blender add-on's token check (public/mossy_link_addon.py's
+            // _validate_token) fails closed as of the 2026-08-14 security fix — a
+            // missing token now means REJECTED, not accepted, unlike before. None
+            // of this method's five callers (type 'blender'/'text'/'context'/
+            // 'export_fbx'/'export_obj') ever attached one, so every one of them
+            // started silently getting "Unauthorized" the moment a real Blender
+            // add-on token existed (which happens automatically on first load —
+            // see _ensure_token_initialized in the add-on). Attaching it here once,
+            // centrally, instead of requiring every call site to remember — same
+            // reasoning as bridgeFetch() centralizing the renderer's own auth
+            // header rather than hand-duplicating it at ~30 call sites.
+            const settings = this._readSettings();
+            const outgoing: any = { ...payload };
+            if (settings?.blenderLinkToken && outgoing.token === undefined) {
+                outgoing.token = settings.blenderLinkToken;
+            }
+
             socket.once('connect', () => {
-                try { socket.write(JSON.stringify(payload)); }
+                try { socket.write(JSON.stringify(outgoing)); }
                 catch (e) { if (!finished) { finished = true; cleanup(); reject(e); } }
             });
 
