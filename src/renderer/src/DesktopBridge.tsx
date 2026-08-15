@@ -819,7 +819,17 @@ const DesktopBridge: React.FC = () => {
                 setTimeout(() => setTokenCopyFeedback(''), 2000);
                 return;
             }
-            await navigator.clipboard.writeText(blenderLinkToken);
+            // Routes through Electron's native clipboard module (main process) rather
+            // than navigator.clipboard.writeText(): the latter can resolve successfully
+            // in this sandboxed BrowserWindow without the text actually reaching the OS
+            // clipboard, which silently broke Mossy<->Blender token syncing.
+            const electronApi = getElectronApi();
+            if (typeof electronApi?.copyToClipboard === 'function') {
+                const result = await electronApi.copyToClipboard(blenderLinkToken);
+                if (!result?.ok) throw new Error(result?.error || 'copyToClipboard failed');
+            } else {
+                await navigator.clipboard.writeText(blenderLinkToken);
+            }
             setTokenCopyFeedback('✓ Token copied to clipboard!');
             setTimeout(() => setTokenCopyFeedback(''), 2000);
         } catch (e) {

@@ -66,23 +66,37 @@ Note: `AutomationManager.tsx` is a separate platform at `/tools/automation` ("FO
 ## Key Workflows
 
 ### Deploying changes to the running app
-1. Edit source files in `src/`
-2. Run `npm run build` (Vite compiles to `dist/` and `dist-electron/`)
-3. Extract asar: `node extract-asar.js` (or use `@electron/asar`)
-4. Replace `dist/` and `dist-electron/` inside extracted folder
-5. Slim-pack (exclude node_modules): produces ~104MB asar
-6. Copy patched asar → `Mossy/Mossy NVIDIA/resources/app.asar`
-7. **Close and relaunch the app** — running process has old version in memory
 
-### Asar packing (slim, no node_modules)
-```js
-// Uses CJS require — ESM import path does not exist
-const asar = require('/path/to/node_modules/@electron/asar/lib/asar.js');
-await asar.createPackageWithOptions(srcDir, destAsar, { unpack: '*.node' });
-```
-- Do NOT use `--unpack` CLI flag (minimatch bug)
-- Do NOT use `lib/esm/asar.js` (doesn't exist)
-- Use `node_modules/@electron/asar/bin/asar.js` for CLI (not `.bin/asar` — shebang is bash-only)
+**`deploy-full.cjs` is retired — do not recreate it.** It extracted the *current*
+`app.asar`, overlaid new `dist`/`dist-electron`, and repacked in place. That's
+broken by construction against this build config: `electron-builder` stamps an
+asar-integrity hash into `Mossy NVIDIA.exe` itself at package time, so any
+asar-only swap produces an exe/asar pair whose hashes don't match — Electron
+then fails during module load with no useful error (e.g. a bogus
+"Invalid package config ... uuid\package.json", from corrupted byte offsets
+after an interrupted repack, not an actual missing dependency). It also had no
+guard against running while Mossy was open — it discovered that via an `EBUSY`
+on a locked native `.dll` *after* already overwriting the archive, and a
+subsequent "successful" run then silently repacked the corruption forward.
+Diagnosed 2026-08-15; cost a full session to trace.
+
+Current path — always a full, matched `electron-builder` build, never a
+partial asar swap:
+
+1. Edit source files in `src/`
+2. Close Mossy NVIDIA first — an `electron-builder` pass needs to overwrite
+   native `.dll`s inside `resources/app.asar.unpacked/`, which stay locked
+   while the app is running.
+3. `npm run build` (Vite → `dist/`, tsc → `dist-electron/`)
+4. `npx electron-builder --win --dir --config.productName="Mossy NVIDIA" --config.appId="com.volttech.desktop-nvidia"`
+   — produces a matched exe+asar pair at `release/win-unpacked/`. `--dir`
+   skips NSIS installer creation, which isn't needed for local iteration.
+5. Verify before touching the live install: launch
+   `release/win-unpacked/Mossy NVIDIA.exe` directly and confirm it opens.
+6. Replace the **entire** `Mossy/Mossy NVIDIA/` folder with
+   `release/win-unpacked/` (not just `app.asar` — the exe must come from the
+   same build).
+7. **Relaunch Mossy NVIDIA** — running process has old version in memory.
 
 ### CRITICAL: Writing source files safely
 

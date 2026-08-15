@@ -21,6 +21,11 @@
 - **Check for Blender Add-on** does a live local connection check and flips to a clear "Using Installed Add-on" state once it detects the add-on running — no guessing whether it's actually connected
 - The add-on's security token is **not an API key to any external service** — it's a random value generated locally on your machine the first time the add-on runs, used only so Mossy Desktop and your local Blender session can recognize each other. The connection itself never leaves your computer (127.0.0.1 only); nothing about this token or connection is sent anywhere, including to Mossy's own servers
 
+### Mossy Link — Fixes (2026-08-15)
+
+- Fixed the **Copy** button next to the Blender Link token in Desktop Bridge silently failing to actually reach the clipboard in some environments — it now writes via Electron's native clipboard instead of the browser Clipboard API, so pasting the token into Blender's Add-on preferences works reliably
+- Fixed the Blender add-on's own connection check (`Quick Connect` / `check_bridge()`) getting rejected with 401 Unauthorized — the Bridge's `/health` liveness check no longer requires the internal auth token, matching what the add-on has always expected
+
 ### Background Remover — New Texture Hub Tab
 
 - Added AI-powered background removal with two backends: a standalone local install (BRIA AI RMBG-2.0, GPU-accelerated, runs entirely on your machine) or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models

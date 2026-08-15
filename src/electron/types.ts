@@ -331,6 +331,7 @@ export const IPC_CHANNELS = {
   CLIPBOARD_WATCH_START: 'clipboard-watch-start',
   CLIPBOARD_WATCH_STOP: 'clipboard-watch-stop',
   CLIPBOARD_DETECTED: 'clipboard-detected',
+  CLIPBOARD_WRITE_TEXT: 'clipboard-write-text',
 
   // 7. Background Task Queue
   TASK_ENQUEUE: 'task-enqueue',
@@ -1014,6 +1015,10 @@ export interface ElectronAPI {
   clipboardWatchStart: () => Promise<{ ok: boolean; error?: string }>;
   clipboardWatchStop: () => Promise<{ ok: boolean; error?: string }>;
   onClipboardDetected: (callback: (detection: ClipboardDetection) => void) => (() => void);
+  // Writes via Electron's native clipboard module in the main process — bypasses
+  // the renderer's navigator.clipboard.writeText(), which can resolve successfully
+  // without actually reaching the OS clipboard in a sandboxed BrowserWindow.
+  copyToClipboard: (text: string) => Promise<{ ok: boolean; error?: string }>;
 
   // 8. Hardware Sensor Feed
   systemMetricsPoll: () => Promise<SystemMetricsResponse>;

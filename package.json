@@ -28,7 +28,7 @@
     "sync:visual-guide-order": "node scripts/sync-visual-guide-order.mjs",
     "dev:killports": "node scripts/kill-ports.mjs 5174 5173 21337",
     "dev:clean": "npm run dev:killports && npm run dev",
-    "deploy": "npm run build && node deploy-full.cjs",
+    "deploy": "npm run build && electron-builder --win --dir --config.productName=\"Mossy NVIDIA\" --config.appId=\"com.volttech.desktop-nvidia\"",
     "dev:nemotron": "node scripts/dev-launcher.mjs",
     "predev": "node scripts/package-blender-addons.mjs",
     "dev": "npm run predev && concurrently \"npm run dev:vite\" \"npm run dev:tsc\" \"npm run dev:electron\"",

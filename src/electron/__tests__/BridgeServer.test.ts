@@ -48,6 +48,17 @@ async function postJson(port: number, urlPath: string, obj: any, opts: { auth?: 
   return { status: res.status, body: json };
 }
 
+async function getJson(port: number, urlPath: string, opts: { auth?: string | false } = {}) {
+  const headers: Record<string, string> = {};
+  const token = opts.auth === undefined ? TEST_TOKEN : opts.auth;
+  if (token) headers['X-Mossy-Token'] = token;
+  const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, { method: 'GET', headers });
+  const body = await res.text();
+  let json;
+  try { json = JSON.parse(body); } catch { json = body; }
+  return { status: res.status, body: json };
+}
+
 async function getFreePort(): Promise<number> {
   const probe = net.createServer();
   await new Promise<void>((r) => probe.listen(0, '127.0.0.1', r));
@@ -95,6 +106,12 @@ describe('BridgeServer (HTTP)', () => {
     mockServer.close();
     fs.rmSync(tmpUserDataDir, { recursive: true, force: true });
   });
+
+  it('allows GET /health with no token (the Blender add-on\'s check_bridge() calls it unauthenticated)', async () => {
+    const resp = await getJson(bridgePort, '/health', { auth: false });
+    expect(resp.status).toBe(200);
+    expect(resp.body).toHaveProperty('status', 'online');
+  }, 10000);
 
   it('rejects requests with no X-Mossy-Token header with 401', async () => {
     const resp = await postJson(bridgePort, '/execute', { type: 'blender', script: 'print("hi")', target: 'active_instance' }, { auth: false });
