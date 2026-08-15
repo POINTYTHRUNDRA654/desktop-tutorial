@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Mossy Industries blender addon",
     "author": "Mossy Industries",
-    "version": (5, 1, 0, "alpha"),
+    "version": (5, 3, 0),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -458,7 +458,10 @@ def register():
     # ── Step 1: register Phase 1 (core) modules immediately ──────────────────
     blender_version = bpy.app.version
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
-    print(f"Mossy Industries blender addon v5.1.0 [build 2026-06-26] - Initializing for Blender {version_string}")
+    # Derived from bl_info, not hardcoded — a stale copy here is exactly the kind of
+    # silent-drift bug get_context/get_capabilities (mossy_link.py) were added to stop.
+    addon_version_string = ".".join(str(v) for v in bl_info["version"])
+    print(f"Mossy Industries blender addon v{addon_version_string} - Initializing for Blender {version_string}")
     print(f"  Phase 1: registering {len(_PHASE1_MODULES)} core modules...")
 
     for module in _PHASE1_MODULES:
