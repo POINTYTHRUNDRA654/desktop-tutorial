@@ -460,7 +460,27 @@ def register():
     version_string = f"{blender_version[0]}.{blender_version[1]}.{blender_version[2]}"
     # Derived from bl_info, not hardcoded — a stale copy here is exactly the kind of
     # silent-drift bug get_context/get_capabilities (mossy_link.py) were added to stop.
-    addon_version_string = ".".join(str(v) for v in bl_info["version"])
+    # NOT a bare `bl_info["version"]` reference: under the Blender 4.2+ Extensions
+    # loader (this add-on installs as bl_ext.user_default.blender_game_tools, not a
+    # legacy add-on), bl_info is not left as a directly accessible module-level name
+    # inside register() — referencing it that way threw "name 'bl_info' is not
+    # defined" and made addon_enable() fail outright, aborting registration before a
+    # single Phase 1 module loaded. Found by actually running addon_enable() headless
+    # rather than trusting that py_compile + the integrity test suite (neither of
+    # which executes register() in a live Blender process) proved it worked.
+    # addon_utils.modules() is the same indirection mossy_link.py's own
+    # _get_addon_version() already used correctly — matching that pattern instead of
+    # inventing a second, broken one.
+    try:
+        import addon_utils as _addon_utils
+        _version_tuple = next(
+            (m.bl_info.get("version", (0, 0, 0)) for m in _addon_utils.modules()
+             if m.__name__ == __package__),
+            (0, 0, 0),
+        )
+    except Exception:
+        _version_tuple = (0, 0, 0)
+    addon_version_string = ".".join(str(v) for v in _version_tuple)
     print(f"Mossy Industries blender addon v{addon_version_string} - Initializing for Blender {version_string}")
     print(f"  Phase 1: registering {len(_PHASE1_MODULES)} core modules...")
 
