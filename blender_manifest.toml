@@ -9,7 +9,7 @@
 schema_version = "1.0.0"
 
 id          = "blender_game_tools"
-version     = "5.3.0"
+version     = "5.3.1"
 name        = "Mossy Industries blender addon"
 tagline     = "Professional Fallout 4 modding tools by Mossy Industries"
 maintainer  = "Mossy Industries <support@mossy.industries>"
