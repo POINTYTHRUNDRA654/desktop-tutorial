@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { useWheelScrollProxy } from './components/useWheelScrollProxy';
+import { mergeRescannedTools, type ApprovedTool } from './toolPermissions';
 
 interface LogEntry {
   id: string;
@@ -62,6 +63,49 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'hardware'>('telemetry');
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
+
+  // Full mossy_apps list (not the top-10-linked-only slice `integrations` uses),
+  // with checked status, so the user can review and change their approve/deny
+  // choice after the fact — previously the only moment this could be expressed
+  // was the one-time onboarding wizard.
+  const [approvedTools, setApprovedTools] = useState<(ApprovedTool & { id: string })[]>([]);
+
+  const loadApprovedTools = () => {
+      try {
+          const raw = localStorage.getItem('mossy_apps');
+          const apps: any[] = raw ? JSON.parse(raw) : [];
+          setApprovedTools(
+              apps
+                  .map((a, idx) => ({
+                      id: String(a.id ?? `${a.path || a.name || idx}`),
+                      name: String(a.name || a.displayName || '').trim(),
+                      path: a.path,
+                      category: a.category,
+                      checked: typeof a.checked === 'boolean' ? a.checked : true,
+                  }))
+                  .filter((a) => a.name.length > 0)
+          );
+      } catch {
+          setApprovedTools([]);
+      }
+  };
+
+  const toggleToolApproval = (id: string) => {
+      try {
+          const raw = localStorage.getItem('mossy_apps');
+          const apps: any[] = raw ? JSON.parse(raw) : [];
+          const updated = apps.map((a, idx) => {
+              const key = String(a.id ?? `${a.path || a.name || idx}`);
+              if (key !== id) return a;
+              const currentlyChecked = typeof a.checked === 'boolean' ? a.checked : true;
+              return { ...a, checked: !currentlyChecked };
+          });
+          localStorage.setItem('mossy_apps', JSON.stringify(updated));
+          loadApprovedTools();
+      } catch (e) {
+          console.error('[SystemMonitor] Failed to update tool approval:', e);
+      }
+  };
 
   const [profile, setProfile] = useState<SystemProfile | null>(() => {
       try {
@@ -178,6 +222,7 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
               }
 
               setIntegrations(newIntegrations);
+              loadApprovedTools();
           } catch (err) {
               console.error('Failed to sync integrations:', err);
           }
@@ -548,7 +593,15 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                   setInstallStep(2);
                   setFoundTools(scanSequence);
 
-                  localStorage.setItem('mossy_apps', JSON.stringify(moddingTools.map((t: any) => ({
+                  // Merge, don't overwrite: a prior "Detect Hardware" run used to replace
+                  // mossy_apps wholesale, which silently re-approved (checked: true) any
+                  // tool the user had explicitly denied during onboarding or in Approved
+                  // Tools below. mergeExistingCheckedState carries an existing checked:false
+                  // forward onto the freshly-rescanned entry; genuinely new tools default to
+                  // approved (checked: true), same as a first scan. Previously-known tools
+                  // this narrower modding-keyword scan doesn't happen to re-find are kept
+                  // as-is rather than dropped.
+                  const rescannedTools = moddingTools.map((t: any) => ({
                       id: `scan-${Math.random().toString(36).substr(2, 5)}`,
                       name: t.displayName,
                       displayName: t.displayName,
@@ -556,7 +609,9 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                       version: t.version,
                       checked: true,
                       category: 'Tool'
-                  }))));
+                  }));
+                  const existingApps: any[] = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+                  localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedTools, existingApps)));
 
                   if (realSystem) {
                       localStorage.setItem('mossy_system_profile', JSON.stringify({
@@ -849,6 +904,41 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                                     <Play className="w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
                             </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Approved Tools & Permissions — review/revoke what the initial scan approved */}
+            {approvedTools.length > 0 && (
+                <div className="mb-8 animate-fade-in">
+                    <h3 className="text-sm font-bold text-slate-500 mb-1 flex items-center gap-2 uppercase tracking-widest">
+                        <ShieldCheck className="w-4 h-4" /> Approved Tools & Permissions
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3">
+                        Programs found by the system scan. What "approved" actually gets you differs by tool: <strong className="text-slate-300">Blender</strong> works inside it — live scene reads, real script execution; <strong className="text-slate-300">xEdit</strong> launches it for a specific purpose (conflict detection, cleaning masters); everything else Mossy just knows exists and can open — she doesn't read or edit those tools' files. Toggle any tool on or off any time; this is the same choice you made during setup, not a one-time decision.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {approvedTools.map((tool) => (
+                            <button
+                                type="button"
+                                key={tool.id}
+                                onClick={() => toggleToolApproval(tool.id)}
+                                className={`text-left p-3 rounded-lg border flex items-center justify-between gap-3 transition-colors ${
+                                    tool.checked
+                                        ? 'bg-emerald-900/10 border-emerald-700/40 hover:border-emerald-500'
+                                        : 'bg-slate-900/40 border-slate-700 opacity-60 hover:opacity-90'
+                                }`}
+                                title={tool.path || tool.name}
+                            >
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold text-white truncate">{tool.name}</div>
+                                    <div className="text-[10px] text-slate-500 truncate">{tool.checked ? 'Approved' : 'Denied'}</div>
+                                </div>
+                                <div className={`flex-shrink-0 w-9 h-5 rounded-full relative transition-colors ${tool.checked ? 'bg-emerald-600' : 'bg-slate-700'}`}>
+                                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${tool.checked ? 'left-4' : 'left-0.5'}`} />
+                                </div>
+                            </button>
                         ))}
                     </div>
                 </div>

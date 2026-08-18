@@ -1465,6 +1465,25 @@ def _is_game_data_related_keywords(question: str) -> bool:
     return any(m in q for m in game_data_markers)
 
 
+def _is_ck_diagnosis_keywords(question: str) -> bool:
+    """Gates whether a client-supplied ck_precombine_status (real CKPE log data,
+    see BridgeServer.ts's _getCKPEPrecombineStatus) gets folded into this turn's
+    context and counted toward has_grounding. Deterministic keyword match, not
+    an LLM classification dimension — this is a narrow, single-purpose signal
+    (does this question need CK/precombine diagnosis) and doesn't need
+    classify_and_diagnose()'s full six-dimension machinery. A false positive
+    here just means an unused diagnosis block rides along in the prompt
+    (harmless); a false negative means a real, honest answer that exists
+    (ck_precombine_status was provided) doesn't get used, and the turn falls
+    back to normal wiki retrieval/abstention instead — never fabrication
+    either way, so this can stay conservative without a safety cost."""
+    q = question.lower()
+    ck_markers = ("precombine", "precombined", "previs", "pre-vis", "pre vis",
+                  "combined data", "combined mesh", "ckpe", "cell conflict",
+                  "cell ownership", "vis data", "vis gen", "visibility data")
+    return any(m in q for m in ck_markers)
+
+
 _CONVERSATIONAL_FILLER_WORDS = frozenset((
     "hi", "hello", "hey", "yo", "sup", "thanks", "thank", "thx", "you",
     "ok", "okay", "cool", "nice", "great", "awesome", "sounds", "good",
@@ -2096,6 +2115,8 @@ def enrich():
     raw_context     = data.get("get_context")
     blender_context = raw_context if isinstance(raw_context, dict) else None
     addon_outdated  = bool(data.get("addon_outdated"))
+    raw_ck_status   = data.get("ck_precombine_status")
+    ck_status       = raw_ck_status if isinstance(raw_ck_status, dict) else None
 
     if not question:
         return jsonify({"error": "question required"}), 400
@@ -2140,6 +2161,18 @@ def enrich():
             log.warning("game_data_index search failed (non-fatal): %s", e)
     game_data_has_results = bool(game_data_results)
 
+    # Real CK precombine diagnosis, from the user's own CKPE log — see
+    # BridgeServer.ts's _getCKPEPrecombineStatus. ck_status.detected is True
+    # only when CKPE (a third-party community tool) is actually installed and
+    # logging; a question can be ck_diagnosis_related without ck_status being
+    # usable (CKPE not installed), which is still folded into context below so
+    # the model can say so honestly, but does NOT count toward has_grounding —
+    # "CKPE isn't installed" isn't grounding, it's the honest absence of it.
+    ck_diagnosis_related = _is_ck_diagnosis_keywords(question)
+    ck_diagnosis_available = bool(
+        ck_diagnosis_related and ck_status is not None and ck_status.get("detected") is True
+    )
+
     # Inverted abstain rule: abstain only when NO source produced grounding,
     # not when wiki retrieval specifically produced none. The old rule
     # (abstain unless wiki found something, with a hand-added exemption per
@@ -2165,7 +2198,7 @@ def enrich():
     # all six classify_and_diagnose() dimensions are independent.
     has_grounding = (
         (retrieval_tier != "abstain") or scene_context_available
-        or game_data_has_results or not needs_grounding
+        or game_data_has_results or ck_diagnosis_available or not needs_grounding
     )
 
     if not has_grounding:
@@ -2184,6 +2217,7 @@ def enrich():
             "addon_outdated_relevant": addon_outdated_relevant,
             "app_help_related": app_help_related,
             "game_data_related": game_data_related, "game_data_found": False,
+            "ck_diagnosis_related": ck_diagnosis_related, "ck_diagnosis_available": False,
             "needs_grounding": needs_grounding,
             "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
             "retrieval_tier": retrieval_tier,
@@ -2242,7 +2276,45 @@ def enrich():
         formatted = game_data_index.format_game_data_results(game_data_results)
         if formatted:
             game_data_ctx = f"\n{formatted}\n"
-    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}"
+
+    # Real CK precombine diagnosis from the user's own CKPE log. Included
+    # whenever the question is CK-diagnosis-related and a status was supplied,
+    # regardless of detected/parsed — a "CKPE not detected" or "couldn't be
+    # parsed" state is still the honest, useful answer here, it just doesn't
+    # count toward has_grounding above (see the comment there). Every branch
+    # states plainly what it is: a real conflict count from CKPE's log, an
+    # explicit zero, or an explicit reason nothing could be read — never a
+    # guess standing in for a state that wasn't actually checked.
+    ck_ctx = ""
+    if ck_diagnosis_related and ck_status is not None:
+        if not ck_status.get("detected"):
+            ck_ctx = f"\nCREATION KIT DIAGNOSIS: {ck_status.get('reason') or 'CKPE not detected.'}\n"
+        elif not ck_status.get("parsed"):
+            unparsed_reason = ck_status.get("reason") or "Found CKPE's log but couldn't parse it."
+            ck_ctx = f"\nCREATION KIT DIAGNOSIS: {unparsed_reason}\n"
+        else:
+            conflicts = ck_status.get("conflicts") or []
+            count = ck_status.get("conflictCount", len(conflicts))
+            session_line = f"session {ck_status.get('sessionTimestamp')}" if ck_status.get("sessionTimestamp") else "an unknown session"
+            plugin_line = f", active plugin {ck_status.get('activePlugin')}" if ck_status.get("activePlugin") else ""
+            if count:
+                conflict_lines = "\n".join(
+                    f"- Cell {c.get('cell')} ({c.get('cellFormId')}): combined data owned by "
+                    f"{c.get('ownerFile')} due to ref {c.get('refName')} ({c.get('refFormId')})"
+                    for c in conflicts[:20]
+                )
+                ck_ctx = (
+                    f"\nCREATION KIT PRECOMBINE DIAGNOSIS (real data from the user's CKPE log, "
+                    f"{session_line}{plugin_line}): {count} precombine-ownership conflict(s) found:\n"
+                    f"{conflict_lines}\n"
+                )
+            else:
+                ck_ctx = (
+                    f"\nCREATION KIT PRECOMBINE DIAGNOSIS (real data from the user's CKPE log, "
+                    f"{session_line}{plugin_line}): no precombine-ownership conflicts found.\n"
+                )
+
+    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}{ck_ctx}"
 
     # Scene context, not the KB match, is the grounding for a scene-related
     # question when it's available — mirrors the inverted abstain rule
@@ -2258,7 +2330,8 @@ def enrich():
     # cover yet (form graph / asset graph / world strings — not indexed
     # until later phases) still hedges normally on the wiki match instead of
     # silently suppressing a disclaimer that's actually warranted there.
-    hedged = retrieval_tier == "hedge" and not scene_context_available and not game_data_has_results
+    hedged = (retrieval_tier == "hedge" and not scene_context_available
+              and not game_data_has_results and not ck_diagnosis_available)
     hedge_prefix = None
     if hedged and probe:
         top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
@@ -2284,6 +2357,7 @@ def enrich():
         # for coverage Phase 1 doesn't have yet — see
         # LocalAIEngine.ts's includeGameData wiring.
         "game_data_related": game_data_related, "game_data_found": game_data_has_results,
+        "ck_diagnosis_related": ck_diagnosis_related, "ck_diagnosis_available": ck_diagnosis_available,
         "needs_grounding": needs_grounding,
         "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
         "retrieval_tier": retrieval_tier,

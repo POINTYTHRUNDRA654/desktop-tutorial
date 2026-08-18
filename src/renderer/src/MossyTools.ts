@@ -2,6 +2,7 @@ import { logMossyError, getErrorReport } from './MossyErrorReporter';
 import { ModProjectStorage } from './services/ModProjectStorage';
 import { isDuplicateVaultEntry, pruneAutoFetchedVaultItems } from './knowledgeRetrieval';
 import { bridgeFetch } from './lib/bridgeClient';
+import { getApprovedToolsFromStorage } from './toolPermissions';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -646,15 +647,51 @@ export const executeMossyTool = async (name: string, args: any, context: {
             `\`\`\`pascal\n${code}\`\`\`\n\n` +
             `**Next:** In FO4Edit/xEdit: right-click a record → **Apply Script** → pick **${filename}**. If it doesn't appear, restart xEdit (it reads scripts on startup).`;
     } else if (name === 'check_previs_status') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            // Real cell integrity check via bridge filesystem API
-            result = `**Scanning Cell ${args.cell}...**\n\nI have verified the PreVis/Precombine data for this cell. 
-- Precombine Status: ACTIVE
-- PreVis Status: VALID
-- Conflicts: None detected in current Load Order.`;
-        } else {
-            result = `**Desktop Bridge is offline.** Real-time cell previs analysis requires the bridge.\n\nTo check cell \`${args.cell || 'unknown'}\`:\n1. Open Runtime Hub → Desktop Bridge → Start Bridge\n2. Re-run this check\n\nManual alternative: In xEdit, open your plugin, navigate to the CELL record, and confirm the "Previs Data" flag is set.`;
+        // Real diagnosis, not a live connection: Creation Kit itself has no
+        // scripting interface to talk to. This instead reads CKPE (Creation Kit
+        // Platform Extended)'s own session log — a real, third-party community
+        // tool the user must separately have installed and logging — for actual
+        // per-cell precombine-ownership conflicts. See BridgeServer.ts's
+        // _getCKPEPrecombineStatus for the honest detected/parsed state machine:
+        // "not detected", "detected but couldn't be parsed" (format may have
+        // drifted — CKPE's log is unofficial and unversioned), and "parsed" are
+        // all reported distinctly, never collapsed into a confident-sounding
+        // guess the way the old fabricated response was.
+        const cellFilter = String(args?.cell || '').trim();
+        try {
+            const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
+            if (!bridgeActive) {
+                result = `**Desktop Bridge is offline.** Real precombine diagnosis reads CKPE's own log through the Bridge.\n\n1. Open Runtime Hub → Desktop Bridge → Start Bridge\n2. Re-run this check\n\n**Manual alternative:** In xEdit, open your plugin, navigate to the CELL record, and confirm the "Previs Data" flag is set.`;
+            } else {
+                const response = await bridgeFetch('/ck/precombine-status', { method: 'GET' });
+                const status: any = await response.json();
+                if (!status.detected) {
+                    result = `**Not available:** ${status.reason}`;
+                } else if (!status.parsed) {
+                    result = `**Couldn't diagnose:** ${status.reason}\n\nLog checked: \`${status.logPath}\``;
+                } else {
+                    const allConflicts: Array<{ cell: string; cellFormId: string; ownerFile: string; refName: string; refFormId: string }> = status.conflicts || [];
+                    const matched = cellFilter
+                        ? allConflicts.filter((c) => c.cell.toLowerCase() === cellFilter.toLowerCase())
+                        : allConflicts;
+                    const asOf = status.sessionTimestamp ? ` as of ${status.sessionTimestamp}` : '';
+                    const forPlugin = status.activePlugin ? ` (active file: ${status.activePlugin})` : '';
+                    if (cellFilter) {
+                        result = matched.length > 0
+                            ? `**Cell \`${cellFilter}\`**${asOf}: ${matched.length} precombine-ownership conflict(s) found in CKPE's log${forPlugin}:\n\n` +
+                              matched.map((c) => `- Ref **${c.refName}** (${c.refFormId}) — combined data owned by \`${c.ownerFile}\``).join('\n')
+                            : `**Cell \`${cellFilter}\`**${asOf}: no precombine-ownership conflicts found for this cell in CKPE's log${forPlugin} (${status.conflictCount} total across all cells this session).`;
+                    } else {
+                        result = status.conflictCount > 0
+                            ? `**${status.conflictCount} precombine-ownership conflict(s)**${asOf}${forPlugin}, from CKPE's real session log — not a live check, this reflects what CKPE logged the last time the plugin was loaded in CK:\n\n` +
+                              matched.slice(0, 15).map((c) => `- **${c.cell}** (${c.cellFormId}) — combined data owned by \`${c.ownerFile}\` due to ref ${c.refName} (${c.refFormId})`).join('\n') +
+                              (status.conflictCount > 15 ? `\n\n...and ${status.conflictCount - 15} more. Full log: \`${status.logPath}\`` : '')
+                            : `**No precombine-ownership conflicts**${asOf}${forPlugin} in CKPE's session log.`;
+                    }
+                }
+            }
+        } catch (e: any) {
+            result = `**Error checking precombine status:** ${e?.message || e}`;
         }
     } else if (name === 'xedit_detect_conflicts') {
         const api = (window as any).electronAPI || (window as any).electron?.api;
@@ -841,11 +878,22 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 }
             }
             
-            // FALLBACK: Search detected programs cache
-            const allApps = JSON.parse(localStorage.getItem('mossy_all_detected_apps') || '[]');
-            
+            // FALLBACK: search only tools the user approved (mossy_apps, checked !== false)
+            // — never the raw mossy_all_detected_apps scan cache. The settings-field
+            // mappings above are already permission-gated (finishOnboarding only writes
+            // a settings.json path for an approved tool), but a tool without one of those
+            // ~30 hardcoded mappings used to fall through to the unfiltered cache and
+            // launch regardless of the user's approve/deny choice. Same source of truth
+            // toolPermissions.ts already uses to build the model's "approved tools" prompt
+            // context, so a tool excluded from what Mossy is told exists can't be launched
+            // anyway either.
+            const allApps = getApprovedToolsFromStorage().filter((t) => t.checked !== false && t.path);
+
             if (allApps.length === 0) {
-                result = `[MOSSY] No programs detected yet. Please run a system scan first via System Monitor → Hardware → Detect Hardware.`;
+                const everDetected = JSON.parse(localStorage.getItem('mossy_all_detected_apps') || '[]').length > 0;
+                result = everDetected
+                    ? `[MOSSY] No approved programs to launch. Tools need to be approved first — during initial setup, or in Settings → System Monitor → Approved Tools.`
+                    : `[MOSSY] No programs detected yet. Please run a system scan first via System Monitor → Hardware → Detect Hardware.`;
             } else {
                 // Smart fuzzy matching with scoring system
                 const searchTerm = programName.toLowerCase().trim();
@@ -883,7 +931,13 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 console.log(`[MOSSY LAUNCH] Scored matches for "${programName}":`, scored.slice(0, 3).map((s: any) => ({ name: s.app.displayName, score: s.score })));
                 
                 if (scored.length === 0) {
-                    result = `[MOSSY] Could not find "${programName}" in detected programs. Try asking me "what tools do I have?" to see available programs.`;
+                    // Distinguish "detected but not approved" from "never detected at all"
+                    // so the message is actually actionable instead of a flat not-found.
+                    const rawApps = JSON.parse(localStorage.getItem('mossy_all_detected_apps') || '[]');
+                    const deniedMatch = rawApps.some((a: any) => (a.displayName || a.name || '').toLowerCase().includes(searchTerm));
+                    result = deniedMatch
+                        ? `[MOSSY] "${programName}" was detected on your system but isn't approved for me to use. Approve it in Settings → System Monitor → Approved Tools.`
+                        : `[MOSSY] Could not find "${programName}" in detected programs. Try asking me "what tools do I have?" to see available programs.`;
                 } else {
                     const targetApp = scored[0].app;
                     const targetPath = targetApp.path;
@@ -1579,41 +1633,28 @@ Check your Downloads folder or the location where files are saved.`;
         }
     } else if (name === 'send_blender_shortcut') {
         result = `**Blender Shortcut Sent:** ${args.keys}\nCommand confirmed by bridge.`;
+    // The seven ck_* functions below used to gate on `mossy_bridge_active` — Mossy's
+    // own local Desktop Bridge server flag, unrelated to Creation Kit — and return a
+    // canned "success" string whenever it happened to be on, with no real CK-side
+    // listener behind any of it. Creation Kit has no scripting/automation interface
+    // for a bridge to connect to at all, so there was never a real vs. fake path here,
+    // only fake. Every one of these now says so plainly instead of fabricating a
+    // result. Real CK integration (parsing precombine/previs logs, actual record
+    // diffing) is a separate, larger project — this is just removing the fabrication.
     } else if (name === 'ck_execute_command') {
-        result = `**CK Command Executed:** ${args.command}\n✓ Command sent to Creation Kit console${args.context ? `\n📌 Context: ${args.context}` : ''}`;
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't run \`${args.command}\` in its console automatically. Run it directly in Creation Kit's own console.`;
     } else if (name === 'ck_get_formid') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            result = `**Bridge Connection Active.**\nSearching for EditorID: ${args.editorID}...\n\n*System ready for FormID retrieval from active xEdit/CK session.*`;
-        } else {
-            result = `**Offline Error:** Cannot retrieve real FormIDs. To look up FormIDs live, open Runtime Hub → Desktop Bridge and start the bridge, then re-ask Mossy.`;
-        }
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't look up the FormID for EditorID \`${args.editorID}\` automatically. In xEdit, use Ctrl+F to search for the EditorID directly.`;
     } else if (name === 'ck_create_record') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        result = bridgeActive 
-            ? `**CK Command Sent:** Create ${args.recordType} for '${args.editorID}'.\nProperties: ${args.properties}`
-            : `**Desktop Bridge is offline.** To create '${args.editorID}' (${args.recordType}) in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Confirm the CK Hub shows "Bridge Online"\n4. Re-ask Mossy to create this record`;
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't create '${args.editorID}' (${args.recordType}) automatically. Create it directly in the Creation Kit — right-click the relevant object window → New.`;
     } else if (name === 'ck_edit_record') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        result = bridgeActive
-            ? `**CK Command Sent:** Update '${args.editorID}'.\nChanges: ${args.properties}`
-            : `**Desktop Bridge is offline.** To edit '${args.editorID}' in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Confirm the CK Hub shows "Bridge Online"\n4. Re-ask Mossy to apply these changes`;
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't apply changes to '${args.editorID}' automatically. Edit it directly in the Creation Kit's object window.`;
     } else if (name === 'ck_duplicate_record') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            result = `**CK Command Sent:** Duplicate '${args.editorID}'.\nChecking for result...`;
-        } else {
-            result = `**Desktop Bridge is offline.** To duplicate '${args.editorID}' in the Creation Kit:\n1. Open Runtime Hub → Desktop Bridge tab\n2. Start the Mossy Bridge server\n3. Re-ask Mossy to duplicate this record`;
-        }
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't duplicate '${args.editorID}' automatically. In the Creation Kit, select the record and press Ctrl+D.`;
     } else if (name === 'ck_list_selected') {
-        const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
-        if (bridgeActive) {
-            result = `**Scanning CK Memory...**\nNo objects currently selected in the active render window. (Ensure CK is the focused window).`;
-        } else {
-            result = `**Desktop Bridge is offline.** Live CK selection data requires the bridge to be running.\n\nTo see selected objects: Open Runtime Hub → Desktop Bridge → Start Bridge, then make sure the Creation Kit is your focused window.`;
-        }
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't read what's currently selected in its render window. Check the Creation Kit window directly.`;
     } else if (name === 'ck_set_render_mode') {
-        result = `**CK Render Mode set to:** ${args.mode}`;
+        result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't change its render mode automatically. Set it directly from the Creation Kit's render window toolbar.`;
     } else if (name === 'search_fallout4_wiki') {
         try {
             const query: string = String(args.query || '').trim();
