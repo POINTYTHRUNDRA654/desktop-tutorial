@@ -287,10 +287,9 @@ export const PLATFORM_CATALOG: PlatformEntry[] = [
     route: '/asset-analysis',
     mainFile: 'AssetAnalysisHub.tsx',
     summary:
-      'A 7-tab hub for asset mining, conflict/performance analysis, deduplication, crash-log parsing, and 3D mesh inspection.',
+      'A 6-tab hub for asset mining, deduplication, crash-log parsing, and 3D mesh inspection.',
     features: [
       { name: 'Mining Dashboard', description: '8-sub-tab mining pipeline — ESP data, dependency graph with cycle detection, performance baseline, unused-asset/LOD/texture/animation opportunities.' },
-      { name: 'Advanced Analysis', description: 'Pattern Recognition, Performance Bottleneck Mining, Compatibility Matrix Mining (earlier rule-based demos retired in favor of Phase 2 Mining).' },
       { name: 'Phase 2 Mining', description: 'Five real backend mining engines — Contextual, ML Conflict Prediction, Performance Bottleneck Detection, Hardware-Aware, Longitudinal — feeding a live dashboard.' },
       { name: 'Asset Deduplicator', description: 'Hash-based duplicate-file scan grouped by type, reporting wasted disk/VRAM and a keep-this-one recommendation.' },
       { name: 'Crash Analyzer', description: 'Parses Buffout 4 / Buffout 4 NG / CLASSIC-style crash logs against known patterns, extracting FormIDs/plugins/callstack with severity-rated fixes.' },

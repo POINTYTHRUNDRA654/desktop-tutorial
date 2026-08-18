@@ -141,7 +141,6 @@ const ProjectSelector = React.lazy(() => import('./ProjectSelector').then(module
 
 // Mining Infrastructure
 const MiningPanel = React.lazy(() => import('./MiningPanel').then(module => ({ default: module.MiningPanel })));
-const AdvancedAnalysisPanel = React.lazy(() => import('./AdvancedAnalysisPanel').then(module => ({ default: module.AdvancedAnalysisPanel })));
 
 // Mining Infrastructure
 
@@ -240,7 +239,7 @@ const KEEP_ALIVE_PATHS = new Set([
   '/tools/log-monitor', '/tools/xedit', '/tools/ck-extension', '/tools/project-templates',
   '/tools/formid-remapper', '/tools/precombine-generator', '/tools/voice-commands',
   '/tools/automation', '/tools/ck-crash-prevention', '/tools/security', '/tools/mining',
-  '/tools/advanced-analysis', '/tools/blueprint', '/tools/scribe', '/tools/vault',
+  '/tools/blueprint', '/tools/scribe', '/tools/vault',
   '/tools/ba2-manager', '/tools/cosmos', '/dev', '/dev/workshop', '/mods',
   '/dev/orchestrator', '/dev/workflow-runner', '/dev/workflow-recorder',
   '/dev/plugin-manager', '/dev/load-order', '/media', '/media/images', '/test',
@@ -1599,7 +1598,6 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/tools/security"><ErrorBoundary><SecurityValidator /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/system-hub"><ErrorBoundary><SystemHub /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/mining"><ErrorBoundary><MiningPanel /></ErrorBoundary></KeepAlivePanel>
-              <KeepAlivePanel path="/tools/advanced-analysis"><ErrorBoundary><AdvancedAnalysisPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/blueprint"><ErrorBoundary><TheBlueprint /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/scribe"><ErrorBoundary><TheScribe /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/tools/vault"><ErrorBoundary><TheVault /></ErrorBoundary></KeepAlivePanel>

@@ -2,17 +2,23 @@
  * FO4 Asset Analysis Hub
  *
  * Unified platform for all mod asset analysis, mining, and deduplication.
- * Consolidates: Mining Dashboard · Advanced Analysis · Asset Deduplicator · FO4 Analysis Guide
+ * Consolidates: Mining Dashboard · Phase 2 Mining · Asset Deduplicator · FO4 Analysis Guide
+ *
+ * Advanced Analysis (Conflicts/Perf/Memory) removed 2026-08-18 — its own header
+ * comment documented that the hardware/conflict/memory engines it displayed had
+ * been deleted for fabricating output (random scores, random hardware) and
+ * replaced by Phase 2 Mining's real detected-hardware/FormID-conflict data, but
+ * the tab itself was left wired in as a live, selectable dead end sitting next
+ * to its real replacement — exactly the shape of bug this build's CK fabrication
+ * fix was about. Removed rather than left as a trap for a future stale-cache or
+ * build issue to make it look live again.
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Binary, Brain, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box, Skull, Cpu } from 'lucide-react';
+import { Binary, Copy, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Box, Skull, Cpu } from 'lucide-react';
 
 const MiningPanel = React.lazy(() =>
   import('./MiningPanel').then((m) => ({ default: m.MiningPanel }))
-);
-const AdvancedAnalysisPanel = React.lazy(() =>
-  import('./AdvancedAnalysisPanel').then((m) => ({ default: m.AdvancedAnalysisPanel }))
 );
 const AssetDeduplicator = React.lazy(() => import('./AssetDeduplicator'));
 const AssetViewer3D = React.lazy(() =>
@@ -23,11 +29,10 @@ const CrashLogAnalyzer = React.lazy(() =>
 );
 const Phase2MiningPanel = React.lazy(() => import('./Phase2MiningPanel'));
 
-type HubTab = 'mining' | 'analysis' | 'dedup' | 'guide' | 'viewer' | 'crash' | 'phase2';
+type HubTab = 'mining' | 'dedup' | 'guide' | 'viewer' | 'crash' | 'phase2';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'mining',   icon: Binary,        label: 'Mining Dashboard',  sublabel: 'ESP · Assets · Dependencies' },
-  { id: 'analysis', icon: Brain,         label: 'Advanced Analysis', sublabel: 'Conflicts · Perf · Memory' },
   { id: 'phase2',   icon: Cpu,           label: 'Phase 2 Mining',    sublabel: 'ML Conflict · Hardware · Trends' },
   { id: 'dedup',    icon: Copy,          label: 'Asset Deduplicator',sublabel: 'Duplicates · VRAM' },
   { id: 'crash',    icon: Skull,         label: 'Crash Analyzer',    sublabel: 'Buffout4 · CLASSIC · FormIDs' },
@@ -241,7 +246,7 @@ const AssetAnalysisHub: React.FC = () => {
           <div>
             <h1 className="text-xl font-black text-white tracking-tight">FO4 Asset Analysis Hub</h1>
             <p className="text-xs text-slate-400">
-              Mining Dashboard · Advanced Analysis · Deduplicator · FO4 Asset Guide
+              Mining Dashboard · Phase 2 Mining · Deduplicator · FO4 Asset Guide
             </p>
           </div>
         </div>
@@ -272,11 +277,6 @@ const AssetAnalysisHub: React.FC = () => {
         {activeTab === 'mining' && (
           <PanelLoader>
             <MiningPanel />
-          </PanelLoader>
-        )}
-        {activeTab === 'analysis' && (
-          <PanelLoader>
-            <AdvancedAnalysisPanel />
           </PanelLoader>
         )}
         {activeTab === 'phase2' && (

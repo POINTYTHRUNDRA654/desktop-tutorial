@@ -6,7 +6,6 @@ import userEvent from '@testing-library/user-event';
 import DesktopBridge, { fetchBlenderAddon } from '../DesktopBridge';
 import * as DesktopBridgeModule from '../DesktopBridge';
 import PluginManager from '../PluginManager';
-import { AdvancedAnalysisPanel } from '../AdvancedAnalysisPanel';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mock electron API for testing
@@ -129,9 +128,4 @@ describe('Prototype banner tests', () => {
     expect(screen.getByRole('button', { name: /Install Downloaded Plugin Folder/i })).toBeInTheDocument();
   });
 
-  test('AdvancedAnalysisPanel shows real engine status, not a prototype warning', () => {
-    render(<AdvancedAnalysisPanel />, { wrapper: ({ children }) => <MemoryRouter>{children}</MemoryRouter> });
-    expect(screen.getAllByText(/analysis engine/i).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/prototype/i)).not.toBeInTheDocument();
-  });
 });
