@@ -14,6 +14,9 @@ import {
 } from './knowledgeRetrieval';
 import { selfImprovementEngine } from './SelfImprovementEngine';
 import { getApprovedToolsFromStorage } from './toolPermissions';
+import { bridgeFetch } from './lib/bridgeClient';
+import { getPlatformMapBlockForPrompt } from './platformCatalog';
+import { getFullSystemInstruction, getCoreIdentityBlock } from './MossyBrain';
 
 export interface AIResponse {
   content: string;
@@ -24,9 +27,12 @@ export interface AIResponse {
    *  ignore it entirely. */
   reasoning?: string;
 
-  // --- Brain B tutor contract (see brain-b/gemma_service_enhanced.py's /infer) ---
-  // Only populated when Brain B answered this turn; undefined for every other
-  // provider, including when Brain B abstained (still populated then — abstained
+  // --- Brain B tutoring contract (see brain-b/gemma_service_enhanced.py's /enrich) ---
+  // Populated by generateResponse()'s enrichment step whenever Brain B is installed
+  // and running, regardless of which provider actually generated `content` — Brain B
+  // is enrichment that wraps any generator now, not a generator itself (see
+  // docs/ARCHITECTURE.md's "Target layer model"). undefined when Brain B isn't
+  // installed/running for this turn; still populated on an abstained turn (abstained
   // itself is the signal, not a missing response).
   /** teach | answer | debug — set by Brain B's mode classifier. */
   mode?: 'teach' | 'answer' | 'debug';
@@ -38,6 +44,37 @@ export interface AIResponse {
    *  `content` is already the honest "I don't know" message in that case, not
    *  an error; render it plainly rather than as a failure. */
   abstained?: boolean;
+  /** True when Brain B's server-side classify_mode() flagged the question as
+   *  about the user's live Blender scene AND actually had scene data to use —
+   *  drives a "read your scene" indicator in the chat UI. */
+  usedSceneContext?: boolean;
+  /** True when THIS question was scene_related but couldn't use scene data
+   *  specifically because the connected Blender add-on is too old to support
+   *  get_context (confirmed via a get_capabilities handshake, not guessed) —
+   *  distinct from "Blender just isn't open." Drives an "update your Blender
+   *  add-on" notice instead of a silent abstain. */
+  addonOutdated?: boolean;
+  /** True when /enrich itself couldn't be reached this turn (Brain B not
+   *  installed, not running, or its health check failed) — mode/diagnosis/
+   *  checkQuestion/usedSceneContext etc. are all simply absent in that case,
+   *  not false. Distinct from a normal non-scene turn: this means Mossy
+   *  answered with zero retrieval/citations/scene-awareness for a reason
+   *  that has nothing to do with the question itself. Surfaced explicitly
+   *  rather than left for the model to guess at — found live: with this
+   *  unset, a scene question with no data got a confident "I don't have
+   *  access to your machine," a wrong claim about capability, when the
+   *  actual, true, narrower statement was "the context service isn't
+   *  running right now." Same principle as `abstained` — say what's
+   *  actually true rather than something merely plausible. */
+  enrichmentUnavailable?: boolean;
+  /** True when this answer came from a local model as a fallback because
+   *  Mossy's actual primary (Groq/backend cloud generation) was unavailable
+   *  for this turn — not a routine choice, an unannounced quality drop the
+   *  user should be able to see. See _generateResponseCore()'s "preferCloud"
+   *  handling for why this exists: a local model (often a small one, e.g.
+   *  gemma2:9b) is meaningfully weaker at following a system prompt this
+   *  large than Mossy's real primary is. */
+  usedLocalFallback?: boolean;
 }
 
 /** Minimal shape of a successful web search result used internally. */
@@ -47,7 +84,7 @@ interface WebSearchResult {
   source?: string;
 }
 
-type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'brainb' | 'off';
+type LocalAiPreferred = 'auto' | 'cosmos' | 'ollama' | 'openai_compat' | 'off';
 
 type LocalAiSettings = {
   localAiPreferredProvider?: LocalAiPreferred;
@@ -57,9 +94,13 @@ type LocalAiSettings = {
   openaiCompatModel?: string;
   cosmosBaseUrl?: string;
   cosmosModel?: string;
-  /** Brain B — Mossy's own local RAG/tutor Flask service (brain-b/gemma_service_enhanced.py).
-   *  Default port 8766, not 8765 — that port is already claimed by the F4AI NPC-dialogue relay
-   *  this same app starts unconditionally (see src/electron/main.ts). */
+  /** Brain B — Mossy's own local retrieval/tutoring enrichment service
+   *  (brain-b/gemma_service_enhanced.py). No longer a selectable generation
+   *  provider (see docs/ARCHITECTURE.md's "Target layer model", 2026-08-15) —
+   *  this is just where to reach it for the unconditional enrichment step in
+   *  generateResponse() below. Default port 8766, not 8765 — that port is
+   *  already claimed by the F4AI NPC-dialogue relay this same app starts
+   *  unconditionally (see src/electron/main.ts). */
   brainBBaseUrl?: string;
 };
 
@@ -87,6 +128,153 @@ const APP_SESSION_ID: string =
  * model needs continuity across launches to mean anything. Memoized after
  * first resolution so repeated calls in one session don't re-hit settings I/O.
  */
+/**
+ * Live Blender scene snapshot for Brain B's `get_context` — same
+ * BridgeServer.ts `/execute {type:'context'}` call DesktopBridge.tsx's
+ * fetchBlenderContext already uses, reached here via the shared bridgeFetch()
+ * client (auth token handled there, see bridgeClient.ts).
+ *
+ * Deliberately opportunistic, but the timeout here is 2500ms, not something
+ * tighter — checked BridgeServer.ts's own _blenderSend() (the TCP call to the
+ * Blender add-on, POINTYTHRUNDRA654/Blender-add-on's mossy_link.py) and its
+ * _build_scene_context():
+ * "Blender not running" fails via a near-instant ECONNREFUSED, not a slow
+ * timeout, so a generous budget here costs nothing on the common path. But
+ * the active object's triangle count is a pure-Python sum over
+ * mesh.polygons — genuinely slow for one very-high-poly active mesh — and
+ * BridgeServer.ts's own internal timeout for this call is already 3000ms.
+ * An 800ms client-side timeout would have been the tightest link in that
+ * chain, silently cutting off requests that would've succeeded within
+ * Blender's own allowance — the feature would work in every quick manual
+ * test and then quietly stop firing on a heavy real scene. 2500ms leaves
+ * BridgeServer's 3000ms as the outer bound instead.
+ *
+ * ECONNREFUSED (Blender not running) isn't the only failure mode though —
+ * Blender can be OPEN and its socket ACCEPTED but genuinely stalled (mid-
+ * render, evaluating a heavy modifier stack, a modal operator running). That
+ * case doesn't fail fast; it eats the full 2500ms, on every single Brain B
+ * question, for as long as Blender stays busy — a user with a render going
+ * would just experience Mossy as generally slow, with nothing connecting
+ * that to Blender. So: after an actual timeout (not any other failure —
+ * ECONNREFUSED, bad JSON, a 401, etc. all still retry next turn normally),
+ * skip the scene fetch entirely for the next 30s. Degrades to one slow turn
+ * instead of every turn for the duration of whatever Blender is busy with.
+ *
+ * Any failure (timeout, Blender not connected, bad JSON) resolves to
+ * { context: null, addonOutdated: false } rather than throwing; the caller
+ * treats a null context exactly like "no scene context available".
+ *
+ * Version handshake: get_context's response, when the connected add-on is
+ * an old build that predates it, comes back as a plain
+ * {status:'error', message:"Unknown command type: 'get_context'"} — which,
+ * from the client's side, is indistinguishable from any other failure
+ * unless checked for specifically. Found live: an outdated add-on silently
+ * abstained exactly like Blender-not-running did, with no way for the user
+ * to know updating the add-on would fix it. On that specific shape (not on
+ * every failure — a genuinely closed connection still just means no
+ * Blender), this calls get_capabilities to confirm and sets addonOutdated
+ * so the UI can say "update your Blender add-on" instead of staying silent.
+ */
+const BLENDER_BUSY_COOLDOWN_MS = 30_000;
+let _blenderBusyUntil = 0;
+
+interface BlenderContextResult {
+  context: Record<string, unknown> | null;
+  addonOutdated: boolean;
+}
+
+async function checkAddonSupportsGetContext(): Promise<boolean> {
+  try {
+    const response = await bridgeFetch('/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'capabilities' }),
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!response.ok) return true; // can't confirm either way — don't claim outdated on a guess
+    const data = await response.json();
+    if (data?.status !== 'success') return true;
+    const raw = String(data?.response || '');
+    if (!raw) return true;
+    const parsed = JSON.parse(raw);
+    const supported = parsed?.supported_commands;
+    if (!Array.isArray(supported)) return true; // unrecognized shape — don't guess
+    return supported.includes('get_context');
+  } catch {
+    return true; // capabilities check itself failed — not confident enough to claim outdated
+  }
+}
+
+/**
+ * Caps how many selected-object names get sent, replacing the rest with a
+ * count. The actual unbounded risk in this payload is narrower than "per-
+ * object detail" might suggest: `_build_scene_context()` (public/
+ * mossy_link_addon.py:257-300, the reference get_context shape) already
+ * scopes mesh/material stats to the single active object only — there is no
+ * per-object array of mesh data to trim. The one field with no natural
+ * ceiling is `selected`, a flat list of object name strings — a user doing
+ * Select All on a scene with thousands of objects sends thousands of name
+ * strings verbatim. Checked against the real code before trimming rather
+ * than trimming a shape that was assumed rather than read.
+ */
+const MAX_SELECTED_NAMES = 20;
+
+function trimBlenderContext(ctx: Record<string, unknown>): Record<string, unknown> {
+  const selected = ctx.selected;
+  if (!Array.isArray(selected) || selected.length <= MAX_SELECTED_NAMES) return ctx;
+  return {
+    ...ctx,
+    selected: selected.slice(0, MAX_SELECTED_NAMES),
+    selectedTotalCount: selected.length,
+  };
+}
+
+async function fetchLiveBlenderContext(): Promise<BlenderContextResult> {
+  const NO_CONTEXT: BlenderContextResult = { context: null, addonOutdated: false };
+  if (Date.now() < _blenderBusyUntil) return NO_CONTEXT;
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => { timedOut = true; controller.abort(); }, 2500);
+  try {
+    const response = await bridgeFetch('/execute', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'context' }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return NO_CONTEXT;
+    const data = await response.json();
+    if (data?.status !== 'success') return NO_CONTEXT;
+    const raw = String(data?.response || '');
+    if (!raw) return NO_CONTEXT;
+    const parsed = JSON.parse(raw);
+
+    if (parsed?.status === 'error') {
+      const unknownType = /unknown command type/i.test(String(parsed?.message || ''));
+      if (unknownType) {
+        const supportsGetContext = await checkAddonSupportsGetContext();
+        return { context: null, addonOutdated: !supportsGetContext };
+      }
+      return NO_CONTEXT;
+    }
+
+    // mossy_link.py wraps the scene dict under "context" — see
+    // _execute_command_on_main_thread's get_context branch.
+    const ctx = parsed?.context;
+    return (ctx && typeof ctx === 'object')
+      ? { context: trimBlenderContext(ctx), addonOutdated: false }
+      : NO_CONTEXT;
+  } catch {
+    if (timedOut) {
+      _blenderBusyUntil = Date.now() + BLENDER_BUSY_COOLDOWN_MS;
+    }
+    return NO_CONTEXT;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 let _cachedUserId: string | null = null;
 async function getOrCreateUserId(): Promise<string> {
   if (_cachedUserId) return _cachedUserId;
@@ -112,6 +300,304 @@ async function getOrCreateUserId(): Promise<string> {
 }
 
 /**
+ * Result of Brain B's /enrich — the pre-generation half of what used to be
+ * Brain B's own exclusive /infer path (docs/ARCHITECTURE.md's "Target layer
+ * model", 2026-08-15). null anywhere this is used means Brain B isn't
+ * installed/running; every caller treats that exactly like today's
+ * fallthrough — skip enrichment, generate normally.
+ */
+interface EnrichmentResult {
+  abstained: boolean;
+  /** Ready-to-display abstain message when abstained is true; null otherwise. */
+  answer: string | null;
+  mode: 'teach' | 'answer' | 'debug';
+  sceneRelated: boolean;
+  diagnosis: string | null;
+  answerLevel: string | null;
+  nextSkill: string | null;
+  /** Pre-assembled grounding block (KB excerpts, past episodes, diagnosis/
+   *  level framing, live scene JSON when relevant) — fold into whatever
+   *  prompt the resolved provider builds. "" when nothing was retrieved. */
+  retrievedContext: string;
+  usedWeb: boolean;
+  sources: any[];
+  pastEpisodes: any[];
+  hedged: boolean;
+  /** When hedged, prepend this exact string to the generated answer text
+   *  before displaying it. Applied once, centrally, by the generateResponse()
+   *  wrapper below — not by each individual provider branch. */
+  hedgePrefix: string | null;
+  usedSceneContext: boolean;
+  contextForGeneration: Record<string, unknown> | null;
+  addonOutdatedRelevant: boolean;
+  /** True when this turn is about navigating/using MOSSY.SPACE itself
+   *  rather than FO4 modding knowledge — gates whether the ~1,170-token
+   *  platform-catalog block gets folded into the prompt (see
+   *  generateResponse() below and platformCatalog.ts's
+   *  getPlatformMapBlockForPrompt()), the same way scene_related gates
+   *  scene JSON. */
+  appHelpRelated: boolean;
+  /** Retrieval diagnostics from Brain B's abstention gate — how many probe
+   *  results agreed across vector+BM25, and the BM25 score gap between the
+   *  best and worst probe result. Not used for any decision on this side
+   *  (Brain B already applied them server-side to reach `retrievalTier`) —
+   *  exposed purely for the turn-trace diagnostics panel, so "why did this
+   *  turn hedge/abstain" is answerable from the UI instead of only from
+   *  Brain B's own server-side logs. */
+  retrievalAgreement: number | null;
+  retrievalMargin: number | null;
+  retrievalTier: 'abstain' | 'hedge' | 'confident' | null;
+  /** True when this turn needs a specific vanilla-game fact (FormID, EditorID,
+   *  load order, a Papyrus function signature, exact asset paths) that only
+   *  the scanned-game "neuron" data (main.ts's buildBrainNeuronBlock(),
+   *  ~155K chars measured live) could confirm — gates that injection into
+   *  the cloud call the same way sceneRelated/appHelpRelated gate their own
+   *  blocks. Found live: the neuron block was riding on every single cloud
+   *  call unconditionally, including "hi" — the dominant contributor to the
+   *  oversized prompts behind both the local-fallback persona bug and (per
+   *  LiveContext.tsx's own comment) the reason voice's watchdog was raised
+   *  from 50s to 120s in the first place. */
+  gameDataRelated: boolean;
+  /** Whether Brain B's Phase-1 game-data index (Papyrus API only so far —
+   *  see docs-dev/GAME_DATA_RETRIEVAL_MERGE_PROJECT.md) actually found a
+   *  match for this turn, as opposed to just gameDataRelated's classifier
+   *  judgment that it needed one. The client gates `includeGameData` (main.ts's
+   *  ~155K-char neuron-block dump) on `gameDataRelated && !gameDataFound` —
+   *  a ranked-and-found turn shouldn't ALSO carry the blunt dump alongside
+   *  it, or a game-data turn ends up more expensive than before this
+   *  feature existed instead of less, on top of every other turn getting
+   *  cheaper. The dump still fires as a fallback when this is false (a
+   *  game-data turn Phase 1's Papyrus-only coverage doesn't have an answer
+   *  for yet — form graph, asset graph, world strings are still unindexed). */
+  gameDataFound: boolean;
+  /** False for pure conversational turns (greetings, thanks, small talk) —
+   *  Brain B's abstain gate treats this as automatic grounding (folded into
+   *  the same has_grounding OR-chain as scene/game-data), so "hi" no longer
+   *  abstains and returns the canned "I don't have documentation covering
+   *  that" as if it were a real answer. Not currently used by the client
+   *  for any decision — enrichWithBrainB()'s abstained check already
+   *  reflects this server-side — kept here for turn-trace visibility,
+   *  matching every other classify_and_diagnose() dimension. */
+  needsGrounding: boolean;
+}
+
+/**
+ * /enrich's own timeout budget. 15s is fine for regular chat, where a few
+ * extra seconds behind a "thinking" indicator is unremarkable. It is NOT
+ * fine for voice: /enrich does real sequential work before generation even
+ * starts (classify_and_diagnose is itself an LLM call, plus two
+ * hybrid_retrieve calls, plus a possible web_search fallback) — a live
+ * turn's ceiling is LiveContext.tsx's 120s watchdog, and generation ALONE
+ * can already eat 30-90s of that on a cold Render backend (see that file's
+ * own comment on why the watchdog was raised from 50s to 120s in the first
+ * place). Found live: voice hit "Processing taking too long, restarting
+ * link" after this file made /enrich run unconditionally for every turn,
+ * including voice, which never touched Brain B at all before that change.
+ * A slow-but-not-yet-timed-out enrichment call was eating enough of the
+ * 120s budget on its own to tip generation over the edge — not a timeout
+ * failure so much as a latency tax voice was never budgeted to pay.
+ *
+ * 3s (the original value here) turned out too tight the other direction: a
+ * warm, working /enrich round trip (classify_and_diagnose over the network
+ * plus retrieval) measured ~1.9s on its own with nothing unusual going on —
+ * under 1.2s of slack before any real-world jitter. That's enough to time
+ * out on a routine basis, which silently discards real scene context/
+ * classification on exactly the turns a user is most likely to be testing
+ * (a live scene question), falling through to the null-enrichment path with
+ * no scene data to answer from. 6s keeps voice's worst case (6s enrich +
+ * 90s cold generation = 96s) safely under the 120s watchdog while giving
+ * the common case room to actually finish instead of racing it.
+ */
+const ENRICH_TIMEOUT_MS_CHAT = 15_000;
+const ENRICH_TIMEOUT_MS_VOICE = 6_000;
+
+/**
+ * One record per generateResponse() call — the "turn trace" the AI Pipeline
+ * Preflight panel (SystemHub → Diagnostics → AI Pipeline) reads from. Built
+ * to answer, for each of the last few turns, the exact question a person
+ * debugging Mossy by hand has to walk layer-by-layer to answer today: which
+ * provider actually spoke, did enrichment run, what did Brain B decide, and
+ * how long did each stage take. `contractSuccess`/`contractLatencyMs` start
+ * unset and get filled in later — /contract is fire-and-forget, resolving
+ * after the turn has already returned (see generateResponse()'s docstring).
+ */
+export interface TurnTraceEntry {
+  timestamp: number;
+  /** Truncated — this is a debugging aid kept in memory and on disk, not a
+   *  place to retain a user's full question text indefinitely. */
+  queryPreview: string;
+  voiceMode: boolean;
+  preferCloud: boolean;
+  enrichmentRan: boolean;
+  enrichmentUnavailable: boolean;
+  mode: 'teach' | 'answer' | 'debug' | null;
+  abstained: boolean;
+  sceneRelated: boolean | null;
+  appHelpRelated: boolean | null;
+  retrievalAgreement: number | null;
+  retrievalMargin: number | null;
+  retrievalTier: 'abstain' | 'hedge' | 'confident' | null;
+  usedSceneContext: boolean | null;
+  /** Byte length of the JSON-serialized live scene context, if any was
+   *  attached — 0 means none, not "unavailable" (contextForGeneration is
+   *  simply not present on this turn). */
+  sceneContextBytes: number;
+  hedged: boolean | null;
+  usedLocalFallback: boolean;
+  providerUsed: string;
+  enrichMs: number | null;
+  generateMs: number | null;
+  totalMs: number;
+  contractSuccess: boolean | null;
+  contractLatencyMs: number | null;
+}
+
+const MAX_RECENT_TURNS = 20;
+const _recentTurns: TurnTraceEntry[] = [];
+
+function recordTurnTrace(entry: TurnTraceEntry): void {
+  _recentTurns.push(entry);
+  if (_recentTurns.length > MAX_RECENT_TURNS) _recentTurns.shift();
+  try {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    void api?.writeDiagnosticLog?.(`[turn] ${JSON.stringify(entry)}`);
+  } catch { /* diagnostics logging is itself non-critical */ }
+}
+
+/** Re-persists a turn's entry after /contract settles (see TurnTraceEntry's
+ *  docstring) — appends a second JSONL line rather than rewriting the first,
+ *  since the on-disk log is append-only by design. */
+function updateTurnTraceContract(entry: TurnTraceEntry, success: boolean, latencyMs: number): void {
+  entry.contractSuccess = success;
+  entry.contractLatencyMs = latencyMs;
+  try {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    void api?.writeDiagnosticLog?.(`[turn-contract-update] ${JSON.stringify({ timestamp: entry.timestamp, queryPreview: entry.queryPreview, contractSuccess: success, contractLatencyMs: latencyMs })}`);
+  } catch { /* non-critical */ }
+}
+
+/**
+ * Calls Brain B's /enrich. Health-checks first and fails fast (short timeout,
+ * swallowed error) rather than letting a not-installed/not-running Brain B
+ * add latency to every single turn for every user — this is what makes
+ * enrichment safe to call unconditionally instead of only for users who'd
+ * explicitly selected Brain B as a provider. On voice, a slow-but-live Brain B
+ * is treated exactly like an unavailable one past ENRICH_TIMEOUT_MS_VOICE —
+ * degrading to unenriched generation is strictly better than eating enough of
+ * the 120s voice watchdog budget to break the turn entirely.
+ */
+async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMode: boolean): Promise<EnrichmentResult | null> {
+  try {
+    const health = await fetch(`${brainBBaseUrl}/health`, { signal: AbortSignal.timeout(1500) });
+    if (!health.ok) return null;
+    const healthData = await health.json();
+    if (healthData?.status !== 'ok') return null;
+  } catch {
+    return null; // not installed / not running
+  }
+
+  try {
+    const [userId, blenderResult] = await Promise.all([
+      getOrCreateUserId(),
+      fetchLiveBlenderContext(),
+    ]);
+    const resp = await fetch(`${brainBBaseUrl}/enrich`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question, session_id: APP_SESSION_ID, user_id: userId,
+        get_context: blenderResult.context ?? undefined,
+        addon_outdated: blenderResult.addonOutdated,
+      }),
+      signal: AbortSignal.timeout(voiceMode ? ENRICH_TIMEOUT_MS_VOICE : ENRICH_TIMEOUT_MS_CHAT),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (data?.error) return null;
+    return {
+      abstained: !!data?.abstained,
+      answer: data?.answer ?? null,
+      mode: (data?.mode === 'teach' || data?.mode === 'debug') ? data.mode : 'answer',
+      sceneRelated: !!data?.scene_related,
+      diagnosis: data?.diagnosis ?? null,
+      answerLevel: data?.answer_level ?? null,
+      nextSkill: data?.next_skill ?? null,
+      retrievedContext: String(data?.retrieved_context || ''),
+      usedWeb: !!data?.used_web,
+      sources: Array.isArray(data?.sources) ? data.sources : [],
+      pastEpisodes: Array.isArray(data?.past_episodes) ? data.past_episodes : [],
+      hedged: !!data?.hedged,
+      hedgePrefix: data?.hedge_prefix ?? null,
+      usedSceneContext: !!data?.used_scene_context,
+      contextForGeneration: (data?.context_for_generation && typeof data.context_for_generation === 'object')
+        ? data.context_for_generation : null,
+      addonOutdatedRelevant: !!data?.addon_outdated_relevant,
+      appHelpRelated: !!data?.app_help_related,
+      retrievalAgreement: typeof data?.retrieval_agreement === 'number' ? data.retrieval_agreement : null,
+      retrievalMargin: typeof data?.retrieval_margin === 'number' ? data.retrieval_margin : null,
+      retrievalTier: (data?.retrieval_tier === 'abstain' || data?.retrieval_tier === 'hedge' || data?.retrieval_tier === 'confident')
+        ? data.retrieval_tier : null,
+      gameDataRelated: !!data?.game_data_related,
+      gameDataFound: !!data?.game_data_found,
+      needsGrounding: data?.needs_grounding !== false,
+    };
+  } catch {
+    return null; // enrichment failed mid-flight — fail open, generate without it
+  }
+}
+
+/**
+ * Fire-and-forget /contract call. Deliberately never awaited by
+ * generateResponse() — the answer already rendered by the time this
+ * resolves. mode/diagnosis/sources are passed through explicitly from the
+ * /enrich result rather than recomputed here; recomputing would classify and
+ * diagnose the same question twice per turn, exactly the round-trip cost
+ * activating classify_and_diagnose() in /enrich was meant to remove. Errors
+ * and timeouts are swallowed — the caller keeps a working answer and only
+ * loses the tutoring extras (check_question, learner_signal) for this turn.
+ */
+async function sendContractAsync(
+  brainBBaseUrl: string,
+  question: string,
+  answer: string,
+  enrichment: EnrichmentResult,
+  onContractReady?: (fields: { checkQuestion: string | null; learnerSignal: string | null }) => void,
+  traceEntry?: TurnTraceEntry,
+): Promise<void> {
+  const contractStart = Date.now();
+  try {
+    const resp = await fetch(`${brainBBaseUrl}/contract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question, answer, mode: enrichment.mode, diagnosis: enrichment.diagnosis,
+        session_id: APP_SESSION_ID, sources: enrichment.sources,
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!resp.ok) {
+      if (traceEntry) updateTurnTraceContract(traceEntry, false, Date.now() - contractStart);
+      onContractReady?.({ checkQuestion: null, learnerSignal: null });
+      return;
+    }
+    const data = await resp.json();
+    if (traceEntry) updateTurnTraceContract(traceEntry, true, Date.now() - contractStart);
+    onContractReady?.({
+      checkQuestion: data?.check_question ?? null,
+      learnerSignal: data?.learner_signal ?? null,
+    });
+  } catch {
+    // Fail open — deliberate, see docstring above. Still fires the callback
+    // with nulls rather than staying silent: a caller showing a "pending"
+    // state for this turn (e.g. a check-question placeholder) needs a
+    // definitive settle signal even when nothing came back, or that
+    // placeholder is stuck forever instead of just quietly disappearing.
+    if (traceEntry) updateTurnTraceContract(traceEntry, false, Date.now() - contractStart);
+    onContractReady?.({ checkQuestion: null, learnerSignal: null });
+  }
+}
+
+/**
  * Minimum ratio of sanitised text length to original that must be preserved for
  * `sanitizeFinalResponse` to return the sanitised version.  If sanitisation would
  * remove more than (1 - MIN_SANITIZED_TEXT_RATIO) of the text — i.e. the response
@@ -119,6 +605,50 @@ async function getOrCreateUserId(): Promise<string> {
  * returning an empty or misleadingly-short string to the user.
  */
 const MIN_SANITIZED_TEXT_RATIO = 0.3;
+
+/**
+ * Conservative character budget for a prompt handed to a LOCAL model —
+ * roughly 2,000 tokens, leaving generous room for a small local model's own
+ * response inside an ~8K-token-class context window (gemma2:9b and similar).
+ * getFullSystemInstruction() alone measures ~141,000 characters — before
+ * Brain B's retrieval context, conversation history, or anything else is
+ * even added — so any turn using this budget is already far past it.
+ */
+const LOCAL_MODEL_PROMPT_BUDGET = 8_000;
+
+/**
+ * Builds the prompt actually sent to a local model. Below budget, this is
+ * just the full assembled prompt, same as always. Over budget — the normal
+ * case, given getFullSystemInstruction() alone is ~35x this budget — this
+ * drops the full prompt entirely rather than silently truncating it (which
+ * is what letting an oversized string reach Ollama/the local API would do,
+ * and truncation from either end is exactly as likely to cut the identity
+ * block or the live scene data as anything else). Instead it rebuilds a
+ * small, guaranteed-complete prompt from just the pieces that actually
+ * matter for a fallback answer: who Mossy is, and the live scene data if
+ * this turn has any — not the ~141K-char base prompt or Brain B's KB
+ * retrieval, which a model this size can't meaningfully use anyway. Found
+ * live (2026-08-16): scene questions that correctly had real scene data
+ * attached still got "I'm just a text-based AI" specifically on turns that
+ * fell back to a local model — the full prompt was too large for local
+ * generation to reliably carry the parts that mattered, not because the
+ * model was ignoring its instructions.
+ */
+function buildPromptForLocalModel(
+  fullSystemInstruction: string,
+  sceneContext: Record<string, unknown> | null | undefined,
+  extraDirective: string,
+  historyText: string,
+  query: string,
+): string {
+  if (fullSystemInstruction.length <= LOCAL_MODEL_PROMPT_BUDGET) {
+    return `${fullSystemInstruction}${extraDirective}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+  }
+  const sceneBlock = sceneContext
+    ? `\nLIVE BLENDER SCENE (what's actually open in the user's Blender right now — answer using THIS, not general knowledge, when the question is about their current scene):\n${JSON.stringify(sceneContext, null, 2)}\n`
+    : '';
+  return `${getCoreIdentityBlock()}${sceneBlock}${extraDirective}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+}
 
 export const LocalAIEngine = {
   /**
@@ -233,7 +763,6 @@ export const LocalAIEngine = {
     | { ok: true; provider: 'openai_compat'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'koboldcpp'; baseUrl: string; models: string[] }
     | { ok: true; provider: 'fo4bridge'; baseUrl: string; models: string[] }
-    | { ok: true; provider: 'brainb'; baseUrl: string; models: string[] }
     | { ok: false; reason: string }
   > {
     try {
@@ -269,25 +798,8 @@ export const LocalAIEngine = {
       } catch { /* not running */ }
       const BRIDGE_BASE = 'http://127.0.0.1:28485';
 
-      // Check Brain B (default port 8766) — Mossy's own local RAG/tutor service. Optional,
-      // user-started (brain-b/gemma_service_enhanced.py), not bundled or auto-launched.
-      let brainbOk = false;
-      const BRAINB_BASE = String(settings.brainBBaseUrl || 'http://127.0.0.1:8766');
-      try {
-        const bb = await fetch(`${BRAINB_BASE}/health`, { signal: AbortSignal.timeout(1500) });
-        if (bb.ok) {
-          const bs = await bb.json();
-          brainbOk = bs?.status === 'ok';
-        }
-      } catch { /* not running */ }
-
       const pickAuto = () => {
         if (cosmosOk) return { ok: true as const, provider: 'cosmos' as const, baseUrl: caps.cosmos.baseUrl, models: caps.cosmos.models || [] };
-        // Brain B ranks above the generic completion providers when it's up: it requires the
-        // user to have deliberately started a separate service, a stronger signal of intent
-        // than "Ollama happens to be running in the background", and it's a specialized
-        // RAG/tutor system rather than a raw completion endpoint.
-        if (brainbOk) return { ok: true as const, provider: 'brainb' as const, baseUrl: BRAINB_BASE, models: ['brain-b'] };
         if (ollamaOk) return { ok: true as const, provider: 'ollama' as const, baseUrl: caps.ollama.baseUrl, models: caps.ollama.models || [] };
         if (openaiOk) return { ok: true as const, provider: 'openai_compat' as const, baseUrl: caps.openaiCompat.baseUrl, models: caps.openaiCompat.models || [] };
         if (koboldOk) return { ok: true as const, provider: 'koboldcpp' as const, baseUrl: KOBOLD_BASE, models: ['tinyllama'] };
@@ -297,12 +809,6 @@ export const LocalAIEngine = {
 
       if (preferred === 'off') return { ok: false, reason: 'Local AI disabled in settings.' };
       if (preferred === 'auto') return pickAuto();
-
-      if (preferred === 'brainb') {
-        return brainbOk
-          ? { ok: true, provider: 'brainb', baseUrl: BRAINB_BASE, models: ['brain-b'] }
-          : { ok: false, reason: 'Brain B not detected — is gemma_service_enhanced.py running?' };
-      }
 
       if (preferred === 'cosmos') {
         return cosmosOk
@@ -334,13 +840,391 @@ export const LocalAIEngine = {
   },
 
   /**
-   * Generates a response using the local Ollama service or Groq Cloud API.
+   * Generates a response — the one entry point every caller (AI Chat, Live
+   * Synapse voice, anywhere else) should use. Runs Brain B enrichment
+   * unconditionally when Brain B is installed and running, regardless of
+   * which backend actually generates the text (docs/ARCHITECTURE.md's
+   * "Target layer model", 2026-08-15) — no provider picker, no "brain"
+   * choice; if it's installed, it's used, if not, generation proceeds
+   * exactly as it did before enrichment existed.
+   *
+   * Abstention short-circuits generation entirely: when /enrich reports the
+   * question abstained, this returns that response directly without calling
+   * any generation provider — generating an answer from irrelevant context
+   * and then discarding it would waste the call on exactly the turns that
+   * have nothing to say.
+   *
+   * /contract (check_question, learner_signal) is fired after generation
+   * completes but is NOT awaited before returning — it arrives, if at all,
+   * via `onContractReady` some time after the caller already has the answer.
+   * This keeps a slow/cold-starting Brain B off the critical path to
+   * time-to-answer entirely.
+   */
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean }, onContractReady?: (fields: { checkQuestion: string | null; learnerSignal: string | null }) => void): Promise<AIResponse> {
+    const turnStart = Date.now();
+    const localSettings = await this.getLocalAiSettings();
+    const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
+    const enrichStart = Date.now();
+    const enrichment = await enrichWithBrainB(query, brainBBaseUrl, voiceMode);
+    const enrichMs = Date.now() - enrichStart;
+
+    if (enrichment?.abstained) {
+      recordTurnTrace({
+        timestamp: turnStart, queryPreview: query.slice(0, 200), voiceMode,
+        preferCloud: !!localOptions?.preferCloud, enrichmentRan: true, enrichmentUnavailable: false,
+        mode: enrichment.mode, abstained: true, sceneRelated: enrichment.sceneRelated,
+        appHelpRelated: enrichment.appHelpRelated, retrievalAgreement: enrichment.retrievalAgreement,
+        retrievalMargin: enrichment.retrievalMargin, retrievalTier: enrichment.retrievalTier,
+        usedSceneContext: false, sceneContextBytes: 0, hedged: false, usedLocalFallback: false,
+        providerUsed: 'none (abstained before generation)', enrichMs, generateMs: null,
+        totalMs: Date.now() - turnStart, contractSuccess: null, contractLatencyMs: null,
+      });
+      return {
+        content: enrichment.answer || 'No documentation found for this question.',
+        context: { citations: [] },
+        mode: enrichment.mode,
+        diagnosis: null,
+        checkQuestion: null,
+        abstained: true,
+        usedSceneContext: false,
+        addonOutdated: enrichment.addonOutdatedRelevant,
+      };
+    }
+
+    // Fold the retrieved grounding block into the system instruction ONCE,
+    // here, rather than teaching every individual provider branch below
+    // about Brain B — every branch already appends injectedContext (or the
+    // equivalent) to whatever it sends, so this reaches Groq/Ollama/Kobold/
+    // FO4-bridge alike without touching their dispatch logic at all.
+    //
+    // The platform-catalog block is folded in the same way, but only when
+    // this turn's classify_and_diagnose() call flagged it app_help_related —
+    // it measures ~1,170 tokens, and unconditionally including it (as an
+    // earlier pass of this feature did) put that cost on every single turn,
+    // including plain modding questions and the voice path, which already
+    // special-cases prompt size elsewhere for exactly this reason.
+    let effectiveSystemInstruction = systemInstruction;
+    if (enrichment?.retrievedContext) {
+      effectiveSystemInstruction += `\n\n${enrichment.retrievedContext}`;
+    }
+    if (enrichment?.appHelpRelated) {
+      effectiveSystemInstruction += `\n\n${getPlatformMapBlockForPrompt()}`;
+    }
+    // When Brain B is unreachable, tell the model the true, narrow reason
+    // rather than let it guess — without this, a scene question with zero
+    // context and zero explanation got answered "I don't have access to
+    // your machine," a confident wrong claim about capability rather than
+    // an honest statement about a background service being down. This is
+    // the ONLY channel that reaches voice at all: there's no UI badge
+    // equivalent in an audio conversation, so the model itself has to say
+    // something true. Kept short — this isn't the ~1,170-token platform map,
+    // it's one paragraph, and only appears on the (now rare, since Brain B
+    // auto-starts with the app) turns where enrichment actually failed.
+    if (!enrichment) {
+      effectiveSystemInstruction +=
+        '\n\n**Note: Mossy\'s knowledge/context service (Brain B) is not reachable right now.** You have no live Blender scene data, no citations, and no retrieval for this specific turn — not because you lack the capability to ever access them, but because that background service is down right now, for a reason unrelated to this question. If this question genuinely needs live scene/game-state data or cited documentation to answer well, say so plainly and specifically — e.g. "I can\'t read your Blender scene right now because my context service isn\'t running" — never claim you have no way to access the user\'s machine or Blender at all, which is not true. For questions that don\'t need any of that, just answer normally.';
+    }
+
+    const generateStart = Date.now();
+    const response = await this._generateResponseCore(
+      query, effectiveSystemInstruction, conversationHistory, voiceMode, signal,
+      {
+        ...localOptions,
+        sceneContext: enrichment?.contextForGeneration ?? null,
+        // Only fall back to the ~155K-char neuron dump when the turn needs
+        // game data AND the Phase-1 Papyrus index didn't have it — a
+        // ranked-and-found turn shouldn't ALSO carry the blunt dump, or
+        // game-data turns end up more expensive than before this feature
+        // existed instead of less. See EnrichmentResult.gameDataFound's
+        // docstring.
+        includeGameDataDump: !!enrichment?.gameDataRelated && !enrichment?.gameDataFound,
+      },
+    );
+    const generateMs = Date.now() - generateStart;
+
+    const sceneContextBytes = enrichment?.contextForGeneration
+      ? JSON.stringify(enrichment.contextForGeneration).length : 0;
+    const providerUsed = response.usedLocalFallback
+      ? 'local (fallback — cloud unavailable)'
+      : (localOptions?.preferCloud ? 'cloud (primary)' : 'local (primary)');
+
+    if (!enrichment) {
+      response.enrichmentUnavailable = true;
+      recordTurnTrace({
+        timestamp: turnStart, queryPreview: query.slice(0, 200), voiceMode,
+        preferCloud: !!localOptions?.preferCloud, enrichmentRan: false, enrichmentUnavailable: true,
+        mode: null, abstained: false, sceneRelated: null, appHelpRelated: null,
+        retrievalAgreement: null, retrievalMargin: null, retrievalTier: null,
+        usedSceneContext: false, sceneContextBytes: 0, hedged: null,
+        usedLocalFallback: !!response.usedLocalFallback, providerUsed, enrichMs, generateMs,
+        totalMs: Date.now() - turnStart, contractSuccess: null, contractLatencyMs: null,
+      });
+      return response;
+    }
+
+    // Brain B decides `hedged` purely from KB-retrieval confidence, computed
+    // server-side before it has any idea which model will actually generate
+    // the answer. That's a sound signal when the generator is itself
+    // retrieval-bound (a local fallback model with no real general FO4
+    // knowledge of its own) — but cloud generation draws on the model's own
+    // broad training, not just what Brain B retrieved, so a weak KB match
+    // doesn't mean a weak answer there. Found live: a detailed, accurate,
+    // well-structured cloud-generated workflow answer prefixed with "I don't
+    // have documentation directly covering this... treating that as a lead,
+    // not a confirmed answer" — actively undermining a genuinely good
+    // answer over a retrieval gap that never actually limited it.
+    if (enrichment.hedged && enrichment.hedgePrefix && response.content && providerUsed !== 'cloud (primary)') {
+      response.content = enrichment.hedgePrefix + response.content;
+    }
+    response.mode = enrichment.mode;
+    response.diagnosis = enrichment.diagnosis ?? undefined;
+    response.usedSceneContext = enrichment.usedSceneContext;
+    response.addonOutdated = enrichment.addonOutdatedRelevant;
+    if (enrichment.sources.length) {
+      response.context = { ...(response.context || {}), citations: enrichment.sources };
+    }
+
+    const traceEntry: TurnTraceEntry = {
+      timestamp: turnStart, queryPreview: query.slice(0, 200), voiceMode,
+      preferCloud: !!localOptions?.preferCloud, enrichmentRan: true, enrichmentUnavailable: false,
+      mode: enrichment.mode, abstained: false, sceneRelated: enrichment.sceneRelated,
+      appHelpRelated: enrichment.appHelpRelated, retrievalAgreement: enrichment.retrievalAgreement,
+      retrievalMargin: enrichment.retrievalMargin, retrievalTier: enrichment.retrievalTier,
+      usedSceneContext: enrichment.usedSceneContext, sceneContextBytes, hedged: enrichment.hedged,
+      usedLocalFallback: !!response.usedLocalFallback, providerUsed, enrichMs, generateMs,
+      totalMs: Date.now() - turnStart, contractSuccess: null, contractLatencyMs: null,
+    };
+    recordTurnTrace(traceEntry);
+
+    // Fire-and-forget — deliberately not awaited. See method docstring.
+    if (response.content) {
+      void sendContractAsync(brainBBaseUrl, query, response.content, enrichment, onContractReady, traceEntry);
+    } else {
+      // No answer text means /contract is never called at all — a caller
+      // tracking a "pending" state from response.mode alone (e.g. a
+      // check-question placeholder shown for mode==='teach' before this
+      // resolves) needs the same definitive settle signal here as the
+      // failure path inside sendContractAsync, or it's stuck forever.
+      onContractReady?.({ checkQuestion: null, learnerSignal: null });
+    }
+
+    return response;
+  },
+
+  /** Last few turns' diagnostics (in-memory, this session only — the on-disk
+   *  log at .mossy-desktop/ai-diagnostics.log is the durable copy). Read by
+   *  the AI Pipeline Preflight panel; newest last. */
+  getRecentTurns(): TurnTraceEntry[] {
+    return [..._recentTurns];
+  },
+
+  /**
+   * One panel, one button, plain-text output — reports the observed state of
+   * every layer a real turn touches: Brain B, the Bridge, the Blender link,
+   * which generation provider is actually active and why, and whether the
+   * system instruction Mossy's persona depends on is even present.
+   *
+   * Every check here runs through the SAME renderer-side code the real app
+   * uses (bridgeFetch, getFullSystemInstruction, getLocalProviderStatus) —
+   * deliberately not main-process IPC or a script. The CSP bug earlier this
+   * session survived every prior verification specifically because those
+   * checks used curl from outside the renderer; curl doesn't traverse a CSP
+   * allowlist, so it validated a request the app itself could never make. A
+   * check that doesn't traverse the real path validates nothing.
+   */
+  async runAIPipelinePreflight(): Promise<{
+    brainB: { reachable: boolean; version: string | null; edition: string | null; routes: string[]; hasEnrich: boolean; hasContract: boolean; curatedDocs: number | null; embeddingModel: string | null; error: string | null };
+    bridge: { reachable: boolean; version: string | null; tokenAccepted: boolean | null; error: string | null };
+    blender: { reachable: boolean; addonVersion: string | null; supportsGetContext: boolean | null; error: string | null };
+    provider: { localProvider: string | null; localModel: string | null; cloudBackendConfigured: boolean; cloudReachable: boolean | null; cloudLatencyMs: number | null; cloudState: 'warm' | 'cold' | 'unreachable' | 'not-configured' | null; activeChoiceForChatVoice: string };
+    systemInstruction: { length: number; hasIdentityBlock: boolean; hasPersonaRule: boolean };
+    reportText: string;
+  }> {
+    const lines: string[] = [];
+    lines.push('═══ MOSSY AI PIPELINE PREFLIGHT ═══');
+    lines.push(new Date().toISOString());
+    lines.push('');
+
+    // ── Brain B ──────────────────────────────────────────────────────────
+    const localSettings = await this.getLocalAiSettings();
+    const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
+    const brainB: { reachable: boolean; version: string | null; edition: string | null; routes: string[]; hasEnrich: boolean; hasContract: boolean; curatedDocs: number | null; embeddingModel: string | null; error: string | null } =
+      { reachable: false, version: null, edition: null, routes: [], hasEnrich: false, hasContract: false, curatedDocs: null, embeddingModel: null, error: null };
+    try {
+      const resp = await fetch(`${brainBBaseUrl}/health`, { signal: AbortSignal.timeout(3000) });
+      if (resp.ok) {
+        const data = await resp.json();
+        brainB.reachable = data?.status === 'ok';
+        brainB.version = data?.version ?? null;
+        brainB.edition = data?.edition ?? null;
+        brainB.routes = Array.isArray(data?.routes) ? data.routes : [];
+        brainB.hasEnrich = brainB.routes.includes('/enrich');
+        brainB.hasContract = brainB.routes.includes('/contract');
+        brainB.curatedDocs = typeof data?.curated_docs === 'number' ? data.curated_docs : null;
+        brainB.embeddingModel = data?.embedding_model ?? null;
+      } else {
+        brainB.error = `HTTP ${resp.status}`;
+      }
+    } catch (e: any) {
+      brainB.error = String(e?.message || e);
+    }
+    lines.push('── Brain B ──');
+    lines.push(`  reachable: ${brainB.reachable}`);
+    lines.push(`  version: ${brainB.version ?? '(not reported — pre-2026-08-15 build)'}`);
+    lines.push(`  edition: ${brainB.edition ?? 'unknown'}`);
+    lines.push(`  routes exposed: ${brainB.routes.length ? brainB.routes.join(', ') : '(none reported)'}`);
+    lines.push(`  /enrich present: ${brainB.hasEnrich}  /contract present: ${brainB.hasContract}`);
+    lines.push(`  curated docs: ${brainB.curatedDocs ?? 'unknown'}`);
+    lines.push(`  embedding model: ${brainB.embeddingModel ?? 'unknown'}`);
+    if (brainB.error) lines.push(`  error: ${brainB.error}`);
+    lines.push('');
+
+    // ── Bridge (21337) + Blender (9999) — one authenticated call covers both:
+    // the Bridge itself answering proves the Bridge+token, and its payload
+    // (relayed from Blender over the add-on's own TCP link) proves Blender.
+    const bridge: { reachable: boolean; version: string | null; tokenAccepted: boolean | null; error: string | null } =
+      { reachable: false, version: null, tokenAccepted: null, error: null };
+    try {
+      const healthResp = await bridgeFetch('/health', { signal: AbortSignal.timeout(3000) });
+      if (healthResp.ok) {
+        const data = await healthResp.json();
+        bridge.reachable = data?.status === 'online' || data?.status === 'ok';
+        bridge.version = data?.version ?? null;
+      } else {
+        bridge.error = `HTTP ${healthResp.status}`;
+      }
+    } catch (e: any) {
+      bridge.error = String(e?.message || e);
+    }
+
+    const blender: { reachable: boolean; addonVersion: string | null; supportsGetContext: boolean | null; error: string | null } =
+      { reachable: false, addonVersion: null, supportsGetContext: null, error: null };
+    try {
+      const capResp = await bridgeFetch('/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'capabilities' }),
+        signal: AbortSignal.timeout(3000),
+      });
+      bridge.tokenAccepted = capResp.status !== 401;
+      if (capResp.ok) {
+        const outer = await capResp.json();
+        if (outer?.status === 'success') {
+          const inner = JSON.parse(String(outer?.response || '{}'));
+          blender.reachable = inner?.status === 'success';
+          blender.addonVersion = Array.isArray(inner?.addon_version) ? inner.addon_version.join('.') : null;
+          blender.supportsGetContext = Array.isArray(inner?.supported_commands)
+            ? inner.supported_commands.includes('get_context') : null;
+        } else {
+          blender.error = String(outer?.message || 'Blender not connected');
+        }
+      } else {
+        blender.error = `HTTP ${capResp.status}`;
+      }
+    } catch (e: any) {
+      blender.error = String(e?.message || e);
+    }
+    lines.push('── Bridge (port 21337) ──');
+    lines.push(`  listening: ${bridge.reachable}`);
+    lines.push(`  version: ${bridge.version ?? 'unknown'}`);
+    lines.push(`  token accepted: ${bridge.tokenAccepted ?? 'not tested'}`);
+    if (bridge.error) lines.push(`  error: ${bridge.error}`);
+    lines.push('');
+    lines.push('── Blender (port 9999, via Bridge) ──');
+    lines.push(`  listening: ${blender.reachable}`);
+    lines.push(`  add-on version: ${blender.addonVersion ?? 'unknown'}`);
+    lines.push(`  get_context supported: ${blender.supportsGetContext ?? 'unknown'}`);
+    if (blender.error) lines.push(`  note: ${blender.error}`);
+    lines.push('');
+
+    // ── Provider ─────────────────────────────────────────────────────────
+    const localStatus = await this.getLocalProviderStatus();
+    const settings = await (async () => {
+      try {
+        const api = (window.electron?.api || window.electronAPI) as any;
+        return await api?.getSettings?.();
+      } catch { return null; }
+    })();
+    const backendBaseUrl = String(settings?.backendBaseUrl || 'https://mossy.onrender.com').replace(/\/$/, '');
+    const cloudBackendConfigured = !!settings?.backendTokenConfigured;
+    const provider: { localProvider: string | null; localModel: string | null; cloudBackendConfigured: boolean; cloudReachable: boolean | null; cloudLatencyMs: number | null; cloudState: 'warm' | 'cold' | 'unreachable' | 'not-configured' | null; activeChoiceForChatVoice: string } =
+      { localProvider: null, localModel: null, cloudBackendConfigured, cloudReachable: null, cloudLatencyMs: null, cloudState: null, activeChoiceForChatVoice: '' };
+    if (localStatus.ok) {
+      provider.localProvider = localStatus.provider;
+      const anyStatus = localStatus as any;
+      provider.localModel = localStatus.provider === 'ollama' ? String(localSettings.ollamaModel || '')
+        : localStatus.provider === 'cosmos' ? String(localSettings.cosmosModel || anyStatus.models?.[0] || '')
+        : String(localSettings.openaiCompatModel || anyStatus.models?.[0] || '');
+    }
+    if (!cloudBackendConfigured) {
+      provider.cloudState = 'not-configured';
+    } else {
+      try {
+        const cloudStart = Date.now();
+        const cloudResp = await fetch(`${backendBaseUrl}/health`, { signal: AbortSignal.timeout(20000) });
+        provider.cloudLatencyMs = Date.now() - cloudStart;
+        provider.cloudReachable = cloudResp.ok;
+        // No hard science behind 3s beyond "clearly not instant" — Render's
+        // free tier cold-starts in 30-90s, so a fast response is unambiguously
+        // warm and a slow-but-successful one is unambiguously not, with a lot
+        // of daylight between the two; this doesn't need to be precise.
+        provider.cloudState = !cloudResp.ok ? 'unreachable' : (provider.cloudLatencyMs > 3000 ? 'cold' : 'warm');
+      } catch (e: any) {
+        provider.cloudState = 'unreachable';
+      }
+    }
+    provider.activeChoiceForChatVoice = (provider.cloudState === 'warm' || provider.cloudState === 'cold')
+      ? `cloud (backend reachable, ${provider.cloudState})`
+      : provider.localProvider
+        ? `local fallback: ${provider.localProvider}${provider.localModel ? ` (${provider.localModel})` : ''} — cloud unavailable (${provider.cloudState})`
+        : `NONE — cloud unavailable (${provider.cloudState}) and no local provider detected`;
+    lines.push('── Provider (chat/voice policy: cloud primary, local fallback) ──');
+    lines.push(`  cloud backend configured: ${provider.cloudBackendConfigured}`);
+    lines.push(`  cloud reachable: ${provider.cloudReachable ?? 'not tested'}  (${provider.cloudLatencyMs ?? '?'}ms, ${provider.cloudState})`);
+    lines.push(`  local provider detected: ${provider.localProvider ?? 'none'}${provider.localModel ? ` — model: ${provider.localModel}` : ''}`);
+    lines.push(`  ACTIVE for chat/voice right now: ${provider.activeChoiceForChatVoice}`);
+    lines.push('');
+
+    // ── System instruction ──────────────────────────────────────────────
+    const fullInstruction = getFullSystemInstruction();
+    const systemInstruction = {
+      length: fullInstruction.length,
+      hasIdentityBlock: fullInstruction.includes('WHO YOU ARE (always true'),
+      hasPersonaRule: fullInstruction.includes('IDENTITY RULE'),
+    };
+    lines.push('── System instruction ──');
+    lines.push(`  length: ${systemInstruction.length} chars`);
+    lines.push(`  identity block present: ${systemInstruction.hasIdentityBlock}`);
+    lines.push(`  persona/identity rule present: ${systemInstruction.hasPersonaRule}`);
+    if (systemInstruction.length < 500) {
+      lines.push('  ⚠ WARNING: length near zero — getFullSystemInstruction() is returning little or nothing. This is exactly the shape today\'s persona bug would have shown up as immediately.');
+    }
+    lines.push('');
+    lines.push('═══ END PREFLIGHT ═══');
+
+    const reportText = lines.join('\n');
+    try {
+      const api = (window.electron?.api || window.electronAPI) as any;
+      void api?.writeDiagnosticLog?.(`[preflight]\n${reportText}\n`);
+    } catch { /* non-critical */ }
+
+    return { brainB, bridge, blender, provider, systemInstruction, reportText };
+  },
+
+  /**
+   * Generates a response using the local Ollama service or Groq Cloud API —
+   * whichever the user has configured, completely independent of Brain B
+   * enrichment (see the public generateResponse() wrapper above, which is
+   * what every caller should actually use). This is the pre-2026-08-15
+   * dispatch logic, unchanged except for the removed Brain B branch (Brain B
+   * is no longer a selectable generation provider — see
+   * docs/ARCHITECTURE.md's "Target layer model").
    * Pass `conversationHistory` (prior messages, not including the current query) to
    * maintain multi-turn conversation context.
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean }): Promise<AIResponse> {
+  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean }): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -780,11 +1664,28 @@ export const LocalAIEngine = {
       /(cannot|can'?t|unable|lack|no\s+access|don'?t\s+have).*(internet|web|online|access)[\s\S]{0,200}(llm|language\s+model|ai\s+model)/i,
     ];
 
-    // LOCAL FIRST: Ollama (Gemma 4) is the primary brain for all non-chat features.
-    // Groq cloud is the fallback only if local Ollama is unavailable.
-    // Mossy AI Chat (ChatInterface) is the only platform that should go cloud-first.
-    const localProviderPrimaryEnabled = true;
-    if (localStatus.ok && localProviderPrimaryEnabled) {  // LOCAL DISABLED: kept for future re-enable, use as fallback only
+    // LOCAL FIRST: Ollama (Gemma 4) is the primary brain for all non-chat features
+    // (background/automation callers like SelfImprovementEngine.ts, AIModAssistant.tsx)
+    // — free, fast, no network dependency, and those callers don't need Mossy's full
+    // persona/quality. Groq cloud is the fallback only if local is unavailable, for them.
+    //
+    // Mossy AI Chat (ChatInterface) and voice (LiveContext) are the two platforms that
+    // should go cloud-first instead — but this function has no way to know which caller
+    // invoked it, so the flag above applied to EVERYONE, silently overriding that intent.
+    // Found live: with Ollama running (true for any dev machine, false for most real
+    // users — this made the bug look worse/more universal than it actually is), voice
+    // and chat both got answered by whatever small local model was configured
+    // (gemma2:9b here) instead of Mossy's real primary. A 9B local model doesn't
+    // reliably carry a system prompt this large — it dropped the persona/capability
+    // instructions entirely and answered as a generic assistant. Callers now opt in via
+    // localOptions.preferCloud; ChatInterface and LiveContext pass it, others don't.
+    //
+    // koboldcpp/fo4bridge are the one exception: the cloud-primary path's own local-
+    // fallback block below only knows ollama/cosmos/openai_compat, so those two stay
+    // local-first regardless of preferCloud rather than silently losing their routing.
+    const provider = (localStatus as any).provider as string | undefined;
+    const localPrimaryEligible = !localOptions?.preferCloud || provider === 'koboldcpp' || provider === 'fo4bridge';
+    if (localStatus.ok && localPrimaryEligible) {
       try {
         const api = (window.electron?.api || window.electronAPI) as any;
 
@@ -800,44 +1701,9 @@ export const LocalAIEngine = {
             .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
             .join('\n') + '\n';
         }
-        const prompt = `${enhancedSystemInstruction}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
+        const prompt = buildPromptForLocalModel(enhancedSystemInstruction, localOptions?.sceneContext, injectedContext, historyText, query);
 
         const localStatusAny = localStatus as any;
-        const provider = localStatusAny.provider as string | undefined;
-
-        // Brain B — Mossy's own local RAG/tutor service (brain-b/gemma_service_enhanced.py).
-        // Deliberately does NOT send `enhancedSystemInstruction`/`injectedContext`/`prompt`:
-        // Brain B builds its own system prompt server-side from knowledge-base retrieval, so
-        // the client-supplied prompt built above (for providers that need one) doesn't apply
-        // here — only the question itself goes over the wire. `conversationHistory` also isn't
-        // sent yet; Brain B's /infer is single-turn today (no multi-turn context parameter).
-        if (provider === 'brainb') {
-          const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
-          const userId = await getOrCreateUserId();
-          const resp = await fetch(`${brainBBaseUrl}/infer`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              question: query, use_langgraph: true,
-              session_id: APP_SESSION_ID, user_id: userId,
-            }),
-            signal,
-          });
-          if (!resp.ok) throw new Error(`Brain B HTTP ${resp.status}`);
-          const data = await resp.json();
-          if (data?.error) throw new Error(`Brain B: ${data.error}`);
-
-          selfImprovementEngine.recordInteraction(query, String(data?.answer || ''), [], 'success');
-
-          return {
-            content: data?.answer || 'Brain B returned an empty response.',
-            context: { citations: Array.isArray(data?.sources) ? data.sources : [] },
-            mode: data?.mode,
-            diagnosis: data?.diagnosis ?? undefined,
-            checkQuestion: data?.check_question ?? undefined,
-            abstained: !!data?.abstained,
-          };
-        }
 
         // KoboldCPP — OpenAI-compatible endpoint on port 5001
         if (provider === 'koboldcpp') {
@@ -946,6 +1812,59 @@ export const LocalAIEngine = {
       }
     }
 
+    // Genuine last-resort fallback when cloud generation is unavailable — used from
+    // both failure shapes below: a Groq/backend call that threw (network error, abort)
+    // and one that resolved but reported `success: false` (no backend configured, no
+    // API key, rate-limited, etc.). Previously only the throw case attempted this; a
+    // clean `success: false` fell straight through to a raw error string handed back
+    // as if it were Mossy's answer — unreadable as prose and, for voice, something
+    // that would get read aloud verbatim. Marks `usedLocalFallback` so the caller can
+    // disclose the quality drop rather than let it pass as a routine answer.
+    const attemptLocalFallback = async (): Promise<AIResponse | null> => {
+      if (!localStatus.ok) return null;
+      try {
+        console.log('[LocalAIEngine] Using local LLM as fallback support');
+        const api = (window.electron?.api || window.electronAPI) as any;
+
+        let historyText = '';
+        if (conversationHistory && conversationHistory.length > 0) {
+          historyText = '\n\nConversation so far:\n' + conversationHistory
+            .filter(m => m.content && m.content.trim())
+            .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
+            .join('\n') + '\n';
+        }
+        // Inject an override directive so the local LLM never announces that Groq/cloud
+        // is unavailable — the system prompt mentions Groq as the primary provider, which
+        // causes unpatched models to open with "Since Groq is not available, I'll…".
+        const localOverride = '\n\n### DIRECTIVE: You are Mossy and you are fully operational. Respond naturally and helpfully. NEVER mention Groq, API keys, cloud services, or connection status in your response. ###\n\n';
+        const prompt = buildPromptForLocalModel(
+          enhancedSystemInstruction, localOptions?.sceneContext, localOverride + injectedContext, historyText, query,
+        );
+
+        const provider = localStatus.provider;
+        const model = provider === 'ollama'
+          ? String(localSettings.ollamaModel || 'llama3')
+          : provider === 'cosmos'
+            ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
+            : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
+
+        const baseUrl = provider === 'ollama'
+          ? String(localSettings.ollamaBaseUrl || 'http://127.0.0.1:11434')
+          : provider === 'cosmos'
+            ? String(localSettings.cosmosBaseUrl || '')
+            : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+
+        const resp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt, timeoutMs: localOptions?.timeoutMs, think: localOptions?.think });
+        if (resp?.ok && resp.text) {
+          console.log('[LocalAIEngine] ✅ Local fallback support succeeded');
+          return { content: String(resp.text), context: { citations }, usedLocalFallback: true };
+        }
+      } catch (localErr) {
+        console.warn('[LocalAIEngine] Local fallback support also failed:', localErr);
+      }
+      return null;
+    };
+
     // Fallback to Groq Cloud via Electron main-process IPC (renderer never sees API keys)
     try {
       const api = (window.electron?.api || window.electronAPI) as any;
@@ -955,15 +1874,26 @@ export const LocalAIEngine = {
 
       // "Require Key Confirmation" (Privacy Settings) — ask once per session
       // before the first call that uses a cloud API key, rather than the
-      // toggle existing with nothing ever actually prompting.
+      // toggle existing with nothing ever actually prompting. Skipped
+      // entirely for voice: window.confirm() is a native, synchronous,
+      // blocking modal — there's no way to answer it by talking, so it just
+      // freezes a live voice session until someone physically clicks it.
+      // Text chat keeps the prompt; the user is already at the keyboard
+      // there. Still marks the session as confirmed so a later text-chat
+      // call in the same session doesn't ask again over an API key voice
+      // already used without incident.
       try {
         const settings = await api?.getSettings?.();
         if (settings?.securitySettings?.requireApiKeyConfirmation && !sessionStorage.getItem('mossy_api_key_confirmed_session')) {
-          const confirmed = window.confirm(
-            'Mossy is about to use a cloud AI provider (your configured API key) to answer this. Continue?'
-          );
-          if (!confirmed) return { content: '' };
-          sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
+          if (voiceMode) {
+            sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
+          } else {
+            const confirmed = window.confirm(
+              'Mossy is about to use a cloud AI provider (your configured API key) to answer this. Continue?'
+            );
+            if (!confirmed) return { content: '' };
+            sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
+          }
         }
       } catch { /* if the settings check fails, don't block the response over it */ }
 
@@ -1010,8 +1940,22 @@ ANSWER THE USER NOW:`;
         ? `\n\n### YOUR OWN PRE-ANSWER REASONING (use this to structure a better answer — do not repeat it verbatim or mention this step to the user):\n${reasoningPlan}`
         : '';
       const systemPrompt = systemInstruction + injectedContext + reasoningBlock + mandatoryInternetInstruction;
-      // Pass undefined so main.ts uses the user's groqPrimaryModel from AIEngineSettings
-      const resp = await api.aiChatGroq(query, systemPrompt, undefined, conversationHistory);
+      // Diagnostic (2026-08-18): a voice turn measured ~192K total chars at
+      // main.ts's [AI Chat Groq] log despite the lean base prompt (~5K) and
+      // Brain B's own retrievedContext (~7K measured directly) accounting
+      // for only ~12K combined — breaking down the remaining components here
+      // to find where the rest actually comes from. Remove once found.
+      try {
+        const api2 = (window.electron?.api || window.electronAPI) as any;
+        void api2?.writeDiagnosticLog?.(`[systemPrompt-breakdown] voiceMode=${voiceMode} systemInstruction=${systemInstruction.length} injectedContext=${injectedContext.length} reasoningBlock=${reasoningBlock.length} mandatoryInternetInstruction=${mandatoryInternetInstruction.length} total=${systemPrompt.length}`);
+      } catch { /* diagnostics-only, non-critical */ }
+      // Pass undefined so main.ts uses the user's groqPrimaryModel from AIEngineSettings.
+      // includeGameData gates main.ts's buildBrainNeuronBlock() splice (~155K chars,
+      // measured live) — see EnrichmentResult.gameDataFound's docstring for why this
+      // was riding on every single cloud call unconditionally, "hi" included, and why
+      // it's gated on "found" rather than "related" (a ranked-and-found game-data turn
+      // shouldn't ALSO carry the blunt dump alongside it).
+      const resp = await api.aiChatGroq(query, systemPrompt, undefined, conversationHistory, !!localOptions?.includeGameDataDump);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 
@@ -1148,61 +2092,21 @@ ANSWER THE USER NOW:`;
         return { content: responseContent, context: { citations }, reasoning: reasoningPlan || undefined };
       }
 
-      // Previously returned the raw API error string as if it were Mossy's
-      // answer (e.g. a Groq rate-limit/context-length error rendered
-      // directly in chat, looking like a malfunctioning reply). Surface it
-      // honestly instead — log the real error for diagnosis, show the user
-      // something legible.
+      // Groq/backend resolved but reported failure (no backend configured, no API
+      // key, rate-limited, etc.) — try local before surfacing a raw error string
+      // as if it were Mossy's answer.
       const rawErr = String(resp?.error || 'Unknown error');
       console.error('[LocalAIEngine] Groq call failed:', rawErr);
+      const localFallback1 = await attemptLocalFallback();
+      if (localFallback1) return localFallback1;
       return {
         content: `I hit an error trying to answer that: ${rawErr}\n\nTry again, or ask something shorter if this keeps happening.`,
         context: { citations },
       };
     } catch (e) {
       console.warn('[LocalAIEngine] Groq failed, attempting local fallback support:', e);
-
-      // === FALLBACK: Try local LLM as support if Groq cloud fails ===
-      if (localStatus.ok) {
-        try {
-          console.log('[LocalAIEngine] Using local LLM as fallback support');
-          const api = (window.electron?.api || window.electronAPI) as any;
-
-          let historyText = '';
-          if (conversationHistory && conversationHistory.length > 0) {
-            historyText = '\n\nConversation so far:\n' + conversationHistory
-              .filter(m => m.content && m.content.trim())
-              .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
-              .join('\n') + '\n';
-          }
-          // Inject an override directive so the local LLM never announces that Groq/cloud
-          // is unavailable — the system prompt mentions Groq as the primary provider, which
-          // causes unpatched models to open with "Since Groq is not available, I'll…".
-          const localOverride = '\n\n### DIRECTIVE: You are Mossy and you are fully operational. Respond naturally and helpfully. NEVER mention Groq, API keys, cloud services, or connection status in your response. ###\n\n';
-          const prompt = `${enhancedSystemInstruction}${localOverride}${injectedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
-
-          const provider = localStatus.provider;
-          const model = provider === 'ollama'
-            ? String(localSettings.ollamaModel || 'llama3')
-            : provider === 'cosmos'
-              ? String(localSettings.cosmosModel || localStatus.models?.[0] || '')
-              : String(localSettings.openaiCompatModel || localStatus.models?.[0] || '');
-
-          const baseUrl = provider === 'ollama'
-            ? String(localSettings.ollamaBaseUrl || 'http://127.0.0.1:11434')
-            : provider === 'cosmos'
-              ? String(localSettings.cosmosBaseUrl || '')
-              : String(localSettings.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
-
-          const resp = await api.mlLlmGenerate({ provider, model, baseUrl, prompt, timeoutMs: localOptions?.timeoutMs, think: localOptions?.think });
-          if (resp?.ok && resp.text) {
-            console.log('[LocalAIEngine] ✅ Local fallback support succeeded');
-            return { content: String(resp.text), context: { citations } };
-          }
-        } catch (localErr) {
-          console.warn('[LocalAIEngine] Local fallback support also failed:', localErr);
-        }
-      }
+      const localFallback2 = await attemptLocalFallback();
+      if (localFallback2) return localFallback2;
 
       console.error('[LocalAIEngine] Groq IPC error:', e);
       return {

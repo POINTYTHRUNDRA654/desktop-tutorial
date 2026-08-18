@@ -7,9 +7,12 @@
 // calling page's JS can read the response, not whether the request executes.
 //
 // Every renderer call to the Bridge must go through bridgeFetch()/bridgeUrl()
-// here rather than a raw fetch('http://127.0.0.1:21337/...') — the port is now
-// OS-assigned (ephemeral) at each launch, and every request must carry a valid
-// X-Mossy-Token header or the server returns 401.
+// here rather than a raw fetch('http://127.0.0.1:21337/...') — not because the
+// port is unpredictable (it's back to fixed 21337, see BridgeServer.ts's
+// constructor comment for why an ephemeral-port experiment got reverted the
+// same day it shipped), but because every request must carry a valid
+// X-Mossy-Token header or the server returns 401, and this is the one place
+// that knows the current token rather than ~30 call sites each fetching it.
 //
 // This token is Mossy's own INTERNAL, full-access credential — not a general
 // third-party API key. See docs/ARCHITECTURE.md's "Bridge auth" section for
@@ -32,11 +35,25 @@ async function getConnection(forceRefresh = false): Promise<BridgeConnection> {
   if (cached && !forceRefresh) return cached;
   if (inflight && !forceRefresh) return inflight;
   const api = getApi();
-  inflight = Promise.resolve(api.getBridgeConnection()).then((conn: BridgeConnection) => {
-    cached = conn;
-    inflight = null;
-    return conn;
-  });
+  inflight = Promise.resolve()
+    .then(() => api.getBridgeConnection())
+    .then((conn: BridgeConnection) => {
+      cached = conn;
+      inflight = null;
+      return conn;
+    })
+    .catch((err) => {
+      // Without this, a single transient failure (main process not ready yet,
+      // a dropped IPC round-trip) permanently wedges `inflight` on a rejected
+      // promise for the rest of the renderer's lifetime — every later
+      // bridgeFetch() call anywhere in the app (chat's scene-context fetch,
+      // DesktopBridge's Test Connection button) would keep returning that
+      // same dead promise forever instead of retrying. Found live: "Test
+      // Connection" failing every single click with the Bridge server
+      // provably healthy underneath.
+      inflight = null;
+      throw err;
+    });
   return inflight;
 }
 

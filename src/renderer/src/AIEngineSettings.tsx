@@ -6,11 +6,16 @@ type AIEngineSettingsProps = {
   embedded?: boolean;
 };
 
-type ProviderOption = 'auto' | 'ollama' | 'brainb' | 'off';
+type ProviderOption = 'auto' | 'ollama' | 'off';
 
+// Brain B removed 2026-08-15 (docs/ARCHITECTURE.md's "Target layer model") — it was
+// never actually a generation provider, it's retrieval/classification/tutoring that
+// wraps whichever provider generates. Making it a selectable choice here forced users
+// to pick between "get scene-aware tutoring" and "use my preferred model," which were
+// never actually in tension. Now: if Brain B is installed and running, its enrichment
+// applies automatically no matter what's picked below — see the info box.
 const PROVIDER_OPTIONS: { value: ProviderOption; label: string; hint: string }[] = [
-  { value: 'auto',   label: 'Auto (Recommended)',  hint: 'Mossy uses the Render backend for all chat — fast, always up-to-date. Falls back to Brain B or Ollama when offline, whichever is running.' },
-  { value: 'brainb', label: 'Local Only (Brain B)', hint: 'Always use Brain B — Mossy\'s own local RAG/tutor service (CPU-only, no GPU required). Enable and configure it below.' },
+  { value: 'auto',   label: 'Auto (Recommended)',  hint: 'Mossy uses the Render backend for all chat — fast, always up-to-date. Falls back to Ollama when offline, if it\'s running.' },
   { value: 'ollama', label: 'Local Only (Ollama)',  hint: 'Always use your local Ollama — 100% offline, no internet needed. Configure Ollama in the section below.' },
   { value: 'off',    label: 'Off',                  hint: 'Disable all AI features — responses return a placeholder.' },
 ];
@@ -39,7 +44,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
       try {
         const s = await api?.getSettings?.();
         const raw = s?.localAiPreferredProvider as string;
-        setProvider(raw === 'ollama' || raw === 'brainb' || raw === 'off' ? raw : 'auto');
+        setProvider(raw === 'ollama' || raw === 'off' ? raw : 'auto');
         // Inkling — key is stored encrypted, renderer gets empty string back; detect via companion flag
         setInklingKeySet(Boolean(s?.inklingApiKeyEnc));
         setInklingBaseUrl(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1');
@@ -256,6 +261,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
             <li>The backend handles model selection, rate limiting, and fallback automatically</li>
             <li>Local Ollama is the offline fallback — configure it in the Ollama section below</li>
             <li>Select <strong className="text-slate-200">Local Only</strong> if you want 100% offline operation</li>
+            <li>Brain B (retrieval, citations, and tutoring — check-question cards, scene-aware answers) isn't a choice here: install and run it in the Brain B section below and it enriches every answer automatically, regardless of which provider above generates the text. Not installed or not running just means answers generate without it — nothing else changes.</li>
           </ul>
         </div>
 

@@ -6,5 +6,6 @@
   "explorer.confirmDragAndDrop": true,
   "git.confirmSync": true,
   "git.enableSmartCommit": false,
-  "git.autofetch": true
+  "git.autofetch": true,
+  "chat.sessionSync.enabled": true
 }

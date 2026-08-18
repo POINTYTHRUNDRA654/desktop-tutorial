@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Activity, ChevronDown, ChevronUp, Wrench, ShieldCheck, Bug } from 'lucide-react';
+import { Activity, ChevronDown, ChevronUp, Wrench, ShieldCheck, Bug, Brain } from 'lucide-react';
 import SystemMonitor from './SystemMonitor';
 import ToolVerify from './ToolVerify';
 import DiagnosticTools from './DiagnosticTools';
 import CrashTriageWizard from './CrashTriageWizard';
+import AIPipelinePreflight from './AIPipelinePreflight';
 
 type HubSection = {
   id: string;
@@ -14,13 +15,20 @@ type HubSection = {
 };
 
 const DiagnosticsHub: React.FC = () => {
-  const [expandedSection, setExpandedSection] = useState<string>('system-monitor');
+  const [expandedSection, setExpandedSection] = useState<string>('ai-pipeline');
 
   const toggleSection = (id: string) => {
     setExpandedSection(id);
   };
 
   const sections: HubSection[] = [
+    {
+      id: 'ai-pipeline',
+      title: 'Step 0: AI Pipeline Preflight',
+      description: 'Brain B, Bridge, Blender link, active provider, and system instruction — checked live, plus the last few turns\' diagnostics.',
+      icon: Brain,
+      content: <AIPipelinePreflight embedded />,
+    },
     {
       id: 'system-monitor',
       title: 'Step 1: System Monitor',
@@ -65,6 +73,7 @@ const DiagnosticsHub: React.FC = () => {
         <div className="mb-6 rounded-lg border border-emerald-700/30 bg-emerald-900/10 p-4 text-xs font-medium text-slate-300">
           <div className="font-bold text-slate-200">Flow (Read in Order)</div>
           <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-300">
+            <li>Run the AI Pipeline Preflight if Mossy's answers seem off (wrong provider, no scene access, generic persona)</li>
             <li>Confirm system monitor health</li>
             <li>Verify tool paths and versions</li>
             <li>Run API and permission diagnostics</li>

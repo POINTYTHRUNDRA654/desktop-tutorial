@@ -70,6 +70,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import game_data_index
+
 import networkx as nx
 import numpy as np
 import requests
@@ -102,6 +104,14 @@ MODELS_PATH    = os.environ.get("MODELS_PATH",  str(BASE_DIR / "models"))
 CHROMA_CURATED_PATH = os.environ.get("CHROMA_CURATED_PATH", str(BASE_DIR / "data" / "chroma_curated"))
 CHROMA_RUNTIME_PATH = os.environ.get("CHROMA_RUNTIME_PATH", str(BASE_DIR / "data" / "chroma_runtime"))
 COLLECTION_NAME     = "mossy_knowledge"  # same name in both dirs — the directory is what separates them
+
+# Electron's background scan system (main.ts's runStartupScans()) writes raw
+# JSON scan output here — separate from the chroma_curated/chroma_runtime
+# split above, and NOT copied/duplicated into this process's own data dir,
+# since these files are large (fo4_papyrus_api.json ~2.4MB, the other three
+# scan types ~10-30MB each) and already have a canonical home. See
+# game_data_index.py and docs-dev/GAME_DATA_RETRIEVAL_MERGE_PROJECT.md.
+GAME_SCAN_CACHE_PATH = os.environ.get("GAME_SCAN_CACHE_PATH", str(BASE_DIR / "game-scan-cache"))
 DB_PATH        = BASE_DIR / "data" / "mossy_brain.db"
 GRAPH_PATH     = BASE_DIR / "data" / "knowledge_graph.json"
 LORA_PATH      = BASE_DIR / "models" / "mossy-lora"
@@ -1054,7 +1064,8 @@ def search_episodes(query: str, limit: int = 5) -> list[str]:
 
 def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                             diagnosis: Optional[str] = None,
-                            answer_level: Optional[str] = None) -> dict:
+                            answer_level: Optional[str] = None,
+                            blender_context: Optional[dict] = None) -> dict:
     """
     Stateful LangGraph reasoning pipeline:
     search_kb → [web_fallback] → generate → critique → [refine] → validate → return
@@ -1067,6 +1078,13 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
     gets the same treatment for the same reason — a field that's returned but
     never fed into generation is exactly the failure mode diagnosis had before
     this was fixed, just moved to a new field.
+
+    `blender_context` (from /infer's `get_context`, the live scene JSON
+    BridgeServer.ts's `/execute {type:'context'}` already fetches from the
+    Blender add-on — see DesktopBridge.tsx's fetchBlenderContext for the same
+    data used elsewhere) gets the same treatment for the same reason: passed
+    through only when classify_mode() flagged the question scene_related, so
+    it isn't dead weight on every ordinary knowledge-base question.
 
     Returns dict with keys: answer, confidence, sources, critique_applied
     """
@@ -1131,6 +1149,12 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 episode_ctx = "\n\nRELEVANT PAST SESSIONS:\n" + "\n".join(episodes)
             diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
             level_ctx = _answer_level_prompt_fragment(answer_level)
+            scene_ctx = (
+                f"\nLIVE BLENDER SCENE (what's actually open in the user's Blender right now — "
+                f"answer using THIS, not general knowledge, when the question is about their "
+                f"current scene):\n{json.dumps(blender_context, indent=2)}\n"
+                if blender_context else ""
+            )
             prompt = (
                 f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic memory, self-critique, and fine-tuning.\n"
                 f"\n"
@@ -1143,7 +1167,8 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
                 f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n"
                 f"{episode_ctx}"
                 f"{diagnosis_ctx}"
-                f"{level_ctx}\n"
+                f"{level_ctx}"
+                f"{scene_ctx}\n"
                 f"USER QUESTION: {state['question']}\n\n"
                 f"Provide a thorough, accurate answer. Cite specific tools, record types, "
                 f"or INI settings where relevant.\n\nMOSSY:"
@@ -1242,7 +1267,8 @@ def run_langgraph_workflow(question: str, max_refine_loops: int = 2,
         return _simple_infer(question, diagnosis=diagnosis, answer_level=answer_level)
 
 
-def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: Optional[str] = None) -> dict:
+def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: Optional[str] = None,
+                   blender_context: Optional[dict] = None) -> dict:
     """Fallback when LangGraph is not available."""
     results = hybrid_retrieve(question, top_k=6)
     ctx = "\n\n".join(expand_to_parent(results))
@@ -1253,9 +1279,15 @@ def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: 
             ctx = f"[Web]\n{web}"
     diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
     level_ctx = _answer_level_prompt_fragment(answer_level)
+    scene_ctx = (
+        f"\nLIVE BLENDER SCENE (what's actually open in the user's Blender right now — "
+        f"answer using THIS, not general knowledge, when the question is about their "
+        f"current scene):\n{json.dumps(blender_context, indent=2)}\n"
+        if blender_context else ""
+    )
     prompt = (
         f"You are Mossy, an expert Fallout 4 modding AI assistant built into a 22-platform desktop app (Electron + React + TypeScript). You run as Brain B — the local GPU-powered inference layer for the NVIDIA Edition. Brain A (the cloud Groq layer) handles most responses; you provide RAG retrieval, episodic \n"
-        f"CONTEXT:\n{ctx}\n{diagnosis_ctx}{level_ctx}\nQ: {question}\n\nMOSSY:"
+        f"CONTEXT:\n{ctx}\n{diagnosis_ctx}{level_ctx}{scene_ctx}\nQ: {question}\n\nMOSSY:"
     )
     answer = generate_answer(prompt, max_new_tokens=512)
     return {"answer": answer, "confidence": 0.7, "sources": sources,
@@ -1290,7 +1322,7 @@ def _simple_infer(question: str, diagnosis: Optional[str] = None, answer_level: 
 #    body specifically so a real router can override this heuristic later
 #    without any other code here changing.
 
-def classify_mode(question: str) -> str:
+def classify_mode(question: str) -> tuple[str, bool]:
     """
     The router role from the original four-role split (router / retriever /
     planner / responder) — the one role that had been standing in as a
@@ -1314,29 +1346,49 @@ def classify_mode(question: str) -> str:
     the original keyword heuristic on any parse failure, exactly like every
     other LLM-derived field in this file — this router is not allowed to be
     a single point of failure for the whole turn.
+
+    Second dimension, scene_related: true when the question depends on the
+    state of the user's CURRENTLY OPEN Blender scene ("what's my active
+    object", "how many verts does my selection have") rather than general
+    FO4/Blender knowledge. Bundled into this same call rather than a second
+    LLM round-trip — same reasoning as mode itself, it's a cheap addition to
+    a call already happening. Computed unconditionally, even when the
+    request body supplies an explicit `mode` override, because scene
+    relevance is orthogonal to teach/debug/answer and callers overriding
+    mode shouldn't silently disable it. Consumed by /infer to exempt live
+    scene questions from the retrieval-abstention gate — a low BM25 margin
+    against the knowledge base is meaningless for a question that isn't a
+    knowledge-base lookup in the first place.
     """
     prompt = (
-        "Classify this Fallout 4 modding question into exactly one category:\n\n"
-        '- "teach": they want to understand a concept ("how does X work", "what is X", '
+        "Classify this Fallout 4 modding question along two dimensions:\n\n"
+        '1. mode - exactly one of:\n'
+        '   - "teach": they want to understand a concept ("how does X work", "what is X", '
         '"explain X", "what\'s the difference between X and Y")\n'
-        '- "debug": something is broken and needs fixing ("X isn\'t working", "getting an '
+        '   - "debug": something is broken and needs fixing ("X isn\'t working", "getting an '
         'error", "crashes when I", "won\'t compile")\n'
-        '- "answer": a direct factual/lookup question that is neither of the above '
+        '   - "answer": a direct factual/lookup question that is neither of the above '
         '("what are the parameters of X", "where is Y defined")\n\n'
+        '2. scene_related - true if the question asks about the state of the user\'s '
+        'CURRENTLY OPEN Blender scene ("what\'s my active object", "how many verts does my '
+        'selection have", "is my armature named right", "what\'s selected right now"); '
+        'false for general FO4/Blender knowledge questions that don\'t depend on what\'s '
+        'actually open right now.\n\n'
         f"Question: {question}\n\n"
-        'Return ONLY JSON: {"mode": "teach"} or {"mode": "debug"} or {"mode": "answer"}'
+        'Return ONLY JSON: {"mode": "teach"|"debug"|"answer", "scene_related": true|false}'
     )
-    parsed, raw, attempts = _generate_json(prompt, ["mode"], max_new_tokens=20)
+    parsed, raw, attempts = _generate_json(prompt, ["mode", "scene_related"], max_new_tokens=30)
     mode = (parsed or {}).get("mode")
-    if mode in ("teach", "debug", "answer"):
+    scene_related = (parsed or {}).get("scene_related")
+    if mode in ("teach", "debug", "answer") and isinstance(scene_related, bool):
         # Always compute the keyword verdict too, even though it's not used —
         # this is the free measurement: log both so a week of real questions
         # gives a real disagreement rate instead of a handful eyeballed by
         # hand during a 2-minute GUI pass.
         log_mode_classification(question, mode, _classify_mode_keywords(question))
-        return mode
+        return mode, scene_related
     log_contract_failure(question, "classify_mode", raw, attempts)
-    return _classify_mode_keywords(question)
+    return _classify_mode_keywords(question), _is_scene_related_keywords(question)
 
 
 def log_mode_classification(question: str, llm_mode: str, keyword_mode: str) -> None:
@@ -1369,6 +1421,84 @@ def _classify_mode_keywords(question: str) -> str:
     if any(m in q for m in teach_markers):
         return "teach"
     return "answer"
+
+
+def _is_scene_related_keywords(question: str) -> bool:
+    """Keyword fallback for scene_related, mirroring _classify_mode_keywords —
+    used only when the LLM classification call above fails to parse."""
+    q = question.lower()
+    scene_markers = ("my active object", "my selection", "my selected", "currently selected",
+                      "my scene", "my armature", "my mesh", "right now", "currently open",
+                      "what's selected", "whats selected", "my current", "in my blender",
+                      "open in blender")
+    return any(m in q for m in scene_markers)
+
+
+def _is_app_help_keywords(question: str) -> bool:
+    """Keyword fallback for app_help_related, mirroring _is_scene_related_keywords —
+    used only when the LLM classification call above fails to parse. Deliberately
+    conservative (specific phrasings, not bare tool names) since a false positive
+    here means the platform-catalog block gets appended to a turn that didn't need
+    it — the exact cost this flag exists to avoid."""
+    q = question.lower()
+    app_markers = ("which tab", "which platform", "which hub", "what can mossy",
+                    "what can you do", "where do i find", "where is the", "how do i get to",
+                    "how do i navigate", "what does mossy do", "mossy.space", "in this app",
+                    "sidebar", "quick hub access")
+    return any(m in q for m in app_markers)
+
+
+def _is_game_data_related_keywords(question: str) -> bool:
+    """Keyword fallback for game_data_related, mirroring _is_app_help_keywords —
+    used only when the LLM classification call above fails to parse. Deliberately
+    conservative: a false positive here means the ~155K-char neuron dump
+    (buildBrainNeuronBlock() in main.ts — vanilla game strings, materials,
+    Papyrus library analysis, mesh/texture catalogs, form/asset graphs, F4SE
+    plugins, MO2 profile) rides on a turn that didn't need it, which is
+    exactly the per-turn cost this flag exists to avoid."""
+    q = question.lower()
+    game_data_markers = ("formid", "editorid", "record type", "which mod adds",
+                          "what mod adds", "load order", "papyrus function", "papyrus event",
+                          "esp", "esm", "esl", "plugin conflict", "vanilla record",
+                          "quest stage", "actor value", "f4se plugin", "material swap",
+                          "nif ", "mesh path", "texture path", "voice type")
+    return any(m in q for m in game_data_markers)
+
+
+_CONVERSATIONAL_FILLER_WORDS = frozenset((
+    "hi", "hello", "hey", "yo", "sup", "thanks", "thank", "thx", "you",
+    "ok", "okay", "cool", "nice", "great", "awesome", "sounds", "good",
+    "that", "this", "helped", "worked", "got", "it", "makes", "sense",
+    "morning", "night", "evening", "how", "are", "what", "do", "think",
+    "bye", "goodbye", "see", "ya", "nevermind", "never", "mind", "so",
+    "much", "very", "really", "appreciate", "appreciated", "perfect",
+    "excellent", "yeah", "yep", "yes", "no", "nope", "alright", "fine",
+))
+
+
+def _is_conversational_keywords(question: str) -> bool:
+    """Keyword fallback for needs_grounding's inverse — used only when the LLM
+    classification call fails to parse. Unlike every other keyword fallback in
+    this file (which default to False and look for positive matches), this one
+    defaults to "needs grounding" (True) and only flips to conversational on a
+    tight match — a false positive here (wrongly treating a real question as
+    smalltalk) means it skips retrieval/citations entirely, a worse failure
+    than the alternative (a greeting that unnecessarily runs retrieval).
+
+    Word-overlap, not exact-phrase matching: an earlier version checked the
+    WHOLE trimmed question against a fixed list of exact phrases ("thanks",
+    "that helped") — real phrasing combines them ("thanks that helped",
+    "thanks so much!") and missed every combination not in the list. Also
+    treated any input <=3 chars as conversational, which would have
+    misclassified real 3-letter FO4 terms (ESP, ESM, ESL) as smalltalk. This
+    version instead checks whether EVERY word in the question is drawn from a
+    small filler vocabulary — true for any combination/order of greetings and
+    acknowledgments, false the moment a single substantive word (a tool name,
+    an identifier, "papyrus", "formid") appears."""
+    words = re.findall(r"[a-zA-Z']+", question.lower())
+    if not words:
+        return True
+    return all(w in _CONVERSATIONAL_FILLER_WORDS for w in words)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1653,59 +1783,120 @@ def diagnose(question: str, mode: str) -> Optional[str]:
     return diagnosis or None
 
 
-def classify_and_diagnose(question: str) -> tuple[str, Optional[str]]:
+def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool, bool, bool]:
     """
     Merges classify_mode() and diagnose() into ONE _generate_json call.
 
-    NOT wired into /infer by default. Kept ready as the fix for exactly one
-    failure mode: if the GUI pass shows unacceptable dead air from three
-    sequential small-model passes (classify, diagnose, generate) before the
-    user sees a first token — slow-but-smart loses to fast-and-decent in a
-    chat UI. mode and diagnosis operate on the same input and are both small
-    structured-output asks; _generate_json already handles multi-field
-    extraction, so asking for both together costs close to what asking for
-    one does, not double.
+    ACTIVATED 2026-08-15 (was previously built and left inactive — see git
+    history for the original "not wired in" version of this docstring). The
+    trigger wasn't a GUI latency measurement as originally planned; it was
+    /enrich (docs/ARCHITECTURE.md's "Target layer model") making enrichment
+    run on every turn instead of only for users who'd opted into Brain B as a
+    provider — at that call volume, two sequential small-model passes per
+    turn is a real, ongoing cost, not a one-time GUI-pass annoyance.
 
-    Deliberately built now and left inactive rather than activated
-    preemptively: the first real-GPU latency measurement should reflect the
-    architecture as actually deployed (two separate calls), not an
-    optimization applied before anyone knows it's needed. If that
-    measurement shows the dead air is a real problem, activate this by
-    replacing, in /infer:
-        mode = data.get("mode") or classify_mode(question)
-        ...
-        diagnosis = diagnose(question, mode)
-    with:
-        mode, diagnosis = data.get("mode"), None
-        if not mode:
-            mode, diagnosis = classify_and_diagnose(question)
-        elif mode == "teach":  # still want a real diagnosis even if mode was passed explicitly
-            diagnosis = diagnose(question, mode)
+    Extended with a third field, scene_related, when activated: the original
+    two-field version (mode + diagnosis) silently dropped what classify_mode()
+    alone provided, which /enrich's abstention-exemption check depends on
+    (scene_context_available = scene_related and blender_context is not
+    None).
 
-    Falls back per field independently, matching the two-call path's
-    graceful-degradation contract: mode falls back to the keyword heuristic,
-    diagnosis falls back to None. Logs the same mode_classifications
-    comparison as classify_mode() when the merged call succeeds.
+    Extended again with a fourth field, app_help_related, same day: the
+    platform catalog (src/renderer/src/platformCatalog.ts's 23-platform
+    index, ~4,700 chars / ~1,170 tokens measured directly) was riding on
+    every single turn once /enrich's output started getting folded into the
+    prompt unconditionally — including plain Papyrus questions with nothing
+    to do with app navigation, and including the voice path, where
+    LiveContext.tsx already special-cases prompt size because an oversized
+    system prompt was the direct cause of an earlier 120s-watchdog latency
+    problem. app_help_related gates that injection the same way
+    scene_related gates scene JSON: the client only appends the platform map
+    when this is true. Each additional field this call asks for costs close
+    to what the first one did — the same reasoning classify_mode() itself
+    used to bundle scene_related in with mode.
+
+    Extended a fifth time with game_data_related: main.ts's buildBrainNeuronBlock()
+    (vanilla game strings, materials, full Papyrus library analysis, mesh/texture
+    catalogs, form/asset graphs, F4SE plugins, MO2 profile — everything the
+    background scan system collects, ~155K chars measured live against
+    brain-neurons.json on 2026-08-16) was riding on EVERY cloud call
+    unconditionally, the same shape of problem app_help_related's comment
+    above already describes for the platform catalog — except an order of
+    magnitude larger, and the direct cause of the 50s->120s watchdog change
+    LiveContext.tsx documents (Groq processing ~40K tokens of neuron dump
+    before it can start answering, not Render cold-start alone). Gates the
+    same way: the client only asks main.ts to inject the neuron block when
+    this is true.
+
+    Extended a sixth time with needs_grounding: the abstention gate fires
+    whenever wiki retrieval (and, after the inverted-rule fix, scene/game-
+    data sources) found nothing — but a pure conversational turn ("hi",
+    "thanks", "what do you think") was never seeking factual grounding in
+    the first place, so it found nothing from EVERY source and abstained,
+    returning NO_DOCS_MESSAGE ("I don't have documentation covering that in
+    my knowledge base...") as if it were a real answer. Found live
+    (2026-08-17): a smoke test literally sent "hi" and got exactly that —
+    the first thing a new user does would make Mossy look broken in the
+    first ten seconds. needs_grounding=False routes around the entire
+    abstain decision (folded into has_grounding below as one more OR-term,
+    not a separate branch — a conversational turn that's ALSO scene-related
+    or game-data-related still gets grounded normally by those, since the
+    fields are independently classified).
+
+    Falls back per field independently, matching every other LLM-derived
+    field in this file: mode falls back to the keyword heuristic, diagnosis
+    falls back to None, scene_related/app_help_related/game_data_related/
+    needs_grounding each fall back to their own keyword heuristic. Logs the
+    same mode_classifications comparison as classify_mode() when the merged
+    call succeeds.
     """
     prompt = (
-        "Classify this Fallout 4 modding question AND diagnose what the user "
-        "actually needs, in one pass.\n\n"
-        'Mode — exactly one of "teach" (they want to understand a concept), '
+        "Classify this Fallout 4 modding question along six dimensions, in one pass.\n\n"
+        '1. mode - exactly one of "teach" (they want to understand a concept), '
         '"debug" (something is broken and needs fixing), or "answer" (a direct '
         "factual/lookup question that's neither).\n\n"
-        "Diagnosis — one sentence: what do they actually need to know to solve "
+        "2. diagnosis - one sentence: what do they actually need to know to solve "
         "their real problem, which may be narrower or broader than their literal "
         "wording (e.g. someone asking for an OnTriggerEnter snippet who has never "
         "cast an ObjectReference actually needs that prerequisite first).\n\n"
+        '3. scene_related - true if the question asks about the state of the user\'s '
+        'CURRENTLY OPEN Blender scene ("what\'s my active object", "how many verts does my '
+        'selection have", "is my armature named right", "what\'s selected right now"); '
+        'false for general FO4/Blender knowledge questions that don\'t depend on what\'s '
+        'actually open right now.\n\n'
+        '4. app_help_related - true if the question is about the MOSSY.SPACE desktop app '
+        'itself rather than Fallout 4 modding knowledge — "where do I find the DDS '
+        'converter", "which tab has BGSM editing", "what can Mossy do", "how do I get to '
+        'the plugin tools", "which platform handles load order"; false for actual FO4/'
+        'Creation Kit/Papyrus/Blender modding questions, even ones that mention a tool by '
+        "name (e.g. \"how do I use xEdit to clean a plugin\" is a modding question, not an "
+        'app-navigation question).\n\n'
+        '5. game_data_related - true if answering well needs a SPECIFIC vanilla-game fact '
+        'this user\'s own installed game/mod setup would confirm — an exact FormID, EditorID, '
+        'record type, which of their installed mods adds/overrides something, their actual '
+        'load order, a real Papyrus function/event signature, or specific vanilla mesh/'
+        'texture/material paths; false for general modding knowledge, concepts, workflows, '
+        'or how-to questions that don\'t hinge on one of those specific lookups.\n\n'
+        '6. needs_grounding - false ONLY for pure conversational turns with no factual '
+        'question at all: greetings ("hi", "hey"), thanks/acknowledgments ("thanks", "that '
+        'helped", "got it"), small talk, or opinion-seeking ("what do you think"); true for '
+        'every actual question, even a simple or vague one — when in doubt, true.\n\n'
         f"Question: {question}\n\n"
-        'Return ONLY JSON: {"mode": "teach"|"debug"|"answer", "diagnosis": "<one sentence>"}'
+        'Return ONLY JSON: {"mode": "teach"|"debug"|"answer", "diagnosis": "<one sentence>", '
+        '"scene_related": true|false, "app_help_related": true|false, "game_data_related": true|false, '
+        '"needs_grounding": true|false}'
     )
-    parsed, raw, attempts = _generate_json(prompt, ["mode", "diagnosis"], max_new_tokens=150)
+    parsed, raw, attempts = _generate_json(
+        prompt, ["mode", "diagnosis", "scene_related", "app_help_related", "game_data_related", "needs_grounding"],
+        max_new_tokens=250
+    )
     keyword_mode = _classify_mode_keywords(question)
 
     if parsed is None:
         log_contract_failure(question, "classify_and_diagnose", raw, attempts)
-        return keyword_mode, None
+        return (keyword_mode, None, _is_scene_related_keywords(question),
+                _is_app_help_keywords(question), _is_game_data_related_keywords(question),
+                not _is_conversational_keywords(question))
 
     mode = parsed.get("mode")
     if mode not in ("teach", "debug", "answer"):
@@ -1714,7 +1905,36 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str]]:
         log_mode_classification(question, mode, keyword_mode)
 
     diagnosis = str(parsed.get("diagnosis") or "").strip() or None
-    return mode, diagnosis
+
+    # Per-field fallback logging: the overall JSON parsed fine (we're past the
+    # `parsed is None` branch above, which already logs), but if the model
+    # omitted or malformed one specific field, degrading to that field's
+    # keyword heuristic here was previously silent — no log_contract_failure
+    # call, no warning, nothing in contract_failures. That's exactly the
+    # failure mode where "Mossy doesn't know about her own platforms" (or
+    # silently loses the scene exemption) looks like a classifier problem
+    # with no trace connecting it back to a parse gap on this one field.
+    scene_related = parsed.get("scene_related")
+    if not isinstance(scene_related, bool):
+        log_contract_failure(question, "classify_and_diagnose.scene_related", raw, attempts)
+        scene_related = _is_scene_related_keywords(question)
+
+    app_help_related = parsed.get("app_help_related")
+    if not isinstance(app_help_related, bool):
+        log_contract_failure(question, "classify_and_diagnose.app_help_related", raw, attempts)
+        app_help_related = _is_app_help_keywords(question)
+
+    game_data_related = parsed.get("game_data_related")
+    if not isinstance(game_data_related, bool):
+        log_contract_failure(question, "classify_and_diagnose.game_data_related", raw, attempts)
+        game_data_related = _is_game_data_related_keywords(question)
+
+    needs_grounding = parsed.get("needs_grounding")
+    if not isinstance(needs_grounding, bool):
+        log_contract_failure(question, "classify_and_diagnose.needs_grounding", raw, attempts)
+        needs_grounding = not _is_conversational_keywords(question)
+
+    return mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding
 
 
 def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[str]) -> dict:
@@ -1797,6 +2017,329 @@ def reflect():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ENRICHMENT ENDPOINT — pre-generation half of /infer, split out 2026-08-15 so
+# Brain B stops being an exclusive generation provider. Retrieval, classify_
+# and_diagnose(), the abstention-tier/scene-exemption decision, and learner-
+# state all happen here; generation is dispatched by the caller to whichever
+# backend the user already has configured, then /contract fills in
+# check_question/learner_signal afterward. See docs/ARCHITECTURE.md's
+# "Target layer model" section for the full design and why contract_fields()
+# specifically can't be pulled forward into this endpoint (it needs the
+# generated answer text as a direct prompt input). /infer is unchanged and
+# still fully functional — this is an additive split, not a replacement, for
+# as long as anything still calls /infer directly.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/enrich", methods=["POST"])
+def enrich():
+    """
+    POST /enrich  { "question": "...", "session_id": "...", "user_id": "...",
+                     "experience_level_override": "beginner",
+                     "get_context": {...}, "addon_outdated": false }
+
+    Field meanings for get_context / addon_outdated / session_id / user_id /
+    experience_level_override are identical to /infer's — see that docstring,
+    unchanged below.
+
+    Returns {
+      "abstained": bool,
+      "answer": "..." | null,            -- ready-to-display abstain message
+                                          -- when abstained=true; the caller
+                                          -- should skip generation entirely
+                                          -- in that case, not generate and
+                                          -- discard
+      "mode": "teach|answer|debug",
+      "scene_related": bool,
+      "diagnosis": "..." | null,
+      "answer_level": "beginner|intermediate|advanced" | null,
+      "next_skill": "..." | null,
+      "retrieved_context": "..." | "",   -- pre-assembled grounding block
+                                          -- (knowledge-base excerpts, past
+                                          -- episodes, diagnosis/level framing,
+                                          -- live scene JSON when relevant) —
+                                          -- fold this into whatever prompt the
+                                          -- caller sends to its own generator
+      "used_web": bool,                  -- retrieved_context came from a live
+                                          -- web search fallback, not the KB
+      "sources": [...],                  -- citations for retrieved_context
+      "past_episodes": [...],
+      "hedged": bool,
+      "hedge_prefix": "..." | null,      -- when hedged, prepend this exact
+                                          -- string to the generated answer
+                                          -- before displaying it
+      "used_scene_context": bool,
+      "context_for_generation": {...} | null,  -- live scene JSON already
+                                                 -- folded into retrieved_context
+                                                 -- when relevant; also exposed
+                                                 -- standalone in case the
+                                                 -- caller wants to format it
+                                                 -- itself instead
+      "addon_outdated_relevant": bool,
+      "app_help_related": bool,          -- true when this question is about
+                                          -- navigating/using the MOSSY.SPACE
+                                          -- app itself, not FO4 modding
+                                          -- knowledge. The caller should only
+                                          -- append the platform-catalog block
+                                          -- to the generation prompt when
+                                          -- this is true — it costs ~1,170
+                                          -- tokens (measured), which is a
+                                          -- real, on-every-turn cost on the
+                                          -- voice path if injected
+                                          -- unconditionally.
+    }
+    """
+    data                = request.get_json(force=True)
+    question            = data.get("question", "").strip()
+    session_id          = data.get("session_id") or "unknown"
+    user_id             = data.get("user_id") or "unknown"
+    experience_override = data.get("experience_level_override")
+    raw_context     = data.get("get_context")
+    blender_context = raw_context if isinstance(raw_context, dict) else None
+    addon_outdated  = bool(data.get("addon_outdated"))
+
+    if not question:
+        return jsonify({"error": "question required"}), 400
+
+    mode_override = data.get("mode")
+    mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding = classify_and_diagnose(question)
+    if mode_override in ("teach", "answer", "debug"):
+        mode = mode_override
+        # A caller-supplied mode override skips mode classification but not
+        # diagnosis — same rule /infer already applied when this was two
+        # separate calls (mode override still got a real diagnose() call for
+        # teach turns). scene_related stays from the merged call either way;
+        # it's orthogonal to mode and callers overriding mode shouldn't
+        # silently disable it, same reasoning as classify_mode()'s own
+        # docstring.
+        diagnosis = diagnose(question, mode) if mode == "teach" else diagnosis
+
+    episodes = search_episodes(question, limit=3)
+
+    # Abstention gate — identical logic to /infer's, moved here unchanged.
+    probe, _retrieval_diag = hybrid_retrieve(question, top_k=6, probe_k=30, return_diagnostics=True)
+    agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
+    bm25_scores = _retrieval_diag["bm25_scores"]
+    bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
+    retrieval_tier = classify_retrieval(agreement, bm25_margin)
+    log_retrieval(session_id, agreement, bm25_margin, retrieval_tier)
+
+    scene_context_available = scene_related and blender_context is not None
+    addon_outdated_relevant = scene_related and blender_context is None and addon_outdated
+
+    # Run every applicable non-wiki source BEFORE deciding whether to
+    # abstain, not after — see the inverted rule below for why. game_data
+    # search happens here (once) rather than later in context-assembly so
+    # its actual results (not just the game_data_related classification
+    # flag) can inform that decision.
+    game_data_results: list = []
+    if game_data_related:
+        try:
+            papyrus_path = Path(GAME_SCAN_CACHE_PATH) / "fo4_papyrus_api.json"
+            game_data_results = game_data_index.search_papyrus(question, papyrus_path, top_k=5)
+        except Exception as e:
+            log.warning("game_data_index search failed (non-fatal): %s", e)
+    game_data_has_results = bool(game_data_results)
+
+    # Inverted abstain rule: abstain only when NO source produced grounding,
+    # not when wiki retrieval specifically produced none. The old rule
+    # (abstain unless wiki found something, with a hand-added exemption per
+    # non-wiki source) hit the same bug three times in one day: scene
+    # context needed an exemption, then game_data_related needed the same
+    # exemption twice over (once for abstain, once for hedge) because wiki
+    # failing doesn't mean the Papyrus BM25 index also failed. Every new
+    # grounding source added the same way would need its own carve-out —
+    # form graph, asset graph, and world strings all still to come. Running
+    # every applicable source first and asking "did ANYTHING ground this"
+    # once, instead of "did wiki fail, and if so does some specific
+    # exemption apply", removes the recurring bug at its root instead of
+    # patching each new instance of it.
+    #
+    # not needs_grounding is the same OR-term shape, not a special case: a
+    # pure conversational turn ("hi", "thanks") was never seeking factual
+    # grounding at all, so it found nothing from every source and abstained
+    # — returning NO_DOCS_MESSAGE as if it were a real answer. Found live:
+    # "hi" got "I don't have documentation covering that in my knowledge
+    # base..." — the first thing a new user does making Mossy look broken
+    # in the first ten seconds. A conversational turn that's ALSO scene- or
+    # game-data-related still gets grounded normally by those fields, since
+    # all six classify_and_diagnose() dimensions are independent.
+    has_grounding = (
+        (retrieval_tier != "abstain") or scene_context_available
+        or game_data_has_results or not needs_grounding
+    )
+
+    if not has_grounding:
+        log.info("Abstaining on %r — no source produced grounding (wiki agreement %d, bm25_margin %s, "
+                  "scene_context_available=%s, game_data_related=%s, needs_grounding=%s)",
+                  question[:60], agreement, bm25_margin, scene_context_available, game_data_related, needs_grounding)
+        log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
+                            diagnosis=None, session_id=session_id)
+        return jsonify({
+            "abstained": True, "answer": NO_DOCS_MESSAGE,
+            "mode": mode, "scene_related": scene_related, "diagnosis": None,
+            "answer_level": None, "next_skill": None,
+            "retrieved_context": "", "used_web": False, "sources": [],
+            "past_episodes": episodes, "hedged": False, "hedge_prefix": None,
+            "used_scene_context": False, "context_for_generation": None,
+            "addon_outdated_relevant": addon_outdated_relevant,
+            "app_help_related": app_help_related,
+            "game_data_related": game_data_related, "game_data_found": False,
+            "needs_grounding": needs_grounding,
+            "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
+            "retrieval_tier": retrieval_tier,
+        })
+    elif retrieval_tier == "abstain":
+        log.info("Wiki retrieval would have abstained on %r (agreement %d, bm25_margin %s) — "
+                  "exempted by non-wiki grounding (scene_context_available=%s, game_data_found=%s, "
+                  "needs_grounding=%s)",
+                  question[:60], agreement, bm25_margin, scene_context_available, game_data_has_results,
+                  needs_grounding)
+
+    skill_ids = extract_skill_ids(probe[:6])
+    answer_level = compute_answer_level(user_id, skill_ids, experience_override)
+    update_learner_state(user_id, skill_ids, mode)
+    next_skill = suggest_next_skill(user_id, skill_ids)
+
+    context_for_generation = blender_context if scene_context_available else None
+
+    # Assemble the grounding block generation needs — the same ingredients
+    # infer_answer() builds internally, extracted here since generation no
+    # longer happens inside this process. A second, narrower hybrid_retrieve
+    # (top_k=6, no probe_k) — the abstention probe above is deliberately wide
+    # (probe_k=30) for agreement scoring, not for content; this mirrors what
+    # infer_answer() already did as two separate retrieval calls before this
+    # split, so total retrieval-call count is unchanged, just relocated.
+    results = hybrid_retrieve(question, top_k=6)
+    ctx = "\n\n".join(expand_to_parent(results))
+    sources = [_citation_from_result(r) for r in results]
+    used_web = False
+    if not ctx:
+        web = web_search(question)
+        if web:
+            ctx = f"[Web]\n{web}"
+            used_web = True
+            auto_save_to_chroma(question, web)
+
+    episode_ctx = f"\n\nRELEVANT PAST SESSIONS:\n" + "\n".join(episodes) if episodes else ""
+    diagnosis_ctx = f"\nWHAT THEY ACTUALLY NEED (diagnosed before answering): {diagnosis}\n" if diagnosis else ""
+    level_ctx = _answer_level_prompt_fragment(answer_level)
+    scene_ctx = (
+        f"\nLIVE BLENDER SCENE (what's actually open in the user's Blender right now — "
+        f"answer using THIS, not general knowledge, when the question is about their "
+        f"current scene):\n{json.dumps(context_for_generation, indent=2)}\n"
+        if context_for_generation else ""
+    )
+    # Phase 1 of the game-data/Brain-B merge project (see
+    # docs-dev/GAME_DATA_RETRIEVAL_MERGE_PROJECT.md) — Papyrus API only so
+    # far; form graph, asset graph, and world strings are explicit follow-up.
+    # Ranked BM25 lookup, not the client-side neuron-block dump: this is what
+    # actually answers "what does X do" with the specific matching
+    # function(s) instead of main.ts's ~155K-char everything-at-once block.
+    # Reuses game_data_results computed above the abstain gate — searched
+    # once, not twice.
+    game_data_ctx = ""
+    if game_data_has_results:
+        formatted = game_data_index.format_game_data_results(game_data_results)
+        if formatted:
+            game_data_ctx = f"\n{formatted}\n"
+    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}"
+
+    # Scene context, not the KB match, is the grounding for a scene-related
+    # question when it's available — mirrors the inverted abstain rule
+    # above. Without this, a weak/irrelevant KB match (e.g. Papyrus's
+    # "ObjectReference Script" superficially matching "what's in my Blender
+    # scene") still prepends "I don't have documentation covering this" even
+    # though the live scene JSON is sitting right there in the same prompt —
+    # found live: the model treated that disclaimer as authoritative and
+    # denied having scene access at all, ignoring the actual scene data a
+    # few lines later. game_data_has_results gets the same exemption for the
+    # same reason — and specifically checks HAS_RESULTS, not the
+    # game_data_related flag, so a game-data turn the Papyrus index doesn't
+    # cover yet (form graph / asset graph / world strings — not indexed
+    # until later phases) still hedges normally on the wiki match instead of
+    # silently suppressing a disclaimer that's actually warranted there.
+    hedged = retrieval_tier == "hedge" and not scene_context_available and not game_data_has_results
+    hedge_prefix = None
+    if hedged and probe:
+        top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
+        hedge_prefix = (
+            f"I don't have documentation directly covering this — the closest match "
+            f"I have is *{top_title}*. Treating that as a lead, not a confirmed answer:\n\n"
+        )
+
+    return jsonify({
+        "abstained": False, "answer": None,
+        "mode": mode, "scene_related": scene_related, "diagnosis": diagnosis,
+        "answer_level": answer_level, "next_skill": next_skill,
+        "retrieved_context": retrieved_context, "used_web": used_web, "sources": sources,
+        "past_episodes": episodes, "hedged": hedged, "hedge_prefix": hedge_prefix,
+        "used_scene_context": context_for_generation is not None,
+        "context_for_generation": context_for_generation,
+        "addon_outdated_relevant": addon_outdated_relevant,
+        "app_help_related": app_help_related,
+        # game_data_related: the classifier's judgment that this turn needs a
+        # game-data fact. game_data_found: whether the Phase-1 Papyrus index
+        # actually had one. The client uses found (not related) to decide
+        # whether the old neuron-block dump should ride along as a fallback
+        # for coverage Phase 1 doesn't have yet — see
+        # LocalAIEngine.ts's includeGameData wiring.
+        "game_data_related": game_data_related, "game_data_found": game_data_has_results,
+        "needs_grounding": needs_grounding,
+        "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
+        "retrieval_tier": retrieval_tier,
+    })
+
+
+@app.route("/contract", methods=["POST"])
+def contract():
+    """
+    POST /contract  { "question": "...", "answer": "...", "mode": "teach",
+                       "diagnosis": "..." | null, "session_id": "..." }
+
+    Post-generation half of the split. `mode` and `diagnosis` must be the
+    exact values /enrich returned for this turn — passed explicitly, not
+    recomputed here. Recomputing would mean classifying and diagnosing the
+    same question twice per turn, exactly the round-trip-doubling cost
+    activating classify_and_diagnose() in /enrich was meant to avoid.
+
+    Meant to be called fire-and-forget from the caller's perspective: render
+    the generated answer as soon as it's back from generation, don't block on
+    this. If /contract errors or times out, the caller keeps a working answer
+    and only loses the tutoring extras (check_question, learner_signal) — the
+    UI should have a settled "arrived a beat later" state for the check-
+    question card rather than blocking the answer or reflowing the layout
+    when it lands.
+
+    Also performs the episode-save side effect /infer used to do at the end
+    of a successful (non-abstained) turn — deliberately co-located here since
+    it needs the same question+answer+mode+diagnosis+sources.
+
+    Returns { "check_question": "..." | null, "learner_signal": "..." | null }
+    """
+    data       = request.get_json(force=True)
+    question   = data.get("question", "").strip()
+    answer     = data.get("answer", "")
+    mode       = data.get("mode") or "answer"
+    diagnosis  = data.get("diagnosis")
+    session_id = data.get("session_id") or "unknown"
+    sources    = data.get("sources") or []
+
+    if not question or not answer:
+        return jsonify({"error": "question and answer required"}), 400
+    if mode not in ("teach", "answer", "debug"):
+        mode = "answer"
+
+    fields = contract_fields(question, answer, mode, diagnosis)
+    log_learner_signal(question, mode, fields.get("learner_signal"), diagnosis, session_id=session_id)
+
+    summary = f"Q: {question[:80]} → {answer[:120]}"
+    topic_ids = [s.get("id", "?") if isinstance(s, dict) else s for s in sources][:5]
+    save_episode(summary, topic_ids)
+
+    return jsonify(fields)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN INFERENCE ENDPOINT
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1804,10 +2347,25 @@ def reflect():
 def infer():
     """
     POST /infer  { "question": "...", "use_langgraph": true, "mode": "teach|answer|debug",
-                   "session_id": "...", "user_id": "...", "experience_level_override": "beginner" }
+                   "session_id": "...", "user_id": "...", "experience_level_override": "beginner",
+                   "get_context": {...}, "addon_outdated": false }
 
     `mode` is optional — omit it to fall back to classify_mode()'s keyword
     heuristic. Pass it explicitly once a real router exists upstream.
+
+    `addon_outdated`, if true, means the client confirmed (via a
+    get_capabilities handshake against the connected Blender add-on) that it
+    doesn't support get_context — as opposed to Blender simply not being
+    open. Only meaningful combined with scene_related and an empty
+    get_context; see addon_outdated_relevant in the response.
+
+    `get_context`, if present, is the live Blender scene JSON (active object,
+    selection, mesh stats, etc.) — the same shape BridgeServer.ts's
+    `/execute {type:'context'}` already returns and DesktopBridge.tsx already
+    renders. Optional; safe to always send opportunistically when Blender is
+    connected — classify_mode()'s scene_related flag decides per-question
+    whether it's actually used, so sending it on an unrelated question just
+    means it's fetched and ignored, not injected into the prompt.
 
     `session_id` identifies one app session (per-launch); `user_id` identifies
     one learner across every session (persisted client-side, e.g.
@@ -1837,16 +2395,42 @@ def infer():
                                          -- was only ambiguous, not strong — the answer text
                                          -- is prefixed with a "closest match" disclaimer
                                          -- naming the actual top citation
+      "used_scene_context": bool,       -- true when get_context was actually injected into
+                                         -- this answer's prompt (scene_related AND context
+                                         -- was sent) — drives the "read your scene" UI badge
+      "addon_outdated_relevant": bool,  -- true when THIS question was scene_related, no
+                                         -- context was available, AND the client confirmed
+                                         -- (via get_capabilities) the connected add-on is too
+                                         -- old to support get_context — drives an "update your
+                                         -- Blender add-on" notice instead of a silent abstain
       ...
     }
     """
     data                = request.get_json(force=True)
     question            = data.get("question", "").strip()
     use_langgraph       = data.get("use_langgraph", True)
-    mode                = data.get("mode") or classify_mode(question)
     session_id          = data.get("session_id") or "unknown"
     user_id             = data.get("user_id") or "unknown"
     experience_override = data.get("experience_level_override")
+    # get_context: live Blender scene JSON, fetched client-side (LocalAIEngine.ts)
+    # via the same BridgeServer.ts /execute {type:'context'} call DesktopBridge.tsx's
+    # fetchBlenderContext already uses. Only a dict is accepted — anything else
+    # (missing, null, Blender not running client-side) is treated as "no scene
+    # context available" rather than erroring the whole request over it.
+    raw_context   = data.get("get_context")
+    blender_context = raw_context if isinstance(raw_context, dict) else None
+    # addon_outdated: set by LocalAIEngine.ts's checkAddonSupportsGetContext()
+    # ONLY when it actually confirmed (via a get_capabilities handshake) that
+    # a connected Blender add-on doesn't support get_context — never set just
+    # because Blender isn't running at all. Used below to tell "no scene data
+    # because Blender is closed" apart from "no scene data because the add-on
+    # needs updating" — the latter used to be indistinguishable from a plain
+    # abstain, discovered live when an outdated add-on's "Unknown command
+    # type" response silently looked identical to no-Blender-at-all.
+    addon_outdated = bool(data.get("addon_outdated"))
+
+    classified_mode, scene_related = classify_mode(question)
+    mode = data.get("mode") or classified_mode
 
     if not question:
         return jsonify({"error": "question required"}), 400
@@ -1879,7 +2463,21 @@ def infer():
     # out-of-domain misses were passing agreement alone) and what "hedge" means.
     retrieval_tier = classify_retrieval(agreement, bm25_margin)
     log_retrieval(session_id, agreement, bm25_margin, retrieval_tier)
-    if retrieval_tier == "abstain":
+
+    # Scene-question exemption: a low BM25 margin against the knowledge base
+    # means nothing for "what's my active object" — that's live introspection,
+    # not a documentation lookup, so classify_retrieval's verdict doesn't apply.
+    # Only exempts when BOTH classify_mode flagged the question scene_related
+    # AND the client actually sent live scene data — a scene_related question
+    # with no Blender connected still abstains normally, since there's nothing
+    # to answer from either way.
+    scene_context_available = scene_related and blender_context is not None
+    # True only when THIS question actually needed scene data, didn't get
+    # any, and the specific reason was a confirmed-outdated add-on — not
+    # merely "Blender isn't open" or "this wasn't a scene question at all."
+    addon_outdated_relevant = scene_related and blender_context is None and addon_outdated
+
+    if retrieval_tier == "abstain" and not scene_context_available:
         log.info("Abstaining on %r — retrieval agreement %d, bm25_margin %s", question[:60],
                   agreement, bm25_margin)
         log_learner_signal(question, mode, f"no documentation found for: {question[:200]}",
@@ -1891,12 +2489,17 @@ def infer():
         result = {
             "answer": NO_DOCS_MESSAGE, "confidence": 0.0, "sources": [],
             "critique_applied": False, "used_web": False, "abstained": True, "hedged": False,
+            "used_scene_context": False, "addon_outdated_relevant": addon_outdated_relevant,
             "mode": mode, "diagnosis": None, "check_question": None,
             "answer_level": None, "next_skill": None, "past_episodes": episodes,
         }
         # Deliberately NOT saved as an episode — it's a non-answer, not a
         # resolved interaction; saving it would pollute episodic memory.
         return jsonify(result)
+    elif retrieval_tier == "abstain" and scene_context_available:
+        log.info("Retrieval would have abstained on %r (agreement %d, bm25_margin %s) — "
+                  "exempted as scene_related with live Blender context available",
+                  question[:60], agreement, bm25_margin)
 
     # Learner model: read state BEFORE this turn's exposure is recorded, so
     # answer_level reflects who the user was walking in, not who they became
@@ -1914,11 +2517,19 @@ def infer():
     # describing it after the fact. Nullable — never blocks the answer.
     diagnosis = diagnose(question, mode)
 
+    # Only actually inject scene JSON into the prompt when it's relevant — a
+    # non-scene_related question still gets no scene_ctx even if the client
+    # opportunistically sent get_context on every turn, so ordinary knowledge
+    # questions don't carry irrelevant scene noise into the prompt.
+    context_for_generation = blender_context if scene_context_available else None
+
     try:
         if use_langgraph:
-            result = run_langgraph_workflow(question, diagnosis=diagnosis, answer_level=answer_level)
+            result = run_langgraph_workflow(question, diagnosis=diagnosis, answer_level=answer_level,
+                                             blender_context=context_for_generation)
         else:
-            result = _simple_infer(question, diagnosis=diagnosis, answer_level=answer_level)
+            result = _simple_infer(question, diagnosis=diagnosis, answer_level=answer_level,
+                                    blender_context=context_for_generation)
     except Exception as e:
         log.exception("Inference failed: %s", e)
         # Return a generic error message to avoid leaking internal stack traces
@@ -1933,7 +2544,11 @@ def infer():
     result["answer_level"] = answer_level
     result["next_skill"] = next_skill
     result["abstained"] = False
-    result["hedged"] = retrieval_tier == "hedge"
+    # See /enrich's matching comment: scene context, when available, is the
+    # grounding for the answer — a weak KB match shouldn't hedge it away.
+    result["hedged"] = retrieval_tier == "hedge" and not scene_context_available
+    result["used_scene_context"] = context_for_generation is not None
+    result["addon_outdated_relevant"] = addon_outdated_relevant
 
     # Hedge tier: still generate a real answer from the same retrieved context
     # (unlike abstain, which skips generation entirely) — but lead with an

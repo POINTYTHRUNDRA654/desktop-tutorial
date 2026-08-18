@@ -10599,7 +10599,7 @@ end.
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  forceHandle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }> }) => {
+  forceHandle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }>; includeGameData?: boolean }) => {
     try {
       // This channel is specifically the cloud path (Inkling/Groq) — local
       // providers (Ollama/KoboldCpp) go through mlLlmGenerate and are
@@ -10615,6 +10615,11 @@ end.
       // game reference data, and full conversation history simultaneously.
       // Human brains don't have truncation limits; neither does Mossy's.
       const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
+      // Diagnostic (2026-08-15): confirming whether MossyBrain's identity
+      // block actually crosses the renderer->main IPC boundary intact, per
+      // a live report of Mossy denying her own name/persona entirely on a
+      // voice turn. Remove once confirmed either way.
+      writeMainLog(`[AI Chat Groq] systemPrompt length=${systemPrompt.length}, hasIdentityRule=${systemPrompt.includes('IDENTITY RULE')}, hasMossyName=${systemPrompt.includes("I'm Mossy")}, snippet="${systemPrompt.slice(0, 150).replace(/\n/g, ' ')}"`);
 
       // Use per-user model preference from settings (falls back to hardcoded primary)
       const s = loadSettings();
@@ -10641,17 +10646,30 @@ end.
         { role: 'user', content: userPromptText },
       ];
 
-      // Inject all active brain neurons into every AI call.
-      // Mossy's brain is modular — each neuron is an independent knowledge domain
-      // (Papyrus scripting, mesh paths, quest design, tools, factions, etc.)
-      // that can grow, be updated, or removed without affecting the others.
-      // No character limit — the model's 128K context window handles it all.
-      try {
-        const neuronBlock = buildBrainNeuronBlock();
-        if (neuronBlock) {
-          messages.splice(messages.length - 1, 0, { role: 'system', content: neuronBlock });
-        }
-      } catch { /* neurons not yet ready — non-blocking */ }
+      // Inject active brain neurons — but only when this turn actually needs a
+      // specific vanilla-game fact (FormID, EditorID, load order, a Papyrus
+      // signature, exact asset paths), per Brain B's game_data_related
+      // classification (LocalAIEngine.ts's EnrichmentResult). This used to be
+      // unconditional on every single call through this handler, "hi"
+      // included — measured live against brain-neurons.json at ~155K
+      // characters (~40K tokens), the dominant contributor to an oversized
+      // prompt that was both the direct cause of consistent Groq timeouts
+      // (LiveContext.tsx's 50s->120s watchdog comment blames Render cold-
+      // start, but the neuron dump was very likely the bigger factor) and,
+      // via the local-fallback path those timeouts triggered, part of what
+      // produced the "I'm just a text-based AI" persona bug. Callers that
+      // don't know about this classification (AIModAssistant.tsx,
+      // SelfImprovementEngine.ts, this file's own internal reasoning/
+      // self-critique sub-calls) omit `includeGameData` entirely, which
+      // defaults to true here — unchanged behavior for them.
+      if (payload.includeGameData !== false) {
+        try {
+          const neuronBlock = buildBrainNeuronBlock();
+          if (neuronBlock) {
+            messages.splice(messages.length - 1, 0, { role: 'system', content: neuronBlock });
+          }
+        } catch { /* neurons not yet ready — non-blocking */ }
+      }
 
       // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
       let content = '';
@@ -30863,6 +30881,20 @@ end.
     }
   });
 
+  // Sibling to main-process.log, same .mossy-desktop dir — kept separate so
+  // AI-pipeline diagnostics (turn trace, preflight reports) aren't lost in
+  // the much noisier general startup/BrainScan log, and are easy to find
+  // and grep on their own.
+  registerHandler(IPC_CHANNELS.WRITE_DIAGNOSTIC_LOG, async (_event: any, text: string) => {
+    try {
+      const diagLogPath = `${process.env.APPDATA || process.env.HOME}/.mossy-desktop/ai-diagnostics.log`;
+      fs.appendFileSync(diagLogPath, `${String(text ?? '')}\n`);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: String(err?.message || err) };
+    }
+  });
+
 
   // ============================================================================
   // MOSSY BRAIN FEATURE 8: HARDWARE SENSOR FEED
@@ -32782,6 +32814,78 @@ const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
 const BRAINB_VERSION = '1.0.0'; // bump when a new Nexus package version is released
 const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
 const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
+
+/**
+ * Spawns Brain B if installed and not already running, polling /health up to
+ * 60s (mostly ChromaDB/fastembed cold start). Shared by the manual
+ * 'brainb:start' IPC handler AND the fire-and-forget auto-start call in
+ * app.whenReady() below — extracted specifically so there is exactly one
+ * spawn implementation, not two that can drift.
+ *
+ * Why auto-start exists at all: LocalAIEngine.ts's generateResponse() calls
+ * Brain B's /enrich unconditionally now (2026-08-15's "Target layer model"
+ * refactor, docs/ARCHITECTURE.md) specifically so nothing in the UI ever
+ * asks the user to pick Brain B as a provider — if it's installed, it's
+ * used, automatically. A manual "Start Server" button in Settings was the
+ * same inconsistency wearing different clothes: found live when Brain B
+ * wasn't running, enrichment silently skipped, and the model — with zero
+ * scene data and no signal anything was missing — answered "I don't have
+ * access to your machine," a confident wrong claim about its own
+ * capabilities that sent debugging in the wrong direction entirely. Running
+ * this at startup instead of on first use also means the up-to-60s cold
+ * start happens once, in the background, before anyone's asked a question
+ * that needs it — not as a visible stall on whatever turn happens to need
+ * Brain B first.
+ */
+async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'ready'; port: number }) => void): Promise<{ ok: boolean; error?: string; port?: number; alreadyRunning?: boolean }> {
+  const exePath = BRAINB_EXE();
+  if (!fs.existsSync(exePath)) return { ok: false, error: 'Brain B is not installed yet.' };
+  if (_brainBProcess && !_brainBProcess.killed) return { ok: true, alreadyRunning: true, port: BRAINB_PORT };
+  try {
+    const destDir = BRAINB_DIR();
+    const runtimeDataDir = path.join(destDir, 'runtime-data');
+    if (!fs.existsSync(runtimeDataDir)) fs.mkdirSync(runtimeDataDir, { recursive: true });
+    onStatus?.({ phase: 'starting', port: BRAINB_PORT });
+    _brainBProcess = spawn(exePath, [], {
+      detached: false,
+      stdio: 'ignore',
+      env: {
+        ...process.env,
+        MOSSY_PORT: String(BRAINB_PORT),
+        // The shipped package's own layout — not brain_b_slim.py's dev-build
+        // defaults, which assume a different subfolder structure.
+        CHROMA_CURATED_PATH: path.join(destDir, 'knowledge', 'chroma_curated'),
+        EMBED_MODELS_PATH: path.join(destDir, 'embed-model'),
+        MOSSY_BASE_DIR: runtimeDataDir,
+        // Points Brain B's game_data_index.py at the same raw scan JSON
+        // files (fo4_papyrus_api.json etc.) this file's own scan system
+        // already writes — see docs-dev/GAME_DATA_RETRIEVAL_MERGE_PROJECT.md.
+        // Inlined rather than calling resolveScanCacheDir() directly: that
+        // function is scoped inside a different enclosing closure than this
+        // one, not reachable from here.
+        GAME_SCAN_CACHE_PATH: path.join(app.getPath('userData'), 'game-scan-cache'),
+      },
+    });
+    _brainBProcess.on('exit', () => { _brainBProcess = null; });
+    _brainBProcess.on('error', () => { _brainBProcess = null; });
+    // Poll /health until it responds (up to 60s — mostly ChromaDB/fastembed cold start)
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        const http = await import('http');
+        await new Promise<void>((res, rej) => {
+          const req = http.get(`http://127.0.0.1:${BRAINB_PORT}/health`, { timeout: 1500 }, (r2) => { r2.resume(); r2.on('end', res); });
+          req.on('error', rej); req.on('timeout', rej);
+        });
+        onStatus?.({ phase: 'ready', port: BRAINB_PORT });
+        return { ok: true, port: BRAINB_PORT };
+      } catch { /* still starting */ }
+    }
+    return { ok: false, error: 'Brain B did not respond within 60s' };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
 const BRAINB_EXE = () => path.join(BRAINB_DIR(), 'brain_b_slim', 'brain_b_slim.exe');
 
 // Fetches and JSON-parses a small file (the release manifest) over HTTPS with
@@ -34548,47 +34652,12 @@ app.whenReady().then(() => {
     }
   });
 
+  // Manual start still works (e.g. after a fresh install, before the next app
+  // restart would auto-start it) — now just a thin wrapper around
+  // startBrainBProcess(), which is also what app.whenReady() calls
+  // automatically below. One spawn implementation, not two.
   lateHandle('brainb:start', async (event) => {
-    const exePath = BRAINB_EXE();
-    if (!fs.existsSync(exePath)) return { ok: false, error: 'Brain B is not installed yet.' };
-    if (_brainBProcess && !_brainBProcess.killed) return { ok: true, alreadyRunning: true, port: BRAINB_PORT };
-    try {
-      const destDir = BRAINB_DIR();
-      const runtimeDataDir = path.join(destDir, 'runtime-data');
-      if (!fs.existsSync(runtimeDataDir)) fs.mkdirSync(runtimeDataDir, { recursive: true });
-      event.sender.send('brainb-server-status', { phase: 'starting', port: BRAINB_PORT });
-      _brainBProcess = spawn(exePath, [], {
-        detached: false,
-        stdio: 'ignore',
-        env: {
-          ...process.env,
-          MOSSY_PORT: String(BRAINB_PORT),
-          // The shipped package's own layout — not brain_b_slim.py's dev-build
-          // defaults, which assume a different subfolder structure.
-          CHROMA_CURATED_PATH: path.join(destDir, 'knowledge', 'chroma_curated'),
-          EMBED_MODELS_PATH: path.join(destDir, 'embed-model'),
-          MOSSY_BASE_DIR: runtimeDataDir,
-        },
-      });
-      _brainBProcess.on('exit', () => { _brainBProcess = null; });
-      _brainBProcess.on('error', () => { _brainBProcess = null; });
-      // Poll /health until it responds (up to 60s — mostly ChromaDB/fastembed cold start)
-      for (let i = 0; i < 60; i++) {
-        await new Promise(r => setTimeout(r, 1000));
-        try {
-          const http = await import('http');
-          await new Promise<void>((res, rej) => {
-            const req = http.get(`http://127.0.0.1:${BRAINB_PORT}/health`, { timeout: 1500 }, (r2) => { r2.resume(); r2.on('end', res); });
-            req.on('error', rej); req.on('timeout', rej);
-          });
-          event.sender.send('brainb-server-status', { phase: 'ready', port: BRAINB_PORT });
-          return { ok: true, port: BRAINB_PORT };
-        } catch { /* still starting */ }
-      }
-      return { ok: false, error: 'Brain B did not respond within 60s' };
-    } catch (err: any) {
-      return { ok: false, error: err?.message || String(err) };
-    }
+    return startBrainBProcess((status) => event.sender.send('brainb-server-status', status));
   });
 
   lateHandle('brainb:stop', async () => {
@@ -34675,6 +34744,24 @@ app.whenReady().then(() => {
   });
 
   writeMainLog("Late IPC handlers registered (kobold + 'f4ai-bridge-status')");
+
+  // Fire-and-forget: if Brain B is installed, start it now rather than
+  // waiting for a user to find and click "Start Server" in Settings — see
+  // startBrainBProcess()'s own docstring for why this exists. Not awaited:
+  // the up-to-60s cold start (ChromaDB/fastembed) must not block the rest of
+  // app startup, and every caller of Brain B already treats it as
+  // optional/gracefully-degrading (LocalAIEngine.ts's enrichWithBrainB()
+  // health-checks before every use), so there is nothing here that needs to
+  // wait for readiness. A user who has never installed Brain B sees zero
+  // difference — startBrainBProcess() no-ops immediately when the exe isn't
+  // present.
+  void startBrainBProcess().then((result) => {
+    if (result.ok && !result.alreadyRunning) {
+      writeMainLog(`[Brain B] Auto-started on launch (port ${result.port})`);
+    } else if (!result.ok && !result.error?.includes('not installed')) {
+      writeMainLog(`[Brain B] Auto-start failed: ${result.error}`);
+    }
+  });
 
   // ── Auto-setup: notify renderer on load if files are missing ──────────────
   if (mainWindow) {
