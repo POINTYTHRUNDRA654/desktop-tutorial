@@ -48,6 +48,20 @@
 
 **Reliability fixes:** the Bridge connection cache no longer permanently wedges on a rejected promise after a single transient failure (main process not ready, a dropped IPC round-trip) — every later request used to keep returning the same dead promise instead of retrying. Added a CI job that runs Brain B's dev/shipped fork-parity check on every push, so the two hand-duplicated Brain B services (local dev build vs. the Nexus-distributed one) can no longer silently diverge without failing the build.
 
+### Tool Permissions, Creation Kit Honesty, and Real CKPE Precombine Diagnosis (2026-08-18)
+
+**Fixed: denying a tool during setup didn't reliably stick.** Re-running the system scan from Settings → System Monitor used to overwrite your entire approved-tools list, silently re-approving anything you'd previously denied — including tools the app's own error messages point you toward that scan to refresh. Rescans now merge: an existing denial is preserved, and only genuinely new tools default to approved.
+
+**Fixed: a denied tool could still be launched.** Mossy's tool-launch fallback searched the full raw system scan instead of your approved-tools list, so a tool without one of its ~30 hardcoded settings-path mappings could be launched regardless of whether you'd approved it. It's now gated on the same approved list used everywhere else, with a clear message when something's been detected but isn't approved.
+
+**New: Approved Tools panel (System Monitor).** The only previous moment to approve or deny a tool was the one-time setup wizard. Settings → System Monitor now has a permanent panel listing every detected tool with a real on/off toggle, so a decision made during setup can be changed anytime — including re-approving something you'd denied.
+
+**Removed: Creation Kit "integration" that was fabricating results.** Several assistant actions (`ck_execute_command` and others) claimed to execute commands or check precombine/previs status inside Creation Kit, but Creation Kit has no scripting interface for anything to connect to — every one of them was returning a canned "success" string with no real check behind it, including a hardcoded "no conflicts detected" regardless of what was actually asked. They now say plainly that live Creation Kit control isn't possible.
+
+**New: real precombine-ownership diagnosis, from your own CKPE log.** Investigated what Creation Kit actually exposes with no plugin required before building anything: CKPE (Creation Kit Platform Extended, a separate, widely-used community tool) already writes real per-cell precombine-ownership conflict data to a log file on every session. Mossy now reads it — a genuinely real answer to "did my precombines pass," with the exact cells, ref names, and owning plugin, not a guess. Detects honestly when CKPE isn't installed or its log output is disabled rather than assuming it's there, and degrades to "couldn't be parsed" instead of a wrong answer if a future CKPE update changes the log's format. Verified end-to-end against a real installed CKPE and a real modlist.
+
+**Corrected: what "approved" tools actually get you.** Onboarding and the Approved Tools panel now describe three honest tiers instead of one vague "Mossy knows about it" — Blender: full live scene access and real script execution; xEdit: launches for a specific purpose (conflict detection, cleaning masters); everything else: detected and can be opened, nothing more.
+
 ### Background Remover — New Texture Hub Tab
 
 - Added AI-powered background removal with two backends: a standalone local install (BRIA AI RMBG-2.0, GPU-accelerated, runs entirely on your machine) or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models

@@ -2333,6 +2333,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 I found {recommendations.length} recommended tools out of {allApps?.length || 'many'} total programs installed.
                                 <br />
                                 <span className="text-xs mt-1 block">{t('onboarding.tools.selectHint', 'Select tools you want me to know about and use:')}</span>
+                                <span className="text-[11px] mt-2 block text-slate-500 max-w-lg mx-auto">
+                                    {t('onboarding.tools.tierHint', 'What that gets you differs by tool: Blender works inside it (live scene, real scripts); xEdit launches for a specific purpose; everything else, I know it exists and can open it — I don\'t read or edit its files. You can change any of these later in Settings.')}
+                                </span>
                             </p>
                         </div>
 

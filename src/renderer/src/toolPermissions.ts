@@ -85,6 +85,29 @@ export const mergeExistingCheckedState = <T extends { name?: any; path?: any; ch
   });
 };
 
+/**
+ * Merge a fresh rescan's tool list into the existing approved-tools store without
+ * data loss in either direction: a tool the user previously denied (checked: false)
+ * stays denied even if the rescan re-finds it, and a previously-known tool the
+ * rescan simply didn't happen to re-find (e.g. a narrower keyword filter than the
+ * scan that originally found it) is kept rather than silently dropped.
+ *
+ * Bug this replaces: SystemMonitor.tsx's "Detect Hardware" rescan used to call
+ * `localStorage.setItem('mossy_apps', JSON.stringify(freshlyFoundTools))` directly
+ * — a full overwrite — which re-approved (checked: true) anything the user had
+ * explicitly denied, the moment they re-ran a scan the app's own error messages
+ * point them toward.
+ */
+export const mergeRescannedTools = <T extends { name?: any; path?: any; checked?: any }>(
+  freshlyFound: T[],
+  existingTools: T[]
+): T[] => {
+  const updated = mergeExistingCheckedState(freshlyFound, existingTools);
+  const updatedKeys = new Set(updated.map((t) => toolKey(t)));
+  const untouchedExisting = existingTools.filter((t) => !updatedKeys.has(toolKey(t)));
+  return [...untouchedExisting, ...updated];
+};
+
 export const getToolPermissionsContextForModel = (opts: {
   bridgeActive: boolean;
   blenderLinked: boolean;

@@ -11,6 +11,34 @@ import AdmZip from 'adm-zip';
 import { extractFormIDs } from './espParser';
 
 /**
+ * Result of reading CKPE's (Creation Kit Platform Extended) log for real
+ * per-cell precombine-ownership conflicts. CKPE is a third-party community
+ * tool, not part of vanilla Creation Kit or bundled with Mossy — a user may
+ * not have it installed, or may have its file logging (sOutputFile) turned
+ * off in their own CreationKitPlatformExtended.toml. Every state is
+ * distinguished explicitly rather than collapsing "never checked" and
+ * "checked, found nothing" into the same shape — that collapse is exactly
+ * what made the old check_previs_status fabrication (a hardcoded "no
+ * conflicts detected" with no real check behind it) possible in the first
+ * place, and CKPE's log format is unofficial/unversioned, so a future CKPE
+ * update changing it must surface as "couldn't be parsed," never as a
+ * silent, confident zero-conflict result.
+ */
+export type CKPEPrecombineStatus =
+    | { detected: false; reason: string }
+    | { detected: true; parsed: false; logPath: string; reason: string }
+    | {
+          detected: true;
+          parsed: true;
+          logPath: string;
+          logMTime: string;
+          sessionTimestamp: string | null;
+          activePlugin: string | null;
+          conflictCount: number;
+          conflicts: Array<{ cell: string; cellFormId: string; ownerFile: string; refName: string; refFormId: string }>;
+      };
+
+/**
  * Mossy Bridge Server
  * Loopback-only HTTP server (127.0.0.1) providing screen/clipboard/hardware
  * access, file operations, and the Blender relay to the renderer process.
@@ -41,6 +69,9 @@ export class BridgeServer {
     private _fileWatcher: fs.FSWatcher | null = null;
     private _watchedRoot: string = '';
     private _pendingFileChanges = new Map<string, number>(); // absolute path -> last-seen mtime (ms)
+    private _ckpeLogWatcher: fs.FSWatcher | null = null;
+    private _ckpeLogWatchedDir: string = '';
+    private _ckpeLogCache: { path: string; mtimeMs: number; result: CKPEPrecombineStatus } | null = null;
     private _optimizeJobs = new Map<string, {
         status: 'processing' | 'complete' | 'error';
         progress: number;
@@ -87,6 +118,152 @@ export class BridgeServer {
         } catch {
             return {};
         }
+    }
+
+    /**
+     * Parse a real CKPE session log for precombine-ownership conflicts.
+     * Confirmed real-world format (read directly from an actual user's
+     * CreationKitPlatformExtended.log, 2026-08):
+     *   Hi, I'm CKPE! Now: Thursday 13 Aug 2026 01:08:43 PM Pacific Daylight Time
+     *   Load active file SomeMod.esp...
+     *   [MASTERFILE] *** Cell CambridgePolymerLabs01 (000560EE) combined data is
+     *   owned by file Fallout 4 Moss AIO Glowing Sea Now Glows Redux.esp due to
+     *   ref deadshrubGS03 (000B3D58)
+     * This fires on ordinary plugin load, not only after an explicit
+     * -GeneratePreCombined run, so it's real diagnostic signal on every session.
+     *
+     * Unofficial format, no version guarantee — wrapped so a future CKPE
+     * update that changes this shape degrades to "couldn't be parsed"
+     * (parsed: false) rather than crashing or, worse, returning a confident
+     * conflictCount: 0 that isn't actually true.
+     */
+    private _parseCKPELog(logPath: string, mtimeMs: number): CKPEPrecombineStatus {
+        let raw: string;
+        try {
+            raw = fs.readFileSync(logPath, 'utf-8');
+        } catch (e: any) {
+            return { detected: true, parsed: false, logPath, reason: `Found the CKPE log but could not read it: ${e?.message || e}` };
+        }
+
+        try {
+            const lines = raw.split(/\r?\n/);
+
+            const sessionLine = lines.find((l) => l.includes("Hi, I'm CKPE!"));
+            const sessionMatch = sessionLine?.match(/Now:\s*(.+)$/);
+            const sessionTimestamp = sessionMatch ? sessionMatch[1].trim() : null;
+
+            const activeLine = lines.find((l) => l.includes('Load active file'));
+            const activeMatch = activeLine?.match(/Load active file (.+?)\.\.\.\s*$/);
+            const activePlugin = activeMatch ? activeMatch[1].trim() : null;
+
+            const OWNERSHIP_RE = /^\[MASTERFILE\] \*\*\* Cell (.+?) \(([0-9A-Fa-f]{8})\) combined data is owned by file (.+?) due to ref (.+?) \(([0-9A-Fa-f]{8})\)\s*$/;
+            const conflicts: Array<{ cell: string; cellFormId: string; ownerFile: string; refName: string; refFormId: string }> = [];
+            let masterfileTagSeen = false;
+            for (const line of lines) {
+                if (line.startsWith('[MASTERFILE]')) masterfileTagSeen = true;
+                const m = line.match(OWNERSHIP_RE);
+                if (m) conflicts.push({ cell: m[1], cellFormId: m[2], ownerFile: m[3], refName: m[4], refFormId: m[5] });
+            }
+
+            // Structural sanity check before trusting a zero-conflict result. A
+            // log with real content but no recognizable [MASTERFILE] section at
+            // all means the format has drifted from what this parser knows —
+            // report that honestly instead of a silent "0 conflicts".
+            if (!masterfileTagSeen && lines.length > 5) {
+                return {
+                    detected: true,
+                    parsed: false,
+                    logPath,
+                    reason: "Found the CKPE log, but its format doesn't match what Mossy knows how to read (no [MASTERFILE] section found) — likely a CKPE update changed the log format. This can't be diagnosed automatically until Mossy's parser is updated for the new format.",
+                };
+            }
+
+            return {
+                detected: true,
+                parsed: true,
+                logPath,
+                logMTime: new Date(mtimeMs).toISOString(),
+                sessionTimestamp,
+                activePlugin,
+                conflictCount: conflicts.length,
+                // Cap the payload; conflictCount above still reflects the real total.
+                conflicts: conflicts.slice(0, 200),
+            };
+        } catch (e: any) {
+            return { detected: true, parsed: false, logPath, reason: `Found the CKPE log but couldn't parse it: ${e?.message || e}` };
+        }
+    }
+
+    /**
+     * Resolve fallout4Path from settings, confirm CKPE is actually present
+     * (not assumed), and return its current precombine-ownership diagnosis.
+     * Cached against the log's own mtime — re-parses only when CKPE has
+     * actually written something new, watching the FO4 install root (where
+     * ckpe.log lives) the same way /files/watch above watches an arbitrary
+     * directory, just scoped to this one known location instead of a
+     * client-supplied path.
+     */
+    private _getCKPEPrecombineStatus(): CKPEPrecombineStatus {
+        const fallout4Path = String(this._readSettings()?.fallout4Path || '').trim();
+        if (!fallout4Path) {
+            return { detected: false, reason: 'Fallout 4 install path is not configured in Mossy Settings, so Mossy cannot look for a CKPE log yet.' };
+        }
+
+        // Verified against a real installed CKPE (2026-08-18): the [MASTERFILE]
+        // per-cell precombine-ownership lines this parser reads live in the ROOT
+        // ckpe.log (fallout4Path\ckpe.log, controlled by CKPE's own [Log]
+        // sOutputFile setting) — NOT in Logs\CKPE\CreationKitPlatformExtended.log,
+        // which turned out to be a completely different log (CKPE's own patch-
+        // loader/DirectX-init diagnostics, no [MASTERFILE] section at all). Live
+        // testing against the real file caught this; the two logs share a
+        // misleading "duplicate my entries" header comment that made them look
+        // like copies of each other during earlier code-only review — they
+        // aren't. Logs\CKPE\...log is still checked as a secondary signal: its
+        // presence means CKPE itself is genuinely running even when the root
+        // ckpe.log (an optional, togglable duplicate) is absent, which lets the
+        // "not installed" and "installed but not logging to file" cases stay
+        // distinct instead of collapsing into one generic "not detected".
+        const logDir = path.join(fallout4Path, 'Logs', 'CKPE');
+        const ckpeRunning = fs.existsSync(path.join(logDir, 'CreationKitPlatformExtended.log'));
+        const logPath = path.join(fallout4Path, 'ckpe.log');
+
+        if (!fs.existsSync(logPath)) {
+            const reason = ckpeRunning
+                ? 'CKPE is installed, but its ckpe.log file output is disabled — this diagnosis needs it enabled. In Fallout 4\'s CreationKitPlatformExtended.toml, under [Log], set sOutputFile to a filename (e.g. \'ckpe.log\') and re-open Creation Kit once.'
+                : 'CKPE (Creation Kit Platform Extended) not detected — this diagnosis needs it. CKPE is a separate, widely-used community tool; without it, Mossy has no real source for precombine-ownership data and won\'t guess.';
+            return { detected: false, reason };
+        }
+
+        if (this._ckpeLogWatchedDir !== fallout4Path) {
+            try { this._ckpeLogWatcher?.close(); } catch { /* ignore */ }
+            try {
+                this._ckpeLogWatcher = fs.watch(fallout4Path, (_eventType, filename) => {
+                    if (filename && filename.toString() !== 'ckpe.log') return;
+                    this._ckpeLogCache = null; // invalidate; next request re-parses
+                });
+                this._ckpeLogWatcher.on('error', (err) => {
+                    console.error('[Bridge] CKPE log watcher error:', err);
+                });
+                this._ckpeLogWatchedDir = fallout4Path;
+            } catch (e) {
+                console.warn('[Bridge] Could not watch CKPE log directory (will still poll on request):', e);
+            }
+        }
+
+        let mtimeMs: number;
+        try {
+            mtimeMs = fs.statSync(logPath).mtimeMs;
+        } catch (e: any) {
+            return { detected: true, parsed: false, logPath, reason: `CKPE log was detected but disappeared before it could be read: ${e?.message || e}` };
+        }
+
+        if (this._ckpeLogCache && this._ckpeLogCache.path === logPath && this._ckpeLogCache.mtimeMs === mtimeMs) {
+            return this._ckpeLogCache.result;
+        }
+
+        const result = this._parseCKPELog(logPath, mtimeMs);
+        this._ckpeLogCache = { path: logPath, mtimeMs, result };
+        return result;
     }
 
     /** Spawn an external tool and capture its output — same shape as main.ts's runProcessCapture. */
@@ -1219,6 +1396,16 @@ export class BridgeServer {
                     this._pendingFileChanges.clear();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ files }));
+                }
+
+                // GET /ck/precombine-status — real per-cell precombine-ownership
+                // conflicts read from the user's own CKPE log, if CKPE is installed
+                // and logging. See _getCKPEPrecombineStatus for the detected/parsed
+                // state machine this can return.
+                else if (url === '/ck/precombine-status' && method === 'GET') {
+                    const status = this._getCKPEPrecombineStatus();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(status));
                 }
 
                 // POST /backup/create — real recursive copy of workspacePath into this snapshot's backup slot

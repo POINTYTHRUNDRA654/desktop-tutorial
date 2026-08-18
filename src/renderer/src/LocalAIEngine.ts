@@ -275,6 +275,30 @@ async function fetchLiveBlenderContext(): Promise<BlenderContextResult> {
   }
 }
 
+/**
+ * Real CK precombine diagnosis, read server-side from the user's own CKPE
+ * (Creation Kit Platform Extended) log — see BridgeServer.ts's
+ * _getCKPEPrecombineStatus for the honest detected/parsed state machine.
+ * Cached and mtime-gated on the Electron side, so calling this every turn
+ * is cheap (no re-parse unless the log actually changed). Returns null only
+ * when the Bridge itself couldn't be reached — "CKPE not installed" is a
+ * real, non-null status Brain B is meant to relay honestly, not something
+ * this function should swallow into null.
+ */
+async function fetchCKPrecombineStatus(): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await bridgeFetch('/ck/precombine-status', {
+      method: 'GET',
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return (data && typeof data === 'object') ? data : null;
+  } catch {
+    return null; // Bridge unreachable — not the same as "CKPE not detected"
+  }
+}
+
 let _cachedUserId: string | null = null;
 async function getOrCreateUserId(): Promise<string> {
   if (_cachedUserId) return _cachedUserId;
@@ -379,6 +403,13 @@ interface EnrichmentResult {
    *  reflects this server-side — kept here for turn-trace visibility,
    *  matching every other classify_and_diagnose() dimension. */
   needsGrounding: boolean;
+  /** True when this turn asked about CK precombine/previs diagnosis AND a real
+   *  ck_precombine_status was actually usable (CKPE detected and its log
+   *  parsed) — the CK-diagnosis equivalent of usedSceneContext/gameDataFound.
+   *  False both when the question wasn't CK-diagnosis-related and when it was
+   *  but CKPE isn't installed or its log couldn't be read — those are
+   *  different reasons, but neither means Mossy used real CK data this turn. */
+  ckDiagnosisAvailable: boolean;
 }
 
 /**
@@ -497,9 +528,10 @@ async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMo
   }
 
   try {
-    const [userId, blenderResult] = await Promise.all([
+    const [userId, blenderResult, ckPrecombineStatus] = await Promise.all([
       getOrCreateUserId(),
       fetchLiveBlenderContext(),
+      fetchCKPrecombineStatus(),
     ]);
     const resp = await fetch(`${brainBBaseUrl}/enrich`, {
       method: 'POST',
@@ -508,6 +540,7 @@ async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMo
         question, session_id: APP_SESSION_ID, user_id: userId,
         get_context: blenderResult.context ?? undefined,
         addon_outdated: blenderResult.addonOutdated,
+        ck_precombine_status: ckPrecombineStatus ?? undefined,
       }),
       signal: AbortSignal.timeout(voiceMode ? ENRICH_TIMEOUT_MS_VOICE : ENRICH_TIMEOUT_MS_CHAT),
     });
@@ -540,6 +573,7 @@ async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMo
       gameDataRelated: !!data?.game_data_related,
       gameDataFound: !!data?.game_data_found,
       needsGrounding: data?.needs_grounding !== false,
+      ckDiagnosisAvailable: !!data?.ck_diagnosis_available,
     };
   } catch {
     return null; // enrichment failed mid-flight — fail open, generate without it

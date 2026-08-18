@@ -92,7 +92,7 @@ export const toolDeclarations: FunctionDeclaration[] = [
    },
    {
       name: 'ck_execute_command',
-      description: 'Execute a console command in Creation Kit.',
+      description: 'Creation Kit has no scripting/automation interface to connect to — this tool cannot actually execute anything in Creation Kit and always returns a "not available" message. Calling it only tells the user that; do not phrase your own reply as if the command ran. Tell the user to run the command directly in Creation Kit\'s own console instead.',
       parameters: {
          type: Type.OBJECT,
          properties: {
@@ -13185,7 +13185,7 @@ Mossy is a desktop AI assistant for Fallout 4 modding, built as an Electron + Re
 - \`scan_plugin\` — read-only analysis of ESP/ESM/ESL for navmesh, UDRs, precombines, ESL eligibility, absolute paths, Papyrus scripts
 - \`apply_esp_fix\` — applies auto-fixes: set_esl_flag (ESL bit flip), generate_udr_script (xEdit Pascal script), generate_itm_script
 - \`create_mod_project\`, \`add_mod_step\`, \`update_mod_step\` — mod project tracking with step-by-step workflow recording
-- \`ck_execute_command\` — execute a console command in the Creation Kit
+- \`ck_execute_command\` — Creation Kit has no scripting interface to connect to; calling this always returns "not available," it does not actually execute anything. Tell users to run CK commands directly in Creation Kit's own console.
 - \`list_files\` / \`read_file\` / \`install_script\` — file system access for mod folders
 
 **Persistent memory**: Knowledge Vault (localStorage: mossy_knowledge_vault, max 500 entries, pruned by age+trust). Session memory summaries (localStorage: mossy_session_memories). Self-improvement interaction history (localStorage: mossy_ml_history, last 100 interactions).
