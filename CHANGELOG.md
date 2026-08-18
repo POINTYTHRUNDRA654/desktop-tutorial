@@ -62,6 +62,12 @@
 
 **Corrected: what "approved" tools actually get you.** Onboarding and the Approved Tools panel now describe three honest tiers instead of one vague "Mossy knows about it" — Blender: full live scene access and real script execution; xEdit: launches for a specific purpose (conflict detection, cleaning masters); everything else: detected and can be opened, nothing more.
 
+### App-Wide Fabrication Sweep (2026-08-18)
+
+Audited the rest of the app for the same failure shape as the Creation Kit fix above — a component claiming to control or check something external with a canned response and no real call behind it — across every external-tool integration panel (xEdit, ComfyUI, MO2, Upscayl, the Bridge itself). Everything else came back genuinely honest, including two components (ComfyUI and Upscayl image generation) that already show an explicit **"Simulation"** badge when their backend isn't connected rather than pretending an image was actually produced — now the documented standard for how every integration in this app should degrade.
+
+**Removed: a dead tab that once fabricated results.** Asset Analysis Hub's "Advanced Analysis" tab displayed hardware, conflict, and memory analysis from engines that — by its own code comments — had already been found to fabricate their output (random scores, random hardware) and were replaced by the real Phase 2 Mining dashboard. The broken engines were deleted in that earlier fix, but the tab itself was left wired in as a live, selectable dead end sitting one click from its real replacement. Removed entirely — the component, its route, and its tab — rather than left as a trap for a future build or caching issue to make it look live again.
+
 ### Background Remover — New Texture Hub Tab
 
 - Added AI-powered background removal with two backends: a standalone local install (BRIA AI RMBG-2.0, GPU-accelerated, runs entirely on your machine) or a ComfyUI-RMBG backend defaulting to the permissively-licensed BEN2/InSPyReNet/BEN models

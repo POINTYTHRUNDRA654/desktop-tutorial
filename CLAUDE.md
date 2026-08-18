@@ -126,6 +126,45 @@ print(len(d), 'bytes,', d.count(b'\x00'), 'nulls,', d.count(b'\n'), 'lines')
 
 **The Vite build requires Windows:** `npm run build` uses Rollup native binaries compiled for Windows. It cannot run in the Linux bash sandbox. After editing source files in the sandbox, the user must run `npm run build && node deploy-full.cjs` on Windows.
 
+## Standards
+
+### Honest degradation when a dependency isn't there — the BackupManager pattern
+
+**The standard:** `BackupManager.tsx`'s `createRealBackup()` (`src/renderer/src/BackupManager.tsx`).
+It calls the real Bridge endpoint (`POST /backup/create`), and when the Bridge is
+offline it doesn't claim success — it says exactly what happened and what didn't:
+*"Snapshot metadata saved, but Desktop Bridge is offline — no files were actually
+backed up."* One sentence, no hedging, tells the user precisely what's true and
+what to do about it. Every integration in this app — anything that calls out to
+an external tool, service, or process that might not be running — should read
+like that when its dependency is unavailable.
+
+**Why this is a standard and not a suggestion:** two real bugs this session were
+both the same shape — a UI action that checked an unrelated readiness flag, then
+returned a hardcoded "success"-looking string with no real call behind it:
+
+- `MossyTools.ts`'s `ck_execute_command`/`check_previs_status` and siblings
+  claimed to control Creation Kit and once returned a fixed "Precombine Status:
+  ACTIVE / Conflicts: None detected" regardless of what was actually asked — CK
+  has no scripting interface to connect to, so there was never a real check
+  behind it. Fixed 2026-08-18: real diagnosis instead, reading CKPE's own log
+  file when installed, honestly reporting when it isn't.
+- `AdvancedAnalysisPanel.tsx` was a dead tab in Asset Analysis Hub whose own
+  header comment documented that the engines it displayed (hardware/conflict/
+  memory analysis) "fabricated their output (random scores, random hardware)"
+  and had already been replaced by Phase 2 Mining's real data — but the tab
+  itself was left wired in as a live, selectable dead end sitting one click from
+  its real replacement. Removed 2026-08-18, not left as a trap for a future
+  stale build or caching issue to make it look live again.
+
+**What to check when writing or reviewing an integration:** does every branch
+that reports success actually follow a real IPC call, file read, or process
+spawn whose result the message is derived from? Does the failure/unavailable
+branch say so in plain language, instead of silently doing nothing or showing
+a generic error? If a component's own comments say a former dependency was
+fabricated or removed, is the component (or the specific tab/feature that used
+it) actually gone from the UI, not just internally redirected?
+
 ## Preferences
 - No intermediate steps shown — implement everything, report when done
 - Everything must be real, professional, most advanced FO4 system possible
