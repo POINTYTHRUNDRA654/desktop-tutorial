@@ -6,6 +6,7 @@ import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
 import { openExternal } from './utils/openExternal';
 import packageJson from '../../../package.json';
 import { useI18n } from './i18n';
+import { getPlatformById } from './platformCatalog';
 
 interface Insight {
   id: string;
@@ -285,62 +286,62 @@ const TheNexus: React.FC = () => {
         <div className="mb-8">
           <h2 className="text-lg font-black text-emerald-300 uppercase tracking-widest mb-4">{t('home.quickHubAccess', 'Quick Hub Access')}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            <Link to="/chat" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/chat" title={getPlatformById(2)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.chat.title', 'AI Chat')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.chat.subtitle', 'Ask Mossy anything')}</span>
             </Link>
-            <Link to="/journey-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/journey-hub" title={getPlatformById(4)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Sparkles size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.journeyHub.title', 'FO4 Mod Journey Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.journeyHub.subtitle', 'Projects · Roadmaps')}</span>
             </Link>
-            <Link to="/ck-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/ck-tools" title={getPlatformById(9)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Code size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.ckTools.title', 'Creation Kit Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.ckTools.subtitle', 'CK · Scripts · Crash Fix')}</span>
             </Link>
-            <Link to="/plugin-tools" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/plugin-tools" title={getPlatformById(20)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Database size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.pluginTools.title', 'FO4 Plugin & Load Order Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.pluginTools.subtitle', 'xEdit · Load Order · PRP')}</span>
             </Link>
-            <Link to="/textures" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/textures" title={getPlatformById(10)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Layers size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.textures.title', 'Textures & Materials')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.textures.subtitle', 'DDS · PBR · BC formats')}</span>
             </Link>
-            <Link to="/asset-analysis" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/asset-analysis" title={getPlatformById(15)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Binary size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.assetAnalysis.title', 'FO4 Asset Analysis Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.assetAnalysis.subtitle', 'Scan · Dedupe · Mining')}</span>
             </Link>
-            <Link to="/mod-builder" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/mod-builder" title={getPlatformById(14)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Hammer size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.modBuilder.title', 'FO4 Mod Builder Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.modBuilder.subtitle', 'Blueprint · Workshop · Docs')}</span>
             </Link>
-            <Link to="/packaging-release" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/packaging-release" title={getPlatformById(11)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Archive size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.packaging.title', 'Packaging & Release')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.packaging.subtitle', 'BA2 · FOMOD · Checklist')}</span>
             </Link>
-            <Link to="/guides-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/guides-hub" title={getPlatformById(12)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <BookOpen size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.guides.title', 'Guides Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.guides.subtitle', 'Animation · Quests · LOD')}</span>
             </Link>
-            <Link to="/knowledge-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/knowledge-hub" title={getPlatformById(6)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Brain size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.knowledgeHub.title', 'FO4 Knowledge Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.knowledgeHub.subtitle', 'Docs · Search · Reference')}</span>
             </Link>
-            <Link to="/system-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/system-hub" title={getPlatformById(21)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <ShieldCheck size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.systemHub.title', 'System Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.systemHub.subtitle', 'Diagnostics · Security')}</span>
             </Link>
-            <Link to="/runtime-hub" className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
+            <Link to="/runtime-hub" title={getPlatformById(18)?.summary} className="p-3 border border-emerald-500/30 rounded hover:bg-emerald-500/10 hover:border-emerald-500 transition-all flex flex-col items-center gap-2 text-center text-xs">
               <Radio size={20} className="text-emerald-400" />
               <span className="font-bold">{t('home.hubs.runtimeHub.title', 'Runtime Hub')}</span>
               <span className="text-slate-500 text-[9px]">{t('home.hubs.runtimeHub.subtitle', 'Live · Bridge · Holodeck')}</span>

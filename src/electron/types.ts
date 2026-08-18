@@ -332,6 +332,7 @@ export const IPC_CHANNELS = {
   CLIPBOARD_WATCH_STOP: 'clipboard-watch-stop',
   CLIPBOARD_DETECTED: 'clipboard-detected',
   CLIPBOARD_WRITE_TEXT: 'clipboard-write-text',
+  WRITE_DIAGNOSTIC_LOG: 'write-diagnostic-log',
 
   // 7. Background Task Queue
   TASK_ENQUEUE: 'task-enqueue',

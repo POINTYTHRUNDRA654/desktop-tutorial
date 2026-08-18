@@ -382,6 +382,12 @@ const IPC_CHANNELS = {
   CLIPBOARD_DETECTED: 'clipboard-detected',
   CLIPBOARD_WRITE_TEXT: 'clipboard-write-text',
 
+  // AI pipeline diagnostics (turn trace + preflight reports) — a dedicated
+  // on-disk log, not just renderer state, so a diagnostic is retrievable by
+  // reading a file directly (dev/support triage) rather than only visible
+  // if someone happens to have the app's diagnostics panel open at the time.
+  WRITE_DIAGNOSTIC_LOG: 'write-diagnostic-log',
+
   // Mossy Brain Feature 7: Background Task Queue
   TASK_ENQUEUE: 'task-enqueue',
   TASK_LIST: 'task-list',
@@ -2531,9 +2537,9 @@ const electronAPI = {
    * Falls back to a direct Render-backend call when the IPC handler is not
    * registered (e.g. during a cold startup or partial handler registration).
    */
-  aiChatGroq: async (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<{ success: boolean; content?: string; error?: string }> => {
+  aiChatGroq: async (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>, includeGameData?: boolean): Promise<{ success: boolean; content?: string; error?: string }> => {
     try {
-      return await ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory });
+      return await ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory, includeGameData });
     } catch (ipcErr: unknown) {
       if (!isNoHandlerRegisteredError(ipcErr)) {
         throw ipcErr;
@@ -3448,6 +3454,16 @@ const electronAPI = {
    */
   copyToClipboard: (text: string): Promise<{ ok: boolean; error?: string }> => {
     return ipcRenderer.invoke(IPC_CHANNELS.CLIPBOARD_WRITE_TEXT, text);
+  },
+
+  /**
+   * Appends one JSONL line (or a preflight report block) to a dedicated
+   * on-disk diagnostics log — see WRITE_DIAGNOSTIC_LOG's comment. Fire-
+   * and-forget from callers' perspective; failures are non-fatal (this is
+   * itself a diagnostic aid, not something the app should break over).
+   */
+  writeDiagnosticLog: (text: string): Promise<{ ok: boolean; error?: string }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WRITE_DIAGNOSTIC_LOG, text);
   },
 
   // ============================================================================

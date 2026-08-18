@@ -220,3 +220,13 @@ mossy-settings-*.json
 # Content-hashed build artifact bundles placed in repo root
 AutomationManager-*.js
 WorkflowRunner-*.js
+
+# Ad-hoc build/verification log redirects (npm run build, tsc, vitest output
+# piped to a file mid-session for reference) and scratch deploy-verification
+# copies — never source, accumulate at the repo root across sessions if not
+# ignored. Found ~50 of these untracked 2026-08-17.
+build_*.txt
+builder_*.txt
+tsc_*.txt
+vitest_check*.txt
+scratch_verify_deploy/

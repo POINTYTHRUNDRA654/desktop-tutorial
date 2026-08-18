@@ -11,6 +11,7 @@ import { ModProjectStorage } from './services/ModProjectStorage';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
 import { generateSystemContextFromStorage } from './utils/generateSystemContext';
+import { sanitizeForSpeech } from './utils/sanitizeForSpeech';
 
 export interface LiveContextType {
   isActive: boolean;
@@ -447,13 +448,26 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const aiStartTime = Date.now();
       console.log('[LiveContext] 🎯 Calling LocalAIEngine.generateResponse for voice');
       const systemContext = await generateSystemContextFromStorage(text);
-      const baseSystemInstruction = getFullSystemInstruction(systemContext);
+      // lean=true: voice's own round-trip budget can't absorb the full
+      // ~141,000-char prompt — see getFullSystemInstruction()'s "lean"
+      // comment for the incident (consistent cloud timeouts, every voice
+      // turn silently falling back to local) that motivated this.
+      const baseSystemInstruction = getFullSystemInstruction(systemContext, true);
 
       // VOICE MODE: append a hard length cap so responses are speakable.
       // The AI tends to generate 500-1000 char answers by default; for voice
       // that translates to 60-120 seconds of TTS — way too long. Cap at ~60 words.
       // Also trim history to the last 6 messages (3 exchanges) to reduce the
       // context payload sent to Groq, which significantly cuts response latency.
+      // Rule (5), "never read out raw code syntax", lived here briefly and
+      // came back out: it degraded the actual written answer (a Papyrus
+      // question genuinely needs its function signature) to work around a
+      // speech-only problem, and couldn't fully solve it either — a model
+      // doesn't reliably avoid every symbol on request. That problem now has
+      // a downstream fix instead: sanitizeForSpeech() strips code/markdown/
+      // symbol noise right before the TTS call, after this same text has
+      // already been shown in full (code included) in chat history and the
+      // on-screen "last response" display.
       const voiceModeDirective = '\n\n### VOICE RESPONSE MODE ###\n' +
         'You are responding to a spoken voice query. Your answer will be read aloud by text-to-speech. ' +
         'STRICT RULES: (1) Keep your response under 60 words. (2) No bullet points, no numbered lists, no markdown. ' +
@@ -465,7 +479,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const priorHistory = conversationHistoryRef.current.slice(-6);
       // voiceMode=true: skips the response guard (which makes a second full API
       // call and doubles voice latency to 100+ seconds).
-      const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory, true);
+      const aiResult = await LocalAIEngine.generateResponse(text, systemInstruction, priorHistory, true, undefined, { preferCloud: true });
       const aiDuration = Date.now() - aiStartTime;
       console.log('[LiveContext] ✅ AI response received - duration:', aiDuration, 'ms');
       const response = aiResult.content || 'Sorry, I encountered an error processing your request.';
@@ -487,12 +501,16 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Store the response text so the UI can display it for users without speakers
       setLastResponse(response);
 
-      // Speak the response
+      // Speak the response — sanitized for TTS only; the history entry and
+      // on-screen text above both kept the full, untouched answer. See
+      // sanitizeForSpeech()'s own docstring for why this lives here instead
+      // of as a system-prompt rule.
       if (voiceServiceRef.current) {
         const speakStartTime = Date.now();
-        console.log('[LiveContext] 🔊 Starting TTS playback - response length:', response.length, 'chars');
+        const speechText = sanitizeForSpeech(response);
+        console.log('[LiveContext] 🔊 Starting TTS playback - response length:', speechText.length, 'chars');
         setMode('speaking'); // Prevent transcriptions from capturing TTS audio
-        await voiceServiceRef.current.speak(response);
+        await voiceServiceRef.current.speak(speechText);
         const speakDuration = Date.now() - speakStartTime;
         console.log('[LiveContext] 🔊 TTS playback complete - duration:', speakDuration, 'ms');
         lastSpeakEndRef.current = Date.now(); // mark when speaking finished

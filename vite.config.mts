@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
   // Production CSP needs to allow React inline styles and optional local bridge checks.
   // Keep network access restricted to HTTPS/WSS plus explicit localhost endpoints.
   const CSP_PROD =
-    "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self' https: wss: http://127.0.0.1:21337 http://localhost:21337 ws://127.0.0.1:21337 ws://localhost:21337 http://127.0.0.1:8188 http://localhost:8188 ws://127.0.0.1:8188 ws://localhost:8188 http://127.0.0.1:11434 http://localhost:11434 http://127.0.0.1:1234 http://localhost:1234; worker-src 'self' blob:";
+    "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self' https: wss: http://127.0.0.1:21337 http://localhost:21337 ws://127.0.0.1:21337 ws://localhost:21337 http://127.0.0.1:8188 http://localhost:8188 ws://127.0.0.1:8188 ws://localhost:8188 http://127.0.0.1:11434 http://localhost:11434 http://127.0.0.1:1234 http://localhost:1234 http://127.0.0.1:8766 http://localhost:8766; worker-src 'self' blob:";
 
   const csp = mode === 'development' ? CSP_DEV : CSP_PROD;
 

@@ -187,6 +187,18 @@ type ChatMessage = Message & {
     mode?: 'teach' | 'answer' | 'debug';
     checkQuestion?: string | null;
     abstained?: boolean;
+    usedSceneContext?: boolean;
+    addonOutdated?: boolean;
+    enrichmentUnavailable?: boolean;
+    usedLocalFallback?: boolean;
+    /** True from the moment this message renders (known synchronously from
+     *  `mode === 'teach'`, before /contract has even been called) until
+     *  generateResponse()'s onContractReady callback settles it one way or
+     *  the other. Reserves the check-question card's space immediately
+     *  instead of having it pop in unannounced a beat later — /contract is a
+     *  separate, unawaited backend round-trip (see LocalAIEngine.ts), so the
+     *  question can genuinely arrive after the answer is already on screen. */
+    contractPending?: boolean;
 };
 
 /** One-click copy-to-clipboard button with visual confirmation. */
@@ -448,11 +460,58 @@ const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMes
                         <div className="text-xs text-violet-200">{msg.checkQuestion}</div>
                     </div>
                 )}
+                {/* Space reserved from the first render (mode is known synchronously)
+                    rather than having the card above pop in unannounced once /contract
+                    — a separate, unawaited backend call — settles a beat later. */}
+                {msg.role === 'assistant' && msg.contractPending && !msg.checkQuestion && (
+                    <div className="mt-2 px-3 py-2 rounded-lg bg-violet-950/15 border border-violet-800/25 animate-pulse">
+                        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-violet-500">
+                            <Brain className="w-3 h-3" />
+                            Preparing a check question…
+                        </div>
+                    </div>
+                )}
                 {msg.role === 'assistant' && msg.mode && msg.mode !== 'answer' && (
                     <div className="mt-1">
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 uppercase tracking-wide">
                             {msg.mode} mode
                         </span>
+                    </div>
+                )}
+                {msg.role === 'assistant' && msg.usedSceneContext && (
+                    <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-cyan-950/40 border border-cyan-700/40 text-cyan-300 uppercase tracking-wide">
+                            <Box className="w-2.5 h-2.5" />
+                            Read your Blender scene
+                        </span>
+                    </div>
+                )}
+                {msg.role === 'assistant' && msg.addonOutdated && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-950/30 border border-amber-700/40 text-amber-300 text-xs">
+                        <Box className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>This question needed your live Blender scene, but your Blender add-on is out of date and doesn't support that yet — update it from the Runtime Hub's Desktop Bridge tab.</span>
+                    </div>
+                )}
+                {/* Distinct from abstained/addonOutdated: this means Brain B itself
+                    (retrieval, citations, scene-awareness) wasn't reachable for this
+                    turn at all — the answer above may be a generic guess where a
+                    grounded one was possible, not because the question was
+                    unanswerable but because a background service was down. */}
+                {msg.role === 'assistant' && msg.enrichmentUnavailable && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-slate-400 text-xs">
+                        <Database className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Mossy's knowledge/context service (Brain B) wasn't reachable for this answer — no citations or live scene data were used.</span>
+                    </div>
+                )}
+                {/* Mossy's actual primary is cloud generation — this fires only when that
+                    was genuinely unavailable (no backend/API key, network failure) and a
+                    local model answered instead. Local models are meaningfully weaker at
+                    following a system prompt this large, so this is disclosed rather than
+                    passed off as a routine answer. */}
+                {msg.role === 'assistant' && msg.usedLocalFallback && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-slate-400 text-xs">
+                        <Cpu className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>Mossy's main cloud service was unavailable, so this answer came from a local backup model — it may be less reliable than usual.</span>
                     </div>
                 )}
                 {/* ── Copy button + Training feedback row (assistant messages only) ── */}
@@ -2412,7 +2471,18 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             const queryForAi = selectedFile
                 ? `${textToSend}\n\n${await readAttachedFileContent(selectedFile)}`.trim()
                 : textToSend;
-            const localResult = await LocalAIEngine.generateResponse(queryForAi, dynamicInstruction, priorHistory, false, abortController.signal);
+            const localResult = await LocalAIEngine.generateResponse(
+                queryForAi, dynamicInstruction, priorHistory, false, abortController.signal, { preferCloud: true },
+                (fields) => {
+                    // Fires later, off the critical path — see LocalAIEngine.ts's
+                    // generateResponse() docstring. Guaranteed to fire exactly once
+                    // per turn (success, HTTP failure, or network failure all settle
+                    // it), so contractPending never gets stuck true.
+                    setMessages(prev => prev.map(m => m.id === streamId ? {
+                        ...m, checkQuestion: fields.checkQuestion, contractPending: false,
+                    } : m));
+                },
+            );
             const duration = Date.now() - startTime;
 
             // The user clicked Stop Generation while this was in flight — discard the
@@ -2446,6 +2516,15 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             setMessages(prev => prev.map(m => m.id === streamId ? {
                 ...m, content: aiResponseText, citations, reasoning: reasoningTrace,
                 mode: localResult.mode, checkQuestion: localResult.checkQuestion, abstained: localResult.abstained,
+                usedSceneContext: localResult.usedSceneContext, addonOutdated: localResult.addonOutdated,
+                enrichmentUnavailable: localResult.enrichmentUnavailable,
+                usedLocalFallback: localResult.usedLocalFallback,
+                // Known synchronously (mode comes back from /enrich, before /contract
+                // has even been called) — reserves the check-question card's space
+                // right away rather than having it pop in once /contract resolves.
+                // contract_fields() only ever produces a check_question for mode ===
+                // 'teach', and never runs at all on an abstained turn.
+                contractPending: localResult.mode === 'teach' && !localResult.abstained,
             } : m));
 
             // Save chat messages to auto-save manager

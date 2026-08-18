@@ -234,6 +234,68 @@ const mainOnly = [...mainChannels].filter(c => !isCovered(c, preloadText));
 // Classify push-event-only channels (ipcRenderer.on listeners or one-way sends, no invoke)
 const pushOnly = preloadMissing.filter(c => isPushChannel(c));
 
+// ─── Platform-catalog drift check ──────────────────────────────────────────────
+//
+// src/renderer/src/platformCatalog.ts (added 2026-08-15) is the app's own
+// feature catalog — folded into Mossy's system prompt and the home page.
+// It's a hand-maintained list, same as the PLATFORMS array immediately above,
+// which means it can drift from reality exactly the way that array's
+// predecessor (a hand-written block inside MossyBrain.ts) already did once —
+// silently, until someone read the actual code and found it describing
+// capabilities that didn't exist. This can't verify the catalog's PROSE is
+// accurate (that needs a human/AI re-read, same as last time), but it closes
+// the cheaper, structural half: every id/route the catalog claims must match
+// what PLATFORMS above (already cross-checked against the live App.tsx
+// routes) actually has, and vice versa. Parsed via regex against the raw
+// file text rather than imported/executed — this script runs in postbuild
+// on plain Node with no TS-execution step, and a build-critical check
+// shouldn't depend on an experimental runtime feature.
+
+const CATALOG_PATH = path.join(SRC_DIR, 'platformCatalog.ts');
+const catalogText  = fs.existsSync(CATALOG_PATH) ? fs.readFileSync(CATALOG_PATH, 'utf8') : '';
+const catalogDrift = [];
+
+if (!catalogText) {
+  catalogDrift.push('src/renderer/src/platformCatalog.ts not found — catalog referenced by MossyBrain.ts/TheNexus.tsx is missing.');
+} else {
+  // Extract each `{ id: N, ... route: '...', ... }` entry from PLATFORM_CATALOG.
+  // Entries span multiple lines, so match id and route independently within
+  // each top-level array-element block (split on the `id: N,` markers).
+  const entryBlocks = catalogText
+    .split(/(?=\{\s*\n\s*id:\s*\d+,)/)
+    .filter(b => /^\{\s*\n\s*id:\s*\d+,/.test(b));
+
+  const catalogEntries = new Map(); // id -> route
+  for (const block of entryBlocks) {
+    const id = block.match(/id:\s*(\d+),/)?.[1];
+    const route = block.match(/route:\s*'([^']+)'/)?.[1];
+    if (id && route) catalogEntries.set(Number(id), route);
+  }
+
+  if (catalogEntries.size === 0) {
+    catalogDrift.push('Could not parse any { id, route } entries out of platformCatalog.ts — regex may need updating if the file\'s structure changed.');
+  }
+
+  const platformIds = new Set(PLATFORMS.map(p => p.id));
+  const catalogIds   = new Set(catalogEntries.keys());
+
+  for (const p of PLATFORMS) {
+    if (!catalogEntries.has(p.id)) {
+      catalogDrift.push(`Platform ${p.id} (${p.name}) exists in this script's PLATFORMS list but has no entry in platformCatalog.ts — Mossy's system prompt and the home page don't know about it.`);
+      continue;
+    }
+    const catalogRoute = catalogEntries.get(p.id);
+    if (catalogRoute !== p.route) {
+      catalogDrift.push(`Platform ${p.id} (${p.name}): route mismatch — PLATFORMS has "${p.route}", platformCatalog.ts has "${catalogRoute}".`);
+    }
+  }
+  for (const id of catalogIds) {
+    if (!platformIds.has(id)) {
+      catalogDrift.push(`platformCatalog.ts has id ${id} with no matching entry in this script's PLATFORMS list — either a new platform was added without updating platform-audit.mjs, or the catalog has a stale/renumbered entry.`);
+    }
+  }
+}
+
 // ─── Per-platform audit ───────────────────────────────────────────────────────
 
 const PASS = '✓';
@@ -413,6 +475,14 @@ if (!preloadOnly.length && !mainOnly.length && !pushOnly.length) {
     for (const c of mainOnly.sort()) console.log(`     - ${c}`);
   }
 }
+// Platform-catalog drift check
+console.log('\n' + '─'.repeat(100));
+console.log('  PLATFORM CATALOG DRIFT CHECK (src/renderer/src/platformCatalog.ts)');
+if (catalogDrift.length === 0) {
+  console.log(`  All ${PLATFORMS.length} platforms present in both lists with matching routes ✓`);
+} else {
+  for (const d of catalogDrift) console.log(`  ${FAIL} ${d}`);
+}
 console.log('═'.repeat(100) + '\n');
 
 if (fixMode) {
@@ -427,4 +497,4 @@ if (fixMode) {
   }
 }
 
-process.exit(fail > 0 ? 1 : 0);
+process.exit((fail > 0 || catalogDrift.length > 0) ? 1 : 0);

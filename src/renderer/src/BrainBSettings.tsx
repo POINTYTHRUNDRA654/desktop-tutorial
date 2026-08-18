@@ -425,11 +425,10 @@ export const BrainBSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
       <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4">
         <div className="font-semibold text-slate-200 text-xs mb-2">Mossy Integration</div>
         <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
-          <li>Set AI Engine provider to <strong>Local Only (Brain B)</strong> to force Mossy to always use it</li>
-          <li>Set to <strong>Auto</strong> and Mossy uses the cloud by default, but prefers Brain B over Ollama when both are running (a specialized RAG/tutor service over a raw local model)</li>
+          <li>Not a provider choice — there's nothing to select in AI Engine. If it's installed and running, it enriches every turn automatically; whichever provider you've picked there (cloud or Ollama) still generates the actual answer text</li>
           <li>When Brain B has no documentation covering a question, Mossy says so plainly instead of guessing — you'll see a distinct notice on that message rather than a normal answer</li>
-          <li>While teaching (not answering a quick lookup), Brain B may follow up with a short check-in question — shown as a highlighted prompt below its answer</li>
-          <li>Any failure (not running, timeout, error) falls through to the cloud model silently — chat never breaks because Brain B is off</li>
+          <li>While teaching (not answering a quick lookup), Brain B may follow up with a short check-in question — shown as a highlighted prompt below its answer, arriving a moment after the answer itself since it's a separate step</li>
+          <li>Any failure (not running, timeout, error) is silent — chat never breaks and no enrichment features appear for that turn, exactly as if Brain B weren't installed</li>
         </ul>
       </div>
     </div>
