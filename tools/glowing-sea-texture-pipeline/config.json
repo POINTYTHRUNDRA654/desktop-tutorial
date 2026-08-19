@@ -1,0 +1,16 @@
+{
+  "comfyui_base": "http://127.0.0.1:8188",
+  "texconv_path": "E:\\Steam\\steamapps\\common\\Fallout 4\\Tools\\Elric\\texconv.exe",
+  "comfyui_model": "",
+  "denoise": 0.45,
+  "steps": 30,
+  "cfg": 6.0,
+  "positive_prompt": "photoreal biological detail, fungal infection, aged wet organic tissue, moss and lichen growth, muted olive brown purple charcoal teal palette, restrained radioactive green accents, weathered surface, subtle bioluminescence, highly detailed texture, seamless",
+  "negative_prompt": "fantasy, rainbow colors, saturated, cartoon, stylized, low detail, blurry, text, watermark, logo, bright pink, bright blue, unrealistic color palette",
+  "finalize_noise_reduction_size": 3,
+  "finalize_sharpen_amount": 0.5,
+  "finalize_sharpen_radius": 1.5,
+  "finalize_sharpen_threshold": 3,
+  "finalize_contrast": 1.05,
+  "finalize_saturation": 1.0
+}
