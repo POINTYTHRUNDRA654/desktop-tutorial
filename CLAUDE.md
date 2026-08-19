@@ -156,6 +156,19 @@ returned a hardcoded "success"-looking string with no real call behind it:
   itself was left wired in as a live, selectable dead end sitting one click from
   its real replacement. Removed 2026-08-18, not left as a trap for a future
   stale build or caching issue to make it look live again.
+- `tools/glowing-sea-texture-pipeline/finalize.py`'s finishing filters
+  (median/unsharp/contrast/saturation) ran over the whole canvas, including
+  pixels `composite_lock.py` had explicitly locked to the pristine original
+  outside the UV mask — the same "operation reports success while silently
+  altering something it wasn't supposed to touch" shape, just in a
+  standalone tool instead of a UI panel. It looked done (stages 1-3 passed,
+  the 4-stage chain ran clean) until the automated test checked the
+  alpha-outside-mask guarantee directly with zero tolerance instead of
+  eyeballing a sample — 6.8M of 9.7M protected pixels on one real file came
+  back altered. Fixed 2026-08-19: finalize.py re-composites against the same
+  real mask a second time after filtering, so the guarantee this pipeline
+  exists to provide survives every stage, not just the ones that don't touch
+  RGB.
 
 **What to check when writing or reviewing an integration:** does every branch
 that reports success actually follow a real IPC call, file read, or process
