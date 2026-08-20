@@ -48,6 +48,29 @@ jobs:
       - name: Check classify_mode / retrieval_tuning parity
         run: python3 brain-b/check_parity.py
 
+  papyrus-lint-selftest:
+    name: Papyrus lint self-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: false
+
+      # Stdlib-only (re, dataclasses, pathlib) — no requirements.txt needed.
+      # This guards the guard: scripts/papyrus_lint.py is the mechanical
+      # anti-pattern scanner (Utility.Wait() queuing, ApplyCrossFade/
+      # RemoveCrossFade scope mismatch — see papyrusThreadingGotchas in
+      # src/shared/FO4KnowledgeBase.ts) that the Blender add-on's own
+      # generator (a separate repo) vendors a copy of to self-check its
+      # output before ever writing a .psc file. If this regresses, that
+      # self-check silently stops catching real bugs — same reasoning as
+      # brain-b-parity above, applied to a linter instead of a fork.
+      - name: Run papyrus_lint.py self-test
+        run: python3 scripts/papyrus_lint.py --self-test
+
   verify:
     name: Verify (reproducible)
     needs: check-conflicts
