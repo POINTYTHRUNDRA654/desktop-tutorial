@@ -178,6 +178,58 @@ a generic error? If a component's own comments say a former dependency was
 fabricated or removed, is the component (or the specific tab/feature that used
 it) actually gone from the UI, not just internally redirected?
 
+### "Verified" from a reviewer is not ground truth — the Papyrus timer bug
+
+**The standard:** a claim that code is "correct," "verified," or "fixed" —
+from Billy, from Claude, from any reviewer, human or AI — is a claim about
+what the reviewer *believes* after reading the code. It is not the same
+thing as the code actually being checked against reality, and treating it
+as equivalent is a real, recurring risk, not a hypothetical one.
+
+**What happened, 2026-08-19:** a Papyrus trap script had a real threading
+bug (`Utility.Wait()` inside an event handler, queuing instead of dropping
+concurrent calls). The proposed fix used `RegisterForSingleUpdate()` /
+`Event OnUpdate()` — real, commonly-used functionality in Skyrim's Papyrus
+that does not exist anywhere in Fallout 4's Papyrus API. This fix was:
+
+- Written and proposed as correct.
+- Independently reviewed by Billy, who confirmed it was correct and
+  specifically called the related stuck-state failure mode "structurally
+  eliminated."
+- Implemented, tested for the *behavior* it was meant to fix (state
+  transitions, re-entry handling), and shipped — into the hand-fixed
+  script, three Blender-add-on generator templates, and a new
+  `papyrusThreadingGotchas` knowledge-base entry that recommended the same
+  nonexistent function as *the* fix for anyone consulting it later.
+
+None of that caught it. What caught it: running `PapyrusCompiler.exe` — a
+free, two-second, fully mechanical check — for the first time, on
+something else entirely (a smoke test of unrelated tooling). It failed
+immediately with `RegisterForSingleUpdate is not a function or does not
+exist`. Every subsequent claim in this codebase and the linter built to
+prevent this exact class of bug had to be corrected once actual compilation
+was run.
+
+**Why this is the more important failure, not a smaller one:** the
+knowledge-base entry and the linter's own finding message both taught the
+wrong fix as correct. If that had gone unnoticed, every future script
+checked against that KB entry, or against the linter's guidance, would have
+been steered toward the same broken API — the corpus would have been
+actively teaching the bug rather than preventing it. A wrong fix that stays
+local to one file is a bug. A wrong fix baked into the reference material
+other code (or other people, or Mossy herself) is expected to trust is a
+bug that compounds every time it's consulted.
+
+**What to check, going forward, in this codebase and beyond:** when a fix,
+a review, or a "this is now correct" claim depends on an external system's
+real behavior (a compiler, an API's actual signature, a runtime's actual
+capabilities) — run the real check. Reading the code carefully, twice, by
+two different reviewers, is not a substitute for executing it against
+ground truth once. This applies with equal force to a human reviewer's
+sign-off and to an AI's confident-sounding confirmation — confidence is not
+evidence, and neither is agreement between two reviewers who made the same
+unverified assumption.
+
 ## Preferences
 - No intermediate steps shown — implement everything, report when done
 - Everything must be real, professional, most advanced FO4 system possible
