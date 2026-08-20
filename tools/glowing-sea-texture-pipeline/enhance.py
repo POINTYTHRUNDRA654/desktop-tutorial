@@ -29,7 +29,10 @@ STAGE = "enhance"
 
 # Real per-file limit, not a knob to raise casually — this stage is the paid/
 # metered one (GPU time via ComfyUI). A stuck job shouldn't hang the batch.
-GENERATION_TIMEOUT_S = 4 * 60
+# Set from a real measurement, not a guess: a real 4096x4096 SDXL img2img at
+# 30 steps took 21.7 minutes on a single RTX 2070 SUPER (8GB), 2026-08-19.
+# 45 minutes leaves real headroom above that for larger/slower cases.
+GENERATION_TIMEOUT_S = 45 * 60
 POLL_INTERVAL_S = 2.0
 # Real rate limiting between files so a local ComfyUI instance (shared GPU,
 # often also running the game/CK) isn't hammered back-to-back.
@@ -117,10 +120,28 @@ def run_workflow(base: str, workflow: dict) -> tuple[bytes | None, str]:
                 continue
             history = hr.json()
             job = history.get(prompt_id)
-            if not job or "outputs" not in job:
+            if not job:
                 continue
-            if job.get("error"):
-                return None, f"ComfyUI: {str(job['error'])[:200]}"
+
+            # A failed node execution shows up as status.status_str == "error"
+            # with the real exception inside status.messages, NOT as a
+            # top-level "error" key and NOT with an "outputs" key at all —
+            # confirmed against a real ComfyUI failure (corrupted checkpoint
+            # file) on 2026-08-19: without this check, a real error was
+            # silently invisible to this loop and it just spun for the full
+            # GENERATION_TIMEOUT_S before reporting a generic "timed out",
+            # hiding the actual cause.
+            status = job.get("status", {})
+            if status.get("status_str") == "error":
+                exception_msg = "Unknown error"
+                for msg_type, msg_data in status.get("messages", []):
+                    if msg_type == "execution_error":
+                        exception_msg = f"{msg_data.get('node_type', '?')}: {msg_data.get('exception_message', 'Unknown error')}"
+                        break
+                return None, f"ComfyUI job failed: {exception_msg[:300]}"
+
+            if "outputs" not in job:
+                continue
             for node_out in job["outputs"].values():
                 images = node_out.get("images")
                 if images:

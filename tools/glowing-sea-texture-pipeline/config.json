@@ -1,7 +1,7 @@
 {
   "comfyui_base": "http://127.0.0.1:8188",
   "texconv_path": "E:\\Steam\\steamapps\\common\\Fallout 4\\Tools\\Elric\\texconv.exe",
-  "comfyui_model": "",
+  "comfyui_model": "RealVisXL_V4.0.safetensors",
   "denoise": 0.45,
   "steps": 30,
   "cfg": 6.0,

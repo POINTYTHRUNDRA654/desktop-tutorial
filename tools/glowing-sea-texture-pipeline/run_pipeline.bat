@@ -39,7 +39,7 @@ echo.
 echo === Stage 2/4: enhance (ComfyUI) ===
 python enhance.py "%INPUT%" "%ENHANCED%"
 if errorlevel 1 (
-    echo Stage 2 failed. Stopping — nothing charged/generated past this point.
+    echo Stage 2 failed. Stopping - nothing charged/generated past this point.
     exit /b 1
 )
 
@@ -47,7 +47,7 @@ echo.
 echo === Stage 3/4: composite_lock ===
 python composite_lock.py "%INPUT%" "%ENHANCED%" "%MASK%" "%LOCKED%"
 if errorlevel 1 (
-    echo Stage 3 failed. Stopping. Enhanced\ output is preserved — re-run from stage 3 without re-generating.
+    echo Stage 3 failed. Stopping. Enhanced\ output is preserved - re-run from stage 3 without re-generating.
     exit /b 1
 )
 
@@ -55,13 +55,13 @@ echo.
 echo === Stage 4/4: finalize ===
 python finalize.py "%INPUT%" "%LOCKED%" "%MASK%" "%OUTPUT%"
 if errorlevel 1 (
-    echo Stage 4 failed. UV-Locked\ output is preserved — re-run from stage 4 without redoing stages 1-3.
+    echo Stage 4 failed. UV-Locked\ output is preserved - re-run from stage 4 without redoing stages 1-3.
     exit /b 1
 )
 
 echo.
 echo === Done. Output written to %OUTPUT% ===
 if exist "%ROOT%\needs_review.txt" (
-    echo NOTE: some textures were flagged for manual review — see %ROOT%\needs_review.txt
+    echo NOTE: some textures were flagged for manual review - see %ROOT%\needs_review.txt
 )
 endlocal
