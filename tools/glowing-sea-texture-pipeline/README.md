@@ -143,14 +143,24 @@ python test_pipeline.py "<real texture folder>" [count]
   30 steps took 21.7 minutes on a single RTX 2070 SUPER (8GB) — confirmed
   end-to-end on a real Glowing Sea texture, 2026-08-19. `GENERATION_TIMEOUT_S`
   is set to 45 minutes to leave real headroom above that.
-- **Style match is unproven at the default settings.** The one real
-  full-pipeline run produced a mechanically correct result (real generation,
-  correctly mask-locked, correct dimensions/format) but the enhanced image
-  stayed a bright saturated green rather than the muted olive/brown/purple/
-  charcoal "Glowing Sea decay" look the prompt describes — `denoise: 0.45` in
-  `config.json` may be too conservative to meaningfully shift the palette
-  away from a strongly-colored source image. Worth a higher-denoise test
-  before running this against a full texture set.
+- **Denoise tuned from a real side-by-side comparison, 2026-08-19.** The
+  first real full-pipeline run (denoise 0.45, the original guessed default)
+  stayed a bright saturated green — mechanically correct but a weak style
+  match to the prompt's intended "muted olive/brown/purple/charcoal decay"
+  look. Ran the same real texture (downscaled to 1024x1024 for fast
+  iteration — style direction from a diffusion model is not meaningfully
+  resolution-dependent, so this is a valid way to compare quickly) through
+  stage 2 at 0.45/0.55/0.65. 0.55 already reads as real lichen/moss with
+  muted tones and a cracked, weathered surface; 0.65 goes further still —
+  dense moss/lichen colonies, browns with purple accents, genuinely decayed
+  organic texture, a strong match to the prompt. Default changed to
+  `"denoise": 0.65`. This is safe to push higher than a naive "high denoise
+  is risky" instinct would suggest, because `composite_lock.py`'s mask-lock
+  guarantees the silhouette can't break regardless of denoise value — the
+  geometry safety net doesn't depend on staying conservative here. If a
+  future texture's result looks over-transformed, lower this per-run rather
+  than assuming 0.65 is universally right — this was tuned against one real
+  cutout-alpha foliage texture, not the full variety in the source folders.
 
 ## Requirements
 
