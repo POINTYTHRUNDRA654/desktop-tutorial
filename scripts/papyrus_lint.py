@@ -109,7 +109,10 @@ def lint_text(text: str, file_label: str) -> list[Finding]:
                 f"locked for the duration; a second call to this event while suspended here "
                 f"queues and blocks instead of being dropped, firing the full sequence later "
                 f"against whoever/whatever triggered it, even if they're long gone by then. "
-                f"Use RegisterForSingleUpdate()/GoToState(\"Busy\") instead — see "
+                f"Use StartTimer()/OnTimer() + GoToState(\"Busy\") instead — NOT "
+                f"RegisterForSingleUpdate()/OnUpdate(), which do not exist in Fallout 4's "
+                f"Papyrus API at all (confirmed against the real ScriptObject.psc source, "
+                f"2026-08-19) despite being real functionality in Skyrim's Papyrus. See "
                 f"papyrusThreadingGotchas.utilityWaitInsideEventHandlersQueuesRatherThanDrops."
             ))
 
@@ -215,7 +218,7 @@ Event OnTriggerEnter(ObjectReference akActionRef)
     GoToState("Busy")
     RegisterForAnimationEvent(Self, "Snap")
     Self.PlayAnimation("Snap")
-    RegisterForSingleUpdate(8.0)
+    StartTimer(8.0, 1)
 EndEvent
 
 State Busy
@@ -224,7 +227,7 @@ State Busy
         BlurFX.ApplyCrossFade(1.0)
     EndEvent
 
-    Event OnUpdate()
+    Event OnTimer(Int aiTimerID)
         ImageSpaceModifier.RemoveCrossFade(1.0)
         GoToState("")
     EndEvent
