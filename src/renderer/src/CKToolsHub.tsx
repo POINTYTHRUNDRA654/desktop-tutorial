@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
-import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link, Search, ClipboardList, Settings, Package, FileCode, Cpu, Zap, XCircle, HelpCircle, RefreshCw, Hammer, Terminal, GitMerge, FolderOpen, ChevronDown, Loader2, CheckCircle2, FilePlus } from 'lucide-react';
+import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link, Search, ClipboardList, Settings, Package, FileCode, Cpu, Zap, XCircle, HelpCircle, RefreshCw, Hammer, Terminal, GitMerge, FolderOpen, ChevronDown, Loader2, CheckCircle2, FilePlus, Skull, Code2 } from 'lucide-react';
+import { bridgeFetch } from './lib/bridgeClient';
 
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const CKExtension = React.lazy(() =>
@@ -75,7 +76,7 @@ interface FixLogEntry {
   msg: string;
 }
 
-type InspectorTab = 'inspect' | 'patch' | 'previs';
+type InspectorTab = 'inspect' | 'patch' | 'previs' | 'ckpe';
 
 const PluginInspectorPanel: React.FC = () => {
   const api = () => (window as any).electron?.api || (window as any).electronAPI;
@@ -238,6 +239,45 @@ const PluginInspectorPanel: React.FC = () => {
   const [dataDirInput, setDataDirInput] = useState('');
   const [xeditPathInput, setXeditPathInput] = useState('');
 
+  // ── CKPE Diagnostics state (real per-cell precombine conflicts, script/anim/
+  // form warnings, and crash-dump detection — all read from CKPE's own log and
+  // crash folder via the Bridge, never synthesized) ──────────────────────────
+  const [ckpeStatus, setCkpeStatus] = useState<any>(null);
+  const [ckpeCrash, setCkpeCrash] = useState<any>(null);
+  const [ckpeBusy, setCkpeBusy] = useState(false);
+  const [ckpeErr, setCkpeErr] = useState('');
+  const [lastSeenCrashMtime, setLastSeenCrashMtime] = useState<string>(() =>
+    localStorage.getItem('ck_last_seen_crash_mtime') || ''
+  );
+
+  const runCkpeCheck = useCallback(async () => {
+    setCkpeBusy(true); setCkpeErr('');
+    try {
+      const [logRes, crashRes] = await Promise.all([
+        bridgeFetch('/ck/precombine-status', { method: 'GET' }),
+        bridgeFetch('/ck/crash-status', { method: 'GET' }),
+      ]);
+      setCkpeStatus(await logRes.json());
+      setCkpeCrash(await crashRes.json());
+    } catch (e: any) {
+      setCkpeErr(e?.message ?? 'Could not reach the Desktop Bridge — make sure it is running (Runtime Hub → Desktop Bridge).');
+    } finally {
+      setCkpeBusy(false);
+    }
+  }, []);
+
+  const isNewCrash = !!(
+    ckpeCrash?.detected && ckpeCrash?.listed && ckpeCrash.mostRecent &&
+    (!lastSeenCrashMtime || new Date(ckpeCrash.mostRecent.mtime).getTime() > new Date(lastSeenCrashMtime).getTime())
+  );
+
+  const acknowledgeCrash = () => {
+    if (ckpeCrash?.detected && ckpeCrash?.listed && ckpeCrash.mostRecent) {
+      localStorage.setItem('ck_last_seen_crash_mtime', ckpeCrash.mostRecent.mtime);
+      setLastSeenCrashMtime(ckpeCrash.mostRecent.mtime);
+    }
+  };
+
   // Default the xEdit path from settings so Step 1/3 don't require retyping it.
   useEffect(() => {
     (async () => {
@@ -367,7 +407,7 @@ const PluginInspectorPanel: React.FC = () => {
         <p className="text-sky-100/70 text-xs">Binary deep-scan · Auto-fix (NAVM undelete, rename, xEdit launch, CK rebuild) · Compatibility patch creator</p>
         {/* Tab bar */}
         <div className="flex gap-1 mt-4">
-          {([['inspect', Search, 'Inspect & Fix'], ['patch', GitMerge, 'Patch Creator'], ['previs', Zap, 'Previsbines & PRP']] as [string, any, string][]).map(([id, Icon, label]) => (
+          {([['inspect', Search, 'Inspect & Fix'], ['patch', GitMerge, 'Patch Creator'], ['previs', Zap, 'Previsbines & PRP'], ['ckpe', Skull, 'CKPE Diagnostics']] as [string, any, string][]).map(([id, Icon, label]) => (
             <button key={id} onClick={() => setActiveTab(id as InspectorTab)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 activeTab === (id as string) ? 'bg-sky-700/60 text-white border border-sky-500/40' : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -906,6 +946,140 @@ const PluginInspectorPanel: React.FC = () => {
             </div>}
           </div>
 
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* CKPE DIAGNOSTICS TAB — real per-cell conflicts, script/anim/form        */}
+      {/* warnings, and crash-dump detection, all read from CKPE's own output    */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'ckpe' && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-orange-500/30 bg-orange-900/10 p-4">
+            <p className="text-xs text-orange-200/80">
+              Reads real diagnostic data CKPE (Creation Kit Platform Extended) already writes to disk —
+              per-cell precombine-ownership conflicts, orphaned script/animation/form warnings, and
+              CreationKit.exe crash dumps. Nothing here is guessed: if CKPE isn't installed or its log
+              format has drifted, this says so plainly instead of showing a fabricated "no issues" result.
+            </p>
+          </div>
+
+          <button onClick={runCkpeCheck} disabled={ckpeBusy}
+            className="w-full rounded-lg bg-orange-600 py-2 font-bold text-white hover:bg-orange-500 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 text-xs">
+            {ckpeBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking…</> : <><RefreshCw className="h-3.5 w-3.5" />Check CKPE Log &amp; Crash Folder</>}
+          </button>
+          {ckpeErr && <p className="text-xs text-red-400 flex items-center gap-1"><XCircle className="h-3 w-3" />{ckpeErr}</p>}
+
+          {/* Crash status — surfaced first and prominently per spec */}
+          {ckpeCrash && (
+            <div className={`rounded-xl border p-4 ${
+              isNewCrash ? 'border-red-600/50 bg-red-950/30' :
+              ckpeCrash.detected && ckpeCrash.listed && ckpeCrash.crashCount > 0 ? 'border-amber-600/40 bg-amber-950/20' :
+              ckpeCrash.detected ? 'border-emerald-600/30 bg-emerald-950/10' :
+              'border-slate-700 bg-slate-900/40'
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Skull className={`h-4 w-4 ${isNewCrash ? 'text-red-400' : 'text-slate-400'}`} />
+                <p className="text-xs font-bold text-slate-200">Creation Kit Crash Dumps</p>
+                {isNewCrash && (
+                  <span className="px-1.5 py-0.5 rounded bg-red-700 text-white text-[9px] font-black uppercase tracking-wider">New</span>
+                )}
+              </div>
+              {!ckpeCrash.detected ? (
+                <p className="text-xs text-slate-400">{ckpeCrash.reason}</p>
+              ) : !ckpeCrash.listed ? (
+                <p className="text-xs text-red-300">{ckpeCrash.reason}</p>
+              ) : ckpeCrash.crashCount === 0 ? (
+                <p className="text-xs text-emerald-300">No CreationKit.exe crash dumps found in {ckpeCrash.crashDir}.</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-300">
+                    {ckpeCrash.crashCount} crash dump{ckpeCrash.crashCount !== 1 ? 's' : ''} in {ckpeCrash.crashDir}.
+                    Most recent: <span className="font-mono text-amber-300">{ckpeCrash.mostRecent?.fileName}</span> ({new Date(ckpeCrash.mostRecent?.mtime).toLocaleString()}).
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Reading the actual stack trace needs WinDbg Preview (Microsoft Store, free) — open the .dmp and run <code className="text-amber-300">!analyze -v</code> for an automated summary.
+                  </p>
+                  {isNewCrash && (
+                    <button onClick={acknowledgeCrash}
+                      className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-600 text-[11px] font-semibold text-slate-300 transition-colors">
+                      Mark as seen
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Precombine / log status */}
+          {ckpeStatus && (
+            <div className="space-y-3">
+              {!ckpeStatus.detected ? (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-slate-400">{ckpeStatus.reason}</p>
+                </div>
+              ) : !ckpeStatus.parsed ? (
+                <div className="rounded-lg border border-amber-600/40 bg-amber-950/20 p-3 flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-300">{ckpeStatus.reason}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                    <p className="text-xs text-slate-300">
+                      Session {ckpeStatus.sessionTimestamp ?? 'unknown time'}
+                      {ckpeStatus.activePlugin ? <> — active plugin <span className="font-mono text-sky-300">{ckpeStatus.activePlugin}</span></> : null}
+                    </p>
+                  </div>
+
+                  {/* Precombine conflicts */}
+                  <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                    <p className={`text-xs font-semibold mb-2 ${ckpeStatus.conflictCount > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                      {ckpeStatus.conflictCount > 0
+                        ? `${ckpeStatus.conflictCount} precombine-ownership conflict${ckpeStatus.conflictCount !== 1 ? 's' : ''}`
+                        : '✓ No precombine-ownership conflicts found.'}
+                    </p>
+                    {ckpeStatus.conflicts?.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {ckpeStatus.conflicts.map((c: any, i: number) => (
+                          <div key={i} className={`rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ${warnBorder('warn')}`}>
+                            {warnIcon('warn')}
+                            <p className="flex-1 leading-relaxed">
+                              Cell <span className="font-mono">{c.cell}</span> ({c.cellFormId}): combined data owned by <span className="font-mono text-amber-300">{c.ownerFile}</span> due to ref <span className="font-mono">{c.refName}</span> ({c.refFormId})
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Script / Animation / Form warnings */}
+                  {([
+                    ['Script Warnings', ckpeStatus.scriptWarnings, Code2],
+                    ['Animation Warnings', ckpeStatus.animationWarnings, Activity],
+                    ['Form/Property Warnings', ckpeStatus.formWarnings, FileCode],
+                  ] as [string, string[] | undefined, any][]).map(([label, items, Icon]) => (
+                    (items && items.length > 0) && (
+                      <div key={label} className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                        <p className="text-xs font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
+                          <Icon className="h-3.5 w-3.5 text-sky-400" />{label} ({items.length})
+                        </p>
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {items.map((w, i) => (
+                            <div key={i} className={`rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ${warnBorder('info')}`}>
+                              {warnIcon('info')}
+                              <p className="flex-1 leading-relaxed">{w}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
