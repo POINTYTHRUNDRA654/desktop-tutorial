@@ -116,6 +116,41 @@ python test_pipeline.py "<real texture folder>" [count]
   DXGI format names for `-f`, not legacy FourCC strings like `DXT5` — both
   confirmed directly and fixed in `common.py`. If a different texconv build
   is used elsewhere, re-verify both of these.
+- **`run_pipeline.bat` needs CRLF line endings and ASCII-only content.** It
+  was originally written with LF-only endings and a couple of real em dashes
+  (`-`), and `cmd.exe`'s batch parser corrupted its own tokenizing on both —
+  failures like `'ing' is not recognized as an internal or external command`
+  that have nothing to do with the actual command being run. Fixed
+  2026-08-19; if this file is ever edited by a tool that re-saves it with LF
+  endings or non-ASCII characters, re-verify with
+  `python -c "d=open('run_pipeline.bat','rb').read(); print(d.count(b'\r'), d.count(b'\n'), max(d))"`
+  — CR count should equal LF count, and the max byte should be <= 127.
+- **A checkpoint file can be silently corrupted and `enhance.py` wouldn't
+  have told you.** `Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors` in
+  this ComfyUI install fails to load (`incomplete metadata, file not fully
+  covered`) — a real bad/incomplete download, not a pipeline bug. Worse: the
+  original polling loop in `run_workflow()` only checked for a top-level
+  `error` key and an `outputs` key, but a real ComfyUI node failure reports
+  through `status.status_str == "error"` with the actual exception nested in
+  `status.messages` instead — so the loop just kept polling until the full
+  timeout and reported a generic "Generation timed out," hiding the real
+  cause. Fixed 2026-08-19 to detect and surface `status_str == "error"`
+  immediately. `config.json`'s `comfyui_model` is pinned to
+  `RealVisXL_V4.0.safetensors` (confirmed working) rather than left on
+  auto-pick, since auto-pick would otherwise land on the broken checkpoint
+  first.
+- **Real generation timing, not a guess:** a full 4096x4096 SDXL img2img at
+  30 steps took 21.7 minutes on a single RTX 2070 SUPER (8GB) — confirmed
+  end-to-end on a real Glowing Sea texture, 2026-08-19. `GENERATION_TIMEOUT_S`
+  is set to 45 minutes to leave real headroom above that.
+- **Style match is unproven at the default settings.** The one real
+  full-pipeline run produced a mechanically correct result (real generation,
+  correctly mask-locked, correct dimensions/format) but the enhanced image
+  stayed a bright saturated green rather than the muted olive/brown/purple/
+  charcoal "Glowing Sea decay" look the prompt describes — `denoise: 0.45` in
+  `config.json` may be too conservative to meaningfully shift the palette
+  away from a strongly-colored source image. Worth a higher-denoise test
+  before running this against a full texture set.
 
 ## Requirements
 
