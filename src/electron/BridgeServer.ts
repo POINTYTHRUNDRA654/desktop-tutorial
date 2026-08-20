@@ -36,6 +36,40 @@ export type CKPEPrecombineStatus =
           activePlugin: string | null;
           conflictCount: number;
           conflicts: Array<{ cell: string; cellFormId: string; ownerFile: string; refName: string; refFormId: string }>;
+          // Raw message text (tag prefix stripped) from CKPE's [SCRIPTS] / [ANIMATION] /
+          // [FORMS] sections — orphaned/deleted script refs, missing animation events,
+          // invalid property references. Not restructured into typed fields the way
+          // conflicts is: real-world lines vary too much in shape across these three
+          // tags to parse honestly into fixed fields without guessing at some of them.
+          // Captured as-written instead — still traces to an actual line, never synthesized.
+          scriptWarnings: string[];
+          animationWarnings: string[];
+          formWarnings: string[];
+      };
+
+/**
+ * Result of watching CKPE's own crash-dump folder (Logs\CKPE\Crashes under the
+ * FO4 install) for new CreationKit.exe crashes. This is deliberately NOT
+ * %LOCALAPPDATA%\CrashDumps or Windows' WER ReportQueue/ReportArchive — checked
+ * directly against a real machine (2026-08-18) and found empty/nonexistent for
+ * CreationKit.exe; standard per-process WER dump collection isn't registered for
+ * it here. CKPE's Crashes folder is its own crash handler's output and is the
+ * only source confirmed to have real, historical CreationKit.exe dumps on a
+ * real system. Reading the dump's actual stack trace still needs WinDbg
+ * (`!analyze -v`) — this only detects that a crash happened and when, so the
+ * next one doesn't require a manual folder dig to even notice.
+ */
+export type CKCrashStatus =
+    | { detected: false; reason: string }
+    | { detected: true; listed: false; crashDir: string; reason: string }
+    | {
+          detected: true;
+          listed: true;
+          crashDir: string;
+          crashCount: number;
+          mostRecent: { fileName: string; mtime: string } | null;
+          // Capped list, newest first — mirrors the conflicts cap above.
+          dumps: Array<{ fileName: string; mtime: string; sizeBytes: number }>;
       };
 
 /**
@@ -72,6 +106,9 @@ export class BridgeServer {
     private _ckpeLogWatcher: fs.FSWatcher | null = null;
     private _ckpeLogWatchedDir: string = '';
     private _ckpeLogCache: { path: string; mtimeMs: number; result: CKPEPrecombineStatus } | null = null;
+    private _ckCrashWatcher: fs.FSWatcher | null = null;
+    private _ckCrashWatchedDir: string = '';
+    private _ckCrashCache: { dirSignature: string; result: CKCrashStatus } | null = null;
     private _optimizeJobs = new Map<string, {
         status: 'processing' | 'complete' | 'error';
         progress: number;
@@ -158,11 +195,23 @@ export class BridgeServer {
 
             const OWNERSHIP_RE = /^\[MASTERFILE\] \*\*\* Cell (.+?) \(([0-9A-Fa-f]{8})\) combined data is owned by file (.+?) due to ref (.+?) \(([0-9A-Fa-f]{8})\)\s*$/;
             const conflicts: Array<{ cell: string; cellFormId: string; ownerFile: string; refName: string; refFormId: string }> = [];
+            const scriptWarnings: string[] = [];
+            const animationWarnings: string[] = [];
+            const formWarnings: string[] = [];
+            const MAX_WARNINGS_PER_TAG = 200;
             let masterfileTagSeen = false;
             for (const line of lines) {
-                if (line.startsWith('[MASTERFILE]')) masterfileTagSeen = true;
-                const m = line.match(OWNERSHIP_RE);
-                if (m) conflicts.push({ cell: m[1], cellFormId: m[2], ownerFile: m[3], refName: m[4], refFormId: m[5] });
+                if (line.startsWith('[MASTERFILE]')) {
+                    masterfileTagSeen = true;
+                    const m = line.match(OWNERSHIP_RE);
+                    if (m) conflicts.push({ cell: m[1], cellFormId: m[2], ownerFile: m[3], refName: m[4], refFormId: m[5] });
+                } else if (line.startsWith('[SCRIPTS]')) {
+                    if (scriptWarnings.length < MAX_WARNINGS_PER_TAG) scriptWarnings.push(line.slice('[SCRIPTS]'.length).trim());
+                } else if (line.startsWith('[ANIMATION]')) {
+                    if (animationWarnings.length < MAX_WARNINGS_PER_TAG) animationWarnings.push(line.slice('[ANIMATION]'.length).trim());
+                } else if (line.startsWith('[FORMS]')) {
+                    if (formWarnings.length < MAX_WARNINGS_PER_TAG) formWarnings.push(line.slice('[FORMS]'.length).trim());
+                }
             }
 
             // Structural sanity check before trusting a zero-conflict result. A
@@ -188,6 +237,9 @@ export class BridgeServer {
                 conflictCount: conflicts.length,
                 // Cap the payload; conflictCount above still reflects the real total.
                 conflicts: conflicts.slice(0, 200),
+                scriptWarnings,
+                animationWarnings,
+                formWarnings,
             };
         } catch (e: any) {
             return { detected: true, parsed: false, logPath, reason: `Found the CKPE log but couldn't parse it: ${e?.message || e}` };
@@ -264,6 +316,66 @@ export class BridgeServer {
         const result = this._parseCKPELog(logPath, mtimeMs);
         this._ckpeLogCache = { path: logPath, mtimeMs, result };
         return result;
+    }
+
+    /**
+     * Watch CKPE's own crash-dump folder for new CreationKit.exe crashes.
+     * See CKCrashStatus's doc comment for why this targets Logs\CKPE\Crashes
+     * specifically rather than %LOCALAPPDATA%\CrashDumps or WER.
+     */
+    private _getCKCrashStatus(): CKCrashStatus {
+        const fallout4Path = String(this._readSettings()?.fallout4Path || '').trim();
+        if (!fallout4Path) {
+            return { detected: false, reason: 'Fallout 4 install path is not configured in Mossy Settings, so Mossy cannot look for CKPE crash dumps yet.' };
+        }
+
+        const crashDir = path.join(fallout4Path, 'Logs', 'CKPE', 'Crashes');
+        if (!fs.existsSync(crashDir)) {
+            return {
+                detected: false,
+                reason: 'No CKPE crash folder found (Logs\\CKPE\\Crashes) — either CKPE is not installed, or Creation Kit has never crashed since CKPE was set up.',
+            };
+        }
+
+        if (this._ckCrashWatchedDir !== crashDir) {
+            try { this._ckCrashWatcher?.close(); } catch { /* ignore */ }
+            try {
+                this._ckCrashWatcher = fs.watch(crashDir, () => {
+                    this._ckCrashCache = null; // invalidate; next request re-lists
+                });
+                this._ckCrashWatcher.on('error', (err) => {
+                    console.error('[Bridge] CKPE crash watcher error:', err);
+                });
+                this._ckCrashWatchedDir = crashDir;
+            } catch (e) {
+                console.warn('[Bridge] Could not watch CKPE crash directory (will still poll on request):', e);
+            }
+        }
+
+        if (this._ckCrashCache) return this._ckCrashCache.result;
+
+        try {
+            const entries = fs.readdirSync(crashDir, { withFileTypes: true })
+                .filter((e) => e.isFile() && /^CreationKit\.exe_.*\.(dmp|zip)$/i.test(e.name))
+                .map((e) => {
+                    const st = fs.statSync(path.join(crashDir, e.name));
+                    return { fileName: e.name, mtime: st.mtimeMs, sizeBytes: st.size };
+                })
+                .sort((a, b) => b.mtime - a.mtime);
+
+            const result: CKCrashStatus = {
+                detected: true,
+                listed: true,
+                crashDir,
+                crashCount: entries.length,
+                mostRecent: entries.length > 0 ? { fileName: entries[0].fileName, mtime: new Date(entries[0].mtime).toISOString() } : null,
+                dumps: entries.slice(0, 50).map((e) => ({ fileName: e.fileName, mtime: new Date(e.mtime).toISOString(), sizeBytes: e.sizeBytes })),
+            };
+            this._ckCrashCache = { dirSignature: `${entries.length}:${entries[0]?.mtime ?? 0}`, result };
+            return result;
+        } catch (e: any) {
+            return { detected: true, listed: false, crashDir, reason: `Found the CKPE crash folder but couldn't list it: ${e?.message || e}` };
+        }
     }
 
     /** Spawn an external tool and capture its output — same shape as main.ts's runProcessCapture. */
@@ -1404,6 +1516,15 @@ export class BridgeServer {
                 // state machine this can return.
                 else if (url === '/ck/precombine-status' && method === 'GET') {
                     const status = this._getCKPEPrecombineStatus();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(status));
+                }
+
+                // GET /ck/crash-status — real CreationKit.exe crash dumps from CKPE's own
+                // Crashes folder. See CKCrashStatus's doc comment for why this source and
+                // not %LOCALAPPDATA%\CrashDumps/WER.
+                else if (url === '/ck/crash-status' && method === 'GET') {
+                    const status = this._getCKCrashStatus();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify(status));
                 }
