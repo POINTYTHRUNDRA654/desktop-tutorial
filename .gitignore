@@ -12,6 +12,7 @@ node_modules
 
 # Local dev folders
 .venv/
+brain-b/.venv-rerank/
 act/
 gh-cli/
 desktop-tutorial/
