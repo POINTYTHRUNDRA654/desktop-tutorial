@@ -1068,6 +1068,748 @@
           ]
         }
       ]
+    },
+    {
+      "run_at": "2026-08-21T06:32:07Z",
+      "corpus_docs": 2025,
+      "probe_k": 30,
+      "top_k": 6,
+      "use_reranker": false,
+      "note": "20 queries (grown from 15). classify_retrieval() now has two separate bm25_margin thresholds (hedge floor 6.0, confident bar 8.0) instead of one shared line \u2014 see retrieval_tuning.py.",
+      "results": [
+        {
+          "name": "precision_collision",
+          "query": "How do I get the name of an actor or object in Papyrus?",
+          "agreement": 3,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.05193495750427246,
+          "bm25_margin": 3.666116036321819,
+          "top6": [
+            "ckwiki-getvoicetype-objectreference-b788f8495f",
+            "ckwiki-actor-value-parent-0",
+            "ckwiki-inter-mod-communication-f3e0d88aaf",
+            "ckwiki-identifier-reference-394d298cb7",
+            "ckwiki-scripting-tutorial-pressure-plate-8e7c47ea2b",
+            "ckwiki-getactorrefowner-objectreference-333936b7d9"
+          ],
+          "target_doc_in_probe_window": false
+        },
+        {
+          "name": "deliberate_miss_food",
+          "query": "What's the healthiest way to cook salmon?",
+          "agreement": 0,
+          "tier": "abstain",
+          "abstained": true,
+          "hedged": false,
+          "vector_margin": 0.03522169589996338,
+          "bm25_margin": 2.496174158148526,
+          "top6": [
+            "ckwiki-getconsumespell-watertype-137c9b0854",
+            "ckwiki-papyrus-introduction-d42a1bd64e",
+            "ck-001",
+            "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+            "ckwiki-instancedata-script-getarmorhealth",
+            "ckwiki-papyrus-introduction-3004bb34a3"
+          ]
+        },
+        {
+          "name": "in_domain_wait",
+          "query": "How do I make a script wait for a specific amount of time before continuing?",
+          "agreement": 6,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11816644668579102,
+          "bm25_margin": 10.134929327673621,
+          "top6": [
+            "ckwiki-scripting-tutorial-pressure-plate-df3073629a",
+            "ckwiki-differences-from-previous-scripting-fa86a4a586",
+            "ckwiki-getcurrentrealtime-utility-4cb928952f",
+            "ckwiki-differences-from-previous-scripting-e04f809b73",
+            "ckwiki-using-states-in-papyrus-471d9c4562",
+            "ckwiki-objectreference-script-playanimationandwait"
+          ]
+        },
+        {
+          "name": "in_domain_combat",
+          "query": "How do I check if an actor is currently in combat?",
+          "agreement": 6,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.09070014953613281,
+          "bm25_margin": 7.61029756635207,
+          "top6": [
+            "ckwiki-getcombattarget-actor-4f2858047b",
+            "ckwiki-getcombatstate-actor-4f360b8a5c",
+            "ckwiki-actor-script-isincombat",
+            "ckwiki-getallcombattargets-actor-594063590b",
+            "ckwiki-actor-script-parent-9",
+            "ckwiki-actor-script-parent-4"
+          ]
+        },
+        {
+          "name": "in_domain_inventory",
+          "query": "How do I detect when a container's inventory changes in Papyrus?",
+          "agreement": 10,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.059986770153045654,
+          "bm25_margin": 8.616999549118823,
+          "top6": [
+            "ckwiki-ini-settings-papyrus-a682fa9675",
+            "ckwiki-getinventoryitems-objectreference-537baa9240",
+            "ckwiki-console-commands-papyrus-41000edd6a",
+            "ckwiki-additem-objectreference-8f6baa3051",
+            "ckwiki-getcontainer-objectreference-cba3accac6",
+            "ckwiki-objectreference-script-onitemremoved"
+          ]
+        },
+        {
+          "name": "in_domain_quest_stage",
+          "query": "How do I check if a specific quest stage has already been completed?",
+          "agreement": 13,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11239343881607056,
+          "bm25_margin": 9.604760528068866,
+          "top6": [
+            "ckwiki-getqueststagedone-quest-cac6696bad",
+            "ckwiki-quest-script-getqueststagedone",
+            "ckwiki-quest-script-parent-1",
+            "ckwiki-getcurrentstageid-quest-f295516391",
+            "ckwiki-quest-script-iscompleted",
+            "ckwiki-quest-script-setqueststage"
+          ]
+        },
+        {
+          "name": "in_domain_location_cleared",
+          "query": "How do I check if a location has already been cleared by the player?",
+          "agreement": 6,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.09883958101272583,
+          "bm25_margin": 13.59669372124118,
+          "top6": [
+            "ckwiki-haseverbeencleared-location-d354c428bf",
+            "ckwiki-location-script-haseverbeencleared",
+            "ckwiki-location-script-onlocationcleared",
+            "ckwiki-commonarrayfunctions-script-checklocationagainstarray",
+            "ckwiki-commonarrayfunctions-script-checklocationagainstlocationaliasarray",
+            "ckwiki-location-script-parent-1"
+          ]
+        },
+        {
+          "name": "in_domain_faction_bounty",
+          "query": "How do I find out how much bounty gold a faction has on the player?",
+          "agreement": 20,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11418098211288452,
+          "bm25_margin": 9.220524320078361,
+          "top6": [
+            "ckwiki-getcrimegold-faction-a18d6d7cdc",
+            "ckwiki-getcrimegoldviolent-faction-2949373894",
+            "ckwiki-getcrimegoldnonviolent-faction-dd6c8829ff",
+            "ckwiki-canpaycrimegold-faction-b011ce9219",
+            "ckwiki-getbribeamount-actor-bf14b39bee",
+            "ckwiki-faction-script-getcrimegold"
+          ]
+        },
+        {
+          "name": "in_domain_weather",
+          "query": "How do I get the current sky mode of a weather record?",
+          "agreement": 9,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.18618124723434448,
+          "bm25_margin": 23.363673702954042,
+          "top6": [
+            "ckwiki-getskymode-weather-0756bd769b",
+            "ckwiki-getcurrentweather-weather-845371746e",
+            "ckwiki-getcurrentweathertransition-weather-d3bcfc97e9",
+            "ckwiki-findweather-weather-ad8a4d6a0e",
+            "ckwiki-getoutgoingweather-weather-8c4c052aae",
+            "ckwiki-forceactive-weather-0919900a81"
+          ]
+        },
+        {
+          "name": "in_domain_globalvariable",
+          "query": "How do I read the current value of a global variable in Papyrus?",
+          "agreement": 7,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.10596448183059692,
+          "bm25_margin": 8.420053178861647,
+          "top6": [
+            "ckwiki-globalvariable-script-parent-0",
+            "ckwiki-getvalue-globalvariable-c26d1779e1",
+            "ckwiki-debug-script-traceconditionalglobal",
+            "ckwiki-getvalueint-globalvariable-a6c42e1331",
+            "ckwiki-console-commands-papyrus-41000edd6a",
+            "ckwiki-globalvariable-script-getvalue"
+          ]
+        },
+        {
+          "name": "in_domain_player_level",
+          "query": "How do I find out what level the player character is?",
+          "agreement": 9,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11701560020446777,
+          "bm25_margin": 8.728497725792842,
+          "top6": [
+            "ckwiki-getplayerlevel-game-73569f9601",
+            "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+            "ckwiki-getlevelexact-actorbase-c9b699c421",
+            "ckwiki-game-script-getplayerlevel",
+            "ckwiki-getlevel-actor-9920488076",
+            "ckwiki-getlevel-actorbase-76073859ba"
+          ]
+        },
+        {
+          "name": "deliberate_miss_fake_function",
+          "query": "How do I use the Actor.TeleportToMoon() function?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.07714545726776123,
+          "bm25_margin": 4.406337722602791,
+          "top6": [
+            "ckwiki-objectreference-script-getteleportcell",
+            "ckwiki-objectreference-script-parent-8",
+            "ckwiki-objectreference-script-isteleportarealoaded",
+            "ckwiki-objectreference-script-gettransitioncell",
+            "ckwiki-debug-script-playermovetoandwait",
+            "ckwiki-getteleportcell-objectreference-499ae19c44"
+          ]
+        },
+        {
+          "name": "deliberate_miss_geography",
+          "query": "What's the capital of Australia?",
+          "agreement": 2,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.033740878105163574,
+          "bm25_margin": 3.0282027185895304,
+          "top6": [
+            "ckwiki-getmappedcontrol-input-56e6113c01",
+            "ckwiki-getcontainer-objectreference-cba3accac6",
+            "ckwiki-getworldspace-objectreference-7a86ca0b56",
+            "ckwiki-calculateencounterlevel-objectreference-e0bf2d6e33",
+            "ckwiki-hascommonparent-location-c320c2b859",
+            "ckwiki-papyrus-introduction-3004bb34a3"
+          ]
+        },
+        {
+          "name": "synonym_precision_disable",
+          "query": "How do I make an object disappear from the game world without deleting it?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.08517622947692871,
+          "bm25_margin": 6.358619412438658,
+          "top6": [
+            "ckwiki-objectreference-script-forceremoveragdollfromworld",
+            "ckwiki-forceremoveragdollfromworld-objectreference-bf66a73993",
+            "ckwiki-papyrus-introduction-ed6077d221",
+            "ckwiki-papyrus-introduction-38adf132e5",
+            "ckwiki-inter-mod-communication-68a5fb9b5e",
+            "ckwiki-attachmodtoinventoryitem-objectreference-3a8868127e"
+          ]
+        },
+        {
+          "name": "in_domain_objectmod_priority",
+          "query": "How do I get the priority value of an object mod?",
+          "agreement": 11,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.10603988170623779,
+          "bm25_margin": 5.593314672494753,
+          "top6": [
+            "ckwiki-getpriority-constructibleobject-efc1620264",
+            "ckwiki-getpriority-objectmod-c53fd1a213",
+            "ckwiki-constructibleobject-script-getpriority",
+            "ckwiki-inter-mod-communication-a70cffdeb8",
+            "ckwiki-constructibleobject-script-setpriority",
+            "ckwiki-inter-mod-communication-ae7875da11"
+          ]
+        },
+        {
+          "name": "in_domain_perk_rank",
+          "query": "How do I check how many ranks of a perk an actor has?",
+          "agreement": 4,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.07096832990646362,
+          "bm25_margin": 12.103324004722662,
+          "top6": [
+            "ckwiki-perk-script-getnumranks",
+            "ckwiki-hasperk-actor-3f4e0f454e",
+            "ckwiki-actor-script-hasperk",
+            "ckwiki-perk-script-parent-0",
+            "ckwiki-getfactionrank-actor-d9c30e0ce2",
+            "ckwiki-getcomponentcount-objectreference-815a7f14df"
+          ]
+        },
+        {
+          "name": "in_domain_message_display",
+          "query": "How do I show a message box to the player from Papyrus?",
+          "agreement": 14,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.13822001218795776,
+          "bm25_margin": 10.698732956190979,
+          "top6": [
+            "ckwiki-bethesda-tutorial-papyrus-hello-world-7def1df64c",
+            "ckwiki-debug-script-parent-1",
+            "ckwiki-debug-script-messagebox",
+            "ckwiki-debug-script-traceandbox",
+            "ckwiki-using-states-in-papyrus-471d9c4562",
+            "ckwiki-console-commands-papyrus-41000edd6a"
+          ]
+        },
+        {
+          "name": "in_domain_actor_damage",
+          "query": "How do I damage an actor's health from a script?",
+          "agreement": 4,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.06238597631454468,
+          "bm25_margin": 8.753569233850612,
+          "top6": [
+            "ckwiki-damagevalue-objectreference-3b90ad438b",
+            "ckwiki-actor-value-gethealthav",
+            "ckwiki-game-script-gethealthav",
+            "ckwiki-gethealthav-game-27fb1a19a8",
+            "ckwiki-dismember-actor-1142f95a80",
+            "ckwiki-enddeferredkill-actor-f28d863b4a"
+          ]
+        },
+        {
+          "name": "deliberate_miss_history",
+          "query": "Who was the first president of the United States?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.04853314161300659,
+          "bm25_margin": 4.9370268414224565,
+          "top6": [
+            "ckwiki-commonarrayfunctions-script-getfirstfoundfactioninarrayforactor",
+            "ckwiki-game-script-showfirstpersongeometry",
+            "ckwiki-getfirstfoundfactioninarrayforactor-commonarrayfunctions-ea4e220ddc",
+            "ckwiki-getfirstownedobject-refcollectionalias-d3257b01d1",
+            "ckwiki-papyrus-introduction-fcfa56a223",
+            "ckwiki-game-script-forcefirstperson"
+          ]
+        },
+        {
+          "name": "synonym_precision_teleport",
+          "query": "How do I move an object to a different location instantly?",
+          "agreement": 7,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.07734948396682739,
+          "bm25_margin": 5.821964752412757,
+          "top6": [
+            "ckwiki-objectreference-script-movetonearestnavmeshlocation",
+            "ckwiki-objectreference-script-movetomyeditorlocation",
+            "ckwiki-objectreference-script-parent-14",
+            "ckwiki-actor-script-movetopackagelocation",
+            "ckwiki-actor-script-snapintointeraction",
+            "ckwiki-objectreference-script-moveto"
+          ]
+        }
+      ]
+    },
+    {
+      "run_at": "2026-08-21T06:37:05Z",
+      "corpus_docs": 2025,
+      "probe_k": 30,
+      "top_k": 6,
+      "use_reranker": true,
+      "note": "A/B: hybrid_retrieve(use_reranker=True) \u2014 nvidia/llama-nemotron-rerank-1b-v2 post-RRF, see reranker.py/hybrid_retrieve's docstring.",
+      "results": [
+        {
+          "name": "precision_collision",
+          "query": "How do I get the name of an actor or object in Papyrus?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.050661325454711914,
+          "bm25_margin": 3.666116036321819,
+          "top6": [
+            "ckwiki-papyrus-introduction-83b356fefc",
+            "ckwiki-getvoicetype-objectreference-b788f8495f",
+            "ckwiki-actor-value-parent-0",
+            "ckwiki-getactorrefowner-objectreference-333936b7d9",
+            "ckwiki-objectreference-script-getactorrefowner",
+            "ckwiki-inter-mod-communication-f3e0d88aaf"
+          ],
+          "target_doc_in_probe_window": false
+        },
+        {
+          "name": "deliberate_miss_food",
+          "query": "What's the healthiest way to cook salmon?",
+          "agreement": 0,
+          "tier": "abstain",
+          "abstained": true,
+          "hedged": false,
+          "vector_margin": 0.03522169589996338,
+          "bm25_margin": 2.496174158148526,
+          "top6": [
+            "ckwiki-scripting-tutorial-pressure-plate-523db016a0",
+            "ckwiki-getwatertype-cell-6bd741188c",
+            "ckwiki-papyrus-introduction-674e7f8d5b",
+            "ckwiki-cell-script-getwatertype",
+            "ckwiki-getconsumespell-watertype-137c9b0854",
+            "ckwiki-instancedata-script-setarmorhealth"
+          ]
+        },
+        {
+          "name": "in_domain_wait",
+          "query": "How do I make a script wait for a specific amount of time before continuing?",
+          "agreement": 6,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11816644668579102,
+          "bm25_margin": 10.134929327673621,
+          "top6": [
+            "ckwiki-differences-from-previous-scripting-2f7ad2c951",
+            "ckwiki-differences-from-previous-scripting-fa86a4a586",
+            "ckwiki-scripting-tutorial-pressure-plate-df3073629a",
+            "ckwiki-differences-from-previous-scripting-47d99c1965",
+            "ckwiki-game-script-passtime",
+            "ckwiki-getcurrentrealtime-utility-4cb928952f"
+          ]
+        },
+        {
+          "name": "in_domain_combat",
+          "query": "How do I check if an actor is currently in combat?",
+          "agreement": 6,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.09070014953613281,
+          "bm25_margin": 7.61029756635207,
+          "top6": [
+            "ckwiki-getcombatstate-actor-4f360b8a5c",
+            "ckwiki-actor-script-isincombat",
+            "ckwiki-getcombattarget-actor-4f2858047b",
+            "ckwiki-actor-script-getcombatstate",
+            "ckwiki-actor-script-parent-9",
+            "ckwiki-getallcombattargets-actor-594063590b"
+          ]
+        },
+        {
+          "name": "in_domain_inventory",
+          "query": "How do I detect when a container's inventory changes in Papyrus?",
+          "agreement": 10,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.059986770153045654,
+          "bm25_margin": 8.616999549118823,
+          "top6": [
+            "ckwiki-differences-from-skyrim-to-fallout-4-1b72d124ab",
+            "ckwiki-objectreference-script-oncontainerchanged",
+            "ckwiki-objectreference-script-parent-23",
+            "ckwiki-objectreference-script-onitemadded",
+            "ckwiki-objectreference-script-onitemremoved",
+            "ckwiki-getinventoryitems-objectreference-537baa9240"
+          ]
+        },
+        {
+          "name": "in_domain_quest_stage",
+          "query": "How do I check if a specific quest stage has already been completed?",
+          "agreement": 13,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11239343881607056,
+          "bm25_margin": 9.604760528068866,
+          "top6": [
+            "ckwiki-quest-script-getqueststagedone",
+            "ckwiki-getqueststagedone-quest-cac6696bad",
+            "ckwiki-quest-script-parent-0",
+            "ckwiki-quest-script-parent-1",
+            "ckwiki-getcurrentstageid-quest-f295516391",
+            "papyrus-002"
+          ]
+        },
+        {
+          "name": "in_domain_location_cleared",
+          "query": "How do I check if a location has already been cleared by the player?",
+          "agreement": 6,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.09883958101272583,
+          "bm25_margin": 13.59669372124118,
+          "top6": [
+            "ckwiki-haseverbeencleared-location-d354c428bf",
+            "ckwiki-location-script-haseverbeencleared",
+            "ckwiki-location-script-iscleared",
+            "ckwiki-location-script-parent-0",
+            "ckwiki-location-script-parent-1",
+            "ckwiki-location-script-onlocationcleared"
+          ]
+        },
+        {
+          "name": "in_domain_faction_bounty",
+          "query": "How do I find out how much bounty gold a faction has on the player?",
+          "agreement": 20,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11418098211288452,
+          "bm25_margin": 9.220524320078361,
+          "top6": [
+            "ckwiki-faction-script-getcrimegold",
+            "ckwiki-getcrimegold-faction-a18d6d7cdc",
+            "ckwiki-faction-script-parent-0",
+            "ckwiki-getcrimegoldviolent-faction-2949373894",
+            "ckwiki-faction-script-getcrimegoldnonviolent",
+            "ckwiki-getinfamy-faction-92409d1ca7"
+          ]
+        },
+        {
+          "name": "in_domain_weather",
+          "query": "How do I get the current sky mode of a weather record?",
+          "agreement": 9,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.1854323148727417,
+          "bm25_margin": 23.363673702954042,
+          "top6": [
+            "ckwiki-getskymode-weather-0756bd769b",
+            "ckwiki-getcurrentweather-weather-845371746e",
+            "ckwiki-getclassification-weather-4f0ccae661",
+            "ckwiki-getcurrentweathertransition-weather-d3bcfc97e9",
+            "ckwiki-getoutgoingweather-weather-8c4c052aae",
+            "ckwiki-forceactive-weather-0919900a81"
+          ]
+        },
+        {
+          "name": "in_domain_globalvariable",
+          "query": "How do I read the current value of a global variable in Papyrus?",
+          "agreement": 7,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.10596448183059692,
+          "bm25_margin": 8.420053178861647,
+          "top6": [
+            "ckwiki-getvalue-globalvariable-c26d1779e1",
+            "ckwiki-getvalueint-globalvariable-a6c42e1331",
+            "ckwiki-globalvariable-script-getvalue",
+            "ckwiki-globalvariable-script-parent-0",
+            "ckwiki-quest-script-updatecurrentinstanceglobal",
+            "ckwiki-globalvariable-script-setvalue"
+          ]
+        },
+        {
+          "name": "in_domain_player_level",
+          "query": "How do I find out what level the player character is?",
+          "agreement": 9,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.11701560020446777,
+          "bm25_margin": 8.728497725792842,
+          "top6": [
+            "ckwiki-getplayerlevel-game-73569f9601",
+            "ckwiki-getlevel-actor-9920488076",
+            "ckwiki-game-script-getplayerlevel",
+            "ckwiki-game-script-parent-4",
+            "ckwiki-getlevel-actorbase-76073859ba",
+            "ckwiki-getlevelexact-actorbase-c9b699c421"
+          ]
+        },
+        {
+          "name": "deliberate_miss_fake_function",
+          "query": "How do I use the Actor.TeleportToMoon() function?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.07714545726776123,
+          "bm25_margin": 4.406337722602791,
+          "top6": [
+            "ckwiki-callfunction-scriptobject-ab0e6063b3",
+            "ckwiki-objectreference-script-getteleportcell",
+            "ckwiki-game-script-findclosestactor",
+            "ckwiki-differences-from-previous-scripting-47d99c1965",
+            "ckwiki-inter-mod-communication-ae7875da11",
+            "ckwiki-objectreference-script-isteleportarealoaded"
+          ]
+        },
+        {
+          "name": "deliberate_miss_geography",
+          "query": "What's the capital of Australia?",
+          "agreement": 2,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.03395271301269531,
+          "bm25_margin": 3.0282027185895304,
+          "top6": [
+            "ckwiki-getparent-location-a28f2142cc",
+            "ckwiki-gametimetostring-utility-fe6b840b14",
+            "ckwiki-hascommonparent-location-c320c2b859",
+            "ckwiki-scripting-tutorial-pressure-plate-2bb5f06796",
+            "ckwiki-papyrus-introduction-674e7f8d5b",
+            "ckwiki-game-script-findclosestreferenceoftype"
+          ]
+        },
+        {
+          "name": "synonym_precision_disable",
+          "query": "How do I make an object disappear from the game world without deleting it?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.08517622947692871,
+          "bm25_margin": 6.358619412438658,
+          "top6": [
+            "ckwiki-forceremoveragdollfromworld-objectreference-bf66a73993",
+            "ckwiki-objectreference-script-delete",
+            "ckwiki-objectreference-script-forceremoveragdollfromworld",
+            "ckwiki-objectreference-script-removeallmods",
+            "ckwiki-attachmodtoinventoryitem-objectreference-3a8868127e",
+            "ckwiki-objectreference-script-deletewhenable"
+          ]
+        },
+        {
+          "name": "in_domain_objectmod_priority",
+          "query": "How do I get the priority value of an object mod?",
+          "agreement": 11,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.10603988170623779,
+          "bm25_margin": 5.593314672494753,
+          "top6": [
+            "ckwiki-getpriority-objectmod-c53fd1a213",
+            "ckwiki-getpriority-constructibleobject-efc1620264",
+            "ckwiki-constructibleobject-script-getpriority",
+            "ckwiki-weapon-script-getembeddedmod",
+            "ckwiki-getloosemod-objectmod-83f05028fc",
+            "ckwiki-getallmods-objectreference-67169b663d"
+          ]
+        },
+        {
+          "name": "in_domain_perk_rank",
+          "query": "How do I check how many ranks of a perk an actor has?",
+          "agreement": 4,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.07096832990646362,
+          "bm25_margin": 12.103324004722662,
+          "top6": [
+            "ckwiki-getnumranks-perk-55edf4c675",
+            "ckwiki-perk-script-getnumranks",
+            "ckwiki-perk-script-parent-0",
+            "ckwiki-actor-script-hasperk",
+            "ckwiki-hasperk-actor-3f4e0f454e",
+            "ckwiki-addperk-actor-c346ddb76a"
+          ]
+        },
+        {
+          "name": "in_domain_message_display",
+          "query": "How do I show a message box to the player from Papyrus?",
+          "agreement": 14,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.13822001218795776,
+          "bm25_margin": 10.698732956190979,
+          "top6": [
+            "ckwiki-bethesda-tutorial-papyrus-hello-world-7def1df64c",
+            "ckwiki-bethesda-tutorial-papyrus-hello-world-6ff73726fd",
+            "ckwiki-debug-script-parent-1",
+            "ckwiki-using-states-in-papyrus-471d9c4562",
+            "ckwiki-using-states-in-papyrus-22afd9dd86",
+            "ckwiki-using-states-in-papyrus-f4c072eae4"
+          ]
+        },
+        {
+          "name": "in_domain_actor_damage",
+          "query": "How do I damage an actor's health from a script?",
+          "agreement": 4,
+          "tier": "confident",
+          "abstained": false,
+          "hedged": false,
+          "vector_margin": 0.06238597631454468,
+          "bm25_margin": 8.753569233850612,
+          "top6": [
+            "ckwiki-damagevalue-objectreference-3b90ad438b",
+            "ckwiki-papyrus-introduction-2ce04fc417",
+            "ckwiki-actor-value-damagevalue",
+            "ckwiki-objectreference-script-damagevalue",
+            "ckwiki-getvaluepercentage-objectreference-cc8e3e7fa6",
+            "ckwiki-getvalue-objectreference-49aeba1ce0"
+          ]
+        },
+        {
+          "name": "deliberate_miss_history",
+          "query": "Who was the first president of the United States?",
+          "agreement": 4,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.04853314161300659,
+          "bm25_margin": 4.9370268414224565,
+          "top6": [
+            "ckwiki-game-script-showfirstpersongeometry",
+            "ckwiki-getkeywords-instancedata-4076a2bbcb",
+            "ckwiki-scripting-tutorial-pressure-plate-523db016a0",
+            "ckwiki-game-script-forcefirstperson",
+            "ckwiki-game-script-setplayerreportcrime",
+            "ckwiki-getstagger-instancedata-8fb5f338b1"
+          ]
+        },
+        {
+          "name": "synonym_precision_teleport",
+          "query": "How do I move an object to a different location instantly?",
+          "agreement": 7,
+          "tier": "hedge",
+          "abstained": false,
+          "hedged": true,
+          "vector_margin": 0.07734948396682739,
+          "bm25_margin": 5.821964752412757,
+          "top6": [
+            "ckwiki-objectreference-script-parent-14",
+            "ckwiki-game-script-fasttravel",
+            "ckwiki-objectreference-script-movetonearestnavmeshlocation",
+            "ckwiki-objectreference-script-movetomyeditorlocation",
+            "ckwiki-objectreference-script-moveto",
+            "ckwiki-objectreference-script-movetoifunloaded"
+          ]
+        }
+      ]
     }
   ]
 }
