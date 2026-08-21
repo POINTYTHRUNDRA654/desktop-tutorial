@@ -573,7 +573,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 result = `Error connecting to bridge for file listing.`;
             }
         } else {
-            result = `**Desktop Bridge is offline.** Cannot list files in \`${args.path}\` — the bridge must be running to read the filesystem.\n\nTo fix: Open Runtime Hub → Desktop Bridge → Start Bridge, then re-run this command.`;
+            result = `**Desktop Bridge is offline.** Cannot list files in \`${args.path}\` — the bridge must be running to read the filesystem.\n\nThe Bridge starts automatically with Mossy NVIDIA, so this usually means it hasn't finished its startup health check yet, or the connection dropped. To fix: open Runtime Hub → Desktop Bridge and click **Test Connection**. If it still shows OFFLINE, restart Mossy NVIDIA, then re-run this command.`;
         }
     } else if (name === 'generate_papyrus_script') {
         const scriptName = sanitizeBasename(args.scriptName);
@@ -661,7 +661,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
         try {
             const bridgeActive = localStorage.getItem('mossy_bridge_active') === 'true';
             if (!bridgeActive) {
-                result = `**Desktop Bridge is offline.** Real precombine diagnosis reads CKPE's own log through the Bridge.\n\n1. Open Runtime Hub → Desktop Bridge → Start Bridge\n2. Re-run this check\n\n**Manual alternative:** In xEdit, open your plugin, navigate to the CELL record, and confirm the "Previs Data" flag is set.`;
+                result = `**Desktop Bridge is offline.** Real precombine diagnosis reads CKPE's own log through the Bridge.\n\nThe Bridge starts automatically with Mossy NVIDIA — this usually means it hasn't finished its startup health check yet, or the connection dropped.\n\n1. Open Runtime Hub → Desktop Bridge and click **Test Connection**\n2. If it still shows OFFLINE, restart Mossy NVIDIA\n3. Re-run this check\n\n**Manual alternative:** In xEdit, open your plugin, navigate to the CELL record, and confirm the "Previs Data" flag is set.`;
             } else {
                 const response = await bridgeFetch('/ck/precombine-status', { method: 'GET' });
                 const status: any = await response.json();
