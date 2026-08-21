@@ -749,7 +749,8 @@ def _citation_from_result(r: dict) -> dict:
 
 
 def hybrid_retrieve(query: str, top_k: int = 10, probe_k: int | None = None,
-                     return_diagnostics: bool = False):
+                     return_diagnostics: bool = False,
+                     use_reranker: bool = False, rerank_pool_size: int = 20):
     """
     Hybrid BM25 + semantic retrieval across BOTH the curated (shippable) and
     runtime (local-only) collections — a user's own cached web results or
@@ -775,8 +776,24 @@ def hybrid_retrieve(query: str, top_k: int = 10, probe_k: int | None = None,
     cross-retriever agreement that doesn't degrade the same way as corpus
     size grows. Not wired into any gating decision yet — computed for
     evaluation until there's real data on whether it's a better signal.
+
+    use_reranker: EXPERIMENTAL, default off — inserts nvidia/llama-nemotron-
+    rerank-1b-v2 (see reranker.py) as a post-RRF-fusion pass, before the
+    final top_k/probe_k cut. Reranking a pool that's already been narrowed
+    to top_k gives it nothing to reorder, so when this is on, the internal
+    RRF fusion pool is widened to at least rerank_pool_size (same idea as
+    probe_k's own widening, just for the reranker instead of the abstention
+    gate) — note this also widens the underlying per-retriever queries
+    (coll.query/_bm25.get_scores both use `width`), so sem_dists/bm25_scores
+    diagnostics reflect the widened window too when both probe_k and
+    use_reranker are set together. That's intentional, not a bug: it means
+    agreement/bm25_margin get computed against the same wider field the
+    reranker sees. Run `eval_retrieval.py` then `eval_retrieval.py --reranker`
+    then `eval_rerank_ab_report.py` for the before/after comparison against
+    the real 20-query eval set this flag's default (off) is based on.
     """
-    width = probe_k if probe_k is not None else top_k
+    requested_width = probe_k if probe_k is not None else top_k
+    width = max(requested_width, rerank_pool_size) if use_reranker else requested_width
     curated = get_curated_collection()
     runtime = get_runtime_collection()
 
@@ -848,6 +865,21 @@ def hybrid_retrieve(query: str, top_k: int = 10, probe_k: int | None = None,
         key=lambda x: x["score"],
         reverse=True,
     )[:width]
+
+    # ── Reranking (post-RRF, pre-cut) — EXPERIMENTAL, off by default ──
+    # `merged` above is already widened to rerank_pool_size when
+    # use_reranker is set, so there's an actual field wider than
+    # requested_width for this to reorder. Cut to requested_width AFTER
+    # reranking, not before — reranking then truncating to the RRF-fusion
+    # width would just reproduce RRF's own order for the returned slice.
+    if use_reranker and merged:
+        from reranker import rerank as _rerank_docs  # noqa: PLC0415
+        reranked = _rerank_docs(query, [r["text"] for r in merged])
+        merged = [
+            {**merged[rd.index], "rerank_score": rd.score}
+            for rd in reranked
+        ]
+    merged = merged[:requested_width]
 
     # Visibility into whether BM25 is contributing anything at all, or RRF is
     # leaning entirely on the dense side without it being obvious — short

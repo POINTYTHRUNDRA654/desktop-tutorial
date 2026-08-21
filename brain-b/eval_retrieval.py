@@ -48,6 +48,7 @@ Run history is intentionally accumulated in eval_queries_result.json's "runs"
 list rather than overwritten, so degradation/improvement across corpus growth
 and mechanism changes stays visible.
 """
+import argparse
 import sys
 import os
 import json
@@ -57,6 +58,17 @@ sys.path.insert(0, r"D:\Projects\desktop-tutorial\brain-b")
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
 import gemma_service_enhanced as svc
+
+_arg_parser = argparse.ArgumentParser(description=__doc__)
+_arg_parser.add_argument(
+    "--reranker", action="store_true",
+    help="Run with hybrid_retrieve(use_reranker=True) instead of the default "
+         "RRF-only path — see reranker.py / gemma_service_enhanced.hybrid_retrieve's "
+         "use_reranker parameter. Off by default so a plain `python eval_retrieval.py` "
+         "reproduces prior runs exactly.",
+)
+_args = _arg_parser.parse_args()
+USE_RERANKER = _args.reranker
 
 QUERIES = [
     ("precision_collision", "How do I get the name of an actor or object in Papyrus?"),
@@ -86,7 +98,8 @@ TOP_K = 6
 
 results = []
 for name, q in QUERIES:
-    probe, diag = svc.hybrid_retrieve(q, top_k=TOP_K, probe_k=PROBE_K, return_diagnostics=True)
+    probe, diag = svc.hybrid_retrieve(q, top_k=TOP_K, probe_k=PROBE_K, return_diagnostics=True,
+                                       use_reranker=USE_RERANKER)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
 
     sem_dists = diag["sem_dists"]
@@ -124,9 +137,13 @@ run_entry = {
     "run_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "corpus_docs": curated_count,
     "probe_k": PROBE_K, "top_k": TOP_K,
-    "note": "20 queries (grown from 15). classify_retrieval() now has two "
-            "separate bm25_margin thresholds (hedge floor 6.0, confident bar "
-            "8.0) instead of one shared line — see retrieval_tuning.py.",
+    "use_reranker": USE_RERANKER,
+    "note": ("A/B: hybrid_retrieve(use_reranker=True) — nvidia/llama-nemotron-rerank-1b-v2 "
+             "post-RRF, see reranker.py/hybrid_retrieve's docstring."
+             if USE_RERANKER else
+             "20 queries (grown from 15). classify_retrieval() now has two "
+             "separate bm25_margin thresholds (hedge floor 6.0, confident bar "
+             "8.0) instead of one shared line — see retrieval_tuning.py."),
     "results": results,
 }
 

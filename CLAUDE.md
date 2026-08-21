@@ -230,6 +230,53 @@ sign-off and to an AI's confident-sounding confirmation — confidence is not
 evidence, and neither is agreement between two reviewers who made the same
 unverified assumption.
 
+### A negative result is still a result — the Brain B reranker A/B
+
+**The standard:** when an experiment is scoped as "test X, decide on the numbers,
+document either way," a real test that shows no improvement is a completed task,
+not an incomplete one. The write-up should read "we tested a reranker against the
+real eval set, here's what happened," never "we added a reranker" — regardless of
+how much real engineering went into getting the test to run.
+
+**What happened, 2026-08-21:** `nvidia/llama-nemotron-rerank-1b-v2` was wired into
+Brain B's `hybrid_retrieve()` as an opt-in post-RRF-fusion pass and A/B'd for real
+against the actual 20-query eval (`brain-b/eval_retrieval.py`, both with and
+without `--reranker`, real GPU, real ChromaDB, real BM25 index — see
+`brainb_reranker_ab_finding` in project memory for the full numbers). Getting the
+reranker running at all took real debugging: a `trust_remote_code` config
+incompatible with `transformers>=5.0`'s newer internals, an `AutoTokenizer`
+registry gap for a subclassed config with no registered tokenizer mapping, and a
+real pip-resolution footgun where installing `sentence-transformers` unpinned
+silently re-upgraded an already-fixed `transformers` pin back to an incompatible
+version. All real, all fixed, all documented in `reranker.py`'s own docstring so
+the next person (or Mossy) doesn't rediscover them the hard way.
+
+Then the actual A/B ran clean: 0 of 20 tier (confident/hedge/abstain)
+classifications changed, 0 false positives introduced or fixed, 0 regressions —
+and the one specific case this task named up front (the GetName near-identical-
+function-name collision) came back exactly as a six-days-earlier memory had
+already predicted: the target document doesn't enter the retrieval candidate pool
+at all, so no reranker can surface it — confirmed, not fixed. Top-6 content
+changed in all 20 queries, and spot-checking a few of those changes suggested a
+plausible real improvement (more specific function-level chunks displacing more
+generic parent/introduction chunks) — but that's an eyeball read, not a number,
+and the task was explicit that a decision needed the numbers, not the vibes.
+
+**Decision: not wired in as the default.** `retrieval_tuning.py`'s constants and
+eval baseline are unchanged. The reranker code stays in the repo, real and
+working, behind `use_reranker=False`, because the one thing this eval actually
+measures didn't move, and the real-but-unquantified change elsewhere isn't a
+basis for shipping added latency and a real environment-compatibility burden.
+
+**What to check, going forward:** when an eval technically "passes" (nothing
+broke) but the metric it exists to move didn't move, that is not the same as the
+change being validated — check specifically whether the mechanism you added could
+even reach the signal you're measuring (here: reranking can't touch the tier
+decision at all, by construction, since agreement/margin are computed pre-rerank)
+before concluding "no effect" means "doesn't matter." A structurally-inert result
+and a genuinely negative result look identical in a summary table; only reading
+the mechanism tells them apart.
+
 ## Preferences
 - No intermediate steps shown — implement everything, report when done
 - Everything must be real, professional, most advanced FO4 system possible
