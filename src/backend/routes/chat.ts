@@ -59,6 +59,14 @@ const ChatRequestSchema = z.object({
   // full rationale. Optional: omitting it keeps today's plain-text behavior
   // unchanged for any caller that hasn't been updated yet.
   tools: z.array(ToolSchema).optional(),
+  // 'required' forces a tool call this turn (the caller has already
+  // classified it as wanting one -- see main.ts's ai-chat-groq handler and
+  // LocalAIEngine.ts's action_related-derived toolChoice); defaults to
+  // 'auto' when tools are present and this is omitted, matching Groq/OpenAI's
+  // own default. A real live test (2026-08-22) against the production model
+  // showed 'auto' alone lets it hedge into prose instead of calling an
+  // available, relevant tool -- this is the fix for that, not a cosmetic knob.
+  tool_choice: z.enum(['auto', 'required']).optional(),
 });
 
 function getOpenAIClient(): OpenAI {
@@ -108,14 +116,16 @@ async function groqChatWithFallback(
   temperature?: number,
   maxTokens?: number,
   tools?: z.infer<typeof ToolSchema>[],
+  toolChoice?: 'auto' | 'required',
 ): Promise<{ text: string; model: string; usage: ChatCompletion['usage'] | null; toolCalls: BackendToolCall[] }> {
   const attempt = async (model: string): Promise<ChatCompletion> => {
     const reasoning_effort = reasoningEffortFor(model);
-    // tool_choice: 'auto' (not 'required') -- the model should still be able
-    // to just answer in plain text when no tool applies, matching how every
-    // caller's system prompt already frames tools as optional actions, not a
-    // mandatory step on every turn.
-    const toolArgs = tools && tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {};
+    // Defaults to 'auto' (the model may still just answer in plain text) --
+    // 'required' only when the caller has already classified this turn as
+    // wanting a tool used right now (action_related, see registerChatRoutes'
+    // ChatRequestSchema comment). A real live test found 'auto' alone lets
+    // the model hedge into prose instead of calling an available tool.
+    const toolArgs = tools && tools.length > 0 ? { tools, tool_choice: toolChoice || 'auto' as const } : {};
     try {
       return await groq.chat.completions.create({
         model, messages, temperature, max_tokens: maxTokens, stream: false,
@@ -184,7 +194,7 @@ export function registerChatRoutes(router: Router) {
       return res.status(400).json({ ok: false, error: 'invalid_request', details: parsed.error.flatten() });
     }
 
-    const { provider, messages, temperature, maxTokens, tools } = parsed.data;
+    const { provider, messages, temperature, maxTokens, tools, tool_choice } = parsed.data;
 
     try {
       if (provider === 'openai') {
@@ -196,7 +206,7 @@ export function registerChatRoutes(router: Router) {
           messages,
           temperature,
           max_tokens: maxTokens,
-          ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' as const } : {}),
+          ...(tools && tools.length > 0 ? { tools, tool_choice: tool_choice || 'auto' as const } : {}),
         });
 
         const text = completion.choices?.[0]?.message?.content || '';
@@ -214,7 +224,7 @@ export function registerChatRoutes(router: Router) {
       const groq = getGroqClient();
       // Prefer the model from env (operator override) > request model > built-in primary default.
       const preferredModel = String(process.env.GROQ_MODEL || parsed.data.model || GROQ_PRIMARY_MODEL);
-      const { text, model: usedModel, usage, toolCalls } = await groqChatWithFallback(groq, preferredModel, messages, temperature, maxTokens, tools);
+      const { text, model: usedModel, usage, toolCalls } = await groqChatWithFallback(groq, preferredModel, messages, temperature, maxTokens, tools, tool_choice);
       return res.json({ ok: true, provider, model: usedModel, text, usage, toolCalls });
     } catch (e) {
       const msg = (e as any)?.message || String(e);
