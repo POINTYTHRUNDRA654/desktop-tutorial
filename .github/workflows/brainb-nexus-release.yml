@@ -71,6 +71,7 @@ jobs:
           tag_name: brain-b-nexus-v${{ github.event.inputs.version }}
           name: Brain B (Nexus edition) v${{ github.event.inputs.version }}
           draft: ${{ github.event.inputs.draft }}
+          make_latest: false
           files: |
             brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.zip
             brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.manifest.json

@@ -165,6 +165,7 @@ jobs:
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: release/*.exe
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -229,6 +230,7 @@ jobs:
         with:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: release/*.exe
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

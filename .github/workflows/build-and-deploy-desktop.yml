@@ -135,6 +135,7 @@ jobs:
           name: Mossy v${{ steps.version.outputs.VERSION }}
           draft: false
           prerelease: false
+          make_latest: true
           generate_release_notes: true
           files: release/*.exe
         env:
