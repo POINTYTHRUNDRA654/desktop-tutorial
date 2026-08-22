@@ -59,6 +59,7 @@ Environment variables:
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -70,6 +71,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import change_gate
 import game_data_index
 
 import networkx as nx
@@ -190,6 +192,34 @@ log = logging.getLogger("mossy-brain-b")
 
 app = Flask(__name__)
 CORS(app)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTH (2026-08-22) — mirrors BridgeServer.ts's real fix exactly: this server had
+# ZERO inbound authentication on any route before this, old and new alike. Reuses
+# the same shared secret BridgeServer.ts already generates/stores
+# (settings.json's bridgeAuthToken) rather than a second one -- main.ts passes it
+# as MOSSY_BRAINB_TOKEN when spawning the packaged exe (startBrainBProcess). A
+# manually-run dev instance (`python gemma_service_enhanced.py`) picks it up from
+# a real .env value via the load_dotenv() call above, or an exported env var.
+#
+# Fail-closed, same as BridgeServer.ts's _checkAuth: no token configured means
+# every request is rejected, never silently allowed through. /health is the one
+# exemption (matches BridgeServer.ts's own /health exemption) -- it returns
+# nothing sensitive and BrainBSettings.tsx's connection check relies on calling
+# it with no token.
+# ═══════════════════════════════════════════════════════════════════════════════
+MOSSY_BRAINB_TOKEN = os.environ.get("MOSSY_BRAINB_TOKEN", "").strip()
+
+
+@app.before_request
+def _require_auth():
+    if request.method == "OPTIONS" or request.path == "/health":
+        return None
+    expected = MOSSY_BRAINB_TOKEN
+    provided = request.headers.get("X-Mossy-Token", "")
+    if not expected or not hmac.compare_digest(expected, provided):
+        return jsonify({"error": "Missing or invalid X-Mossy-Token header."}), 401
+    return None
 
 # ── Lazy globals (loaded on first use) ───────────────────────────────────────
 _model       = None
@@ -1497,6 +1527,35 @@ def _is_game_data_related_keywords(question: str) -> bool:
     return any(m in q for m in game_data_markers)
 
 
+def _is_action_related_keywords(question: str) -> bool:
+    """Keyword fallback for action_related, mirroring _is_game_data_related_keywords
+    -- used only when the LLM classification call above fails to parse. Real
+    trigger for this flag: LiveContext.tsx/ChatInterface.tsx's own live testing
+    (2026-08-22) found that native Groq tool-calling, correctly wired with real
+    tools and tool_choice='auto', still let openai/gpt-oss-120b hedge into
+    "I can't access your files, here's how to do it manually, shall I?" instead
+    of actually calling a tool for a clear action request -- tool_choice='auto'
+    genuinely leaves the choice to the model, and high reasoning_effort seemed
+    to bias it toward explaining/asking first. This flag exists so the client
+    can force tool_choice='required' specifically on turns that want something
+    done, without forcing every ordinary conversational turn into calling
+    something irrelevant. Deliberately conservative in the same direction as
+    _is_app_help_keywords: verbs that name a real, immediate action against a
+    real target, not just a question that happens to mention a tool by name
+    ("how does list_files work" is not an action request; "list the files in
+    my Data folder" is)."""
+    q = question.lower()
+    action_markers = ("list the files", "list files", "read my", "read the file",
+                       "open the folder", "open that folder", "scan my", "scan the",
+                       "launch ", "start blender", "start xedit", "start creation kit",
+                       "run xedit", "check what's in", "check whats in", "show me what's in",
+                       "show me whats in", "go to the ", "take me to", "create a mod project",
+                       "diagnose this plugin", "diagnose my plugin", "fix this plugin",
+                       "generate a papyrus script", "generate an xedit script",
+                       "export the error", "export my error")
+    return any(m in q for m in action_markers)
+
+
 def _is_ck_diagnosis_keywords(question: str) -> bool:
     """Gates whether a client-supplied ck_precombine_status (real CKPE log data,
     see BridgeServer.ts's _getCKPEPrecombineStatus) gets folded into this turn's
@@ -1834,7 +1893,7 @@ def diagnose(question: str, mode: str) -> Optional[str]:
     return diagnosis or None
 
 
-def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool, bool, bool]:
+def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool, bool, bool, bool]:
     """
     Merges classify_mode() and diagnose() into ONE _generate_json call.
 
@@ -1894,12 +1953,22 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
     or game-data-related still gets grounded normally by those, since the
     fields are independently classified).
 
+    Extended a seventh time with action_related: real live testing
+    (2026-08-22, see _is_action_related_keywords's docstring for the full
+    incident) found that native Groq tool-calling with tool_choice='auto'
+    still let the model hedge into explaining a manual workaround instead of
+    calling an available, obviously-relevant tool for a clear action
+    request. This field lets the client force tool_choice='required' only on
+    turns that genuinely want something done -- not a blanket forcing rule,
+    since most turns are ordinary conversation where forcing a tool call
+    would be actively wrong.
+
     Falls back per field independently, matching every other LLM-derived
     field in this file: mode falls back to the keyword heuristic, diagnosis
     falls back to None, scene_related/app_help_related/game_data_related/
-    needs_grounding each fall back to their own keyword heuristic. Logs the
-    same mode_classifications comparison as classify_mode() when the merged
-    call succeeds.
+    needs_grounding/action_related each fall back to their own keyword
+    heuristic. Logs the same mode_classifications comparison as
+    classify_mode() when the merged call succeeds.
     """
     prompt = (
         "Classify this Fallout 4 modding question along six dimensions, in one pass.\n\n"
@@ -1932,14 +2001,22 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
         'question at all: greetings ("hi", "hey"), thanks/acknowledgments ("thanks", "that '
         'helped", "got it"), small talk, or opinion-seeking ("what do you think"); true for '
         'every actual question, even a simple or vague one — when in doubt, true.\n\n'
+        '7. action_related - true if the user is asking Mossy to actually DO something '
+        'right now using a real tool (list a real folder, read a real file, launch a real '
+        'program, scan hardware, create a mod project, diagnose/fix a real plugin, generate '
+        'a real script) rather than asking a question or wanting an explanation; false for '
+        'knowledge questions, "how do I..." explanations, or a question that merely mentions '
+        'a tool by name without asking Mossy to use it right now (e.g. "how does list_files '
+        'work" is false; "list the files in my Data folder" is true). When in doubt, false — '
+        'a false positive here forces a tool call on a turn that did not want one.\n\n'
         f"Question: {question}\n\n"
         'Return ONLY JSON: {"mode": "teach"|"debug"|"answer", "diagnosis": "<one sentence>", '
         '"scene_related": true|false, "app_help_related": true|false, "game_data_related": true|false, '
-        '"needs_grounding": true|false}'
+        '"needs_grounding": true|false, "action_related": true|false}'
     )
     parsed, raw, attempts = _generate_json(
-        prompt, ["mode", "diagnosis", "scene_related", "app_help_related", "game_data_related", "needs_grounding"],
-        max_new_tokens=250
+        prompt, ["mode", "diagnosis", "scene_related", "app_help_related", "game_data_related", "needs_grounding", "action_related"],
+        max_new_tokens=280
     )
     keyword_mode = _classify_mode_keywords(question)
 
@@ -1947,7 +2024,7 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
         log_contract_failure(question, "classify_and_diagnose", raw, attempts)
         return (keyword_mode, None, _is_scene_related_keywords(question),
                 _is_app_help_keywords(question), _is_game_data_related_keywords(question),
-                not _is_conversational_keywords(question))
+                not _is_conversational_keywords(question), _is_action_related_keywords(question))
 
     mode = parsed.get("mode")
     if mode not in ("teach", "debug", "answer"):
@@ -1985,7 +2062,12 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
         log_contract_failure(question, "classify_and_diagnose.needs_grounding", raw, attempts)
         needs_grounding = not _is_conversational_keywords(question)
 
-    return mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding
+    action_related = parsed.get("action_related")
+    if not isinstance(action_related, bool):
+        log_contract_failure(question, "classify_and_diagnose.action_related", raw, attempts)
+        action_related = _is_action_related_keywords(question)
+
+    return mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding, action_related
 
 
 def contract_fields(question: str, answer: str, mode: str, diagnosis: Optional[str]) -> dict:
@@ -2154,7 +2236,7 @@ def enrich():
         return jsonify({"error": "question required"}), 400
 
     mode_override = data.get("mode")
-    mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding = classify_and_diagnose(question)
+    mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding, action_related = classify_and_diagnose(question)
     if mode_override in ("teach", "answer", "debug"):
         mode = mode_override
         # A caller-supplied mode override skips mode classification but not
@@ -2251,6 +2333,7 @@ def enrich():
             "game_data_related": game_data_related, "game_data_found": False,
             "ck_diagnosis_related": ck_diagnosis_related, "ck_diagnosis_available": False,
             "needs_grounding": needs_grounding,
+            "action_related": action_related,
             "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
             "retrieval_tier": retrieval_tier,
         })
@@ -2391,6 +2474,7 @@ def enrich():
         "game_data_related": game_data_related, "game_data_found": game_data_has_results,
         "ck_diagnosis_related": ck_diagnosis_related, "ck_diagnosis_available": ck_diagnosis_available,
         "needs_grounding": needs_grounding,
+        "action_related": action_related,
         "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
         "retrieval_tier": retrieval_tier,
     })
@@ -2866,6 +2950,94 @@ def knowledge_count():
         "curated_count": get_curated_collection().count(),
         "runtime_count": get_runtime_collection().count(),
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHANGE GATE — Screen Awareness (Phase 2 "Seeing") candidate-knowledge review.
+# See change_gate.py's own module docstring for the full design rationale.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/change-gate/patterns", methods=["GET"])
+def change_gate_patterns():
+    """
+    GET /change-gate/patterns?program=blender
+    The real, current known-mistake patterns for this program -- what the
+    renderer's recognition pass sends the vision model as "what Mossy
+    already knows to check for." Always fresh from disk (see
+    change_gate.get_known_patterns), so an approve() during a live session
+    is picked up on the very next capture, not after a restart.
+    """
+    program = request.args.get("program", "")
+    if not program:
+        return jsonify({"error": "program is required"}), 400
+    try:
+        patterns = change_gate.get_known_patterns(program)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"program": program, "patterns": patterns})
+
+
+@app.route("/change-gate/propose", methods=["POST"])
+def change_gate_propose():
+    """
+    POST /change-gate/propose
+      { "program": "blender", "observation": "...", "suggestedCorrection": "..." | null,
+        "sourceContext": {...} }
+    Real, persisted, local-only proposal -- see change_gate.propose_change's
+    docstring. Never becomes real knowledge on its own.
+    """
+    data = request.get_json(force=True)
+    program = data.get("program", "")
+    observation = data.get("observation", "")
+    if not program or not observation:
+        return jsonify({"error": "program and observation are required"}), 400
+    try:
+        proposal_id = change_gate.propose_change(
+            program, observation, data.get("suggestedCorrection"), data.get("sourceContext") or {}
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "proposed", "id": proposal_id})
+
+
+@app.route("/change-gate/pending", methods=["GET"])
+def change_gate_pending():
+    """GET /change-gate/pending?program=blender -- real review queue."""
+    program = request.args.get("program")
+    return jsonify({"pending": change_gate.list_pending(program)})
+
+
+@app.route("/change-gate/approve", methods=["POST"])
+def change_gate_approve():
+    """
+    POST /change-gate/approve  { "id": "proposal-...", "reviewerNote": "..." | null }
+    Promotes into the program's real, git-tracked pattern file. Does NOT
+    commit or push git -- that stays a deliberate, separate, visible human
+    action (review the resulting file diff, then commit/push it yourself).
+    """
+    data = request.get_json(force=True)
+    proposal_id = data.get("id", "")
+    if not proposal_id:
+        return jsonify({"error": "id is required"}), 400
+    try:
+        result = change_gate.approve(proposal_id, data.get("reviewerNote"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "approved", **result})
+
+
+@app.route("/change-gate/reject", methods=["POST"])
+def change_gate_reject():
+    """POST /change-gate/reject  { "id": "proposal-...", "reviewerNote": "..." | null }"""
+    data = request.get_json(force=True)
+    proposal_id = data.get("id", "")
+    if not proposal_id:
+        return jsonify({"error": "id is required"}), 400
+    try:
+        change_gate.reject(proposal_id, data.get("reviewerNote"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "rejected", "id": proposal_id})
 
 
 @app.route("/episodes", methods=["GET"])

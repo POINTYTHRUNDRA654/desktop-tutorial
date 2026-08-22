@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, ChevronDown, Send } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, AlertCircle, Radio, Power, ChevronDown, Send, Copy } from 'lucide-react';
 import { useLive } from './LiveContext';
 import { Link } from 'react-router-dom';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -44,6 +44,41 @@ const VoiceChat: React.FC = () => {
   const [expandedStep, setExpandedStep] = useState<string>('live-session');
   const [textInput, setTextInput] = useState('');
   const [isSendingText, setIsSendingText] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
+
+  // Real, human-readable handoff report -- reads the same localStorage.
+  // mossy_error_logs entries LiveContext.tsx now writes into via
+  // logMossyError() on every real voice tool failure (dispatch exception or
+  // an honest failure result like a real Bridge "path not found"). Built at
+  // click time from live data, not a cached snapshot. Mirrors
+  // CrashLogAnalyzer.tsx's copyReport pattern (Copy icon, clipboard write,
+  // 2s "Copied!" reset) -- the one existing "Copy Report" UI convention in
+  // this app, reused here rather than inventing a second one.
+  const copyDiagnosticReport = () => {
+    let logs: Array<{ timestamp: string; toolName: string; errorMessage: string; context?: Record<string, any>; suggestedFix?: string }> = [];
+    try {
+      logs = JSON.parse(localStorage.getItem('mossy_error_logs') || '[]');
+    } catch { /* leave logs empty */ }
+    const voiceLogs = logs.filter((l) => l.context?.source === 'voice');
+    const lines = [
+      `Mossy Voice Diagnostic Report — ${new Date().toLocaleString()}`,
+      `Total voice errors logged: ${voiceLogs.length} (of ${logs.length} total across text + voice)`,
+      '',
+      ...(voiceLogs.length === 0
+        ? ['No voice errors logged this session.']
+        : voiceLogs.flatMap((l) => [
+            `[${new Date(l.timestamp).toLocaleTimeString()}] ${l.toolName}`,
+            `  Asked: ${l.context?.userQuery || '(not captured)'}`,
+            `  Happened: ${l.errorMessage}`,
+            `  Best guess why: ${l.suggestedFix || '(none)'}`,
+            '',
+          ])),
+    ];
+    navigator.clipboard.writeText(lines.join('\n'));
+    setReportCopied(true);
+    setTimeout(() => setReportCopied(false), 2000);
+  };
+
   const handleConnect = async () => {
     setIsConnecting(true);
     setError(null);
@@ -128,6 +163,15 @@ const VoiceChat: React.FC = () => {
             <p className="text-sm text-emerald-100 leading-relaxed">{lastResponse}</p>
           </div>
         )}
+
+        <button
+          onClick={copyDiagnosticReport}
+          className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold rounded-lg bg-slate-900/60 border border-slate-700 text-slate-400 hover:text-blue-300 hover:border-blue-500/40 backdrop-blur-md transition-all"
+          title="Copy a human-readable report of what was asked and what went wrong, for handing off to your assistant"
+        >
+          <Copy className="w-3 h-3" />
+          {reportCopied ? 'Copied!' : 'Copy Diagnostic Report'}
+        </button>
 
         {/* Processing Indicator - Shows animated neural computation state */}
         {mode === 'processing' && (

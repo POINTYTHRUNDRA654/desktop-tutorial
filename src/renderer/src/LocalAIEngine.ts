@@ -75,6 +75,22 @@ export interface AIResponse {
    *  gemma2:9b) is meaningfully weaker at following a system prompt this
    *  large than Mossy's real primary is. */
   usedLocalFallback?: boolean;
+  /** Real, structured tool calls from Groq's native tool-calling API (see
+   *  src/backend/routes/chat.ts) -- the actual replacement for the fenced
+   *  ```tool marker convention LiveContext.tsx used to parse out of prose.
+   *  Populated only on the cloud/Groq path when `tools` was passed into
+   *  generateResponse's localOptions; empty/undefined everywhere else
+   *  (local providers, Inkling, and any turn where the model didn't call
+   *  a tool). `args` mirrors Groq's real shape: parsed JSON when the
+   *  model's arguments string parses cleanly, the raw string otherwise. */
+  toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> | string }>;
+  /** Brain B's action_related classification for this turn (see
+   *  EnrichmentResult.actionRelated) and the tool_choice it produced, echoed
+   *  back here purely so callers (LiveContext.tsx's voice-turn diagnostic
+   *  trace) can log what actually happened without needing a live
+   *  reproduction to find out. undefined on any non-tool-eligible turn. */
+  actionRelated?: boolean;
+  toolChoiceUsed?: 'auto' | 'required';
 }
 
 /** Minimal shape of a successful web search result used internally. */
@@ -410,6 +426,19 @@ interface EnrichmentResult {
    *  but CKPE isn't installed or its log couldn't be read — those are
    *  different reasons, but neither means Mossy used real CK data this turn. */
   ckDiagnosisAvailable: boolean;
+  /** True when Brain B's classify_and_diagnose() judged this turn as wanting
+   *  a real tool used right now (list a real folder, launch a real program,
+   *  etc.), not a question or explanation -- classify_and_diagnose's own
+   *  seventh dimension, added 2026-08-22 after real live testing showed
+   *  native Groq tool-calling with tool_choice: 'auto' still let the model
+   *  hedge into explaining a manual workaround instead of calling an
+   *  available, obviously-relevant tool. _generateResponseCore uses this to
+   *  set tool_choice: 'required' only on turns that actually want something
+   *  done, leaving ordinary conversation on 'auto' so nothing irrelevant
+   *  gets forced. Undefined (not false) when Brain B is unreachable this
+   *  turn -- the caller falls back to 'auto', the safe default, the same way
+   *  every other classify_and_diagnose() field already degrades gracefully. */
+  actionRelated?: boolean;
 }
 
 /**
@@ -517,6 +546,24 @@ function updateTurnTraceContract(entry: TurnTraceEntry, success: boolean, latenc
  * degrading to unenriched generation is strictly better than eating enough of
  * the 120s voice watchdog budget to break the turn entirely.
  */
+/**
+ * Real auth (2026-08-22): Brain B had zero inbound authentication on any
+ * route before this. Reuses the exact same bridgeAuthToken BridgeServer.ts
+ * already generates/stores and exposes via get-bridge-connection -- one
+ * shared secret, not a second one invented for this server. /health is
+ * deliberately excluded from callers of this helper (matches the real
+ * server-side exemption -- see gemma_service_enhanced.py's _require_auth).
+ */
+async function getBrainBAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const api = (window.electron?.api || window.electronAPI) as any;
+    const conn = await api?.getBridgeConnection?.();
+    return conn?.token ? { 'X-Mossy-Token': String(conn.token) } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMode: boolean): Promise<EnrichmentResult | null> {
   try {
     const health = await fetch(`${brainBBaseUrl}/health`, { signal: AbortSignal.timeout(1500) });
@@ -535,7 +582,7 @@ async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMo
     ]);
     const resp = await fetch(`${brainBBaseUrl}/enrich`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await getBrainBAuthHeaders()) },
       body: JSON.stringify({
         question, session_id: APP_SESSION_ID, user_id: userId,
         get_context: blenderResult.context ?? undefined,
@@ -574,6 +621,7 @@ async function enrichWithBrainB(question: string, brainBBaseUrl: string, voiceMo
       gameDataFound: !!data?.game_data_found,
       needsGrounding: data?.needs_grounding !== false,
       ckDiagnosisAvailable: !!data?.ck_diagnosis_available,
+      actionRelated: typeof data?.action_related === 'boolean' ? data.action_related : undefined,
     };
   } catch {
     return null; // enrichment failed mid-flight — fail open, generate without it
@@ -602,7 +650,7 @@ async function sendContractAsync(
   try {
     const resp = await fetch(`${brainBBaseUrl}/contract`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await getBrainBAuthHeaders()) },
       body: JSON.stringify({
         question, answer, mode: enrichment.mode, diagnosis: enrichment.diagnosis,
         session_id: APP_SESSION_ID, sources: enrichment.sources,
@@ -894,7 +942,7 @@ export const LocalAIEngine = {
    * This keeps a slow/cold-starting Brain B off the critical path to
    * time-to-answer entirely.
    */
-  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean }, onContractReady?: (fields: { checkQuestion: string | null; learnerSignal: string | null }) => void): Promise<AIResponse> {
+  async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean }, onContractReady?: (fields: { checkQuestion: string | null; learnerSignal: string | null }) => void): Promise<AIResponse> {
     const turnStart = Date.now();
     const localSettings = await this.getLocalAiSettings();
     const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
@@ -972,6 +1020,12 @@ export const LocalAIEngine = {
         // existed instead of less. See EnrichmentResult.gameDataFound's
         // docstring.
         includeGameDataDump: !!enrichment?.gameDataRelated && !enrichment?.gameDataFound,
+        // See EnrichmentResult.actionRelated's docstring. undefined (not
+        // false) when Brain B didn't return a value this turn -- the tool-
+        // choice computation below only forces 'required' on an explicit
+        // true, so an unreachable Brain B degrades to the safe 'auto'
+        // default rather than either always or never forcing.
+        actionRelated: enrichment?.actionRelated,
       },
     );
     const generateMs = Date.now() - generateStart;
@@ -1258,7 +1312,7 @@ export const LocalAIEngine = {
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean }): Promise<AIResponse> {
+  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean }): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -1983,13 +2037,48 @@ ANSWER THE USER NOW:`;
         const api2 = (window.electron?.api || window.electronAPI) as any;
         void api2?.writeDiagnosticLog?.(`[systemPrompt-breakdown] voiceMode=${voiceMode} systemInstruction=${systemInstruction.length} injectedContext=${injectedContext.length} reasoningBlock=${reasoningBlock.length} mandatoryInternetInstruction=${mandatoryInternetInstruction.length} total=${systemPrompt.length}`);
       } catch { /* diagnostics-only, non-critical */ }
-      // Pass undefined so main.ts uses the user's groqPrimaryModel from AIEngineSettings.
-      // includeGameData gates main.ts's buildBrainNeuronBlock() splice (~155K chars,
+      // Model param below is undefined on most turns, so main.ts uses the
+      // user's groqPrimaryModel from AIEngineSettings -- overridden to
+      // qwen/qwen3.6-27b only when a tool call is being forced (see
+      // toolCallModel below). includeGameData gates main.ts's
+      // buildBrainNeuronBlock() splice (~155K chars,
       // measured live) — see EnrichmentResult.gameDataFound's docstring for why this
       // was riding on every single cloud call unconditionally, "hi" included, and why
       // it's gated on "found" rather than "related" (a ranked-and-found game-data turn
       // shouldn't ALSO carry the blunt dump alongside it).
-      const resp = await api.aiChatGroq(query, systemPrompt, undefined, conversationHistory, !!localOptions?.includeGameDataDump);
+      //
+      // toolChoice: real, live-tested fix (2026-08-22) for a real gap native
+      // tool-calling doesn't close on its own -- tool_choice: 'auto' (the
+      // default) genuinely leaves the choice to the model, and a real test
+      // against the live production backend, real prompt, real
+      // openai/gpt-oss-120b, showed it hedging into "here's how to do it
+      // manually, shall I?" instead of calling an available, obviously-
+      // relevant tool. Forcing 'required' unconditionally would be worse —
+      // ordinary conversation would get dragged into calling something
+      // irrelevant. action_related (classify_and_diagnose's 7th dimension)
+      // is the narrow, independently-classified signal for "this turn
+      // genuinely wants a tool used right now" -- only forced when true,
+      // 'auto' otherwise (including when Brain B is unreachable and
+      // actionRelated is undefined, the safe default).
+      const toolChoice: 'auto' | 'required' | undefined =
+        localOptions?.tools && localOptions.tools.length > 0
+          ? (localOptions?.actionRelated ? 'required' : 'auto')
+          : undefined;
+      // Model-per-purpose (2026-08-22, live-verified): real 3-test suite
+      // against the actually-deployed backend showed openai/gpt-oss-120b
+      // failing tool_choice: 'required' outright (a genuine Groq-side 500,
+      // "Tool choice is none, but model called a tool", plus a hallucinated
+      // call to a nonexistent "repo_browser.run_code") while qwen/qwen3.6-27b
+      // handled all three real test cases cleanly -- correct tool, correct
+      // real path/args, no hallucinated names, no regression on the
+      // conversational case. Scoped narrowly: qwen only overrides the model
+      // on turns where a tool call is actually being forced; every other
+      // turn keeps using main.ts's configured primary (gpt-oss-120b) via the
+      // `undefined` passthrough, unchanged. Not a wholesale primary-model
+      // swap -- deliberately, since gpt-oss-120b's ordinary conversational
+      // quality was never in question, only its forced-tool-choice behavior.
+      const toolCallModel = toolChoice === 'required' ? 'qwen/qwen3.6-27b' : undefined;
+      const resp = await api.aiChatGroq(query, systemPrompt, toolCallModel, conversationHistory, !!localOptions?.includeGameDataDump, localOptions?.tools, toolChoice);
       if (resp?.success) {
         let responseContent = String(resp.content || '');
 
@@ -2123,7 +2212,10 @@ ANSWER THE USER NOW:`;
         // Record interaction for self-improvement
         selfImprovementEngine.recordInteraction(query, responseContent, [], 'success');
 
-        return { content: responseContent, context: { citations }, reasoning: reasoningPlan || undefined };
+        return {
+          content: responseContent, context: { citations }, reasoning: reasoningPlan || undefined,
+          toolCalls: resp.toolCalls, actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
+        };
       }
 
       // Groq/backend resolved but reported failure (no backend configured, no API

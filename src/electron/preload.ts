@@ -2537,9 +2537,19 @@ const electronAPI = {
    * Falls back to a direct Render-backend call when the IPC handler is not
    * registered (e.g. during a cold startup or partial handler registration).
    */
-  aiChatGroq: async (prompt: string, systemPrompt?: string, model?: string, conversationHistory?: Array<{ role: string; content: string }>, includeGameData?: boolean): Promise<{ success: boolean; content?: string; error?: string }> => {
+  aiChatGroq: async (
+    prompt: string, systemPrompt?: string, model?: string,
+    conversationHistory?: Array<{ role: string; content: string }>, includeGameData?: boolean,
+    // Real native tool-calling -- see main.ts's 'ai-chat-groq' handler and
+    // src/backend/routes/chat.ts for where this actually reaches Groq's API.
+    tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>,
+    // 'required' forces a tool call this turn (LocalAIEngine.ts computes this
+    // from Brain B's action_related classification); 'auto'/undefined leaves
+    // the choice to the model, same as omitting tool_choice entirely.
+    toolChoice?: 'auto' | 'required',
+  ): Promise<{ success: boolean; content?: string; toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> | string }>; error?: string }> => {
     try {
-      return await ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory, includeGameData });
+      return await ipcRenderer.invoke('ai-chat-groq', { prompt, systemPrompt, model, conversationHistory, includeGameData, tools, toolChoice });
     } catch (ipcErr: unknown) {
       if (!isNoHandlerRegisteredError(ipcErr)) {
         throw ipcErr;
@@ -2577,17 +2587,23 @@ const electronAPI = {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ provider: 'groq', model: resolvedModel, messages, maxTokens: 1024 }),
+            body: JSON.stringify({
+              provider: 'groq', model: resolvedModel, messages, maxTokens: 1024,
+              ...(tools && tools.length > 0 ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
+            }),
             signal: controller.signal,
           });
         } finally {
           clearTimeout(timeout);
         }
 
-        interface BackendChatResponse { ok?: boolean; text?: string; message?: string; error?: string; }
+        interface BackendChatResponse {
+          ok?: boolean; text?: string; message?: string; error?: string;
+          toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> | string }>;
+        }
         const json: BackendChatResponse = await res.json().catch(() => ({}));
         if (res.ok && json?.ok) {
-          return { success: true, content: String(json?.text || '') };
+          return { success: true, content: String(json?.text || ''), toolCalls: json.toolCalls || [] };
         }
         const errMsg = String(json?.message || json?.error || `HTTP ${res.status}`);
         console.warn('[Preload] aiChatGroq backend fallback failed:', errMsg);
@@ -4194,6 +4210,25 @@ const electronAPI = {
   startBrainB: (): Promise<any> => ipcRenderer.invoke('brainb:start'),
   stopBrainB: (): Promise<any> => ipcRenderer.invoke('brainb:stop'),
   brainBStatus: (): Promise<any> => ipcRenderer.invoke('brainb:status'),
+
+  // Screen Awareness (Phase 2 "Seeing") -- see BridgeServer.ts's
+  // startScreenAwareness() for the real focus-gated capture loop, and
+  // main.ts's 'screen-awareness:*' handlers for what these actually call.
+  startScreenAwareness: (program?: string): Promise<{ ok: boolean; program?: string }> =>
+    ipcRenderer.invoke('screen-awareness:start', program),
+  stopScreenAwareness: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('screen-awareness:stop'),
+  screenAwarenessStatus: (): Promise<{ active: boolean; program: string }> => ipcRenderer.invoke('screen-awareness:status'),
+  /** Fires once per real, focus-gated capture -- see BridgeServer.ts's
+   *  startScreenAwareness() for the 5s poll / gating logic. Returns an
+   *  unsubscribe function, same convention as onBrainBServerStatus above. */
+  onScreenAwarenessCapture: (callback: (data: { program: string; dataUrl: string; timestamp: number }) => void): (() => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+    ipcRenderer.on('screen-awareness:capture', sub);
+    return () => ipcRenderer.removeListener('screen-awareness:capture', sub);
+  },
+  /** Real vision call -- see main.ts's 'ai-vision-groq' handler. */
+  aiVisionGroq: (imageDataUrl: string, textPrompt: string, systemPrompt?: string, model?: string): Promise<{ success: boolean; content?: string; error?: string }> =>
+    ipcRenderer.invoke('ai-vision-groq', { imageDataUrl, textPrompt, systemPrompt, model }),
 
   f4aiBridgeStatus: (): Promise<any> => ipcRenderer.invoke('f4ai-bridge-status'),
   // F4AI NPC Director

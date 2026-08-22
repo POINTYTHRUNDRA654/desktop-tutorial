@@ -132,6 +132,30 @@ Audited the rest of the app for the same failure shape as the Creation Kit fix a
 - Fixed unhandled AI backend errors rendering as raw, confusing API text in chat — they now show a legible message and log the real cause for troubleshooting
 - `/health` now reports the exact deployed commit, so a live deploy can be verified directly instead of only through the hosting dashboard
 
+### Voice Tool-Calling — Native Foundation Rebuild (2026-08-22)
+
+**New: real native tool-calling for Live Synapse (voice).** Replaced the old text-marker convention (Mossy's spoken response scanned for a special pattern to detect a tool call) with real native Groq tool-calling — the backend now sends actual `tools`/`tool_choice` parameters and reads real `tool_calls` back from the model, for both Groq and OpenAI providers.
+
+**New: model-per-purpose routing.** When a tool call needs to be forced rather than left to the model's judgment, that turn now routes to `qwen/qwen3.6-27b` — confirmed via Groq's own documentation to support native tool-calling — while everything else stays on the default `openai/gpt-oss-120b`.
+
+**Fixed:** a response that was purely a tool call, with no spoken text alongside it, was previously misreported as a failure.
+
+### Voice Diagnostic Reporting (2026-08-22)
+
+**New:** voice tool failures now log into Mossy's existing structured error reporter (previously used in exactly one place in the app) and to a real on-disk diagnostics log, tagged per turn. Since voice interactions have no transcript UI to look back at, Voice Chat now has a **Copy Diagnostic Report** button that builds a plain-text report from your own recent voice-tool failures — the actual way to capture what happened for a bug report, instead of guessing from memory.
+
+### Screen Awareness — First Slice (Blender), Optional & Experimental (2026-08-22)
+
+**New, opt-in only:** a Settings toggle next to Brain B lets Mossy watch for Blender being your focused window and, when she recognizes one of a small starting set of real known FO4 pipeline mistakes (wrong export scale, missing UV unwrap, wrong up-axis on export, un-triangulated n-gons, unrenamed collision mesh naming), speak the correction aloud through Live Synapse. Off by default; only polls/captures while Blender is actually the focused window.
+
+Anything recognized that isn't already a known pattern is proposed for review rather than spoken as fact — Mossy won't guess out loud about a mistake she hasn't actually confirmed against a real, known pattern.
+
+**Honest status, not fully live yet:** this is a first slice covering exactly one program and five starting patterns, not a general-purpose screen watcher. The backend routes this feature depends on for pattern-matching and proposing new ones are live in Mossy's own dev build but not yet carried over to the installable Brain B package most users get — until that lands, the toggle and capture loop work, but recognized mistakes won't be matched against known patterns for everyone.
+
+### Brain B — Real Inbound Authentication (2026-08-22)
+
+**Fixed: Brain B's local service (port 8766) had no authentication on any of its routes**, old and new alike — anything else running locally could call it directly with no credential. It now requires the same shared token Desktop Bridge already uses (generated locally the first time Mossy runs, never sent anywhere), checked with a timing-safe comparison before any route runs; a request with a missing or wrong token is rejected outright rather than silently allowed through. `/health` stays open with no token required, matching Desktop Bridge's own liveness-check exemption.
+
 ## [5.5.0] — 2026-07-28
 
 ### Localization — 12 Languages (In Progress)

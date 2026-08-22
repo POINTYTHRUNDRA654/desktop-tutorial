@@ -1,0 +1,39 @@
+{
+  "_meta": {
+    "description": "Screen Awareness (Phase 2 'Seeing') known-mistake reference for Blender, first-slice scope. Each entry is a real, verifiable Fallout 4 export/pipeline mistake a screenshot of Blender's viewport/outliner/properties panel can plausibly reveal. Sent to the vision recognition pass as a compact reference of what Mossy already knows to check for -- NOT the full knowledge base, just this narrow slice's patterns. New entries only get added here via ChangeGate's approve() -- see change_gate.py -- never edited by hand as a shortcut around review.",
+    "program": "blender",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "blender-mistake-wrong-export-scale",
+      "whatToLookFor": "Object's Scale transform (visible in the N-panel/Properties sidebar under Transform) is not 1.0 on X/Y/Z, or the Item panel shows a Dimensions value wildly inconsistent with a real-world FO4 object of that type.",
+      "correction": "Fallout 4 expects 1 Blender unit = 1 inch at export (via the havok/nif export scale settings), and a non-1.0 object scale that never got applied will silently double-transform on export -- apply scale (Ctrl+A > Scale) before exporting, don't rely on the exporter to compensate.",
+      "severity": "high"
+    },
+    {
+      "id": "blender-mistake-missing-uv-unwrap",
+      "whatToLookFor": "UV Editing workspace or the mesh's UV Map data shows no unwrap (a single default square UV, or the UV Maps list in Object Data Properties is empty) on a mesh that has a material with an image texture assigned.",
+      "correction": "A mesh exported without a real UV unwrap will show correct geometry in-game but garbled or stretched textures -- unwrap (U > Unwrap or Smart UV Project) before assigning textures, not after.",
+      "severity": "high"
+    },
+    {
+      "id": "blender-mistake-wrong-up-axis-on-export",
+      "whatToLookFor": "The NIF/FBX export dialog is open and 'Up' is set to Y or the 'Forward' axis doesn't match FO4's convention (FO4/Creation Engine uses Z-up, unlike Blender's own Z-up viewport but many export presets default to Y-up for other engines).",
+      "correction": "Exporting with the wrong up-axis produces a mesh that's rotated 90 degrees in-game (lying on its side) even though it looks correct in Blender's viewport -- confirm the export preset is actually the FO4/Creation Kit one, not a generic FBX/glTF default.",
+      "severity": "high"
+    },
+    {
+      "id": "blender-mistake-ngon-in-mesh",
+      "whatToLookFor": "Statistics overlay (viewport overlay 'Statistics' enabled) or Mesh Analysis shows n-gons (faces with 5+ sides) rather than the mesh being fully triangulated, right before an export action.",
+      "correction": "FO4's engine requires triangulated meshes -- n-gons that don't get cleanly auto-triangulated by the exporter can produce visual artifacts or collision issues. Add a Triangulate modifier (or Ctrl+T in edit mode) before final export, not after issues show up in-game.",
+      "severity": "medium"
+    },
+    {
+      "id": "blender-mistake-collision-naming-convention",
+      "whatToLookFor": "The Outliner shows a collision mesh object whose name doesn't follow FO4's collision naming convention (real collision helper objects are typically named with a recognizable collision-related suffix/prefix, not a generic 'Cube.001'-style default name) sitting alongside a real visual mesh.",
+      "correction": "An unrenamed default-named collision mesh often means it was never actually wired into the NIF's collision node correctly during export/CK import -- rename it to match your pipeline's real collision convention before export, not after CK reports missing collision.",
+      "severity": "medium"
+    }
+  ]
+}
