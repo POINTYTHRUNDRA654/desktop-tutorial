@@ -28,9 +28,22 @@ function isContextLengthError(e: unknown): boolean {
   return /context.?length|reduce.*length|too (long|large)|shorten|maximum.*token|token.*limit/i.test(msg);
 }
 
+// Vision support (Phase 2 "Seeing"): a message's content can be a plain
+// string (every existing caller, unchanged) or a real OpenAI/Groq-compatible
+// multimodal content array -- see Groq's vision docs (qwen/qwen3.6-27b is
+// the confirmed real vision-capable model, same one already used for forced
+// tool-calling). image_url.url accepts a data: URI directly (base64 PNG),
+// not just a remote URL -- the actual real capture path (BridgeServer.ts's
+// _captureScreenBase64) produces a data: URI, never uploads the screenshot
+// anywhere.
+const ContentPartSchema = z.union([
+  z.object({ type: z.literal('text'), text: z.string() }),
+  z.object({ type: z.literal('image_url'), image_url: z.object({ url: z.string().min(1) }) }),
+]);
+
 const ChatMessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
-  content: z.string().min(1),
+  content: z.union([z.string().min(1), z.array(ContentPartSchema).min(1)]),
 });
 
 // OpenAI/Groq-compatible tool declaration shape. Mirrors what groq-sdk's
@@ -112,7 +125,7 @@ function reasoningEffortFor(model: string): 'low' | 'medium' | 'high' | undefine
 async function groqChatWithFallback(
   groq: Groq,
   preferredModel: string,
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  messages: z.infer<typeof ChatMessageSchema>[],
   temperature?: number,
   maxTokens?: number,
   tools?: z.infer<typeof ToolSchema>[],
@@ -126,9 +139,16 @@ async function groqChatWithFallback(
     // ChatRequestSchema comment). A real live test found 'auto' alone lets
     // the model hedge into prose instead of calling an available tool.
     const toolArgs = tools && tools.length > 0 ? { tools, tool_choice: toolChoice || 'auto' as const } : {};
+    // Cast, not a functional gap: groq-sdk's real type models content per-role
+    // (system/assistant can't carry image parts, only user can), which is a
+    // real API constraint -- but Zod already validates the actual shape at
+    // the request boundary (ChatRequestSchema/ContentPartSchema above), so
+    // this is TS-level friction between two independently-typed schemas for
+    // the same real JSON, not a runtime correctness issue.
+    const sdkMessages = messages as unknown as Parameters<typeof groq.chat.completions.create>[0]['messages'];
     try {
       return await groq.chat.completions.create({
-        model, messages, temperature, max_tokens: maxTokens, stream: false,
+        model, messages: sdkMessages, temperature, max_tokens: maxTokens, stream: false,
         ...toolArgs,
         ...(reasoning_effort ? { reasoning_effort } : {}),
       });
@@ -138,7 +158,7 @@ async function groqChatWithFallback(
       // failing the whole chat request over an optional quality knob.
       if (reasoning_effort) {
         console.warn(`[Chat] reasoning_effort rejected for ${model}, retrying without it:`, e instanceof Error ? e.message : e);
-        return groq.chat.completions.create({ model, messages, temperature, max_tokens: maxTokens, ...toolArgs });
+        return groq.chat.completions.create({ model, messages: sdkMessages, temperature, max_tokens: maxTokens, ...toolArgs });
       }
       throw e;
     }
@@ -200,10 +220,12 @@ export function registerChatRoutes(router: Router) {
       if (provider === 'openai') {
         const client = getOpenAIClient();
         const model = parsed.data.model || String(process.env.OPENAI_MODEL || 'gpt-4o-mini');
+        // Same cast rationale as groqChatWithFallback's sdkMessages above.
+        const sdkMessages = messages as unknown as Parameters<typeof client.chat.completions.create>[0]['messages'];
 
         const completion = await client.chat.completions.create({
           model,
-          messages,
+          messages: sdkMessages,
           temperature,
           max_tokens: maxTokens,
           ...(tools && tools.length > 0 ? { tools, tool_choice: tool_choice || 'auto' as const } : {}),

@@ -1169,8 +1169,29 @@ export class VoiceService {
       const audio = new Audio(audioUrl);
       this.currentAudioElement = audio;
 
+      // Playback-completion timeout: mirrors the 10s guard on the ttsSpeak
+      // request above and speakChunk()'s 15s per-chunk guard below. Without
+      // it, if `onended`/`onerror` never fire (a real, known Electron/Chromium
+      // audio quirk -- see the "silently cut off" comment on speakBrowser()),
+      // this promise hangs forever: speak()'s finally block never runs, the
+      // mic never resumes, and LiveContext's mode gets stuck on 'speaking'
+      // with no watchdog to recover it (the processing-timeout watchdog only
+      // covers 'processing'). That stuck state is exactly what previously
+      // required the user to manually restart the voice session.
+      const PLAYBACK_TIMEOUT_MS = 20000;
       await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          console.warn('[VoiceService] Cloud TTS playback timed out waiting for onended/onerror; forcing completion');
+          if (this.currentAudioElement === audio) {
+            this.currentAudioElement = null;
+          }
+          try { audio.pause(); } catch { /* ignore */ }
+          this.onModeChange?.('idle');
+          resolve();
+        }, PLAYBACK_TIMEOUT_MS);
+
         audio.onended = () => {
+          clearTimeout(timer);
           this.onModeChange?.('idle');
           if (this.currentAudioElement === audio) {
             this.currentAudioElement = null;
@@ -1178,6 +1199,7 @@ export class VoiceService {
           resolve();
         };
         audio.onerror = () => {
+          clearTimeout(timer);
           this.onModeChange?.('idle');
           if (this.currentAudioElement === audio) {
             this.currentAudioElement = null;
@@ -1186,6 +1208,7 @@ export class VoiceService {
         };
 
         if (this.shouldStop) {
+          clearTimeout(timer);
           resolve();
         } else {
           audio.play().catch(reject);

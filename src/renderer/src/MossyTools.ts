@@ -565,7 +565,16 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 if (response.ok) {
                     const data = await response.json();
                     const fileList = data.files.map((f: any) => `${f.is_dir ? '[DIR]' : '[FILE]'} ${f.name}`).join('\n');
-                    result = `Files in ${args.path}:\n${fileList || '(Empty Directory)'}`;
+                    // The Bridge's spacing-normalized fallback (BridgeServer.ts) can resolve
+                    // a voice-guessed path (e.g. "D:\Mossy Models", wrong -- STT can't convey
+                    // that the real folder has no space) to the real one on disk. Report the
+                    // real path used, and say so plainly when it differs from the guess --
+                    // never silently claim the guessed path was the real one.
+                    const resolvedPath: string = data.resolvedPath || args.path;
+                    const pathNote = resolvedPath !== args.path
+                        ? ` (note: the real folder is "${resolvedPath}", not "${args.path}" as asked)`
+                        : '';
+                    result = `Files in ${resolvedPath}${pathNote}:\n${fileList || '(Empty Directory)'}`;
                 } else {
                     result = `Bridge Error: Could not list files in ${args.path}.`;
                 }
@@ -574,6 +583,27 @@ export const executeMossyTool = async (name: string, args: any, context: {
             }
         } else {
             result = `**Desktop Bridge is offline.** Cannot list files in \`${args.path}\` — the bridge must be running to read the filesystem.\n\nThe Bridge starts automatically with Mossy NVIDIA, so this usually means it hasn't finished its startup health check yet, or the connection dropped. To fix: open Runtime Hub → Desktop Bridge and click **Test Connection**. If it still shows OFFLINE, restart Mossy NVIDIA, then re-run this command.`;
+        }
+    } else if (name === 'read_file') {
+        // Real, and unlike list_files does not depend on the Desktop Bridge being
+        // online -- WORKSHOP_READ_FILE is a genuinely general-purpose fs.readFileSync
+        // IPC handler (main.ts) despite its name, already exposed as api.readFile();
+        // this tool was declared in MossyBrain.ts's toolDeclarations but had no
+        // handler at all (dead on arrival for both text chat and voice) until now.
+        if (!api?.readFile) {
+            result = `**Cannot read files.** The system bridge is not initialized. Please restart the application.`;
+        } else {
+            const filePath = String(args?.path || '').trim();
+            if (!filePath) {
+                result = `**No path given.** Tell me the full file path to read.`;
+            } else {
+                try {
+                    const content = await api.readFile(filePath);
+                    result = `**${filePath}:**\n\n\`\`\`\n${content}\n\`\`\``;
+                } catch (e: any) {
+                    result = `**Could not read \`${filePath}\`:** ${e?.message || e}`;
+                }
+            }
         }
     } else if (name === 'generate_papyrus_script') {
         const scriptName = sanitizeBasename(args.scriptName);

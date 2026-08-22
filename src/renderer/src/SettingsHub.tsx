@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database,
+  Package, Palette, Shield, Coffee, Star, Database, Eye,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -14,6 +14,7 @@ import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
 import BrainBSettings from './BrainBSettings';
+import ScreenAwarenessSettings from './ScreenAwarenessSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
@@ -430,6 +431,15 @@ const SettingsHub: React.FC = () => {
       content: <BrainBSettings embedded />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-violet-900/40 border-violet-700/40 text-violet-300',
+    },
+    {
+      id: 'screenAwareness',
+      title: t('settings.hub.stepScreenAwareness.title', 'Screen Awareness (Seeing) — Blender'),
+      description: t('settings.hub.stepScreenAwareness.desc', 'Watches Blender in real time for known mistakes and speaks a live correction — first-slice feature, Blender only.'),
+      icon: Eye,
+      content: <ScreenAwarenessSettings embedded />,
+      badge: t('settings.hub.stepScreenAwareness.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },
     {
       id: 'anythingllm',

@@ -474,6 +474,38 @@ CRITICAL: When user says "open xEdit", use toolId: "xedit". When user says "laun
    }
 ];
 
+/** OpenAI/Groq tool-calling shape -- see groq-sdk's ChatCompletionTool. */
+export type GroqTool = {
+   type: 'function';
+   function: { name: string; description?: string; parameters?: Record<string, unknown> };
+};
+
+/**
+ * Real native tool-calling, not the fenced ```tool marker convention voice
+ * briefly used. `toolDeclarations` above already stores `parameters` as
+ * plain lowercase JSON Schema (`Type.OBJECT` etc. are just string constants,
+ * not the actual Gemini SDK enum -- see `Type`'s definition) so this is a
+ * pure reshape, not a schema conversion: wrap each declaration in the
+ * `{type: 'function', function: {...}}` envelope Groq's API (via groq-sdk,
+ * see src/backend/routes/chat.ts) actually expects. `subset` lets a caller
+ * scope the tools it sends to Groq to only the ones it can actually dispatch
+ * (voice's real 28-tool restoration scope, for example) rather than handing
+ * the model the full declared set including tools with no handler at all.
+ */
+export const toGroqTools = (subset?: string[]): GroqTool[] => {
+   const names = subset ? new Set(subset) : null;
+   return toolDeclarations
+      .filter((d) => !names || names.has(d.name))
+      .map((d) => ({
+         type: 'function' as const,
+         function: {
+            name: d.name,
+            description: d.description,
+            parameters: d.parameters as Record<string, unknown> | undefined,
+         },
+      }));
+};
+
 // Maximum characters from MASTER_TECHNICAL_GUIDE to include in each system prompt.
 // ~4 chars per token → 3,000 chars ≈ 750 tokens, keeping the most useful Papyrus/CK
 // sections. The full guide is ~368,000 chars (~92,000 tokens) which, combined with
@@ -1817,7 +1849,7 @@ export const getFullSystemInstruction = (contextStr?: string, lean = false): str
       // line 13200), which only ever contributes its first ~3,000 characters to this prompt
       // (see MAX_TECHNICAL_GUIDE_CHARS below) — so this self-description content was silently
       // truncated away and never actually reached the model. Moved here so it's always included.
-      '\n\n**Brain A** (always active — both Universal and NVIDIA editions): This system prompt (MossyBrain.ts) — a comprehensive knowledge base injected as the system prompt before every API call. Powered by Groq cloud API (qwen/qwen3.6-27b primary, openai/gpt-oss-120b fallback on rate-limit).' +
+      '\n\n**Brain A** (always active — both Universal and NVIDIA editions): This system prompt (MossyBrain.ts) — a comprehensive knowledge base injected as the system prompt before every API call. Powered by Groq cloud API (openai/gpt-oss-120b primary, qwen/qwen3.6-27b fallback on rate-limit or context-length overflow).' +
       '\n\n**Brain B** (NVIDIA Edition only, optional local inference): A Python inference server at D:\\Mossy-AI\\ running Gemma 3 (auto-selected: 9B/12B/27B based on VRAM). Features: hybrid BM25 + semantic RAG retrieval with Reciprocal Rank Fusion (RRF), episodic memory (SQLite), self-critique refinement loop, LangGraph multi-step reasoning workflow, DuckDuckGo web grounding (no API key required), NetworkX knowledge graph, user feedback + learning loop, LoRA fine-tune pipeline endpoint. Serves at http://localhost:8766. Requires NVIDIA GPU with 7GB+ VRAM.' +
       '\n\n**Brain neuron scanning (background, automatic)**: On every app startup, ~21 real scans run automatically and cache their results — no user action required, no button to press. Fast scans (no Python needed): installed tool paths, Ollama models, FO4 version/DLCs, the active mod project, Knowledge Vault index, the FO4 form graph (perks/recipes), the FO4 asset graph (OMODs/NIF paths), F4AI runtime status, F4SE plugins, and the Blender workspace. Python-backed scans (staggered 2s apart after startup): vanilla game strings, materials, sounds, textures, a full Papyrus library analysis, NPC voice types, texture conventions, the MO2 profile, a full vanilla mesh catalog, and NIF bone hierarchy data. Each populates a "brain neuron" that gets injected into every AI call, which is why you can cite real FormIDs, EditorIDs, and asset paths without the user uploading anything. If asked "what have you scanned?" or "why did startup take a moment?", explain this system in plain terms — it is real, not simulated.' +
       '\n\n**When asked what I am**: I am Mossy — a desktop AI assistant built specifically for Fallout 4 modding and PC gaming. I am NOT a general-purpose chatbot and NOT a bare language model. I have live internet access via scan_fallout4_live, computer scanning via scan_hardware, direct Blender bridge control, persistent memory across sessions, and 23 dedicated platforms for every aspect of FO4 modding. Both Universal Edition and NVIDIA Edition use Brain A; the NVIDIA Edition additionally runs Brain B locally on the user\'s GPU for RAG retrieval, episodic memory, and LoRA fine-tuning.' +
@@ -13169,7 +13201,7 @@ High-conflict mods that always need patches: UFO4P (Unofficial Fallout 4 Patch) 
 
 Mossy is a desktop AI assistant for Fallout 4 modding, built as an Electron + React + TypeScript application (Windows). I have two brain systems:
 
-**Brain A** (always active — both Universal and NVIDIA editions): This system prompt (MossyBrain.ts) — a comprehensive knowledge base injected as the system prompt before every API call. Powered by Groq cloud API (qwen/qwen3.6-27b primary, openai/gpt-oss-120b fallback on rate-limit).
+**Brain A** (always active — both Universal and NVIDIA editions): This system prompt (MossyBrain.ts) — a comprehensive knowledge base injected as the system prompt before every API call. Powered by Groq cloud API (openai/gpt-oss-120b primary, qwen/qwen3.6-27b fallback on rate-limit or context-length overflow).
 
 **Brain B** (NVIDIA Edition only, optional local inference): A Python inference server at D:\Mossy-AI\ running Gemma 3 (auto-selected: 9B/12B/27B based on VRAM). Features: hybrid BM25 + semantic RAG retrieval with Reciprocal Rank Fusion (RRF), episodic memory (SQLite), self-critique refinement loop, LangGraph multi-step reasoning workflow, DuckDuckGo web grounding (no API key required), NetworkX knowledge graph, user feedback + learning loop, LoRA fine-tune pipeline endpoint. Serves at http://localhost:8766. Requires NVIDIA GPU with 7GB+ VRAM.
 

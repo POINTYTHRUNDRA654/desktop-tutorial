@@ -8474,6 +8474,19 @@ end.
   // --- Workshop: Read file content ---
   registerHandler(IPC_CHANNELS.WORKSHOP_READ_FILE, async (_event, filePath: string) => {
     try {
+      // PDFs are binary -- decoding them as UTF-8/latin1 text produces
+      // garbage, not content. Route through the same real pdf-parse library
+      // the 'parse-pdf' handler above already uses (this is the actual real
+      // capability behind "Mossy can read a PDF" -- read_file just wasn't
+      // wired to it for filesystem paths, only for renderer-side uploads).
+      if (filePath.toLowerCase().endsWith('.pdf')) {
+        const buffer = fs.readFileSync(filePath);
+        const pdfParseModule = await import('pdf-parse');
+        const PDFParse = pdfParseModule.PDFParse;
+        const pdfParser = new PDFParse({ data: buffer });
+        const result = await pdfParser.getText();
+        return result.text;
+      }
       // Try UTF-8 first
       try {
         const content = fs.readFileSync(filePath, 'utf-8');
@@ -10599,7 +10612,27 @@ end.
   /**
    * AI Chat Handler - Groq (for voice and real-time)
    */
-  forceHandle('ai-chat-groq', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string; conversationHistory?: Array<{ role: string; content: string }>; includeGameData?: boolean }) => {
+  forceHandle('ai-chat-groq', async (_event, payload: {
+    prompt: string; systemPrompt?: string; model?: string;
+    conversationHistory?: Array<{ role: string; content: string }>; includeGameData?: boolean;
+    // Real native tool-calling (OpenAI/Groq-compatible shape) -- forwarded to
+    // the backend proxy's /v1/chat, which forwards it to Groq's real API via
+    // groq-sdk (src/backend/routes/chat.ts). Optional: omitting it keeps the
+    // existing plain-text behavior unchanged for callers not yet updated.
+    // NOT currently wired into the Inkling-primary path above (a different
+    // provider, out of scope for this pass) or the no-backend-configured
+    // direct-Groq-SDK fallback below (callGroqWithFallback is shared by
+    // three unrelated call sites; scoping tool support to just this one
+    // would mean either touching all of them or an awkward optional
+    // out-parameter -- deliberately deferred rather than done half-right).
+    tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>;
+    // 'required' forces a tool call this turn; 'auto'/undefined leaves the
+    // choice to the model. See LocalAIEngine.ts's toolChoice computation
+    // (action_related classification) for why this exists -- native
+    // tool-calling alone doesn't stop the model from hedging into prose
+    // instead of calling an available, relevant tool.
+    toolChoice?: 'auto' | 'required';
+  }) => {
     try {
       // This channel is specifically the cloud path (Inkling/Groq) — local
       // providers (Ollama/KoboldCpp) go through mlLlmGenerate and are
@@ -10680,7 +10713,12 @@ end.
         inklingBase = '';
       }
       const inklingChatModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
-      if (inklingKey && inklingBase) {
+      // Inkling's plain-text result short-circuits everything below (the very
+      // next check is `if (content) return`), and it isn't wired for tool
+      // calls in this pass -- a tool-calling turn must skip straight to the
+      // backend path, or tools would silently never fire for anyone with an
+      // Inkling key configured.
+      if (inklingKey && inklingBase && !(payload.tools && payload.tools.length > 0)) {
         try {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 120_000);
@@ -10708,6 +10746,7 @@ end.
       // Use a 15-second timeout to allow cold-start Render instances to wake up.
       let backendAttempted = false;
       let backendError = '';
+      let toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> | string }> = [];
       const backend = getBackendConfig();
       console.log('[AI Chat Groq] Backend config:', backend ? `URL=${backend.baseUrl}, hasToken=${!!backend.token}` : 'No backend configured');
       if (backend) {
@@ -10717,13 +10756,19 @@ end.
         try {
           const backendUrl = backendJoin(backend, '/v1/chat');
           console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
+          const requestBody = JSON.stringify({
+            provider: 'groq', messages, maxTokens, max_tokens: maxTokens,
+            ...(payload.tools && payload.tools.length > 0
+              ? { tools: payload.tools, ...(payload.toolChoice ? { tool_choice: payload.toolChoice } : {}) }
+              : {}),
+          });
           let res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
             },
-            body: JSON.stringify({ provider: 'groq', messages, maxTokens, max_tokens: maxTokens }),
+            body: requestBody,
             signal: controller.signal,
           });
 
@@ -10737,7 +10782,7 @@ end.
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ provider: 'groq', messages, maxTokens, max_tokens: maxTokens }),
+              body: requestBody,
               signal: controller.signal,
             });
             console.log('[AI Chat Groq] Backend retry response status:', res.status, res.statusText);
@@ -10746,7 +10791,8 @@ end.
 
           if (res.ok && json?.ok) {
             content = String(json?.text || '');
-            console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length);
+            toolCalls = Array.isArray(json?.toolCalls) ? json.toolCalls : [];
+            console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length, 'toolCalls:', toolCalls.length);
           } else {
             const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
             console.warn('[AI Chat Groq] ❌ Backend proxy failed:', msg);
@@ -10772,8 +10818,11 @@ end.
 
       // If backend is configured, stay backend-only to avoid mixed/stale local key paths.
       if (backendAttempted) {
-        if (content) {
-          return { success: true, content };
+        // A pure tool-call turn can have empty `content` (the model made a
+        // call instead of writing prose) -- checking `content` alone would
+        // wrongly report a real, successful tool-call response as a failure.
+        if (content || toolCalls.length > 0) {
+          return { success: true, content, toolCalls };
         }
         return { success: false, error: backendError || 'Groq cloud chat unavailable: backend request failed.' };
       }
@@ -10803,6 +10852,64 @@ end.
     } catch (error: any) {
       console.error('[AI Chat Groq] Error:', error);
       return { success: false, error: error.message || 'Groq chat failed' };
+    }
+  });
+
+  // Screen Awareness (Phase 2 "Seeing") -- real vision call. Deliberately a
+  // separate handler from ai-chat-groq rather than retrofitting it: that
+  // handler's `prompt: string` shape is load-bearing for many existing
+  // callers, and vision only needs the backend proxy path (no Inkling, no
+  // direct-SDK no-backend fallback -- neither is wired for multimodal
+  // content, and vision is Groq-specific here regardless). Backend/schema
+  // support: src/backend/routes/chat.ts's ContentPartSchema.
+  forceHandle('ai-vision-groq', async (_event, payload: {
+    imageDataUrl: string; textPrompt: string; systemPrompt?: string; model?: string;
+  }) => {
+    try {
+      const preCheckSettings = loadSettings();
+      if (preCheckSettings?.privacySettings?.allowNetworkAccess === false) {
+        return { success: false, error: 'Network access is disabled in Privacy Settings — vision recognition needs cloud AI.' };
+      }
+      const backend = getBackendConfig();
+      if (!backend) {
+        return { success: false, error: 'No backend configured — vision recognition needs the Render backend proxy.' };
+      }
+      const messages = [
+        { role: 'system' as const, content: payload.systemPrompt || 'You are Mossy, an FO4 modding assistant with real screen-vision access.' },
+        {
+          role: 'user' as const,
+          content: [
+            { type: 'text' as const, text: payload.textPrompt },
+            { type: 'image_url' as const, image_url: { url: payload.imageDataUrl } },
+          ],
+        },
+      ];
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const res = await fetch(backendJoin(backend, '/v1/chat'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
+          },
+          // qwen/qwen3.6-27b: the confirmed real vision-capable model on Groq
+          // (also the model already used for forced tool-calling -- same
+          // model, different capability, both live-verified this session).
+          body: JSON.stringify({ provider: 'groq', model: payload.model || 'qwen/qwen3.6-27b', messages, maxTokens: 1024 }),
+          signal: controller.signal,
+        });
+        const json: any = await res.json().catch(() => ({}));
+        if (res.ok && json?.ok) {
+          return { success: true, content: String(json?.text || '') };
+        }
+        return { success: false, error: String(json?.message || json?.error || `Vision backend request failed (${res.status})`) };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error: any) {
+      console.error('[AI Vision Groq] Error:', error);
+      return { success: false, error: error.message || 'Vision chat failed' };
     }
   });
 
@@ -32852,6 +32959,12 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
       env: {
         ...process.env,
         MOSSY_PORT: String(BRAINB_PORT),
+        // Real auth (2026-08-22): Brain B had zero inbound authentication on
+        // any route -- reuses the exact same bridgeAuthToken BridgeServer.ts
+        // already generates/stores (see get-bridge-connection above), rather
+        // than inventing a second shared secret. gemma_service_enhanced.py /
+        // brain_b_slim.py read this at startup and fail closed if it's empty.
+        MOSSY_BRAINB_TOKEN: String(loadSettings()?.bridgeAuthToken || ''),
         // The shipped package's own layout — not brain_b_slim.py's dev-build
         // defaults, which assume a different subfolder structure.
         CHROMA_CURATED_PATH: path.join(destDir, 'knowledge', 'chroma_curated'),
@@ -34679,6 +34792,29 @@ app.whenReady().then(() => {
     } catch {
       return { running: false, port: BRAINB_PORT };
     }
+  });
+
+  // ── Screen Awareness (Phase 2 "Seeing") ────────────────────────────────────
+  // Opt-in, mirrors brainb:start/stop's shape -- see BridgeServer.ts's
+  // startScreenAwareness() for the real focus-gated capture loop this
+  // controls. 'blender' is the only real first-slice scope.
+  let _screenAwarenessActive = false;
+  let _screenAwarenessProgram = 'blender';
+  lateHandle('screen-awareness:start', async (_event, program?: string) => {
+    _screenAwarenessProgram = String(program || 'blender').toLowerCase();
+    bridge.startScreenAwareness(_screenAwarenessProgram);
+    _screenAwarenessActive = true;
+    return { ok: true, program: _screenAwarenessProgram };
+  });
+
+  lateHandle('screen-awareness:stop', async () => {
+    bridge.stopScreenAwareness();
+    _screenAwarenessActive = false;
+    return { ok: true };
+  });
+
+  lateHandle('screen-awareness:status', async () => {
+    return { active: _screenAwarenessActive, program: _screenAwarenessProgram };
   });
 
   // ── F4AI bridge composite status ──────────────────────────────────────────

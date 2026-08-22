@@ -6,7 +6,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
-import { clipboard, nativeImage, screen, app } from 'electron';
+import { clipboard, nativeImage, screen, app, BrowserWindow } from 'electron';
 import AdmZip from 'adm-zip';
 import { extractFormIDs } from './espParser';
 
@@ -117,6 +117,12 @@ export class BridgeServer {
         savedSpace: string;
         details: string[];
     }>();
+    // Screen Awareness (Phase 2 "Seeing") -- see startScreenAwareness()'s
+    // own comment for the full design. Off by default: opt-in, same as
+    // Brain B's own "Enable" pattern, not always-on background capture.
+    private _screenAwarenessInterval: ReturnType<typeof setInterval> | null = null;
+    private _screenAwarenessWasFocused = false;
+    private _screenAwarenessProgram: string | null = null;
 
     constructor(addonPort: number = 9999, port: number = 21337) {
         this.addonPort = addonPort;
@@ -404,6 +410,162 @@ export class BridgeServer {
                 resolve({ exitCode: 1, stdout, stderr: String(err?.message || err) });
             });
         });
+    }
+
+    /**
+     * Real OS-level foreground-window detection, via a Win32 GetForegroundWindow
+     * + GetWindowThreadProcessId call through PowerShell's Add-Type -- not
+     * something that existed anywhere in this file before Screen Awareness
+     * (Phase 2 "Seeing") needed it. Deliberately not a new native npm
+     * dependency (e.g. active-win): this file already shells out to real OS
+     * commands via _runProcess for the same class of real-system-state query
+     * (tasklist for "is Fallout4.exe running"), and a native module adds real
+     * packaging/rebuild risk (see this session's own sqlite3 native-rebuild
+     * step in every electron-builder pass) for one small, infrequent poll.
+     * Returns the focused window's process name without the .exe suffix
+     * (e.g. "blender", matching how Blender's real process name appears),
+     * lowercased for case-insensitive matching, or null if the check itself
+     * failed (no foreground window, PowerShell unavailable, etc.) -- null is
+     * NOT the same as "nothing is focused" and callers should treat it as
+     * "unknown," not "no relevant program," so a transient PowerShell hiccup
+     * doesn't get logged as a real absence.
+     */
+    private async _getForegroundProcessName(): Promise<string | null> {
+        const script = [
+            'Add-Type @"',
+            'using System;',
+            'using System.Runtime.InteropServices;',
+            'public class MossyWin32 {',
+            '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+            '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);',
+            '}',
+            '"@',
+            '$hwnd = [MossyWin32]::GetForegroundWindow()',
+            '$procId = 0',
+            '[void][MossyWin32]::GetWindowThreadProcessId($hwnd, [ref]$procId)',
+            'if ($procId -ne 0) { (Get-Process -Id $procId -ErrorAction SilentlyContinue).ProcessName }',
+        ].join('\n');
+        try {
+            const r = await this._runProcess('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { timeoutMs: 4000 });
+            const name = r.stdout.trim();
+            return name ? name.toLowerCase() : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Real full-screen capture, returned as a base64 PNG data URL. Extracted
+     * from the pre-existing /capture endpoint (unchanged behavior, just
+     * reusable) so Screen Awareness's periodic watcher can call the exact
+     * same real capture path instead of a second implementation. PowerShell
+     * System.Drawing screenshot -- no extra dependency, matches the rest of
+     * this file's "shell out to a real OS command" pattern.
+     */
+    private async _captureScreenBase64(): Promise<{ dataUrl: string; resolution: string }> {
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width, height } = primaryDisplay.size;
+        const tmpPath = path.join(os.tmpdir(), `mossy_capture_${Date.now()}.png`);
+        await new Promise<void>((resolve, reject) => {
+            const psScript = [
+                `Add-Type -AssemblyName System.Windows.Forms`,
+                `$bmp = New-Object System.Drawing.Bitmap(${width},${height})`,
+                `$g = [System.Drawing.Graphics]::FromImage($bmp)`,
+                `$g.CopyFromScreen(0,0,0,0,[System.Drawing.Size]::new(${width},${height}))`,
+                `$bmp.Save('${tmpPath.replace(/\\/g, '\\\\')}')`,
+                `$g.Dispose()`,
+                `$bmp.Dispose()`,
+            ].join('; ');
+            exec(`powershell -NoProfile -Command "${psScript}"`, (err) => {
+                if (err) reject(err); else resolve();
+            });
+        });
+        const pngBytes = fs.readFileSync(tmpPath);
+        fs.unlinkSync(tmpPath);
+        const b64 = pngBytes.toString('base64');
+        return { dataUrl: `data:image/png;base64,${b64}`, resolution: `${width}x${height}` };
+    }
+
+    /**
+     * Screen Awareness (Phase 2 "Seeing") -- periodic focus-gated capture.
+     * Opt-in: nothing runs until this is called (mirrors Brain B's own
+     * "Enable" pattern, not always-on background screen capture, which
+     * would be a real privacy concern to have on by default).
+     *
+     * Polls the real foreground window every 5s via _getForegroundProcessName().
+     * Only when it matches `program` does a real screenshot get taken and
+     * sent to the renderer over IPC ('screen-awareness:capture') for the
+     * actual recognition pass (LiveContext.tsx/a dedicated module owns that
+     * -- this class's job is strictly capture + gating, not vision-model
+     * calls). "Costs nothing when idle" is real but not literally zero: the
+     * 5s focus-check itself is a small, real PowerShell spawn every tick
+     * regardless of what's focused -- cheap (sub-100ms, no image data) but
+     * not free. What's genuinely gated to zero is the actual screenshot
+     * capture and everything downstream of it (the real cost: image data,
+     * a vision-model API call) -- those only happen when `program` truly
+     * has focus.
+     *
+     * First-slice scope: `program` defaults to 'blender', matching this
+     * feature's own explicit "one program first" build order.
+     */
+    startScreenAwareness(program: string = 'blender'): void {
+        if (this._screenAwarenessInterval) return; // already running
+        this._screenAwarenessProgram = program.toLowerCase();
+        this._screenAwarenessWasFocused = false;
+        const POLL_INTERVAL_MS = 5000;
+        this._screenAwarenessInterval = setInterval(async () => {
+            const focused = await this._getForegroundProcessName();
+            const isRelevant = focused === this._screenAwarenessProgram;
+            // Logged only on real state transitions, not every 5s tick --
+            // a continuous "still not focused" line every 5 seconds forever
+            // would itself violate "costs nothing when idle" by slowly
+            // growing the log file even during idle time.
+            if (isRelevant !== this._screenAwarenessWasFocused) {
+                this._logScreenAwareness({
+                    event: isRelevant ? 'watch-started' : 'watch-stopped',
+                    program: this._screenAwarenessProgram, focusedProcess: focused,
+                });
+                this._screenAwarenessWasFocused = isRelevant;
+            }
+            if (!isRelevant) return;
+            try {
+                const { dataUrl } = await this._captureScreenBase64();
+                const win = BrowserWindow.getAllWindows()[0];
+                if (win && !win.isDestroyed()) {
+                    win.webContents.send('screen-awareness:capture', {
+                        program: this._screenAwarenessProgram, dataUrl, timestamp: Date.now(),
+                    });
+                }
+            } catch (e: any) {
+                this._logScreenAwareness({
+                    event: 'capture-error', program: this._screenAwarenessProgram,
+                    error: String(e?.message || e),
+                });
+            }
+        }, POLL_INTERVAL_MS);
+    }
+
+    stopScreenAwareness(): void {
+        if (this._screenAwarenessInterval) {
+            clearInterval(this._screenAwarenessInterval);
+            this._screenAwarenessInterval = null;
+        }
+        if (this._screenAwarenessWasFocused) {
+            this._logScreenAwareness({ event: 'watch-stopped', program: this._screenAwarenessProgram, reason: 'disabled' });
+        }
+        this._screenAwarenessWasFocused = false;
+        this._screenAwarenessProgram = null;
+    }
+
+    /** Same on-disk log every other diagnostic trace this session writes to
+     *  (see WRITE_DIAGNOSTIC_LOG's comment in main.ts) -- [screen-awareness]
+     *  tag keeps it greppable alongside [voice-turn] entries without needing
+     *  a second log file or a renderer round-trip for a main-process-only event. */
+    private _logScreenAwareness(extra: Record<string, unknown>): void {
+        try {
+            const logPath = `${process.env.APPDATA || process.env.HOME}/.mossy-desktop/ai-diagnostics.log`;
+            fs.appendFileSync(logPath, `[screen-awareness] ${JSON.stringify({ timestamp: new Date().toISOString(), ...extra })}\n`);
+        } catch { /* diagnostics-only, non-critical */ }
     }
 
     /** Count files recursively under a directory (used to report extract/pack file counts). */
@@ -932,40 +1094,9 @@ export class BridgeServer {
                 // Screen Capture — returns base64 PNG of the primary display
                 else if (url === '/capture' && method === 'GET') {
                     try {
-                        // Resolve the primary display bounds
-                        const primaryDisplay = screen.getPrimaryDisplay();
-                        const { width, height } = primaryDisplay.size;
-
-                        // Use Electron desktopCapturer via a helper exec approach.
-                        // We call a small Node snippet via exec so it runs in the main
-                        // process context that has access to desktopCapturer sources.
-                        // For the native Bridge Server path we use nativeImage + clipboard
-                        // trick: take a screenshot via PowerShell and return the PNG bytes.
-                        const tmpPath = path.join(os.tmpdir(), `mossy_capture_${Date.now()}.png`);
-                        await new Promise<void>((resolve, reject) => {
-                            // PowerShell screenshot (works without any extra dependencies)
-                            const psScript = [
-                                `Add-Type -AssemblyName System.Windows.Forms`,
-                                `$bmp = New-Object System.Drawing.Bitmap(${width},${height})`,
-                                `$g = [System.Drawing.Graphics]::FromImage($bmp)`,
-                                `$g.CopyFromScreen(0,0,0,0,[System.Drawing.Size]::new(${width},${height}))`,
-                                `$bmp.Save('${tmpPath.replace(/\\/g, '\\\\')}')`,
-                                `$g.Dispose()`,
-                                `$bmp.Dispose()`,
-                            ].join('; ');
-                            exec(`powershell -NoProfile -Command "${psScript}"`, (err) => {
-                                if (err) reject(err); else resolve();
-                            });
-                        });
-                        const pngBytes = fs.readFileSync(tmpPath);
-                        fs.unlinkSync(tmpPath);
-                        const b64 = pngBytes.toString('base64');
+                        const { dataUrl, resolution } = await this._captureScreenBase64();
                         res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            status: 'success',
-                            image: `data:image/png;base64,${b64}`,
-                            resolution: `${width}x${height}`,
-                        }));
+                        res.end(JSON.stringify({ status: 'success', image: dataUrl, resolution }));
                     } catch (captureErr: any) {
                         console.error('[Bridge] /capture error:', captureErr);
                         res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1021,7 +1152,32 @@ export class BridgeServer {
                     let body = '';
                     req.on('data', chunk => { body += chunk.toString(); });
                     req.on('end', async () => {
-                        const { path: dirPath } = JSON.parse(body);
+                        const { path: requestedPath } = JSON.parse(body);
+                        let dirPath = requestedPath;
+
+                        // Real, live-observed failure mode: voice input guesses a folder
+                        // path from spoken audio, which can't convey exact spelling or
+                        // spacing -- "mossy models" (spoken) vs "D:\MossyModels" (the
+                        // real, one-word folder name). Before failing, check whether a
+                        // real entry in the parent directory matches once spacing/
+                        // punctuation/case is normalized, instead of reporting "not
+                        // found" for what's really just one wrong space. Bounded to a
+                        // single directory listing of the immediate parent -- no
+                        // recursive search, no drive-wide scan.
+                        if (dirPath && !fs.existsSync(dirPath)) {
+                            try {
+                                const parentDir = path.dirname(dirPath);
+                                const requestedName = path.basename(dirPath);
+                                if (fs.existsSync(parentDir)) {
+                                    const normalize = (s: string) => s.replace(/[\s_-]+/g, '').toLowerCase();
+                                    const target = normalize(requestedName);
+                                    const match = fs.readdirSync(parentDir, { withFileTypes: true })
+                                        .find(e => normalize(e.name) === target);
+                                    if (match) dirPath = path.join(parentDir, match.name);
+                                }
+                            } catch { /* fall through to the real not-found response below */ }
+                        }
+
                         if (!dirPath || !fs.existsSync(dirPath)) {
                             res.writeHead(404);
                             res.end(JSON.stringify({ error: "Path not found" }));
@@ -1036,7 +1192,11 @@ export class BridgeServer {
                         }));
 
                         res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: "success", files }));
+                        // resolvedPath: the real path actually listed, which can differ
+                        // from the caller's requestedPath when the spacing-normalized
+                        // fallback above found a match -- callers should report this one,
+                        // not silently echo back a guessed path that isn't the real name.
+                        res.end(JSON.stringify({ status: "success", files, resolvedPath: dirPath, requestedPath }));
                     });
                 }
 
