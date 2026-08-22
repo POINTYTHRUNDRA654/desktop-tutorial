@@ -34804,12 +34804,26 @@ app.whenReady().then(() => {
     _screenAwarenessProgram = String(program || 'blender').toLowerCase();
     bridge.startScreenAwareness(_screenAwarenessProgram);
     _screenAwarenessActive = true;
+    // Persist so the next launch's auto-start (below) restores this --
+    // matches startBrainBProcess()'s "don't make the user re-find the
+    // button every session" precedent.
+    try {
+      const s = loadSettings();
+      s.screenAwarenessAutoStart = true;
+      s.screenAwarenessProgram = _screenAwarenessProgram;
+      saveSettings(s);
+    } catch { /* non-critical -- worst case next launch doesn't auto-start */ }
     return { ok: true, program: _screenAwarenessProgram };
   });
 
   lateHandle('screen-awareness:stop', async () => {
     bridge.stopScreenAwareness();
     _screenAwarenessActive = false;
+    try {
+      const s = loadSettings();
+      s.screenAwarenessAutoStart = false;
+      saveSettings(s);
+    } catch { /* non-critical */ }
     return { ok: true };
   });
 
@@ -34898,6 +34912,21 @@ app.whenReady().then(() => {
       writeMainLog(`[Brain B] Auto-start failed: ${result.error}`);
     }
   });
+
+  // Same precedent as Brain B above: if the user left Screen Awareness on
+  // last session (screen-awareness:start persists this), restore it now
+  // instead of requiring another click in Settings every launch.
+  try {
+    const startupSettings = loadSettings();
+    if (startupSettings?.screenAwarenessAutoStart) {
+      _screenAwarenessProgram = String(startupSettings.screenAwarenessProgram || 'blender').toLowerCase();
+      bridge.startScreenAwareness(_screenAwarenessProgram);
+      _screenAwarenessActive = true;
+      writeMainLog(`[Screen Awareness] Auto-started on launch (watching for ${_screenAwarenessProgram})`);
+    }
+  } catch (err) {
+    writeMainLog(`[Screen Awareness] Auto-start failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   // ── Auto-setup: notify renderer on load if files are missing ──────────────
   if (mainWindow) {

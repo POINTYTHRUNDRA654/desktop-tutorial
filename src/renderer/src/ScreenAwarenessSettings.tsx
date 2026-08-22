@@ -93,6 +93,8 @@ export const ScreenAwarenessSettings: React.FC<{ embedded?: boolean }> = ({ embe
         <div className="text-[11px] text-slate-500">
           Every pass (matched, proposed, or nothing notable) logs to
           %APPDATA%/.mossy-desktop/ai-diagnostics.log under [screen-awareness].
+          This setting is remembered — leaving it on restarts watching automatically
+          the next time Mossy launches.
         </div>
       </div>
     </div>
