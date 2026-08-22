@@ -59,9 +59,10 @@ NEXUS_FILE = BRAIN_B_DIR / "nexus" / "brain_b_slim.py"
 SHARED_FUNCTIONS = [
     "_answer_level_prompt_fragment", "_build_bm25", "_build_knowledge_graph",
     "_citation_from_result", "_classify_mode_keywords", "_extract_json",
-    "_generate_json", "_is_scene_related_keywords", "_split_identifier",
+    "_generate_json", "_is_action_related_keywords", "_is_scene_related_keywords",
     "_is_app_help_keywords", "_is_game_data_related_keywords",
-    "_is_conversational_keywords", "_is_ck_diagnosis_keywords", "_tokenize",
+    "_is_conversational_keywords", "_is_ck_diagnosis_keywords", "_require_auth",
+    "_split_identifier", "_tokenize",
     "auto_save_to_chroma", "classify_and_diagnose",
     "classify_mode", "compute_answer_level", "contract", "contract_fields", "diagnose",
     "enrich", "episodes_list", "expand_to_parent", "extract_skill_ids", "feedback",
