@@ -178,6 +178,11 @@ const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // Lemonade Server (optional, if installed) — Brain B's real tool-calling
+  // local fallback, see src/electron/ml/lemonade.ts
+  ML_LEMONADE_STATUS: 'ml-lemonade-status',
+  ML_LEMONADE_CHAT: 'ml-lemonade-chat',
+
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',
 
@@ -2380,6 +2385,21 @@ const electronAPI = {
    */
   mlLlmGenerate: (req: { provider: 'ollama' | 'openai_compat' | 'cosmos'; model: string; prompt: string; baseUrl?: string; timeoutMs?: number; think?: boolean }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LLM_GENERATE, req);
+  },
+
+  /**
+   * Lemonade Server: status check (fast fail if not running/reachable).
+   */
+  mlLemonadeStatus: (): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_LEMONADE_STATUS);
+  },
+
+  /**
+   * Lemonade Server: real tool-calling-capable chat completion — Brain B's
+   * local fallback when the primary Groq path fails or is unreachable.
+   */
+  mlLemonadeChat: (req: { messages: Array<{ role: string; content: string }>; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; toolChoice?: 'auto' | 'required'; baseUrl?: string; model?: string; timeoutMs?: number }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_LEMONADE_CHAT, req);
   },
 
   /**

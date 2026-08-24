@@ -1909,10 +1909,94 @@ export const LocalAIEngine = {
     // that would get read aloud verbatim. Marks `usedLocalFallback` so the caller can
     // disclose the quality drop rather than let it pass as a routine answer.
     const attemptLocalFallback = async (): Promise<AIResponse | null> => {
+      const api = (window.electron?.api || window.electronAPI) as any;
+      // Inject an override directive so the local LLM never announces that Groq/cloud
+      // is unavailable — the system prompt mentions Groq as the primary provider, which
+      // causes unpatched models to open with "Since Groq is not available, I'll…".
+      const localOverride = '\n\n### DIRECTIVE: You are Mossy and you are fully operational. Respond naturally and helpfully. NEVER mention Groq, API keys, cloud services, or connection status in your response. ###\n\n';
+
+      // Same tool_choice logic as the Groq path (see the `toolChoice` const near
+      // api.aiChatGroq above / EnrichmentResult.actionRelated's docstring) — forced
+      // only on turns Brain B actually classified as wanting a real tool used right
+      // now, 'auto' otherwise, so an ordinary conversational fallback turn isn't
+      // dragged into calling something irrelevant just because tools happen to be
+      // in scope. Recomputed here (not read from the Groq path's own `const`,
+      // which is out of scope in this closure) since it's a pure function of
+      // localOptions.
+      const wantsTools = !!(localOptions?.tools && localOptions.tools.length > 0);
+      const toolChoice: 'auto' | 'required' | undefined = wantsTools
+        ? (localOptions?.actionRelated ? 'required' : 'auto')
+        : undefined;
+
+      // ── Lemonade first: real tool-calling-capable local fallback, live-verified
+      // 2026-08-24 against Qwen3-4B-Instruct-2507-GGUF (see src/electron/ml/lemonade.ts
+      // for the full comparison against Groq/qwen3.6-27b and why the OpenAI dialect
+      // was chosen). It's the ONLY local path below that can fulfill a tool-calling
+      // turn at all — the generic mlLlmGenerate path further down is plain
+      // single-prompt text with no tool support, so a tool-requesting turn has to
+      // succeed here or degrade honestly (see the `wantsTools` block below), never
+      // silently fall through to a provider that can't do what was asked.
+      // Status checked FIRST via a fast (1.5s) health probe, deliberately separate
+      // from the chat call itself, so a genuinely-not-running Lemonade fails fast
+      // instead of the user waiting out a full chat-completion timeout on top of
+      // the Groq failure that already happened this turn.
+      try {
+        const status = await api?.mlLemonadeStatus?.();
+        if (status?.ok) {
+          const messages: Array<{ role: string; content: string }> = [
+            { role: 'system', content: enhancedSystemInstruction + localOverride + injectedContext },
+            ...(conversationHistory ?? [])
+              .filter(m => m.content && m.content.trim())
+              .map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: query },
+          ];
+          const resp = await api.mlLemonadeChat({
+            messages, tools: localOptions?.tools, toolChoice, timeoutMs: localOptions?.timeoutMs,
+          });
+          if (resp?.ok && (resp.text || (resp.toolCalls && resp.toolCalls.length > 0))) {
+            console.log('[LocalAIEngine] ✅ Lemonade local fallback succeeded');
+            // Groq's own toolCalls carry `args` as parsed-JSON-with-string-fallback
+            // (see chat.ts's BackendToolCall) — mirrored here so a caller can treat
+            // a Lemonade tool call identically to a Groq one downstream.
+            const parsedToolCalls = Array.isArray(resp.toolCalls)
+              ? resp.toolCalls.map((tc: { id: string; name: string; args: string }) => {
+                  let args: Record<string, unknown> | string = tc.args;
+                  try { args = JSON.parse(tc.args); } catch { /* keep raw string */ }
+                  return { id: tc.id, name: tc.name, args };
+                })
+              : undefined;
+            return {
+              content: String(resp.text || ''), context: { citations }, usedLocalFallback: true,
+              toolCalls: parsedToolCalls, actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
+            };
+          }
+          console.warn('[LocalAIEngine] Lemonade reachable but chat failed:', resp?.error);
+        } else {
+          console.warn('[LocalAIEngine] Lemonade not reachable:', status?.error);
+        }
+      } catch (lemonadeErr) {
+        console.warn('[LocalAIEngine] Lemonade fallback attempt failed:', lemonadeErr);
+      }
+
+      // A tool-calling turn has nowhere else to go from here — the generic
+      // local-provider path below (mlLlmGenerate) is plain single-prompt text
+      // only, with no way to return a real tool call. Falling through to it
+      // would produce plausible-looking prose that never actually does the
+      // thing the user asked for — exactly the failure shape this project's
+      // honest-degradation standard exists to prevent (see CLAUDE.md's
+      // BackupManager pattern). Say plainly that the local fallback isn't
+      // available instead of pretending a text-only reply fulfilled the request.
+      if (wantsTools) {
+        return {
+          content: "Mossy's local fallback isn't available right now — Lemonade Server (the local model that can actually use tools) isn't running or isn't reachable. Start Lemonade Server to enable offline tool use, or try again once the cloud connection is back.",
+          context: { citations }, usedLocalFallback: true,
+          actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
+        };
+      }
+
       if (!localStatus.ok) return null;
       try {
         console.log('[LocalAIEngine] Using local LLM as fallback support');
-        const api = (window.electron?.api || window.electronAPI) as any;
 
         let historyText = '';
         if (conversationHistory && conversationHistory.length > 0) {
@@ -1921,10 +2005,6 @@ export const LocalAIEngine = {
             .map(m => m.role === 'user' ? `User: ${m.content}` : `Mossy: ${m.content}`)
             .join('\n') + '\n';
         }
-        // Inject an override directive so the local LLM never announces that Groq/cloud
-        // is unavailable — the system prompt mentions Groq as the primary provider, which
-        // causes unpatched models to open with "Since Groq is not available, I'll…".
-        const localOverride = '\n\n### DIRECTIVE: You are Mossy and you are fully operational. Respond naturally and helpfully. NEVER mention Groq, API keys, cloud services, or connection status in your response. ###\n\n';
         const prompt = buildPromptForLocalModel(
           enhancedSystemInstruction, localOptions?.sceneContext, localOverride + injectedContext, historyText, query,
         );

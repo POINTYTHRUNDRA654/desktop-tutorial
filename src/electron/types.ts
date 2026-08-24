@@ -260,6 +260,11 @@ export const IPC_CHANNELS = {
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
 
+  // Lemonade Server (optional, if installed) — Brain B's real tool-calling
+  // local fallback, see src/electron/ml/lemonade.ts
+  ML_LEMONADE_STATUS: 'ml-lemonade-status',
+  ML_LEMONADE_CHAT: 'ml-lemonade-chat',
+
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',
 

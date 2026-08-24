@@ -34,6 +34,7 @@ import { DesktopShortcutManager } from './desktopShortcut';
 import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from './ml/semanticIndex';
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
+import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
@@ -10051,6 +10052,48 @@ end.
         });
         if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
         return { ok: true, text: (resp as any).text };
+      } catch (err: any) {
+        return { ok: false, error: String(err?.message || err) };
+      }
+    }
+  );
+
+  // Lemonade Server: real tool-calling-capable local fallback (see
+  // src/electron/ml/lemonade.ts for why this is a dedicated integration
+  // rather than routed through the generic openai_compat slot above — a
+  // distinct default baseUrl/model, and a status check specific enough to
+  // give an honest "Lemonade isn't running" message instead of a generic
+  // "no local provider" one).
+  registerHandler(IPC_CHANNELS.ML_LEMONADE_STATUS, async () => {
+    const s = loadSettings();
+    const baseUrl = String((s as any)?.lemonadeBaseUrl || LEMONADE_DEFAULT_BASE_URL);
+    return await getLemonadeStatus(baseUrl);
+  });
+
+  registerHandler(
+    IPC_CHANNELS.ML_LEMONADE_CHAT,
+    async (
+      _event,
+      req: {
+        messages: Array<{ role: string; content: string }>;
+        tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>;
+        toolChoice?: 'auto' | 'required';
+        baseUrl?: string;
+        model?: string;
+        timeoutMs?: number;
+      }
+    ) => {
+      try {
+        if (!req || !Array.isArray(req.messages) || req.messages.length === 0) {
+          return { ok: false, error: 'Missing messages' };
+        }
+        const s = loadSettings();
+        const baseUrl = req.baseUrl || String((s as any)?.lemonadeBaseUrl || LEMONADE_DEFAULT_BASE_URL);
+        const model = req.model || String((s as any)?.lemonadeModel || LEMONADE_DEFAULT_MODEL);
+        return await lemonadeChat({
+          baseUrl, model, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice,
+          timeoutMs: req.timeoutMs,
+        });
       } catch (err: any) {
         return { ok: false, error: String(err?.message || err) };
       }

@@ -1243,6 +1243,8 @@ export const IPC_CHANNELS = {
   ML_CAPS_STATUS: 'ml-caps-status',
   ML_LLM_STATUS: 'ml-llm-status',
   ML_LLM_GENERATE: 'ml-llm-generate',
+  ML_LEMONADE_STATUS: 'ml-lemonade-status',
+  ML_LEMONADE_CHAT: 'ml-lemonade-chat',
 
   // Load Order Lab
   LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',
