@@ -54,4 +54,27 @@ describe('sanitizeForSpeech', () => {
     expect(sanitizeForSpeech('')).toBe('');
     expect(sanitizeForSpeech(undefined as unknown as string)).toBe('');
   });
+
+  it('strips the exact em-dash/ellipsis sentence used in the 2026-08-24 Piper evaluation', () => {
+    // Same sentence fed directly to Piper during that evaluation to confirm
+    // Piper's own phonemizer doesn't error on unsanitized Unicode punctuation
+    // — confirming the bug is a sanitization gap, not TTS-engine-specific.
+    // This is that same gap, now closed upstream of any engine.
+    const input = 'This is the fix — not a workaround — for the "real" bug… confirmed.';
+    const out = sanitizeForSpeech(input);
+    expect(out).not.toContain('—');
+    expect(out).not.toContain('…');
+    expect(out).toBe('This is the fix not a workaround for the "real" bug. confirmed.');
+  });
+
+  it('converts curly quotes to straight ASCII equivalents', () => {
+    const out = sanitizeForSpeech('She said ‘this is odd’ and then “very odd” indeed.');
+    expect(out).not.toMatch(/[‘’“”]/);
+    expect(out).toBe("She said 'this is odd' and then \"very odd\" indeed.");
+  });
+
+  it('converts en dashes to spaces like em dashes', () => {
+    const out = sanitizeForSpeech('Pages 10–20 cover it.');
+    expect(out).not.toContain('–');
+  });
 });

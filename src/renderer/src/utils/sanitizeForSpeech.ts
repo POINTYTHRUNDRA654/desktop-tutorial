@@ -41,6 +41,19 @@ export function sanitizeForSpeech(text: string): string {
   // Long separator runs (markdown horizontal rules, ASCII dividers).
   result = result.replace(/[-=_]{3,}/g, ' ');
 
+  // Unicode punctuation a TTS engine's phonemizer doesn't reliably normalize,
+  // unlike its plain-ASCII equivalent which every engine already handles —
+  // confirmed directly during the 2026-08-24 Piper evaluation: feeding an
+  // em-dash/curly-quote/ellipsis sentence straight to Piper synthesized
+  // without erroring, meaning whatever the punctuation-reading bug sounds
+  // like is just whichever engine's own guess at an unrecognized glyph, not
+  // something switching engines fixes. This project's own persona/comment
+  // writing style uses em-dashes constantly, so this isn't a rare edge case.
+  result = result.replace(/[—–]/g, ' '); // em dash, en dash -> space, same treatment as a standalone ASCII "-" below
+  result = result.replace(/[‘’]/g, "'"); // curly single quotes/apostrophe -> straight ASCII
+  result = result.replace(/[“”]/g, '"'); // curly double quotes -> straight ASCII
+  result = result.replace(/…/g, '...'); // single-character ellipsis glyph -> three ASCII periods, collapsed below
+
   // Standalone slashes, dashes, and pipes — the ones a TTS engine reads as
   // "slash" / "dash" / "pipe" because they aren't part of a word (a hyphen
   // inside "well-known" stays; one sitting alone between spaces, as in a
