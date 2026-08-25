@@ -108,7 +108,7 @@ def main() -> int:
             log(STAGE, "FAIL: stage 2 (enhance) failed even though ComfyUI was reachable.")
             return 1
     else:
-        log(STAGE, f"ComfyUI NOT reachable ({reason}) — stage 2 skipped. Using original images unmodified "
+        log(STAGE, f"{reason} — stage 2 skipped. Using original images unmodified "
                    f"as a stand-in so stages 3/4's real mechanics still get tested. This run does NOT verify "
                    f"the actual AI enhancement step.")
         for f in real_files:

@@ -40,11 +40,56 @@ BETWEEN_FILES_DELAY_S = 1.5
 
 
 def check_comfyui(base: str) -> tuple[bool, str]:
+    """Returns (ok, message) — message is "" on success, otherwise a complete,
+    already-actionable explanation. "Not reachable" and "reachable but no GPU"
+    need different advice (retry after starting it vs. reinstall torch), so
+    the caller doesn't add its own generic framing on top — see the two
+    distinct failure branches below.
+
+    The GPU check exists because of a real, previously-undetected bug: this
+    pipeline's ComfyUI install silently ran on CPU-only torch for a while
+    despite two real GPUs being present (RTX 2070 + RTX 2070 SUPER) — see
+    project memory (project_comfyui_glowing_sea_pipeline.md). ComfyUI itself
+    doesn't error on this; it just runs, correctly and honestly, on whatever
+    device torch found, which was CPU — a 4096x4096 SDXL img2img at 30 steps
+    took 21.7 minutes and looked like "the pipeline is just slow" before the
+    real cause (a CPU-only torch wheel, not a workflow or hardware problem)
+    was found by hand. /system_stats already reports exactly the field that
+    would have caught this — devices[].type ("cuda"/"cpu"/etc, confirmed
+    against comfyanonymous/ComfyUI's server.py) — this function was just
+    checking r.ok and discarding the response body.
+    """
     try:
         r = requests.get(f"{base}/system_stats", timeout=3)
-        return r.ok, "" if r.ok else f"ComfyUI returned {r.status_code}"
     except Exception as e:
-        return False, str(e)
+        return False, (
+            f"ComfyUI not reachable at {base} ({e}). Start it (AI Image Studio "
+            "or External Integrations Hub in Mossy) and retry."
+        )
+    if not r.ok:
+        return False, (
+            f"ComfyUI not reachable at {base} (returned HTTP {r.status_code}). "
+            "Start it (AI Image Studio or External Integrations Hub in Mossy) and retry."
+        )
+
+    try:
+        stats = r.json()
+    except Exception as e:
+        return False, f"ComfyUI's /system_stats response at {base} wasn't valid JSON ({e}) — can't verify it's running on a GPU."
+
+    devices = stats.get("devices") or []
+    device_types = {d.get("type") for d in devices}
+    if not devices or device_types <= {"cpu"}:
+        device_summary = ", ".join(f"{d.get('name', '?')} ({d.get('type', '?')})" for d in devices) or "no devices reported"
+        return False, (
+            f"ComfyUI at {base} is running but reports no GPU-class device — only CPU ({device_summary}). "
+            "This is the exact failure mode that made a 4096x4096 SDXL pass take 21+ minutes and look like "
+            "a broken pipeline before the real cause (a CPU-only torch install, not a workflow or hardware "
+            "problem) was found by hand. Reinstall torch with CUDA support in ComfyUI's embedded Python, "
+            "or fix your GPU driver, before running this pipeline."
+        )
+
+    return True, ""
 
 
 def pick_model(base: str, configured: str) -> tuple[str, str]:
@@ -172,7 +217,7 @@ def main() -> int:
 
     online, reason = check_comfyui(base)
     if not online:
-        log(STAGE, f"ComfyUI not reachable at {base} ({reason}). Start it (AI Image Studio or External Integrations Hub in Mossy) and retry. Nothing was processed.")
+        log(STAGE, f"{reason} Nothing was processed.")
         return 1
 
     model, err = pick_model(base, cfg.get("comfyui_model", ""))
