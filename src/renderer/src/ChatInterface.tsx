@@ -1442,11 +1442,25 @@ export const ChatInterface: React.FC = () => {
         const SILENCE_THRESHOLD = 0.05; // More lenient threshold - only stop on actual silence, not quiet parts of speech
         const SILENCE_DURATION_MS = 5000; // 5 seconds of silence before auto-stopping (allows longer natural pauses in speech)
         const MIN_RECORDING_MS = 1000; // Minimum 1 second recording to avoid cutting off start of speech
+        // Hard ceiling, NOT reactive to pauses -- unlike the silence detector below
+        // (disabled because it cut people off mid-sentence), this can't misfire on a
+        // normal thinking pause. Exists only to bound a forgotten/stuck recording (the
+        // exact live-reproduced 2026-09-01 bug the toast/label above targets) so it
+        // can't sit open indefinitely.
+        const MAX_RECORDING_MS = 120000;
         let recordingStartTime = Date.now();
 
         try {
             console.log('[VoiceInput] Requesting microphone access...');
             setIsListening(true);
+            // Reliability sweep (2026-09-01): live-reproduced bug -- recording has no
+            // auto-stop (disabled below, see SILENCE_DURATION_MS's comment: it used to cut
+            // users off mid-sentence), so a user who doesn't already know to click the mic
+            // icon again just sees "Listening..." forever with nothing telling them what to
+            // do next. Confirmed live: a recording can sit open indefinitely with zero
+            // indication anything is wrong -- it looks identical to a silently broken
+            // feature. This toast is the fix: make the required action impossible to miss.
+            toast('🎙️ Recording... click the mic icon again when you\'re done talking to send it.', { duration: 6000, id: 'voice-recording-hint' });
             mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             console.log('[VoiceInput] Microphone access granted, starting recording...');
             recordingStartTime = Date.now();
@@ -1575,6 +1589,15 @@ export const ChatInterface: React.FC = () => {
                 // DISABLED: Automatic silence detection was cutting off users mid-sentence
                 // Instead, users must click the button again to stop recording
                 // This gives them full control over when their message ends
+
+                if (Date.now() - recordingStartTime > MAX_RECORDING_MS) {
+                    console.log('[VoiceInput] Max recording duration reached, auto-stopping');
+                    toast('Recording auto-stopped after 2 minutes of no one clicking stop -- click the mic to start a new one.', { duration: 5000 });
+                    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                        mediaRecorderRef.current.stop();
+                    }
+                    return;
+                }
 
                 silenceTimer = setTimeout(checkSilence, 50);
             };
@@ -3054,7 +3077,7 @@ ${rawOutcome}
 
                                 {(isListening || isPlayingAudio) && (
                                     <div className="flex items-center gap-3 mb-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700/50 w-fit">
-                                        {isListening && <span className="flex items-center gap-2 text-xs text-red-400 animate-pulse font-medium"><div className="w-2 h-2 bg-red-500 rounded-full"></div> Listening...</span>}
+                                        {isListening && <span className="flex items-center gap-2 text-xs text-red-400 animate-pulse font-medium"><div className="w-2 h-2 bg-red-500 rounded-full"></div> Listening... (click the mic again to stop &amp; send)</span>}
                                         {isPlayingAudio && <div className="flex items-center gap-2"><span className="flex items-center gap-2 text-xs text-emerald-400 font-medium"><Volume2 className="w-3 h-3" /> Speaking...</span><button onClick={stopAudio} className="p-1 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400"><StopCircle className="w-3 h-3" /></button></div>}
                                     </div>
                                 )}
