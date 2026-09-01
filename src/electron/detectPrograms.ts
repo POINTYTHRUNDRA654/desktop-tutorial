@@ -459,7 +459,23 @@ async function findExecutablesInDirectory(
           entryLower === 'cache' || 
           entryLower === 'temp' ||
           entryLower === 'windows' ||
-          entryLower === 'system32'
+          entryLower === 'system32' ||
+          // Reliability sweep (2026-09-01): these are Python virtual-environment /
+          // package-manager internals, not standalone programs. A single bundled
+          // Python venv inside e.g. a Blender addon can contain dozens of console-
+          // script .exe stubs (pip, python, torchrun, accelerate-config, isympy,
+          // numpy-config, etc.) that all live directly under a folder named
+          // "Scripts" (Windows) -- and because the DEEP SCAN below has no other
+          // filtering, every one of those got returned as a "detected program" and
+          // then displayName-inherited relevance from an ancestor folder like
+          // "Blender Foundation", flooding the onboarding tool-approval list and
+          // Detected Tools context with junk unrelated to actual modding tools.
+          entryLower === 'scripts' ||
+          entryLower === 'site-packages' ||
+          entryLower === 'dist-packages' ||
+          entryLower === '__pycache__' ||
+          entryLower === '.venv' ||
+          entryLower === 'venv'
       )) {
         continue;
       }

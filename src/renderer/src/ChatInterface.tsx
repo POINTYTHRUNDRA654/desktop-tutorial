@@ -2151,7 +2151,22 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
 
             if (existingAppsRaw) {
                 try {
-                    const existing = JSON.parse(existingAppsRaw);
+                    const existingRaw = JSON.parse(existingAppsRaw);
+
+                    // Reliability sweep (2026-09-01): one-time cleanup of junk that
+                    // accumulated in mossy_apps before the detectPrograms.ts fix that
+                    // stops scanning into Python venv/package-manager internals
+                    // (Scripts, site-packages, __pycache__, venv folders). Those used
+                    // to surface every console-script .exe bundled inside e.g. a
+                    // Blender addon's own Python environment (pip, torchrun,
+                    // accelerate-config, isympy, numpy-config, etc.) as an "approved
+                    // tool". The scan itself won't produce these going forward, but
+                    // this merge step used to re-preserve them forever from whatever
+                    // was already saved -- so also drop any already-saved entry whose
+                    // path still matches that pattern, instead of only filtering new
+                    // finds.
+                    const JUNK_PATH_MARKERS = /[\\/](scripts|site-packages|dist-packages|__pycache__|\.venv|venv)[\\/]/i;
+                    const existing = existingRaw.filter((ea: any) => !(ea?.path && JUNK_PATH_MARKERS.test(ea.path)));
 
                     // Preserve explicit user approvals (checked true/false)
                     finalApps = mergeExistingCheckedState(finalApps as any, existing as any) as any;
