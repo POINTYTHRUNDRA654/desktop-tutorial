@@ -605,9 +605,17 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
       try {
           const apps = window.electronAPI?.detectPrograms ? await window.electronAPI.detectPrograms() : [];
+          // Reliability sweep (2026-09-01): 'edit', 'unwrap', and 'fbx' were removed
+          // below -- they're generic enough to match unrelated installed software (a
+          // bare 'edit' matches almost any "___ Editor" program; 'unwrap' and 'fbx'
+          // matched Unity Editor's bundled UnwrapCL utility and Autodesk's generic FBX
+          // converter on a live system, not Fallout 4 modding tools). This is the same
+          // class of bug already fixed in ChatInterface.tsx's moddingKeywords and in
+          // detectPrograms.ts's directory scan -- confirmed live via the Approved Tools
+          // panel, which still showed this scan's false positives after those two fixes.
           const moddingKeywords = [
-            'blender', 'creation', 'xedit', 'fo4edit', 'fo4xedit', 'edit', 'vortex', 'organizer', 'loot', 'nifskope',
-            'bodyslide', 'f4se', 'upscayl', 'shadermap', 'nvidia', 'fbx', 'photodemon', 'unwrap',
+            'blender', 'creation', 'xedit', 'fo4edit', 'fo4xedit', 'vortex', 'organizer', 'loot', 'nifskope',
+            'bodyslide', 'f4se', 'upscayl', 'shadermap', 'nvidia', 'photodemon',
             'nifutils', 'omniverse', 'spin3d'
           ];
           const moddingTools = apps.filter((a: any) => moddingKeywords.some(kw => (a.displayName || a.name || '').toLowerCase().includes(kw)));
@@ -652,7 +660,20 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                       checked: true,
                       category: 'Tool'
                   }));
-                  const existingApps: any[] = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+                  // Reliability sweep (2026-09-01): drop stale false-positives this same
+                  // scan previously added (id starts with "scan-") that no longer match
+                  // the now-tightened moddingKeywords above -- e.g. Unity's bundled
+                  // UnwrapCL or Autodesk's generic FBX converter, both approved under the
+                  // old 'edit'/'unwrap'/'fbx' catch-alls. Anything NOT added by this scan
+                  // (manual settings entries, onboarding picks, other scan paths) is left
+                  // untouched here regardless of whether it matches this list.
+                  const rawExistingApps: any[] = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+                  const existingApps = rawExistingApps.filter((ea: any) => {
+                      const isFromThisScan = typeof ea?.id === 'string' && ea.id.startsWith('scan-');
+                      if (!isFromThisScan) return true;
+                      const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+                      return moddingKeywords.some(kw => nameLower.includes(kw));
+                  });
                   localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedTools, existingApps)));
 
                   if (realSystem) {
