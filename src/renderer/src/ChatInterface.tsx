@@ -1943,7 +1943,16 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             // one-time diagnostic pinpoints exactly which of the many pieces below is
             // still carrying the other ~180K, instead of guessing at each one blind.
             // Remove once the real remaining contributor is found and fixed.
-            const detectedToolsStr = (detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None";
+            // Hard safety net regardless of the keyword tightening above -- this was measured
+            // live at ~144K chars (the dominant single contributor found in the size-bloat
+            // investigation), so cap it the same way every other uncapped block in this
+            // function has been capped.
+            const DETECTED_TOOLS_MAX = 40;
+            const toolsWithPath = (detectedApps || []).filter(a => a.path);
+            const cappedTools = toolsWithPath.slice(0, DETECTED_TOOLS_MAX);
+            const omittedTools = toolsWithPath.length - cappedTools.length;
+            const detectedToolsStr = (cappedTools.map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None") +
+                (omittedTools > 0 ? ` (+${omittedTools} more detected tools not shown)` : '');
             const panelActivityCtx = getPanelActivityContext();
             const knowledgeBaseCtx = formatRelevantFO4KnowledgeBaseForAI(query || '');
 
@@ -2054,13 +2063,24 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
 
             // 1. Get real installed programs from Electron
             // Map found programs to our app categories
+            // Reliability sweep (2026-09-01): 'game', 'mod', 'script', and 'material' were
+            // removed below -- they're generic enough to match huge swaths of an average
+            // gamer's installed-software list (Steam library entries, unrelated dev tools,
+            // driver utilities, etc.), not just modding tools. On a PC with a large Steam
+            // library this was silently ballooning `detectedApps` into hundreds/thousands
+            // of irrelevant entries, which generateSystemContext() then dumped in full into
+            // every single chat turn's system prompt via the uncapped "Detected Tools" line
+            // -- confirmed via live diagnostic to be ~144K chars, the single largest
+            // contributor to the system prompt bloat investigation. The specific tool names
+            // already listed here (modorganizer, vortex, blender, creationkit, fo4edit, etc.)
+            // still catch the real modding tools without the generic catch-alls.
             const moddingKeywords = [
                 'blender', 'creationkit', 'fo4edit', 'xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit',
                 'modorganizer', 'vortex', 'nifskope', 'bodyslide', 'f4se', 'loot', 'wryebash', 'outfitstudio',
                 'archive2', 'gimp', 'photoshop', 'zedit', 'bae', 'pjm', 'bethini',
                 'reshade', 'enb', 'cathedral', 'modsel', 'texconv', 'unpacker',
-                'material', 'bgsm', 'facegen', 'lipgen', 'papyrus', 'caprica', 'script',
-                'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield', 'game', 'mod'
+                'bgsm', 'facegen', 'lipgen', 'papyrus', 'caprica',
+                'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield'
             ];
 
             const bridgeApi = (window as any).electron?.api || (window as any).electronAPI;
