@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
-import { getFullSystemInstruction } from './MossyBrain';
+import { getFullSystemInstruction, toGroqTools } from './MossyBrain';
 import { formatFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
@@ -28,6 +28,23 @@ import { getPanelActivityContext } from './panelActivity';
 
 
 type OnboardingState = 'init' | 'scanning' | 'integrating' | 'ready' | 'project_setup';
+
+// Real native tool-calling for TEXT chat -- mirrors LiveContext.tsx's VOICE_TOOLS,
+// scoped narrowly to just scan_fallout4_live for now. Root cause this closes:
+// MossyBrain.ts's system prompt unconditionally tells the model on every turn
+// that it has scan_fallout4_live and must use it immediately for lookups, but
+// until this fix neither text chat NOR voice chat (see VOICE_TOOL_SCOPE's own
+// comment listing it under 'declared but never handled') ever actually attached
+// it as a real API tool -- so the model was truthfully following its own
+// instructions when it tried to call it, and Groq rejected the call outright
+// (confirmed live 2026-09-01, the Archive2.exe crash investigation). Kept
+// deliberately narrow (one tool, not all 27+ voice tools) since those haven't
+// been individually vetted for safety as auto-executed, unconfirmed actions in
+// text chat the way voice's existing scope has been -- scan_fallout4_live is a
+// pure read-only web search, the lowest-risk tool to wire up first.
+const TEXT_TOOL_SCOPE = ['scan_fallout4_live'];
+const TEXT_TOOLS = toGroqTools(TEXT_TOOL_SCOPE);
+
 
 interface DetectedApp {
     id: string;
@@ -2509,7 +2526,8 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                 ? `${textToSend}\n\n${await readAttachedFileContent(selectedFile)}`.trim()
                 : textToSend;
             const localResult = await LocalAIEngine.generateResponse(
-                queryForAi, dynamicInstruction, priorHistory, false, abortController.signal, { preferCloud: true },
+                queryForAi, dynamicInstruction, priorHistory, false, abortController.signal,
+                { preferCloud: true, tools: TEXT_TOOLS },
                 (fields) => {
                     // Fires later, off the critical path — see LocalAIEngine.ts's
                     // generateResponse() docstring. Guaranteed to fire exactly once
@@ -2529,7 +2547,58 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                 return;
             }
 
-            const aiResponseText = localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
+            // Real native tool call came back (see TEXT_TOOLS above) -- run it and
+            // fold the real result into a proper answer, rather than showing the
+            // user an empty/error response while the model waits on a tool it
+            // can't call again. Read-only web search only (TEXT_TOOL_SCOPE), so
+            // this executes automatically with no manual confirmation step, same
+            // trust level voice chat already gives it.
+            let toolAugmentedContent: string | null = null;
+            let toolAugmentedReasoning: string | undefined;
+            const rawToolCall = localResult.toolCalls?.[0];
+            if (rawToolCall && typeof rawToolCall.args !== 'string') {
+                try {
+                    trackEvent('tool_execution_started', { toolName: rawToolCall.name, source: 'chat_native_tool_call' });
+                    const toolResult: any = await executeMossyTool(rawToolCall.name, rawToolCall.args, {
+                        isBlenderLinked,
+                        setProfile: () => { },
+                        setProjectData: (data) => setProjectData(data),
+                        setProjectContext: (ctx) => setProjectContext(ctx),
+                        setShowProjectPanel: () => { },
+                    });
+                    const rawOutcome: string =
+                        typeof toolResult === 'string' ? toolResult :
+                        (toolResult?.result || toolResult?.error || '');
+                    if (rawOutcome.trim()) {
+                        // Second pass: turn the raw scan_fallout4_live dump (wiki/DDG/
+                        // Wikipedia excerpts) into an actual answer to what was asked,
+                        // same principle as LiveContext.tsx's NEEDS_INTERPRETATION_TOOLS
+                        // pass -- a raw multi-source text blob standing in for an answer
+                        // is not itself a good answer.
+                        const synthesisInstruction =
+                            'You are Mossy, answering a Fallout 4 modding question using real data a live web search tool just returned -- not your general training knowledge. ' +
+                            `The user asked: "${queryForAi}"
+
+Real search results:
+${rawOutcome}
+
+` +
+                            'Write a clear, complete answer using this real data, citing what it actually says. ' +
+                            'If the data does not actually answer what they asked, say so honestly rather than filling the gap from general knowledge.';
+                        const synthesis = await LocalAIEngine.generateResponse(queryForAi, synthesisInstruction, [], false, undefined, { preferCloud: true });
+                        toolAugmentedContent = synthesis?.content?.trim() || rawOutcome;
+                        toolAugmentedReasoning = synthesis?.reasoning;
+                    } else if (toolResult?.success === false) {
+                        toolAugmentedContent = `I tried searching for that, but it didn't work: ${toolResult?.result || toolResult?.error || 'unknown error'}`;
+                    }
+                    trackEvent('tool_execution_completed', { toolName: rawToolCall.name, success: !!rawOutcome, source: 'chat_native_tool_call' });
+                } catch (toolErr) {
+                    console.error('[ChatInterface] Native tool call failed:', rawToolCall.name, toolErr);
+                    toolAugmentedContent = `I tried to look that up, but hit an error: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`;
+                }
+            }
+
+            const aiResponseText = toolAugmentedContent || localResult.content || "Mossy is in Passive Mode; no cloud model configured.";
             const rawCitations = Array.isArray(localResult.context?.citations) ? localResult.context.citations : [];
             // Brain B's citations are {id, title, source_url, license} (see gemma_service_enhanced.py's
             // _citation_from_result), not the KnowledgeCitation shape the citation UI expects — map them.
@@ -2548,7 +2617,7 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                     }
                     : c
             );
-            const reasoningTrace = localResult.reasoning || undefined;
+            const reasoningTrace = toolAugmentedReasoning || localResult.reasoning || undefined;
 
             setMessages(prev => prev.map(m => m.id === streamId ? {
                 ...m, content: aiResponseText, citations, reasoning: reasoningTrace,

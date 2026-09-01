@@ -61,14 +61,20 @@ function guessVoiceFailureReason(toolName: string, errMsg: string): string {
 // `tool_calls` read back as real structured data. See
 // groq_native_tool_calling_migration memory for the full before/after.
 //
-// Scope: the 28 tools cross-checked as BOTH declared in MossyBrain.ts's
+// Scope: the 29 tools cross-checked as BOTH declared in MossyBrain.ts's
 // toolDeclarations AND actually handled in MossyTools.ts's executeMossyTool
 // -- i.e. exactly what the reference text implementation can genuinely do
 // today (27 original + read_file, added same session it was found dead on
-// arrival). Two other groups exist and are deliberately NOT included here:
+// arrival, + scan_fallout4_live, added 2026-09-01 after live-confirming the
+// system prompt unconditionally tells the model it has this tool on every
+// turn while neither interface ever actually attached it -- Groq rejects the
+// resulting call outright since the model is truthfully following its own
+// instructions for a tool that was never really offered; this list existing
+// tool WAS already handled in MossyTools.ts, just never declared here).
+// Two other groups exist and are deliberately NOT included here:
 //   - Declared but still never handled (silently no-op in text chat too):
 //     hive_create_project, analyze_error_log, mossy_update_working_memory,
-//     search_fallout4_wiki, install_script, scan_fallout4_live.
+//     search_fallout4_wiki, install_script.
 //   - Handled but never declared (real working code, unreachable by any AI
 //     decision in either interface because the model is never told it
 //     exists): send_blender_shortcut, check_previs_status,
@@ -83,7 +89,7 @@ const VOICE_TOOL_SCOPE = [
   'get_error_report', 'export_error_logs', 'generate_papyrus_script',
   'generate_xedit_script', 'browse_web', 'create_mod_project', 'add_mod_step',
   'update_mod_step', 'get_mod_status', 'list_mod_projects', 'set_current_mod',
-  'cortex_neural_pulse', 'scan_plugin', 'apply_esp_fix',
+  'cortex_neural_pulse', 'scan_plugin', 'apply_esp_fix', 'scan_fallout4_live',
 ];
 
 // The real GroqTool[] payload sent as `tools` on every voice turn -- computed
@@ -100,6 +106,7 @@ const NEEDS_INTERPRETATION_TOOLS = new Set([
   'scan_plugin',
   'get_scan_results',
   'get_error_report',
+  'scan_fallout4_live',
 ]);
 
 export interface LiveContextType {
