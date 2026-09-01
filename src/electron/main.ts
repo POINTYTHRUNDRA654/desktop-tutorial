@@ -10830,10 +10830,30 @@ end.
       // first (oldest turns first — least likely to matter), then as a last
       // resort shorten the neuron block itself, so the user always gets an
       // answer instead of a hard failure.
+      //
+      // Fixed 2026-09-01 (live-observed mid-conversation memory loss): this
+      // loop used to run until EITHER totalLen() fit the budget OR history
+      // was fully exhausted -- with no floor. Live diagnostics confirmed the
+      // renderer-built systemPrompt (messages[0]) routinely runs 600K-746K
+      // characters on its own, already far past SAFE_TOTAL_CHAR_BUDGET before
+      // a single history message is even counted. Whenever that happens this
+      // loop could never satisfy its own exit condition by removing history
+      // alone, so it silently deleted the ENTIRE conversationHistory array --
+      // including the exchange from one turn ago -- every time, then fell
+      // through to the largest-message pass below to shrink the system
+      // prompt. The user-visible symptom was Mossy re-asking a question she
+      // had just been answered, because the request that actually reached
+      // Groq carried zero prior turns. MIN_HISTORY_MESSAGES_TO_KEEP protects
+      // the most recent exchanges from ever being sacrificed to this budget
+      // cut -- the oversized system prompt (see the "Corrected 2026-08-26"
+      // pass immediately below) is what should shrink instead, since losing
+      // some knowledge-base padding is far less disruptive than losing what
+      // the user just said.
       {
         const SAFE_TOTAL_CHAR_BUDGET = 300_000; // conservative vs. both the 131K and 262K token models
+        const MIN_HISTORY_MESSAGES_TO_KEEP = 6; // last ~3 user/assistant exchanges, never trimmed for budget
         const totalLen = () => messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
-        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && history.length > 0) {
+        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && history.length > MIN_HISTORY_MESSAGES_TO_KEEP) {
           const idx = messages.findIndex(m => history.includes(m as any));
           if (idx === -1) break;
           messages.splice(idx, 1);
