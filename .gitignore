@@ -121,6 +121,7 @@ brain-b/nexus/*.manifest.json
 .idea
 .vs/
 .DS_Store
+LICENSES.chromium.html
 *.suo
 *.ntvs*
 *.njsproj
