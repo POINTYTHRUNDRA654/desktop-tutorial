@@ -1673,16 +1673,24 @@ export const ChatInterface: React.FC = () => {
             }
 
             // Load vault assets for context
+            // Reliability sweep (2026-09-01): was fully uncapped -- every vault asset,
+            // every turn, same uncapped-list bug as Cortex Memory (00848ae0) and
+            // Knowledge Vault had before its own maxItems/maxChars cap. Capped the
+            // same way.
             let vaultContext = "";
             try {
                 const vaultAssetsStr = typeof window !== 'undefined' ? window.localStorage.getItem('vault-assets-v1') : null;
                 if (vaultAssetsStr) {
                     const vaultAssets = JSON.parse(vaultAssetsStr);
                     if (Array.isArray(vaultAssets) && vaultAssets.length > 0) {
-                        const assetSummary = vaultAssets
+                        const VAULT_ASSETS_MAX = 30;
+                        const cappedAssets = vaultAssets.slice(0, VAULT_ASSETS_MAX);
+                        const assetSummary = cappedAssets
                             .map((a: any) => `- ${a.name} (${a.type}${a.type === 'script' && (a.name.toLowerCase().endsWith('.bat') || a.name.toLowerCase().endsWith('.cmd')) ? ' - batch script' : ''})`)
                             .join('\n');
-                        vaultContext = `\n**VAULT ASSETS (Ready for Ingestion):**\n${assetSummary}`;
+                        const omitted = vaultAssets.length - cappedAssets.length;
+                        const omittedNote = omitted > 0 ? `\n(+${omitted} more vault asset${omitted === 1 ? '' : 's'} not shown)` : '';
+                        vaultContext = `\n**VAULT ASSETS (Ready for Ingestion):**\n${assetSummary}${omittedNote}`;
                     }
                 }
             } catch (e) {
@@ -1690,16 +1698,29 @@ export const ChatInterface: React.FC = () => {
             }
 
             let scanContext = "";
+            // Reliability sweep (2026-09-01): was fully uncapped -- EVERY scanned file
+            // and EVERY issue's full technicalDetails, every turn, regardless of how
+            // large a scan was or how relevant it still is. Capped to the most recent
+            // 20 files and each issue's details to 300 chars, same defensive pattern
+            // as the other uncapped blocks found this session (Cortex Memory, vault
+            // assets, Knowledge Vault).
             if (scannedFiles && scannedFiles.length > 0) {
+                const SCAN_FILES_MAX = 20;
+                const DETAIL_MAX_CHARS = 300;
                 scanContext += "\n**THE AUDITOR - RECENT SCAN RESULTS:**\n";
-                scannedFiles.forEach((f: any) => {
+                const cappedFiles = scannedFiles.slice(0, SCAN_FILES_MAX);
+                cappedFiles.forEach((f: any) => {
                     scanContext += `- File: ${f.name} (Status: ${f.status.toUpperCase()})\n`;
                     if (f.issues && f.issues.length > 0) {
                         f.issues.forEach((issue: any) => {
-                            scanContext += `  * ERROR: ${issue.message}\n  * DETAILS: ${issue.technicalDetails}\n`;
+                            const details = String(issue.technicalDetails || '');
+                            const truncated = details.length > DETAIL_MAX_CHARS ? details.slice(0, DETAIL_MAX_CHARS) + '...' : details;
+                            scanContext += `  * ERROR: ${issue.message}\n  * DETAILS: ${truncated}\n`;
                         });
                     }
                 });
+                const omittedFiles = scannedFiles.length - cappedFiles.length;
+                if (omittedFiles > 0) scanContext += `(+${omittedFiles} more scanned file${omittedFiles === 1 ? '' : 's'} not shown)\n`;
             }
 
             let scanHistoryCtx = "";
@@ -1914,6 +1935,24 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                     "• Settings (/settings): Configure everything — FO4 game folder, tool paths (xEdit, CK, Blender, etc.), AI engine settings (Groq model, max tokens, voice), AnythingLLM RAG connection, appearance, and all other Mossy preferences.",
                     "• Vault-Tec Creative Director (/creative-director): The AI design team. Enable the autonomous AI team to generate complete Fallout 4 mod concepts with full BUILD_GUIDE documentation — quest design, NPC concepts, dialogue, world-building, art direction, and Papyrus script stubs. Review finished projects in Lab Handoff, score them on buildability, enhance guides with your real asset paths, and generate xEdit setup scripts.",
                 ].join('\n');
+
+            // Reliability sweep (2026-09-01): the KB-filtering fix (2f090399) and the
+            // Cortex Memory cap (00848ae0) only shaved systemInstruction from ~614-617K
+            // down to ~385-390K -- a real cut, but far short of the ~207K expected
+            // (147K static MossyBrain.ts baseline + ~60K capped knowledge base). This
+            // one-time diagnostic pinpoints exactly which of the many pieces below is
+            // still carrying the other ~180K, instead of guessing at each one blind.
+            // Remove once the real remaining contributor is found and fixed.
+            try {
+                const apiDiag = (window as any).electron?.api || (window as any).electronAPI;
+                void apiDiag?.writeDiagnosticLog?.(
+                    `[generateSystemContext-breakdown] settingsCtx=${settingsCtx.length} gameFolderInfo=${gameFolderInfo.length} ` +
+                    `appFeatures=${appFeatures.length} toolPermissionsCtx=${toolPermissionsCtx.length} workingMemory=${workingMemory.length} ` +
+                    `modContext=${modContext.length} knowledgeVaultContext=${knowledgeVaultContext.length} vaultContext=${vaultContext.length} ` +
+                    `hardwareCtx=${hardwareCtx.length} scanContext=${scanContext.length} scanHistoryCtx=${scanHistoryCtx.length} ` +
+                    `liveToolCtx=${liveToolCtx.length} learnedCtx=${learnedCtx.length} communityLearningCtx=${communityLearningCtx.length}`
+                );
+            } catch { /* diagnostics-only, non-critical */ }
 
             return `
       **DYNAMIC SYSTEM CONTEXT:**
