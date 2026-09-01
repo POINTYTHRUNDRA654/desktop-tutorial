@@ -140,12 +140,48 @@ const CATEGORY_COLOR: Record<AutoConnectTool['category'], string> = {
 const matchesNeedle = (value: string, needles: string[]) =>
   needles.some((needle) => value.includes(needle));
 
+// Reliability sweep (2026-09-01): this is the FOURTH independent
+// detect+filter+approve implementation found this session with the same bug
+// class -- this one is the most direct version of it, since it deliberately
+// included prog.path in the match text. That let a broad-but-specific-looking
+// needle like 'blender' match ANY executable anywhere under a path containing
+// "Blender" -- confirmed live: Blender's own bundled Python distribution
+// (python.exe, pythonw.exe, cli.exe, gui.exe, pip.exe, isympy.exe, and other
+// console-script stubs, none of which are Blender itself) all got approved
+// as "Blender" integrations this way, surviving every other fix made earlier
+// today because none of those touch this file. Matching on the detected
+// program's own name/displayName only (not its ancestor path) is how every
+// other keyword list in this codebase already works; this one should too.
 const toSearchText = (prog: DetectedProgram) =>
-  `${prog.displayName || ''} ${prog.name || ''} ${prog.path || ''}`.toLowerCase();
+  `${prog.displayName || ''} ${prog.name || ''}`.toLowerCase();
+
+// Flattened union of every AUTO_CONNECT_TOOLS match needle, used to purge
+// stale 'auto-' entries this function itself created in an earlier scan but
+// which no longer match any known tool (e.g. after the path-matching bug
+// above got fixed, entries like auto-blender-3-6-cli should be dropped on
+// the next scan rather than living forever, since this function was
+// previously purely additive with no reconciliation logic at all).
+const ALL_AUTO_CONNECT_NEEDLES = AUTO_CONNECT_TOOLS.reduce<string[]>(
+  (acc, tool) => acc.concat(tool.match), []
+);
 
 const promoteDetectedPrograms = (installedPrograms: DetectedProgram[]) => {
-  const existing = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
-  const merged = Array.isArray(existing) ? [...existing] : [];
+  const existingRaw = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+  const existingArr = Array.isArray(existingRaw) ? existingRaw : [];
+
+  // Purge stale auto-* entries that no longer match any AUTO_CONNECT_TOOLS
+  // needle by name/displayName (not path). Preserve anything the user chose
+  // explicitly (manual-/onboard- ids) or explicitly denied (checked===false),
+  // and preserve any non-auto- entry untouched -- this function only owns
+  // entries it created itself.
+  const existing = existingArr.filter((ea: any) => {
+    const idStr = typeof ea?.id === 'string' ? ea.id : '';
+    if (!idStr.startsWith('auto-')) return true;
+    if (ea?.checked === false) return true;
+    const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+    return ALL_AUTO_CONNECT_NEEDLES.some((needle) => nameLower.includes(needle));
+  });
+  const merged = [...existing];
 
   installedPrograms.forEach((prog) => {
     const search = toSearchText(prog);
