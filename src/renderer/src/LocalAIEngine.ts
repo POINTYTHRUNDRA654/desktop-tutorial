@@ -17,6 +17,7 @@ import { getApprovedToolsFromStorage } from './toolPermissions';
 import { bridgeFetch } from './lib/bridgeClient';
 import { getPlatformMapBlockForPrompt } from './platformCatalog';
 import { getFullSystemInstruction, getCoreIdentityBlock } from './MossyBrain';
+import { guardKnownFacts } from './FactGuard';
 
 export interface AIResponse {
   content: string;
@@ -961,8 +962,9 @@ export const LocalAIEngine = {
         providerUsed: 'none (abstained before generation)', enrichMs, generateMs: null,
         totalMs: Date.now() - turnStart, contractSuccess: null, contractLatencyMs: null,
       });
+      const abstainedGuard = guardKnownFacts(enrichment.answer || 'No documentation found for this question.');
       return {
-        content: enrichment.answer || 'No documentation found for this question.',
+        content: abstainedGuard.content,
         context: { citations: [] },
         mode: enrichment.mode,
         diagnosis: null,
@@ -1083,6 +1085,18 @@ export const LocalAIEngine = {
       totalMs: Date.now() - turnStart, contractSuccess: null, contractLatencyMs: null,
     };
     recordTurnTrace(traceEntry);
+
+    // Deterministic last-resort correction for a short list of specific
+    // facts Mossy has been caught getting wrong live even with correct
+    // grounding elsewhere in the prompt (see FactGuard.ts for why this
+    // exists and why it's plain pattern matching, not another LLM call).
+    // Runs on every response — text and voice both funnel through here.
+    if (response.content) {
+      const factGuardResult = guardKnownFacts(response.content);
+      if (factGuardResult.corrected) {
+        response.content = factGuardResult.content;
+      }
+    }
 
     // Fire-and-forget — deliberately not awaited. See method docstring.
     if (response.content) {
