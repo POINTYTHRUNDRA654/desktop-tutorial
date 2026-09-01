@@ -59,6 +59,36 @@ type SystemMonitorProps = {
     embedded?: boolean;
 };
 
+// Reliability sweep (2026-09-01): this session found THREE independent
+// "detect programs -> filter to modding-relevant -> approve" implementations
+// across the app (ChatInterface.tsx's performSystemScan, this file's
+// startScan, and this file's startInstaller), each with its own hand-rolled
+// keyword list, each of which drifted a different overly-generic word into
+// the list at some point ('game'/'mod'/'script'/'material' in one,
+// 'edit'/'unwrap'/'fbx' in another) and let unrelated software into the
+// Approved Tools panel as a result. The three lists differ in scope by
+// design (this file's are narrower categorization lists; ChatInterface's is
+// broader, e.g. it also matches creative/rendering tools like GIMP or
+// ENB), so purging a "no longer matches" entry using any ONE list's narrow
+// vocabulary would wrongly drop something a wider list legitimately added.
+// This union is ONLY for the purge check -- "is this entry still relevant
+// to ANY currently-tightened list" -- not for what a given scan freshly
+// detects, which still uses that function's own (correctly narrower) list.
+const PURGE_RELEVANCE_KEYWORDS = [
+    // Shared / editing suites
+    'xedit', 'fo4edit', 'fo4xedit', 'sseedit', 'tes5edit', 'fnvedit', 'tes4edit', 'zedit',
+    'creation kit', 'creationkit', 'creation',
+    'mod organizer', 'modorganizer', 'organizer', 'vortex', 'loot', 'wrye bash', 'wryebash',
+    'nifskope', 'nifutils', 'bodyslide', 'outfit studio', 'outfitstudio', 'archive2', 'bae',
+    'f4se', 'script extender', 'blender', 'gimp', 'photoshop', 'pjm', 'bethini',
+    'reshade', 'enb', 'cathedral', 'modsel', 'texconv', 'unpacker', 'bgsm', 'facegen', 'lipgen',
+    'papyrus', 'caprica',
+    // Bethesda games this tool ecosystem targets
+    'fallout', 'morrowind', 'oblivion', 'skyrim', 'starfield',
+    // NVIDIA / AI-assisted creative tooling this app also tracks
+    'upscayl', 'shadermap', 'nvidia', 'photodemon', 'omniverse', 'spin3d',
+];
+
 const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   const [activeTab, setActiveTab] = useState<'telemetry' | 'hardware'>('telemetry');
 
@@ -472,6 +502,40 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             return moddingKeywords.some(kw => name.includes(kw));
         });
 
+        // Reliability sweep (2026-09-01): Full System Scan (this function) and Link
+        // Bridge (startInstaller, below) both detect programs and both used to have
+        // their own independent, drifted moddingKeywords lists -- the actual source
+        // of the Approved Tools panel staying cluttered even after startInstaller's
+        // list was fixed, because a user running THIS scan (the one literally
+        // labeled "Full System Scan") never touched mossy_apps at all before now.
+        // Sync mossy_apps here too, using this function's own already-tight keyword
+        // list, so either scan button keeps the Approved Tools panel current. Same
+        // purge-what-this-mechanism-previously-added pattern as startInstaller,
+        // scoped to its own "fullscan-" id prefix so the two scans' cleanups can't
+        // fight each other.
+        try {
+            const rescannedModdingTools = moddingTools.map((t: any) => ({
+                id: `fullscan-${Math.random().toString(36).substr(2, 5)}`,
+                name: t.displayName || t.name,
+                displayName: t.displayName || t.name,
+                path: t.path,
+                version: t.version,
+                checked: true,
+                category: 'Tool'
+            }));
+            const rawExistingModdingApps: any[] = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
+            const existingModdingApps = rawExistingModdingApps.filter((ea: any) => {
+                const idStr = typeof ea?.id === 'string' ? ea.id : '';
+                const isExplicitChoice = idStr.startsWith('manual-') || idStr.startsWith('onboard-');
+                if (isExplicitChoice || ea?.checked === false) return true;
+                const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+                return PURGE_RELEVANCE_KEYWORDS.some(kw => nameLower.includes(kw));
+            });
+            localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedModdingTools, existingModdingApps)));
+        } catch (e) {
+            console.error('[SystemMonitor] Failed to sync mossy_apps from Full System Scan:', e);
+        }
+
         addLog(`[PROGRAMS] Total Detected: ${allApps.length}`, 'success');
         addLog(`[NVIDIA] Found ${nvidiaTools.length} NVIDIA tools`, nvidiaTools.length > 0 ? 'success' : 'warning');
         addLog(`[AI/ML] Found ${aiTools.length} AI tools`, aiTools.length > 0 ? 'success' : 'info');
@@ -660,19 +724,25 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                       checked: true,
                       category: 'Tool'
                   }));
-                  // Reliability sweep (2026-09-01): drop stale false-positives this same
-                  // scan previously added (id starts with "scan-") that no longer match
-                  // the now-tightened moddingKeywords above -- e.g. Unity's bundled
-                  // UnwrapCL or Autodesk's generic FBX converter, both approved under the
-                  // old 'edit'/'unwrap'/'fbx' catch-alls. Anything NOT added by this scan
-                  // (manual settings entries, onboarding picks, other scan paths) is left
-                  // untouched here regardless of whether it matches this list.
+                  // Reliability sweep (2026-09-01): drop stale false-positives that no
+                  // longer match the now-tightened moddingKeywords above -- e.g. Unity's
+                  // bundled UnwrapCL or Autodesk's generic FBX converter, both approved
+                  // under the old 'edit'/'unwrap'/'fbx' catch-alls. Originally this only
+                  // purged entries this exact scan had added (id starting "scan-"), but
+                  // Billy's actual junk turned out to be un-refreshed by that scope (he
+                  // runs "Full System Scan" day to day, not "Link Bridge") -- so this now
+                  // reconciles ANY auto-detected entry, regardless of which scan added it.
+                  // Explicit user choices are still never touched: a manual Settings path
+                  // (id "manual-...") or onboarding pick (id "onboard-...") is preserved
+                  // even if its name doesn't match a keyword, and an explicit checked:false
+                  // denial is preserved either way (nothing here ever re-approves).
                   const rawExistingApps: any[] = JSON.parse(localStorage.getItem('mossy_apps') || '[]');
                   const existingApps = rawExistingApps.filter((ea: any) => {
-                      const isFromThisScan = typeof ea?.id === 'string' && ea.id.startsWith('scan-');
-                      if (!isFromThisScan) return true;
+                      const idStr = typeof ea?.id === 'string' ? ea.id : '';
+                      const isExplicitChoice = idStr.startsWith('manual-') || idStr.startsWith('onboard-');
+                      if (isExplicitChoice || ea?.checked === false) return true;
                       const nameLower = (ea.displayName || ea.name || '').toLowerCase();
-                      return moddingKeywords.some(kw => nameLower.includes(kw));
+                      return PURGE_RELEVANCE_KEYWORDS.some(kw => nameLower.includes(kw));
                   });
                   localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedTools, existingApps)));
 
