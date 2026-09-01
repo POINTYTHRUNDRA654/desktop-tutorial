@@ -1943,18 +1943,11 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
             // one-time diagnostic pinpoints exactly which of the many pieces below is
             // still carrying the other ~180K, instead of guessing at each one blind.
             // Remove once the real remaining contributor is found and fixed.
-            try {
-                const apiDiag = (window as any).electron?.api || (window as any).electronAPI;
-                void apiDiag?.writeDiagnosticLog?.(
-                    `[generateSystemContext-breakdown] settingsCtx=${settingsCtx.length} gameFolderInfo=${gameFolderInfo.length} ` +
-                    `appFeatures=${appFeatures.length} toolPermissionsCtx=${toolPermissionsCtx.length} workingMemory=${workingMemory.length} ` +
-                    `modContext=${modContext.length} knowledgeVaultContext=${knowledgeVaultContext.length} vaultContext=${vaultContext.length} ` +
-                    `hardwareCtx=${hardwareCtx.length} scanContext=${scanContext.length} scanHistoryCtx=${scanHistoryCtx.length} ` +
-                    `liveToolCtx=${liveToolCtx.length} learnedCtx=${learnedCtx.length} communityLearningCtx=${communityLearningCtx.length}`
-                );
-            } catch { /* diagnostics-only, non-critical */ }
+            const detectedToolsStr = (detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None";
+            const panelActivityCtx = getPanelActivityContext();
+            const knowledgeBaseCtx = formatRelevantFO4KnowledgeBaseForAI(query || '');
 
-            return `
+            const contextStr = `
       **DYNAMIC SYSTEM CONTEXT:**
       **Desktop Bridge:** ${bridgeStatus}
       ${blenderContext}
@@ -1968,12 +1961,12 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
       **Project Status:** ${projectData ? projectData.name : "None"}${modContext}
       ${knowledgeVaultContext}
       ${vaultContext}
-      **Detected Tools:** ${(detectedApps || []).filter(a => a.path).map(a => `${a.name} [ID: ${a.id}] (Path: ${a.path})`).join(', ') || "None"}
+      **Detected Tools:** ${detectedToolsStr}
       ${hardwareCtx}
       ${scanContext}
     ${scanHistoryCtx}
     ${liveToolCtx}
-    ${getPanelActivityContext()}
+    ${panelActivityCtx}
       ${learnedCtx}
             ${communityLearningCtx}
       // Reliability sweep (2026-09-01): this used to be formatFO4KnowledgeBaseForAI()
@@ -1981,8 +1974,23 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
       // turn. That was the single largest contributor to the system prompt's routine
       // 600K-746K character size (see FO4KnowledgeBase.ts and messageBudget.ts's
       // docstrings). Now filtered to the sections actually relevant to this query.
-      ${formatRelevantFO4KnowledgeBaseForAI(query || '')}
+      ${knowledgeBaseCtx}
       `;
+
+            try {
+                const apiDiag = (window as any).electron?.api || (window as any).electronAPI;
+                void apiDiag?.writeDiagnosticLog?.(
+                    `[generateSystemContext-breakdown] settingsCtx=${settingsCtx.length} gameFolderInfo=${gameFolderInfo.length} ` +
+                    `appFeatures=${appFeatures.length} toolPermissionsCtx=${toolPermissionsCtx.length} workingMemory=${workingMemory.length} ` +
+                    `modContext=${modContext.length} knowledgeVaultContext=${knowledgeVaultContext.length} vaultContext=${vaultContext.length} ` +
+                    `hardwareCtx=${hardwareCtx.length} scanContext=${scanContext.length} scanHistoryCtx=${scanHistoryCtx.length} ` +
+                    `liveToolCtx=${liveToolCtx.length} learnedCtx=${learnedCtx.length} communityLearningCtx=${communityLearningCtx.length} ` +
+                    `blenderContext=${blenderContext.length} detectedToolsStr=${detectedToolsStr.length} panelActivityCtx=${panelActivityCtx.length} ` +
+                    `knowledgeBaseCtx=${knowledgeBaseCtx.length} appFeaturesRAW=${appFeatures.length} contextStrTOTAL=${contextStr.length}`
+                );
+            } catch { /* diagnostics-only, non-critical */ }
+
+            return contextStr;
         } catch (e) {
             console.error("Context Error:", e);
             return "Context: Error gathering system telemetry.";
