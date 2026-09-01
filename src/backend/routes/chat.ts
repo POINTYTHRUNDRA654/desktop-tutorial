@@ -141,6 +141,24 @@ function reasoningEffortFor(model: string): 'low' | 'medium' | 'high' | undefine
   return model.startsWith('openai/gpt-oss') ? 'high' : undefined;
 }
 
+/** True only when a BadRequestError actually looks like Groq rejecting the
+ *  reasoning_effort param itself (spec drift/deprecation) -- as opposed to
+ *  any other 400, which the blind "if (reasoning_effort) retry-without-it"
+ *  below used to swallow indiscriminately. Confirmed live (2026-09-01): a
+ *  real tool_use_failed error (the hallucinated-tool-call bug, see
+ *  isToolUseFailedError above) got misclassified as a reasoning_effort
+ *  problem, retried once on the SAME model, came back with empty content
+ *  (no error this time, just nothing to say), and returned that silently as
+ *  a "successful" empty response -- which is how the user ended up seeing
+ *  "Groq cloud chat unavailable: backend request failed" even after the
+ *  qwen-fallback fix above, because that fix's own catch block never got a
+ *  chance to run. */
+function isReasoningEffortRejection(e: unknown): boolean {
+  if (!(e instanceof GroqBadRequestError)) return false;
+  const msg = e.message || '';
+  return /reasoning_effort/i.test(msg);
+}
+
 async function groqChatWithFallback(
   groq: Groq,
   preferredModel: string,
@@ -174,8 +192,13 @@ async function groqChatWithFallback(
     } catch (e) {
       // Defensive fallback: if the API ever rejects reasoning_effort for this
       // model (spec drift, deprecation), retry once without it rather than
-      // failing the whole chat request over an optional quality knob.
-      if (reasoning_effort) {
+      // failing the whole chat request over an optional quality knob. Gated
+      // on isReasoningEffortRejection now, not just "was reasoning_effort
+      // set" -- that used to catch EVERY error (including a real
+      // tool_use_failed hallucination) and quietly swallow it into a same-
+      // model retry that could come back with empty content instead of
+      // ever reaching the qwen-fallback logic in the outer catch below.
+      if (reasoning_effort && isReasoningEffortRejection(e)) {
         console.warn(`[Chat] reasoning_effort rejected for ${model}, retrying without it:`, e instanceof Error ? e.message : e);
         return groq.chat.completions.create({ model, messages: sdkMessages, temperature, max_tokens: maxTokens, ...toolArgs });
       }
