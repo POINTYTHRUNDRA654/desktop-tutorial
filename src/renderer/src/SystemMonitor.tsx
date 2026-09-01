@@ -185,12 +185,18 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
   // (a user flagged this exact symptom). This ref lets a ticking interval nudge
   // the bar upward while we wait, same pattern already used in FirstRunOnboarding.
   const scanDetectionTimerRef = useRef<number | null>(null);
+  // Second, independent "still alive" signal alongside the percentage ticker --
+  // see the comment above where this is started in startScan().
+  const scanHeartbeatTimerRef = useRef<number | null>(null);
 
-  // Stop the ticker if the user navigates away mid-scan.
+  // Stop the tickers if the user navigates away mid-scan.
   useEffect(() => {
       return () => {
           if (scanDetectionTimerRef.current !== null) {
               window.clearInterval(scanDetectionTimerRef.current);
+          }
+          if (scanHeartbeatTimerRef.current !== null) {
+              window.clearInterval(scanHeartbeatTimerRef.current);
           }
       };
   }, []);
@@ -443,10 +449,23 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
         }
 
         // Keep visible progress moving during the (potentially 30-90+ second) deep
-        // scan instead of sitting silently at 30% the whole time.
+        // scan instead of sitting silently at 30% the whole time. Reliability sweep
+        // (2026-09-01), round 2: the first version of this ticker (68% ceiling
+        // reached after ~15s) fixed the "sits at 30% in total silence" complaint,
+        // but a scan that legitimately runs well past 15s -- this one covers every
+        // drive letter 7 folders deep -- still plateaus at 68% for the remainder,
+        // which reads exactly like "stuck" again once the number stops climbing
+        // (confirmed: a user saw this and assumed it hung, even though the scan
+        // went on to complete normally). A percentage alone will always eventually
+        // look frozen once it hits any ceiling if the real work outlasts the
+        // ticker's ramp time, so the actual fix is a second, independent signal
+        // that keeps confirming "still alive" for as long as the scan runs: a
+        // heartbeat log line with elapsed seconds, on top of (not instead of) the
+        // percentage ticker.
         const DETECTION_PROGRESS_CAP = 68;
         const DETECTION_MS_PER_PROGRESS_POINT = 400;
         const DETECTION_TICK_MS = 200;
+        const DETECTION_HEARTBEAT_MS = 6000;
         const detectStartedAt = Date.now();
         if (scanDetectionTimerRef.current !== null) {
             window.clearInterval(scanDetectionTimerRef.current);
@@ -459,6 +478,13 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                 return Math.max(prev, Math.min(DETECTION_PROGRESS_CAP, elapsedProgress));
             });
         }, DETECTION_TICK_MS);
+        if (scanHeartbeatTimerRef.current !== null) {
+            window.clearInterval(scanHeartbeatTimerRef.current);
+        }
+        scanHeartbeatTimerRef.current = window.setInterval(() => {
+            const elapsedSec = Math.round((Date.now() - detectStartedAt) / 1000);
+            addLog(`[SCAN] Still scanning... ${elapsedSec}s elapsed (this can take a minute or more on a large drive)`, 'info');
+        }, DETECTION_HEARTBEAT_MS);
 
         let allApps: any[];
         try {
@@ -467,6 +493,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             if (scanDetectionTimerRef.current !== null) {
                 window.clearInterval(scanDetectionTimerRef.current);
                 scanDetectionTimerRef.current = null;
+            }
+            if (scanHeartbeatTimerRef.current !== null) {
+                window.clearInterval(scanHeartbeatTimerRef.current);
+                scanHeartbeatTimerRef.current = null;
             }
         }
 
