@@ -148,6 +148,22 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  // Reliability sweep (2026-09-01): detectPrograms() can legitimately run for a
+  // minute or more (deep 7-level scan across every drive) with zero interim
+  // feedback -- previously scanProgress jumped 10->20->30 in an instant, then sat
+  // at 30% in total silence until the promise resolved, which read as frozen/fake
+  // (a user flagged this exact symptom). This ref lets a ticking interval nudge
+  // the bar upward while we wait, same pattern already used in FirstRunOnboarding.
+  const scanDetectionTimerRef = useRef<number | null>(null);
+
+  // Stop the ticker if the user navigates away mid-scan.
+  useEffect(() => {
+      return () => {
+          if (scanDetectionTimerRef.current !== null) {
+              window.clearInterval(scanDetectionTimerRef.current);
+          }
+      };
+  }, []);
   const installLogRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -396,7 +412,33 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
             throw new Error('detectPrograms API not available');
         }
 
-        const allApps = await detectPrograms();
+        // Keep visible progress moving during the (potentially 30-90+ second) deep
+        // scan instead of sitting silently at 30% the whole time.
+        const DETECTION_PROGRESS_CAP = 68;
+        const DETECTION_MS_PER_PROGRESS_POINT = 400;
+        const DETECTION_TICK_MS = 200;
+        const detectStartedAt = Date.now();
+        if (scanDetectionTimerRef.current !== null) {
+            window.clearInterval(scanDetectionTimerRef.current);
+        }
+        scanDetectionTimerRef.current = window.setInterval(() => {
+            setScanProgress(prev => {
+                if (prev >= DETECTION_PROGRESS_CAP) return prev;
+                const elapsedMs = Date.now() - detectStartedAt;
+                const elapsedProgress = 30 + Math.floor(elapsedMs / DETECTION_MS_PER_PROGRESS_POINT);
+                return Math.max(prev, Math.min(DETECTION_PROGRESS_CAP, elapsedProgress));
+            });
+        }, DETECTION_TICK_MS);
+
+        let allApps: any[];
+        try {
+            allApps = await detectPrograms();
+        } finally {
+            if (scanDetectionTimerRef.current !== null) {
+                window.clearInterval(scanDetectionTimerRef.current);
+                scanDetectionTimerRef.current = null;
+            }
+        }
 
         setScanProgress(70);
 
