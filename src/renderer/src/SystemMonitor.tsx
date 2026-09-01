@@ -573,7 +573,11 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                 const idStr = typeof ea?.id === 'string' ? ea.id : '';
                 const isExplicitChoice = idStr.startsWith('manual-') || idStr.startsWith('onboard-');
                 if (isExplicitChoice || ea?.checked === false) return true;
-                const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+                // Check ea.name first, not displayName -- detectPrograms.ts prefixes
+                // displayName with an ancestor folder name for generically-named exes
+                // (e.g. 'Blender Foundation - cli'), which can make an unrelated exe match
+                // a keyword like 'blender' purely through that prefix. name stays bare.
+                const nameLower = (ea.name || ea.displayName || '').toLowerCase();
                 return PURGE_RELEVANCE_KEYWORDS.some(kw => nameLower.includes(kw));
             });
             localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedModdingTools, existingModdingApps)));
@@ -789,7 +793,11 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
                       const idStr = typeof ea?.id === 'string' ? ea.id : '';
                       const isExplicitChoice = idStr.startsWith('manual-') || idStr.startsWith('onboard-');
                       if (isExplicitChoice || ea?.checked === false) return true;
-                      const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+                      // Check ea.name first, not displayName -- detectPrograms.ts prefixes
+                // displayName with an ancestor folder name for generically-named exes
+                // (e.g. 'Blender Foundation - cli'), which can make an unrelated exe match
+                // a keyword like 'blender' purely through that prefix. name stays bare.
+                const nameLower = (ea.name || ea.displayName || '').toLowerCase();
                       return PURGE_RELEVANCE_KEYWORDS.some(kw => nameLower.includes(kw));
                   });
                   localStorage.setItem('mossy_apps', JSON.stringify(mergeRescannedTools(rescannedTools, existingApps)));

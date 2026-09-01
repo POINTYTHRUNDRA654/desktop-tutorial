@@ -149,11 +149,27 @@ const matchesNeedle = (value: string, needles: string[]) =>
 // (python.exe, pythonw.exe, cli.exe, gui.exe, pip.exe, isympy.exe, and other
 // console-script stubs, none of which are Blender itself) all got approved
 // as "Blender" integrations this way, surviving every other fix made earlier
-// today because none of those touch this file. Matching on the detected
-// program's own name/displayName only (not its ancestor path) is how every
-// other keyword list in this codebase already works; this one should too.
+// today because none of those touch this file.
+//
+// Round 2 (still 2026-09-01): dropping prog.path from the search text (above)
+// was NOT enough on its own -- confirmed live after a real rescan, which
+// produced auto-blender-3-6-cli, auto-blender-foundation-python, etc. all
+// over again. Root cause: detectPrograms.ts's deep directory walk
+// deliberately builds displayName as "<ancestor folder> - <exe name>" for
+// any exe whose bare name doesn't already contain the ancestor folder's name
+// (e.g. "Blender Foundation - cli"), specifically so a human looking at the
+// raw 13,000+ program list can tell where a generically-named exe came from.
+// That means "blender" was baked directly into prog.displayName itself for
+// every exe under the Blender Foundation folder, path or no path. The bare
+// exe name (prog.name) never gets this ancestor-folder prefix -- every
+// hand-curated AUTO_CONNECT_TOOLS entry (e.g. { displayName: 'Blender',
+// name: 'blender' }) sets name to the real, unprefixed program identity, so
+// matching on name alone is both sufficient and correct: it still matches
+// Blender's own blender.exe (name: 'blender') and every other explicit
+// entry, while no longer matching a python-distribution stub whose own name
+// is just "cli"/"gui"/"python" regardless of which folder produced it.
 const toSearchText = (prog: DetectedProgram) =>
-  `${prog.displayName || ''} ${prog.name || ''}`.toLowerCase();
+  `${prog.name || ''}`.toLowerCase();
 
 // Flattened union of every AUTO_CONNECT_TOOLS match needle, used to purge
 // stale 'auto-' entries this function itself created in an earlier scan but
@@ -170,15 +186,25 @@ const promoteDetectedPrograms = (installedPrograms: DetectedProgram[]) => {
   const existingArr = Array.isArray(existingRaw) ? existingRaw : [];
 
   // Purge stale auto-* entries that no longer match any AUTO_CONNECT_TOOLS
-  // needle by name/displayName (not path). Preserve anything the user chose
-  // explicitly (manual-/onboard- ids) or explicitly denied (checked===false),
-  // and preserve any non-auto- entry untouched -- this function only owns
-  // entries it created itself.
+  // needle. Preserve anything the user chose explicitly (manual-/onboard-
+  // ids) or explicitly denied (checked===false), and preserve any non-auto-
+  // entry untouched -- this function only owns entries it created itself.
+  //
+  // Round 2: check ea.name FIRST, falling back to ea.displayName only when
+  // name is missing -- matching toSearchText's own fix above. The stored
+  // `name` field is always the bare exeName (set as `prog.name || displayName`
+  // when this function creates an entry), while `displayName` can carry the
+  // "<ancestor folder> - <exe name>" prefix detectPrograms.ts adds for
+  // generically-named exes. Checking displayName first here would silently
+  // re-preserve exactly the junk this purge exists to remove -- confirmed
+  // live: a stored entry like {name:'cli', displayName:'Blender Foundation -
+  // cli'} still matched the 'blender' needle via displayName even after
+  // toSearchText itself was fixed, so nothing actually got purged on rescan.
   const existing = existingArr.filter((ea: any) => {
     const idStr = typeof ea?.id === 'string' ? ea.id : '';
     if (!idStr.startsWith('auto-')) return true;
     if (ea?.checked === false) return true;
-    const nameLower = (ea.displayName || ea.name || '').toLowerCase();
+    const nameLower = (ea.name || ea.displayName || '').toLowerCase();
     return ALL_AUTO_CONNECT_NEEDLES.some((needle) => nameLower.includes(needle));
   });
   const merged = [...existing];

@@ -2091,7 +2091,15 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                     const nameLower = prog.name.toLowerCase();
                     const displayNameLower = prog.displayName.toLowerCase();
 
-                    if (moddingKeywords.some(kw => nameLower.includes(kw) || displayNameLower.includes(kw))) {
+                    // Reliability sweep (2026-09-01), round 2: match on nameLower only, not
+                    // displayNameLower. detectPrograms.ts prefixes displayName with an ancestor
+                    // folder name for generically-named exes (e.g. "Blender Foundation - cli"),
+                    // so checking displayNameLower here let a bare python-distribution console
+                    // script called "cli"/"gui"/"python" match the 'blender' keyword purely
+                    // through that inherited folder prefix -- confirmed live, same root cause as
+                    // the ExternalToolsHub.tsx fix earlier today. prog.name never carries that
+                    // prefix, so it alone is the correct identity to match against.
+                    if (moddingKeywords.some(kw => nameLower.includes(kw))) {
                         // Improved de-duplication: If we find a better version (e.g. non-C drive), use it.
                         const existingIndex = foundApps.findIndex(app => app.name.toLowerCase() === prog.displayName.toLowerCase());
                         const isNonCDrive = prog.path && !prog.path.startsWith('C:');
