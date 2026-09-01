@@ -1746,14 +1746,33 @@ export const ChatInterface: React.FC = () => {
                 liveToolCtx = "\n**LIVE TOOL MONITORING:**\n- Unavailable";
             }
 
+            // Reliability sweep (2026-09-01): live-measured after the FO4KnowledgeBase
+            // filtering fix landed -- systemInstruction dropped from ~614-617K to
+            // ~377-397K per real turns in ai-diagnostics.log, a real ~35%+ cut, but that
+            // still left a large unaccounted-for gap versus the ~150K static baseline +
+            // the now-capped ~60K knowledge-base contribution. This block was the other
+            // major uncapped contributor: EVERY ingested tutorial/doc in Cortex Memory,
+            // unconditionally, on every single turn, with no item cap and no char budget
+            // -- unlike every other context block here (Knowledge Vault: maxItems 10/
+            // maxChars 7000; panel activity: capped at 12 events). A user who's ingested
+            // a lot of reference material paid for the entire library every turn
+            // regardless of relevance. Capped the same way Knowledge Vault already is.
             let learnedCtx = "";
             if (cortexMemory && cortexMemory.length > 0) {
-                const learnedItems = cortexMemory
-                    .filter((s: any) => s.status === 'indexed')
+                const LEARNED_MAX_ITEMS = 15;
+                const LEARNED_MAX_CHARS = 5000;
+                const indexed = cortexMemory.filter((s: any) => s.status === 'indexed');
+                const capped = indexed.slice(0, LEARNED_MAX_ITEMS);
+                let learnedItems = capped
                     .map((s: any) => `- [${s.type.toUpperCase()}] ${s.name}: ${s.summary || 'Content ingested.'}`)
                     .join('\n');
+                if (learnedItems.length > LEARNED_MAX_CHARS) {
+                    learnedItems = learnedItems.slice(0, LEARNED_MAX_CHARS) + '\n[...truncated to fit prompt budget...]';
+                }
+                const omitted = indexed.length - capped.length;
+                const omittedNote = omitted > 0 ? `\n(+${omitted} more ingested item${omitted === 1 ? '' : 's'} not shown -- ask about a specific one by name if needed.)` : '';
                 if (learnedItems) {
-                    learnedCtx = `\n**INGESTED KNOWLEDGE (TUTORIALS & DOCS):**\n${learnedItems}\n(Use this knowledge to answer user queries accurately based on the provided documents.)`;
+                    learnedCtx = `\n**INGESTED KNOWLEDGE (TUTORIALS & DOCS):**\n${learnedItems}${omittedNote}\n(Use this knowledge to answer user queries accurately based on the provided documents.)`;
                 }
             }
 
