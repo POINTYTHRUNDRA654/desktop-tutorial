@@ -62,6 +62,7 @@ external/volttech-dist/*
 .env.local
 .env.production
 .env.development
+.env.backend
 .env.encrypted.backup
 
 # Database
@@ -231,3 +232,14 @@ builder_*.txt
 tsc_*.txt
 vitest_check*.txt
 scratch_verify_deploy/
+
+# Personal dev-desktop-only tooling (not part of the shipped app --
+# same ship-vs-personal rule used for Cosmos, see mossy-project-memory.md)
+.claude/settings.local.json
+.codex-staging/
+AGENTS.md
+composite_uv_cluster.py
+composite_uv_cluster_photographic.py
+make_4k_uv_base.py
+prepare_uv_cluster.py
+uv_locked_material_transfer.py

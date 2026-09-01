@@ -240,9 +240,22 @@ export class MiningPipelineOrchestrator {
         const espData = await ESPParser.parseFile(source.path);
         const filename = path.basename(source.path);
         this.pipeline.output.espData.set(filename, espData);
+        // Fixed 2026-08-26: ESPParser now recovers from a bad record mid-file instead of
+        // throwing (see esp-parser.ts) -- surface that as a visible warning rather than
+        // silently reporting a truncated record set as a clean success.
+        if (espData.truncated) {
+          console.warn(`ESP file ${source.path} parsed partially: ${espData.parseError}`);
+          this.pipeline.output.errors.push(
+            `ESP parsed partially (stopped early): ${source.path} -- ${espData.parseError ?? 'unknown error'}. ` +
+            `${espData.records.length} records recovered before the stop point.`
+          );
+        }
       } catch (error) {
+        // Fixed 2026-08-26: include the real error message/stack instead of just the file
+        // path, so a failure is actually diagnosable instead of a bare "processing failed".
+        const message = error instanceof Error ? (error.stack || error.message) : String(error);
         console.warn(`Failed to process ESP file ${source.path}:`, error);
-        this.pipeline.output.errors.push(`ESP processing failed: ${source.path}`);
+        this.pipeline.output.errors.push(`ESP processing failed: ${source.path} -- ${message}`);
       }
     }
   }

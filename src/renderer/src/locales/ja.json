@@ -112,24 +112,24 @@
         "desc": "AIプロバイダー（Groq/Ollama）、モデル、応答の長さ、自己評価を選択する。"
       },
       "step3b": {
-        "title": "ステップ3b：ローカルLLM — Ollama",
+        "title": "ステップ4：ローカルLLM — Ollama",
         "desc": "オープンソースモデルをローカルで実行し、完全オフラインのAIアシスタンスを実現する。",
         "badge": "オプション"
       },
       "step4": {
-        "title": "ステップ4：外部ツール",
+        "title": "ステップ8：外部ツール",
         "desc": "MossyのFO4モディングツールチェーンを指定し、パスを確認する。"
       },
       "step5": {
-        "title": "ステップ5：バックアップと復元",
+        "title": "ステップ9：バックアップと復元",
         "desc": "設定スナップショットをエクスポートまたはインポートして素早く復元する。"
       },
       "step6": {
-        "title": "ステップ6：チュートリアルとオンボーディング",
+        "title": "ステップ10：チュートリアルとオンボーディング",
         "desc": "インストールチュートリアルと初回セットアップ体験を再生する。"
       },
       "step7": {
-        "title": "ステップ7：インターネットアクセステスト",
+        "title": "ステップ11：インターネットアクセステスト",
         "desc": "Mossyが検索プロバイダーに到達してオンラインになれるか確認する。"
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "チャートライブラリ（MIT）",
         "moddingTools": "MOD制作ツール（別途ダウンロード）",
         "blender": "3Dモデリング（GPL 2.0）",
-        "pynifly": "BadDogSkyrimによるBlender用NIFインポート/エクスポート（MIT）",
-        "xedit": "ElminsterAUによるプラグインエディター（GPL 2.0）",
+        "pynifly": "BadDogSkyrimによるBlender用NIFインポート/エクスポート（GPL 3.0）",
+        "xedit": "ElminsterAUによるプラグインエディター（MPL-2.0）",
         "creationKit": "Bethesda公式MOD制作ツール",
         "nifskope": "hexabitsによるNIFメッシュ・テクスチャビューアー（GPL 3.0）",
         "mo2": "Tannin42／MO2チームによるMODマネージャー（GPL 3.0）",
         "vortex": "Nexus ModsによるMODマネージャー",
         "f4se": "ianpattとbehippoによるFallout 4 Script Extender",
         "loot": "ロードオーダー最適化ツール（GPL 3.0）",
-        "bodyslide": "ousniusとCalienteによるボディモーフィング（MIT）",
+        "bodyslide": "ousniusとCalienteによるボディモーフィング（GPL 3.0）",
         "bae": "jonwd7によるBethesda Archive Extractor",
         "gimp": "GNU画像編集プログラム（GPL 3.0）",
         "umodel": "GildorによるUnreal Engineアセットビューアー",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "サンプル結果（提供元："
       },
       "step3c": {
-        "title": "ステップ3c：AnythingLLM — RAGナレッジエンジン",
+        "title": "ステップ7：AnythingLLM — RAGナレッジエンジン",
         "desc": "Memory VaultとKnowledge Hubのセマンティック検索のためのベクトルベースのドキュメント検索。"
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy チューター · FO4セットアップウィザード",
     "title": "FO4セットアップウィザードハブ",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — 次世代パッチ以前（2024年4月）",
       "ng": "1.10.984+ — 次世代／現在のSteamデフォルト",
-      "ae": "Creationsメニュー／アニバーサリーエディションコンテンツ"
+      "ae": "1.11.x — Creationsメニュー／アニバーサリーエディションコンテンツ"
     },
     "stepLabel": "ステップ{step}：{title}",
     "setupProgress": "セットアップ進捗",

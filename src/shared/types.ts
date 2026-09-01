@@ -1353,6 +1353,11 @@ export interface ESPFile {
   records: ESPRecord[];
   masters: string[]; // Master files this plugin depends on
   formIdMap: Map<number, ESPRecord>; // Quick lookup by FormID
+  // Fixed 2026-08-26: set when parsing hit an unrecoverable record and stopped early --
+  // `records`/`formIdMap` hold everything successfully read before that point, not the
+  // whole file. `parseError` is the underlying error message for diagnostics.
+  truncated?: boolean;
+  parseError?: string;
 }
 
 export interface DDSFile {

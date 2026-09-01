@@ -112,24 +112,24 @@
         "desc": "选择AI提供商（Groq/Ollama）、模型、响应长度和自我评估。"
       },
       "step3b": {
-        "title": "第3b步：本地LLM — Ollama",
+        "title": "第4步：本地LLM — Ollama",
         "desc": "在本地运行开源模型，实现完全离线的AI辅助。",
         "badge": "可选"
       },
       "step4": {
-        "title": "第4步：外部工具",
+        "title": "第8步：外部工具",
         "desc": "将Mossy指向您的FO4模组工具链并验证路径。"
       },
       "step5": {
-        "title": "第5步：备份与恢复",
+        "title": "第9步：备份与恢复",
         "desc": "导出或导入设置快照以便快速恢复。"
       },
       "step6": {
-        "title": "第6步：教程与引导",
+        "title": "第10步：教程与引导",
         "desc": "重新播放安装教程和初次运行引导体验。"
       },
       "step7": {
-        "title": "第7步：网络访问测试",
+        "title": "第11步：网络访问测试",
         "desc": "验证Mossy能否访问搜索提供商并上网。"
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "图表库 (MIT)",
         "moddingTools": "模组制作工具（单独下载）",
         "blender": "3D 建模 (GPL 2.0)",
-        "pynifly": "BadDogSkyrim 制作的 Blender NIF 导入/导出 (MIT)",
-        "xedit": "ElminsterAU 制作的插件编辑器 (GPL 2.0)",
+        "pynifly": "BadDogSkyrim 制作的 Blender NIF 导入/导出 (GPL 3.0)",
+        "xedit": "ElminsterAU 制作的插件编辑器 (MPL-2.0)",
         "creationKit": "Bethesda 官方模组制作工具",
         "nifskope": "hexabits 制作的 NIF 网格与纹理查看器 (GPL 3.0)",
         "mo2": "Tannin42 / MO2 团队制作的模组管理器 (GPL 3.0)",
         "vortex": "Nexus Mods 制作的模组管理器",
         "f4se": "ianpatt 和 behippo 制作的 Fallout 4 脚本扩展器",
         "loot": "加载顺序优化工具 (GPL 3.0)",
-        "bodyslide": "ousnius 和 Caliente 制作的体型塑形工具 (MIT)",
+        "bodyslide": "ousnius 和 Caliente 制作的体型塑形工具 (GPL 3.0)",
         "bae": "jonwd7 制作的 Bethesda 存档提取器",
         "gimp": "GNU 图像处理程序 (GPL 3.0)",
         "umodel": "Gildor 制作的虚幻引擎资源查看器",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "来自以下提供商的示例结果"
       },
       "step3c": {
-        "title": "步骤 3c：AnythingLLM — RAG 知识引擎",
+        "title": "步骤 7：AnythingLLM — RAG 知识引擎",
         "desc": "为记忆库和知识中心的语义搜索提供基于向量的文档检索。"
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "原版 1.10.163",
       "ng": "新一代 1.10.984+",
-      "ae": "AE / 创意工坊"
+      "ae": "AE  1.11.x / 创意工坊"
     },
     "eyebrow": "Mossy 导师 · FO4 设置向导",
     "title": "FO4 设置向导中心",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — 次世代补丁之前版本（2024年4月）",
       "ng": "1.10.984+ — 次世代 / 当前 Steam 默认版本",
-      "ae": "创意菜单 / 周年纪念版内容"
+      "ae": "1.11.x — 创意菜单 / 周年纪念版内容"
     },
     "stepLabel": "第 {step} 步：{title}",
     "setupProgress": "设置进度",

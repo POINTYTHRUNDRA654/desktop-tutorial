@@ -125,7 +125,7 @@ const AnythingLLMSyncPanel: React.FC<{ memories: MemoryItem[] }> = ({ memories }
 };
 
 const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false }) => {
-    const whisperModelFileUrl = 'https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.en.bin';
+    const whisperModelFileUrl = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin';
     const contentScrollRef = useRef<HTMLDivElement>(null);
     const onWheel = useWheelScrollProxy(contentScrollRef);
 
@@ -235,8 +235,12 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
     useEffect(() => {
         localStorage.setItem('mossy_knowledge_vault', JSON.stringify(memories));
         // Also persist to a file in userData so the data survives localStorage clears
-        // and app reinstalls. Fire-and-forget — failures are logged but not surfaced.
-        saveKnowledgeVaultToFile(memories).catch(console.error);
+        // and app reinstalls. Fire-and-forget, but surface failures so the user knows
+        // their vault backup isn't being written to disk.
+        saveKnowledgeVaultToFile(memories).catch((err) => {
+            console.error(err);
+            toast.error('Failed to save knowledge vault backup to disk. Your changes are still saved in this browser session, but will not survive a full app reinstall until this is resolved.');
+        });
         // Broadcast to other components if needed
         window.dispatchEvent(new Event('mossy-knowledge-updated'));
     }, [memories]);
@@ -310,9 +314,9 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
             // Check if it's an auth error or missing local whisper
             const errorMsg = error.message || '';
             if (/401|incorrect[_\s-]?api[_\s-]?key|unauthorized|invalid[_\s-]?api[_\s-]?key/i.test(errorMsg)) {
-                toast.error(`Video transcription authentication failed. Check your configured token, or use local Whisper by placing whisper.cpp.exe and ggml-base.en.bin in external/whisper/.`);
+                toast.error(`Video transcription authentication failed. Check your configured token, or use local Whisper by placing whisper-cli.exe and ggml-base.en.bin in external/whisper/.`);
             } else if (errorMsg.includes('whisper') || errorMsg.includes('not found')) {
-                toast.error(`Video transcription failed. Missing local transcription files. To transcribe videos offline: 1. Download whisper.cpp.exe. 2. Download ggml-base.en.bin (~150MB). 3. Create folder: external/whisper/. 4. Place both files there. 5. Try again! Or add an OpenAI API key in Privacy Settings for cloud transcription.`);
+                toast.error(`Video transcription failed. Missing local transcription files. To transcribe videos offline: 1. Download whisper-cli.exe. 2. Download ggml-base.en.bin (~150MB). 3. Create folder: external/whisper/. 4. Place both files there. 5. Try again! Or add an OpenAI API key in Privacy Settings for cloud transcription.`);
             } else {
                 toast.error(`Transcription failed: ${errorMsg}. Please check: 1. Video file is not corrupted. 2. Internet connection (for cloud transcription). 3. Whisper files in external/whisper/ (for offline)`);
             }
@@ -1108,6 +1112,15 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         <span className="hidden sm:inline">Ingest Knowledge</span>
                         <span className="sm:hidden">Ingest</span>
                       </button>
+
+                      <button
+                        onClick={handleBrowseKnowledgeLibrary}
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-900/50 hover:bg-slate-800 text-slate-100 rounded-lg transition-all border border-slate-700 text-xs font-bold hidden md:flex"
+                        title="Browse and import community-shared knowledge packs"
+                      >
+                        <Globe className="w-4 h-4" />
+                        Community Library
+                      </button>
                     </div>
                 </div>
             </div>
@@ -1203,11 +1216,11 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                         {
                             label: 'whisper.cpp releases (offline transcription)'
                             ,
-                            href: 'https://github.com/ggerganov/whisper.cpp/releases'
+                            href: 'https://github.com/ggml-org/whisper.cpp/releases'
                             ,
                             kind: 'official'
                             ,
-                            note: 'Place whisper.cpp.exe under external/whisper/ if you want offline video transcription.'
+                            note: 'Place whisper-cli.exe under external/whisper/ if you want offline video transcription.'
                         },
                         {
                             label: 'Hugging Face model file (example: ggml-base.en.bin)'
@@ -1216,7 +1229,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                             ,
                             kind: 'official'
                             ,
-                            note: 'Download the model and place it next to whisper.cpp.exe (see the notice below).'
+                            note: 'Download the model and place it next to whisper-cli.exe (see the notice below).'
                         },
                     ]}
                     verify={[
@@ -1262,7 +1275,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                             For offline video transcription, place these in <code className="px-1 py-0.5 bg-slate-800 rounded text-emerald-400 font-mono text-[10px]">external/whisper/</code>:
                         </div>
                         <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-400 ml-1">
-                            <li><code className="text-cyan-400 font-mono">whisper.cpp.exe</code> - Get from <a href="https://github.com/ggerganov/whisper.cpp/releases" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">whisper.cpp releases</a></li>
+                            <li><code className="text-cyan-400 font-mono">whisper-cli.exe</code> - Get from <a href="https://github.com/ggml-org/whisper.cpp/releases" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">whisper.cpp releases</a></li>
                             <li><code className="text-cyan-400 font-mono">ggml-base.en.bin</code> - Download from <a href={whisperModelFileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">HuggingFace</a> (~150MB)</li>
                         </ul>
                         <div className="text-[10px] text-slate-500 mt-1">Or add an OpenAI API key for cloud transcription (optional)</div>
@@ -1340,7 +1353,7 @@ const MossyMemoryVault: React.FC<MossyMemoryVaultProps> = ({ embedded = false })
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20">
                         <Book className="w-16 h-16 mb-4 text-slate-600" />
                         <h3 className="text-lg font-medium text-slate-400">No memories found</h3>
-                        <p className="text-sm text-slate-500 max-w-sm">Mossy hasn"t ingested any custom tutorials yet. Click 'Ingest Knowledge" to expand her capabilities.</p>
+                        <p className="text-sm text-slate-500 max-w-sm">Mossy hasn't ingested any custom tutorials yet. Click 'Ingest Knowledge' to expand her capabilities.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

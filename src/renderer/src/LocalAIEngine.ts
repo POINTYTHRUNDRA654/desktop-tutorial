@@ -2052,7 +2052,17 @@ export const LocalAIEngine = {
       // already used without incident.
       try {
         const settings = await api?.getSettings?.();
-        if (settings?.securitySettings?.requireApiKeyConfirmation && !sessionStorage.getItem('mossy_api_key_confirmed_session')) {
+        // Fixed 2026-08-26: this used to fire on every cloud call whenever the
+        // toggle was on, including the default zero-config path where the
+        // call actually goes through Mossy's bundled Render backend (no user
+        // API key involved at all) -- "your configured API key" was false for
+        // almost everyone who saw it. main.ts's get-settings handler now
+        // computes usesOwnCloudApiKey (true only when this call will actually
+        // spend an Inkling key or a directly-configured Groq key, i.e. no
+        // backend configured). Gate on both so the default backend flow never
+        // prompts, matching the app's own "no separate API key to configure"
+        // onboarding claim.
+        if (settings?.securitySettings?.requireApiKeyConfirmation && settings?.usesOwnCloudApiKey && !sessionStorage.getItem('mossy_api_key_confirmed_session')) {
           if (voiceMode) {
             sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
           } else {
@@ -2305,8 +2315,15 @@ ANSWER THE USER NOW:`;
       console.error('[LocalAIEngine] Groq call failed:', rawErr);
       const localFallback1 = await attemptLocalFallback();
       if (localFallback1) return localFallback1;
+      // Never surface the raw backend/API error to the user -- it can contain
+      // internal implementation details (tool names, error codes, raw JSON
+      // response bodies) that mean nothing to a modder and look broken/scary.
+      // Live-confirmed case (2026-09-01): a Groq 400 "tool_use_failed" body
+      // naming an internal "repo_browser.search" tool reached the chat UI
+      // verbatim. Full detail is still in the console log above for
+      // debugging; the user gets a short, honest, jargon-free message.
       return {
-        content: `I hit an error trying to answer that: ${rawErr}\n\nTry again, or ask something shorter if this keeps happening.`,
+        content: `I hit an error trying to answer that. Give it another try, or ask it a slightly different way if this keeps happening.`,
         context: { citations },
       };
     } catch (e) {

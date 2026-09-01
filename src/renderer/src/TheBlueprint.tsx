@@ -203,7 +203,7 @@ const MOD_TEMPLATES: ModTemplate[] = [
             { name: 'Triggers / Traps', type: 'ACTI / HAZD', required: false, description: 'Pressure plates, laser tripwires, environmental hazards' },
         ],
         dependencies: ['Fallout4.esm'],
-        recommendedTools: ['Creation Kit', 'xEdit/FO4Edit', 'PRP (Previs Repair Pack) for precombines', 'NifSkope', 'DynDOLOD for LOD'],
+        recommendedTools: ['Creation Kit', 'xEdit/FO4Edit', 'PRP (Previs Repair Pack) for precombines', 'NifSkope', 'TexGen + xLODGen for LOD (DynDOLOD.exe itself does not support FO4)'],
         checklist: [
             'Navmesh covers all walkable surfaces and has no open edges',
             'Encounter zone set (prevents enemies from being level-capped)',
@@ -726,11 +726,11 @@ const TheBlueprint: React.FC = () => {
                                     <div className="space-y-2">
                                         <div className="bg-[#252526] border border-emerald-700/40 rounded p-3">
                                             <div className="text-xs font-bold text-emerald-300 mb-1">ESL (Light Plugin)</div>
-                                            <p className="text-[10px] text-slate-400">≤2047 new FormIDs. Does not consume an ESP slot in the 255-plugin limit. Ideal for small patches, weapon packs, texture mods with a plugin.</p>
+                                            <p className="text-[10px] text-slate-400">≤2,048 new FormIDs (0x800–0xFFF). Does not consume an ESP slot in the 254-plugin limit. Ideal for small patches, weapon packs, texture mods with a plugin.</p>
                                         </div>
                                         <div className="bg-[#252526] border border-amber-700/40 rounded p-3">
                                             <div className="text-xs font-bold text-amber-300 mb-1">ESP (Standard Plugin)</div>
-                                            <p className="text-[10px] text-slate-400">Up to 16 million FormIDs. Counts against the 255-plugin limit. Required for large quests, world expansions, and anything that adds many records.</p>
+                                            <p className="text-[10px] text-slate-400">Up to 16 million FormIDs. Counts against the 254-plugin limit. Required for large quests, world expansions, and anything that adds many records.</p>
                                         </div>
                                         <div className="bg-[#252526] border border-blue-700/40 rounded p-3">
                                             <div className="text-xs font-bold text-blue-300 mb-1">ESL-Flagged ESP</div>

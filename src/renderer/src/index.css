@@ -1,3 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Fixed 2026-08-26 (site-wide missing-utility bug, e.g. w-72 rendering as 0 width):
+   This project runs Tailwind CSS v4 (tailwindcss@4.3.0, @tailwindcss/postcss@4.1.18),
+   but this file still used the old v3 `@tailwind base/components/utilities` directives
+   with no `@import "tailwindcss"` and no `@config` pointing at tailwind.config.cjs.
+   In v4's PostCSS plugin, that combination left the project's tailwind.config.cjs
+   (content globs + theme.extend colors/fonts) disconnected from the actual build, and
+   utility generation fell back to an incomplete auto-detection pass -- confirmed by
+   grepping the compiled dist/assets/*.css: `.w-72` was entirely absent even though six
+   different components (TemplateGenerator.tsx among them) use it. A flex-row sidebar
+   with a missing `w-72` class has no fixed width, so it fills 100% of the row and pushes
+   its flex-1 sibling (the generated-code output panel) out of view -- this was the real
+   cause of the Devtools Hub Template Generator's "AI runs but nothing ever shows" bug,
+   not just the accordion height issue fixed earlier the same day in TemplateGenerator.tsx.
+   `@import "tailwindcss"` is v4's replacement for the three `@tailwind` directives, and
+   `@config` explicitly wires the existing v3-style config back in (the officially
+   documented way to keep a JS config file after upgrading to v4) so its content globs
+   and theme.extend values are honored again instead of relying on guessed detection. */
+@import "tailwindcss";
+@config "../../../tailwind.config.cjs";

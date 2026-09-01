@@ -52,7 +52,7 @@ const ASSET_BUDGETS = [
   { category: 'Papyrus script poll rate', budget: '> 0.5 s between updates', details: 'Scripts polling faster than 500 ms stack in the Papyrus queue. Prefer event-driven design. Tight loops cause "Papyrus is overloaded" crashes.' },
   { category: 'Loose files vs BA2', budget: 'Release only in BA2', details: 'Loose files bypass the archive system and fragment the texture streamer. Always pack into BA2 for distribution. Keep loose only during dev.' },
   { category: 'Leveled list depth', budget: '< 5 nesting levels', details: 'FO4 evaluates leveled lists recursively. Lists nested more than 5 levels deep cause noticeable micro-stutter when evaluated at runtime.' },
-  { category: 'FormID count per ESP', budget: '≤ 4096 for ESL / 16M for ESP', details: 'ESL/ESP-FE: max 4096 new FormIDs (range 0x000–0xFFF). ESM-flagged-as-ESL: stricter 2048 limit (0x000–0x7FF). Standard ESP: 16M total. Compact FormIDs in xEdit before ESL-flagging.' },
+  { category: 'FormID count per ESP', budget: '≤ 2,048 for ESL / 16M for ESP', details: 'ESL/ESP-FE: max 2,048 new FormIDs (range 0x800–0xFFF). Standard ESP: 16M total. Compact FormIDs in xEdit before ESL-flagging.' },
 ];
 
 const CONFLICT_TYPES = [
@@ -94,24 +94,24 @@ const CONFLICT_TYPES = [
 ];
 
 const OPTIMIZATION_TIPS = [
-  { tip: 'Generate Precombines and Previs after any exterior edit', detail: 'DynDOLOD handles LOD; CK handles precombine/previs. Both are required for performance in exterior cells. Skipping precombine can drop FPS by 40% in dense areas.' },
+  { tip: 'Generate Precombines and Previs after any exterior edit', detail: 'xLODGen (FO4LODGen mode) handles LOD for FO4 — DynDOLOD.exe itself does not support FO4, only Skyrim/Enderal; CK handles precombine/previs. Both are required for performance in exterior cells. Skipping precombine can drop FPS by 40% in dense areas.' },
   { tip: 'Use texture atlasing for tiling materials', detail: 'Combine multiple small tiling textures into one atlas and use UV mapping to select regions. Reduces draw calls from N materials to 1.' },
   { tip: 'Pack NavMesh Islands', detail: 'Disjoint navmesh islands cost pathfinding CPU. Use CK NavMesh → Find Covers to identify unconnected islands and bridge or trim them.' },
   { tip: 'Remove orphaned scripts from save games', detail: 'Deleted mod scripts still run if attached to a save. Use Fallrim Tools (ReSaver) to identify and remove orphan scripts before distributing a save-safe patch.' },
   { tip: 'Profile performance with Community Shaders FPS overlay', detail: 'Enable the CS performance overlay to see per-frame GPU cost breakdown. Identify which cell, shader, or draw call is the bottleneck.' },
-  { tip: 'xLODGen terrain LOD before DynDOLOD', detail: 'Run xLODGen first for terrain height/normal LOD, then run TexGen, then DynDOLOD. Running them out of order produces missing or mismatched LOD.' },
+  { tip: 'TexGen before xLODGen', detail: 'For FO4, run TexGen first to bake LOD textures, then run xLODGen in FO4LODGen mode to generate terrain + object + tree LOD together. FO4 has no separate DynDOLOD.exe step — xLODGen replaces it for this game. Running TexGen after xLODGen produces missing or mismatched LOD.' },
   { tip: 'Limit exterior ambient occlusion mesh complexity', detail: 'Complex clutter meshes (rocks, debris) baked into the exterior heightmap contribute to AO calculation cost. Use lower-complexity proxy meshes for LOD levels 4–8.' },
   { tip: 'Deduplicate textures across BA2 archives', detail: 'Multiple mods may ship identical vanilla texture overrides. Deduplication identifies and consolidates these to reduce VRAM load. Use the Asset Deduplicator tab.' },
 ];
 
 const TOOLS_REFERENCE = [
   { name: 'xEdit (FO4Edit)', desc: 'Plugin analysis: ITMs, UDRs, conflicts, FormID inspection, script patching. The essential analysis tool.', nexus: '2737' },
-  { name: 'Wrye Bash', desc: 'Bashed Patch builder. Merges leveled lists, keywords, bash tags. Solves most LVLN conflicts automatically.', nexus: '20840' },
+  { name: 'Wrye Bash', desc: 'Bashed Patch builder. Merges leveled lists, keywords, bash tags. Solves most LVLN conflicts automatically. Hosted as a Nexus "site" mod (not a per-game page): nexusmods.com/site/mods/591.', nexus: '' },
   { name: 'Fallrim Tools (ReSaver)', desc: 'Save game analysis. Remove orphan script instances, inspect Papyrus stack.', nexus: '22507' },
   { name: 'CLASSIC (Crash Log Auto Scanner)', desc: 'Parses Buffout 4 / Buffout 4 NG crash logs. Matches FormIDs to records. Identifies conflict and script-caused crashes. Requires Buffout 4 NG installed for log generation.', nexus: '56255' },
   { name: 'X-Cell', desc: 'Primary crash-logger and engine-patch suite for next-gen Fallout 4 (2024+). Replaces Buffout 4 memory management. Provides VRAM optimisation, face-gen fixes, and stability patches for NG/AE/OG. Use alongside Buffout 4 NG (disable MemoryManager in its config.toml when X-Cell is active).', nexus: '84214' },
-  { name: 'DynDOLOD', desc: 'Exterior LOD generation including objects, terrain, trees. Required after any exterior change.', nexus: '61931' },
-  { name: 'xLODGen', desc: 'Terrain LOD (heightmap, normal, LOD textures). Run before DynDOLOD.', nexus: '' },
+  { name: 'xLODGen (FO4LODGen mode)', desc: 'Exterior LOD generation for FO4 — terrain, object, and tree LOD all in one tool. DynDOLOD.exe itself does not support FO4 (Skyrim/Enderal only); xLODGen replaces it here. Required after any exterior change.', nexus: '' },
+  { name: 'TexGen (FO4 mode)', desc: 'Bakes stitched LOD textures for objects/trees. Part of the DynDOLOD Resources download. Run before xLODGen.', nexus: '' },
   { name: 'NifOptimizer', desc: 'Batch NIF optimizer. Converts NIF format, removes redundant blocks, optimizes for FO4.', nexus: '4089' },
   { name: 'Cathedral Assets Optimizer (CAO)', desc: 'Batch asset optimizer for textures, NIFs, animations. Detect and fix outdated formats.', nexus: '' },
   { name: 'Community Shaders FPS overlay', desc: 'Real-time GPU cost breakdown per frame. Identify bottleneck shaders, draw calls, and overdraw.', nexus: '74088' },

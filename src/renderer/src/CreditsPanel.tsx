@@ -252,15 +252,15 @@ fallback — the full credits file (CREDITS.md) is included in your installation
 
 ## Modding Tools (separate downloads — all credits to their respective authors)
 - **Blender** (v3.0+) - 3D modeling and animation — blender.org (GPL 2.0)
-- **PyNifly** - NIF import/export for Blender by BadDogSkyrim — Nexus #52319 (MIT)
+- **PyNifly** - NIF import/export for Blender by BadDogSkyrim — Nexus #52319 (GPL 3.0)
 - **Creation Kit** - Official Fallout 4 modding tool — Bethesda Softworks
-- **xEdit / FO4Edit** - Plugin viewer and editor by ElminsterAU (GPL 2.0)
+- **xEdit / FO4Edit** - Plugin viewer and editor by ElminsterAU (MPL-2.0)
 - **NifSkope** - NIF mesh and texture viewer by hexabits (GPL 3.0)
 - **Mod Organizer 2** - Advanced mod manager by Tannin42 / MO2 Team (GPL 3.0)
 - **Vortex** - Mod manager by Nexus Mods
 - **F4SE (Fallout 4 Script Extender)** - by ianpatt & behippo
 - **LOOT** - Load Order Optimisation Tool by WrinklyNinja / LOOT Team (GPL 3.0)
-- **BodySlide & Outfit Studio** - by ousnius & Caliente (MIT)
+- **BodySlide & Outfit Studio** - by ousnius & Caliente (GPL 3.0)
 - **B.A.E. (Bethesda Archive Extractor)** - by jonwd7
 - **FOMOD Creation Tool** - by AlexxEG
 - **Wrye Bash** - Advanced mod manager and bashed patch tool (GPL 2.0)

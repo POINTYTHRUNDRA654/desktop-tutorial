@@ -32,7 +32,7 @@ const CredsSection: React.FC = () => {
       <div className="p-3 rounded-md border border-emerald-700/30 bg-emerald-900/10 text-emerald-200 text-xs">
         <div className="font-semibold mb-1 flex items-center gap-2">
           <Heart className="w-4 h-4 text-rose-400" />
-          {t('settings.hub.credits.builtWithLove', 'Built with Love on Amazing Open-Source Software')}
+          {t('settings.hub.credits.builtWithLove', 'Built with Love, Powered by These Tools & Libraries')}
         </div>
         <p>
           {t('settings.hub.credits.intro', 'Mossy stands on the shoulders of giants. Every feature you use is powered by dedicated developers and vibrant communities. Click below to see the full searchable credits, licenses, and attributions for all tools and frameworks.')}
@@ -105,15 +105,15 @@ const CredsSection: React.FC = () => {
           </h4>
           <ul className="space-y-1 text-slate-300">
             <li>• <strong>Blender</strong> — {t('settings.hub.credits.blender', '3D modeling (GPL 2.0)')}</li>
-            <li>• <strong>PyNifly</strong> — {t('settings.hub.credits.pynifly', 'NIF import/export for Blender by BadDogSkyrim (MIT)')}</li>
-            <li>• <strong>xEdit / FO4Edit</strong> — {t('settings.hub.credits.xedit', 'Plugin editor by ElminsterAU (GPL 2.0)')}</li>
+            <li>• <strong>PyNifly</strong> — {t('settings.hub.credits.pynifly', 'NIF import/export for Blender by BadDogSkyrim (GPL 3.0)')}</li>
+            <li>• <strong>xEdit / FO4Edit</strong> — {t('settings.hub.credits.xedit', 'Plugin editor by ElminsterAU (MPL-2.0)')}</li>
             <li>• <strong>Creation Kit</strong> — {t('settings.hub.credits.creationKit', 'Official Bethesda modding tool')}</li>
             <li>• <strong>NifSkope</strong> — {t('settings.hub.credits.nifskope', 'NIF mesh & texture viewer by hexabits (GPL 3.0)')}</li>
             <li>• <strong>Mod Organizer 2</strong> — {t('settings.hub.credits.mo2', 'Mod manager by Tannin42 / MO2 Team (GPL 3.0)')}</li>
             <li>• <strong>Vortex</strong> — {t('settings.hub.credits.vortex', 'Mod manager by Nexus Mods')}</li>
             <li>• <strong>F4SE</strong> — {t('settings.hub.credits.f4se', 'Fallout 4 Script Extender by ianpatt & behippo')}</li>
             <li>• <strong>LOOT</strong> — {t('settings.hub.credits.loot', 'Load Order Optimisation Tool (GPL 3.0)')}</li>
-            <li>• <strong>BodySlide & Outfit Studio</strong> — {t('settings.hub.credits.bodyslide', 'Body morphing by ousnius & Caliente (MIT)')}</li>
+            <li>• <strong>BodySlide & Outfit Studio</strong> — {t('settings.hub.credits.bodyslide', 'Body morphing by ousnius & Caliente (GPL 3.0)')}</li>
             <li>• <strong>B.A.E.</strong> — {t('settings.hub.credits.bae', 'Bethesda Archive Extractor by jonwd7')}</li>
             <li>• <strong>GIMP</strong> — {t('settings.hub.credits.gimp', 'GNU Image Manipulation Program (GPL 3.0)')}</li>
             <li>• <strong>UModel (UEViewer)</strong> — {t('settings.hub.credits.umodel', 'Unreal Engine asset viewer by Gildor')}</li>
@@ -416,7 +416,7 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'ollama',
-      title: t('settings.hub.step3b.title', 'Step 3b: Local LLM — Ollama'),
+      title: t('settings.hub.step3b.title', 'Step 4: Local LLM — Ollama'),
       description: t('settings.hub.step3b.desc', 'Run open-source models locally for fully offline AI assistance.'),
       icon: Zap,
       content: <OllamaSettings embedded />,
@@ -425,7 +425,7 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'brainb',
-      title: t('settings.hub.stepBrainB.title', 'Local RAG Tutor — Brain B'),
+      title: t('settings.hub.stepBrainB.title', 'Step 5: Local RAG Tutor — Brain B'),
       description: t('settings.hub.stepBrainB.desc', "Mossy's own local knowledge base + tutoring contract — NVIDIA GPU required, started manually."),
       icon: Database,
       content: <BrainBSettings embedded />,
@@ -434,7 +434,7 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'screenAwareness',
-      title: t('settings.hub.stepScreenAwareness.title', 'Screen Awareness (Seeing) — Blender'),
+      title: t('settings.hub.stepScreenAwareness.title', 'Step 6: Screen Awareness (Seeing) — Blender'),
       description: t('settings.hub.stepScreenAwareness.desc', 'Watches Blender in real time for known mistakes and speaks a live correction — first-slice feature, Blender only.'),
       icon: Eye,
       content: <ScreenAwarenessSettings embedded />,
@@ -443,7 +443,7 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'anythingllm',
-      title: t('settings.hub.step3c.title', 'Step 3c: AnythingLLM — RAG Knowledge Engine'),
+      title: t('settings.hub.step3c.title', 'Step 7: AnythingLLM — RAG Knowledge Engine'),
       description: t('settings.hub.step3c.desc', 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.'),
       icon: Database,
       content: <AnythingLLMSettings embedded />,
@@ -452,28 +452,28 @@ const SettingsHub: React.FC = () => {
     },
     {
       id: 'external-tools',
-      title: t('settings.hub.step4.title', 'Step 4: External Tools'),
+      title: t('settings.hub.step4.title', 'Step 8: External Tools'),
       description: t('settings.hub.step4.desc', 'Point Mossy at your FO4 modding toolchain and verify paths.'),
       icon: Wrench,
       content: <ExternalToolsSettings embedded />,
     },
     {
       id: 'import-export',
-      title: t('settings.hub.step5.title', 'Step 5: Backup & Restore'),
+      title: t('settings.hub.step5.title', 'Step 9: Backup & Restore'),
       description: t('settings.hub.step5.desc', 'Export or import a settings snapshot for quick recovery.'),
       icon: ArrowDownToLine,
       content: <SettingsImportExport embedded />,
     },
     {
       id: 'tutorial-reset',
-      title: t('settings.hub.step6.title', 'Step 6: Tutorial & Onboarding'),
+      title: t('settings.hub.step6.title', 'Step 10: Tutorial & Onboarding'),
       description: t('settings.hub.step6.desc', 'Replay the installation tutorial and first-run onboarding experience.'),
       icon: RotateCcw,
       content: <TutorialResetSettings embedded />,
     },
     {
       id: 'internet-test',
-      title: t('settings.hub.step7.title', 'Step 7: Internet Access Test'),
+      title: t('settings.hub.step7.title', 'Step 11: Internet Access Test'),
       description: t('settings.hub.step7.desc', 'Verify Mossy can reach search providers and go online.'),
       icon: Wifi,
       content: <InternetTestPanel />,
@@ -545,14 +545,18 @@ const SettingsHub: React.FC = () => {
             <li>{t('settings.hub.flow1', 'Lock down privacy and security basics')}</li>
             <li>{t('settings.hub.flow2', 'Choose your preferred UI language')}</li>
             <li>{t('settings.hub.flow3', 'Configure the AI engine (provider, model, response length, self-critique)')}</li>
-            <li>{t('settings.hub.flow4', 'Optionally set up a local Ollama LLM for offline use')}</li>
+            <li>{t('settings.hub.flow4', 'Optional: set up a local Ollama LLM for offline use')}</li>
+            <li>{t('settings.hub.flow4b', 'Optional: enable Brain B, Mossy\'s local RAG tutor (NVIDIA GPU required)')}</li>
+            <li>{t('settings.hub.flow4c', 'Optional: enable Screen Awareness for live Blender correction')}</li>
+            <li>{t('settings.hub.flow4d', 'Optional: enable AnythingLLM for Memory Vault / Knowledge Hub semantic search')}</li>
             <li>{t('settings.hub.flow5', 'Point Mossy at your FO4 modding toolchain')}</li>
             <li>{t('settings.hub.flow6', 'Export a clean backup snapshot')}</li>
             <li>{t('settings.hub.flow7', 'Replay the installation tutorial if needed')}</li>
+            <li>{t('settings.hub.flow8', 'Verify Mossy can reach search providers and go online')}</li>
           </ol>
         </div>
 
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4" style={{ flexShrink: 0 }}>
           {sections.map((section) => {
             const isExpanded = expandedSection === section.id;
             const Icon = section.icon;

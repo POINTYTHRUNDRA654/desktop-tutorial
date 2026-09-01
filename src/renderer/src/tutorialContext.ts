@@ -1813,7 +1813,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Distributing a mod built with the NG CK to OG users without warning about BA2 V7/V8 incompatibility',
       'Installing AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD in any NG/AE mod — these are deprecated; see FO4 CK Guide tab',
       'Installing standalone Buffout 4 NG alongside Addictol — Addictol already includes it; installing both causes crashes',
-      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x000-0xFFF) or precombine rules',
+      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x800-0xFFF) or precombine rules',
     ],
     guides: [
       {
@@ -1838,7 +1838,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Release-safe workflow checklist',
         steps: [
           'Open FO4 CK Guide tab → review Deprecated Frameworks and NG/AE sections',
-          'Validate ESL FormID boundary (0x000-0xFFF limit) — run xEdit Compact FormIDs if needed',
+          'Validate ESL FormID boundary (0x800-0xFFF limit) — run xEdit Compact FormIDs if needed',
           'Check BA2 header version matches your target runtime (V1 for OG, V2 for NG/AE)',
           'Run Spriggit (CK Safety tab) to serialize your ESP to YAML for Git before releasing',
         ],
@@ -3198,7 +3198,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'A real "Fallout Wiki" button in the header opens fallout.fandom.com in your browser',
       'Animation & Rigging — full Blender + Havok pipeline (skeleton, weights, FBX export, HKX conversion) + Shiagur rig suite, MaikCG F4Biped, IAF/NAF/AWF framework integration',
       'Quest Authoring — CK + Papyrus + F4SE workflow from smoke test to release',
-      'LOD & Precombine — xLODGen + DynDOLOD + PRP end-to-end generation and validation',
+      'LOD & Precombine — TexGen + xLODGen + PRP end-to-end generation and validation',
       'Textures & Materials — DDS formats, BGSM editing, PBR pipeline, and batch optimization (mirrors the FO4 Textures & Materials platform\'s own guide tab)',
       'Papyrus & Scripting — F4SE, event-driven scripting patterns, and PaperScript reference',
       'Sim Settlements 2 — addon pack structure, city plan authoring, and unit/plot design',
@@ -3289,7 +3289,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     tutorialSections: [
       'Animation & Rigging (Blender + Havok)',
       'Quest Authoring (CK + Papyrus + F4SE)',
-      'LOD & Precombine (xLODGen + DynDOLOD + PRP)',
+      'LOD & Precombine (TexGen + xLODGen + PRP)',
       'Textures & Materials (DDS + BGSM + PBR + Optimize)',
       'Papyrus & Scripting (F4SE + Events + PaperScript)',
       'Sim Settlements 2 (Addon Packs + City Plans + Units)',
@@ -4647,15 +4647,15 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     // This content was merged into the Quest Authoring Guide (precombine-prp and
     // precombine-checker both redirect there now) — route matches where it actually lives.
     route: '/guides/creation-kit/quest-authoring',
-    purpose: 'End-to-end LOD generation and precombine rebuild workflow for FO4 exterior mods: xLODGen terrain/object LODs, DynDOLOD tree/dynamic LODs, and PRP precombine rebuild and validation.',
-    features: ['xLODGen terrain and object LOD generation', 'DynDOLOD tree and dynamic LOD setup', 'PRP precombine rebuild steps', 'Exterior cell edit validation', 'Precombine conflict detection'],
+    purpose: 'End-to-end LOD generation and precombine rebuild workflow for FO4 exterior mods: TexGen LOD textures, xLODGen terrain/object/tree LODs (FO4 has no separate DynDOLOD.exe step), and PRP precombine rebuild and validation.',
+    features: ['TexGen LOD texture generation', 'xLODGen terrain, object, and tree/dynamic LOD generation', 'PRP precombine rebuild steps', 'Exterior cell edit validation', 'Precombine conflict detection'],
     controls: [
       { name: 'LOD & Precombine Tab', type: 'button', description: 'Opens the combined LOD generation and precombine guide', whenToUse: 'Use when editing exterior cells or generating LODs for distribution' },
     ],
-    commonMistakes: ['Editing exterior cells without rebuilding precombines', 'Running xLODGen before DynDOLOD (order matters)', 'Not validating PRP compatibility before release'],
-    guides: [{ title: 'LOD & Precombine rebuild (quick path)', steps: ['Edit exterior cells in CK', 'Rebuild precombines and verify with PRP', 'Run xLODGen for terrain/object LODs', 'Run DynDOLOD for tree/dynamic LODs', 'Test in-game on a clean profile'] }],
-    tutorialSections: ['xLODGen', 'DynDOLOD', 'PRP Precombine Rebuild'],
-    suggestedQuestions: ['What order should I run xLODGen and DynDOLOD?', 'How do I rebuild precombines for a cell I edited?', 'What does PRP do vs standard precombines?'],
+    commonMistakes: ['Editing exterior cells without rebuilding precombines', 'Running xLODGen before TexGen (order matters)', 'Not validating PRP compatibility before release'],
+    guides: [{ title: 'LOD & Precombine rebuild (quick path)', steps: ['Edit exterior cells in CK', 'Rebuild precombines and verify with PRP', 'Run TexGen for LOD textures', 'Run xLODGen (FO4LODGen mode) for terrain/object/tree LODs', 'Test in-game on a clean profile'] }],
+    tutorialSections: ['TexGen', 'xLODGen', 'PRP Precombine Rebuild'],
+    suggestedQuestions: ['What order should I run TexGen and xLODGen?', 'How do I rebuild precombines for a cell I edited?', 'What does PRP do vs standard precombines?'],
   },
 
   'tools': {

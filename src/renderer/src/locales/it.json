@@ -112,24 +112,24 @@
         "desc": "Selezionare il provider IA (Groq/Ollama), il modello, la lunghezza della risposta e l'autocritica."
       },
       "step3b": {
-        "title": "Passo 3b: LLM locale — Ollama",
+        "title": "Passo 4: LLM locale — Ollama",
         "desc": "Eseguire modelli open source localmente per assistenza IA completamente offline.",
         "badge": "FACOLTATIVO"
       },
       "step4": {
-        "title": "Passo 4: Strumenti esterni",
+        "title": "Passo 8: Strumenti esterni",
         "desc": "Puntare Mossy sulla toolchain di modding FO4 e verificare i percorsi."
       },
       "step5": {
-        "title": "Passo 5: Backup e ripristino",
+        "title": "Passo 9: Backup e ripristino",
         "desc": "Esportare o importare uno snapshot delle impostazioni per un ripristino rapido."
       },
       "step6": {
-        "title": "Passo 6: Tutorial e onboarding",
+        "title": "Passo 10: Tutorial e onboarding",
         "desc": "Riprodurre il tutorial di installazione e l'esperienza di onboarding iniziale."
       },
       "step7": {
-        "title": "Passo 7: Test accesso Internet",
+        "title": "Passo 11: Test accesso Internet",
         "desc": "Verificare che Mossy possa raggiungere i provider di ricerca e andare online."
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "Libreria di grafici (MIT)",
         "moddingTools": "Strumenti di Modding (download separati)",
         "blender": "Modellazione 3D (GPL 2.0)",
-        "pynifly": "Import/export NIF per Blender di BadDogSkyrim (MIT)",
-        "xedit": "Editor di plugin di ElminsterAU (GPL 2.0)",
+        "pynifly": "Import/export NIF per Blender di BadDogSkyrim (GPL 3.0)",
+        "xedit": "Editor di plugin di ElminsterAU (MPL-2.0)",
         "creationKit": "Strumento ufficiale di modding Bethesda",
         "nifskope": "Visualizzatore mesh e texture NIF di hexabits (GPL 3.0)",
         "mo2": "Gestore mod di Tannin42 / Team MO2 (GPL 3.0)",
         "vortex": "Gestore mod di Nexus Mods",
         "f4se": "Fallout 4 Script Extender di ianpatt e behippo",
         "loot": "Strumento di Ottimizzazione dell'Ordine di Caricamento (GPL 3.0)",
-        "bodyslide": "Body morphing di ousnius e Caliente (MIT)",
+        "bodyslide": "Body morphing di ousnius e Caliente (GPL 3.0)",
         "bae": "Bethesda Archive Extractor di jonwd7",
         "gimp": "Programma di Manipolazione Immagini GNU (GPL 3.0)",
         "umodel": "Visualizzatore asset Unreal Engine di Gildor",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "Risultato di esempio da"
       },
       "step3c": {
-        "title": "Passaggio 3c: AnythingLLM — Motore di Conoscenza RAG",
+        "title": "Passaggio 7: AnythingLLM — Motore di Conoscenza RAG",
         "desc": "Recupero di documenti basato su vettori per la ricerca semantica di Memory Vault e Knowledge Hub."
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy Tutor · Procedure Guidate di Configurazione FO4",
     "title": "Hub delle Procedure Guidate di Configurazione FO4",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — patch pre–Next-Gen (aprile 2024)",
       "ng": "1.10.984+ — Next-Gen / predefinito Steam attuale",
-      "ae": "Contenuto del Menu Creations / Edizione Anniversario"
+      "ae": "1.11.x — Contenuto del Menu Creations / Edizione Anniversario"
     },
     "stepLabel": "Passaggio {step}: {title}",
     "setupProgress": "Avanzamento Configurazione",
@@ -913,7 +913,7 @@
       },
       "loadOrder": {
         "title": "Conosci le Regole dell'Ordine di Caricamento",
-        "body": "Fallout 4 ha un limite di 255 plugin (ESM+ESP+ESL). I plugin contrassegnati come ESL condividono un pool di 2.048 FormID. Usa l'Hub Plugin e Ordine di Caricamento FO4 per gestire e convalidare."
+        "body": "Fallout 4 ha un limite rigido di 254 plugin ESM/ESP standard (lo slot 0xFE è riservato all'indicatore ESL). I plugin contrassegnati come ESL si caricano in un intervallo FE000-FEFFF separato e non contano per quel limite — ognuno ha il proprio pool di 2.048 FormID. Usa l'Hub Plugin e Ordine di Caricamento FO4 per gestire e convalidare."
       },
       "assetPipeline": {
         "title": "Impara la Pipeline delle Risorse",

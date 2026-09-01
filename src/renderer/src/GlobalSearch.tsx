@@ -31,7 +31,7 @@ const searchIndex: SearchItem[] = [
   { id: 'ck-tools-hub', label: 'FO4 Creation Kit Hub', path: '/ck-tools', category: 'Learning', description: 'Unified CK safety, extension tools, and FO4 Creation Kit reference tabs' },
   { id: 'crash-triage', label: 'Crash Triage', path: '/crash-triage', category: 'Debugging', description: 'Diagnose and fix game crashes' },
   { id: 'packaging', label: 'FO4 Packaging & Release', path: '/packaging-release', category: 'Publishing', description: 'Unified release pipeline: BA2 management, packaging checks, conflict analysis, comparison, and FOMOD export' },
-  { id: 'guides-hub', label: 'FO4 Guides Hub', path: '/guides-hub', category: 'Guides', description: 'Three-tab deep-dive guide hub: Animation & Rigging (Blender + Havok), Quest Authoring (CK + Papyrus), and LOD & Precombine (xLODGen + DynDOLOD + PRP)' },
+  { id: 'guides-hub', label: 'FO4 Guides Hub', path: '/guides-hub', category: 'Guides', description: 'Three-tab deep-dive guide hub: Animation & Rigging (Blender + Havok), Quest Authoring (CK + Papyrus), and LOD & Precombine (TexGen + xLODGen + PRP)' },
   { id: 'quest-dialogue', label: 'CK Quest & Dialogue', path: '/ck-quest-dialogue', category: 'Content', description: 'Creation Kit quest and dialogue guides' },
   { id: 'animation-guide', label: 'Animation Guide', path: '/animation-guide', category: 'Animation', description: 'Animation creation and editing guides' },
   { id: 'skeleton-reference', label: 'Skeleton Reference', path: '/skeleton-reference', category: 'Animation', description: 'Reference for skeleton and rigging' },
@@ -44,7 +44,7 @@ const searchIndex: SearchItem[] = [
 
   // Building Tools
   { id: 'tools', label: 'Tools', path: '/tools', category: 'Tools', description: 'General tools and utilities' },
-  { id: 'cosmos-workflow', label: 'FO4 Automation Studio', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos integration workspace: repo detection, Knowledge Search root wiring, local docs access, and index/query validation' },
+  ...(process.env.NODE_ENV !== 'production' ? [{ id: 'cosmos-workflow', label: 'FO4 Automation Studio', path: '/tools/cosmos', category: 'Tools', description: 'Cosmos integration workspace: repo detection, Knowledge Search root wiring, local docs access, and index/query validation' }] : []),
   { id: 'mod-builder', label: 'FO4 Mod Builder Hub', path: '/mod-builder', category: 'Tools', description: 'Four-tab build hub: Blueprint planning, Workshop file/compile flow, Devtools scripting, and Scribe documentation' },
   { id: 'devtools', label: 'Devtools', path: '/devtools', category: 'Tools', description: 'Script generation and analysis tools' },
   { id: 'template-generator', label: 'Template Generator', path: '/devtools', category: 'Tools', description: 'Generate templates for mods' },

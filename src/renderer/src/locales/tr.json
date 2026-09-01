@@ -112,24 +112,24 @@
         "desc": "Yapay zeka sağlayıcısını (Groq/Ollama), modeli, yanıt uzunluğunu ve öz-eleştiriyi seçin."
       },
       "step3b": {
-        "title": "Adım 3b: Yerel LLM — Ollama",
+        "title": "Adım 4: Yerel LLM — Ollama",
         "desc": "Tamamen çevrimdışı yapay zeka yardımı için açık kaynaklı modelleri yerel olarak çalıştırın.",
         "badge": "İSTEĞE BAĞLI"
       },
       "step4": {
-        "title": "Adım 4: Harici Araçlar",
+        "title": "Adım 8: Harici Araçlar",
         "desc": "Mossy'yi FO4 modlama araç zincirinize yönlendirin ve yolları doğrulayın."
       },
       "step5": {
-        "title": "Adım 5: Yedekleme ve Geri Yükleme",
+        "title": "Adım 9: Yedekleme ve Geri Yükleme",
         "desc": "Hızlı kurtarma için ayar anlık görüntüsünü dışa veya içe aktarın."
       },
       "step6": {
-        "title": "Adım 6: Öğretici ve Tanıtım",
+        "title": "Adım 10: Öğretici ve Tanıtım",
         "desc": "Kurulum öğreticisini ve ilk çalıştırma deneyimini tekrar oynatın."
       },
       "step7": {
-        "title": "Adım 7: İnternet Erişim Testi",
+        "title": "Adım 11: İnternet Erişim Testi",
         "desc": "Mossy'nin arama sağlayıcılarına ulaşabildiğini ve çevrimiçi olabildiğini doğrulayın."
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "Grafik kütüphanesi (MIT)",
         "moddingTools": "Modlama Araçları (ayrı indirmeler)",
         "blender": "3D modelleme (GPL 2.0)",
-        "pynifly": "BadDogSkyrim tarafından Blender için NIF içe/dışa aktarma (MIT)",
-        "xedit": "ElminsterAU tarafından eklenti düzenleyici (GPL 2.0)",
+        "pynifly": "BadDogSkyrim tarafından Blender için NIF içe/dışa aktarma (GPL 3.0)",
+        "xedit": "ElminsterAU tarafından eklenti düzenleyici (MPL-2.0)",
         "creationKit": "Resmi Bethesda modlama aracı",
         "nifskope": "hexabits tarafından NIF ağ ve doku görüntüleyici (GPL 3.0)",
         "mo2": "Tannin42 / MO2 Ekibi tarafından mod yöneticisi (GPL 3.0)",
         "vortex": "Nexus Mods tarafından mod yöneticisi",
         "f4se": "ianpatt ve behippo tarafından Fallout 4 Script Extender",
         "loot": "Yükleme Sırası Optimizasyon Aracı (GPL 3.0)",
-        "bodyslide": "ousnius ve Caliente tarafından vücut şekillendirme (MIT)",
+        "bodyslide": "ousnius ve Caliente tarafından vücut şekillendirme (GPL 3.0)",
         "bae": "jonwd7 tarafından Bethesda Archive Extractor",
         "gimp": "GNU Görüntü İşleme Programı (GPL 3.0)",
         "umodel": "Gildor tarafından Unreal Engine varlık görüntüleyici",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "Örnek sonuç kaynağı:"
       },
       "step3c": {
-        "title": "Adım 3c: AnythingLLM — RAG Bilgi Motoru",
+        "title": "Adım 7: AnythingLLM — RAG Bilgi Motoru",
         "desc": "Memory Vault ve Knowledge Hub semantik araması için vektör tabanlı belge alma."
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy Tutor · FO4 Kurulum Sihirbazları",
     "title": "FO4 Kurulum Sihirbazları Merkezi",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — Next-Gen öncesi yama (Nisan 2024)",
       "ng": "1.10.984+ — Next-Gen / mevcut Steam varsayılanı",
-      "ae": "Creations Menüsü / Yıl Dönümü Sürümü içeriği"
+      "ae": "1.11.x — Creations Menüsü / Yıl Dönümü Sürümü içeriği"
     },
     "stepLabel": "Adım {step}: {title}",
     "setupProgress": "Kurulum İlerlemesi",

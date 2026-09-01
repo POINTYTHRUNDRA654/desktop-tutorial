@@ -28,6 +28,25 @@ function isContextLengthError(e: unknown): boolean {
   return /context.?length|reduce.*length|too (long|large)|shorten|maximum.*token|token.*limit/i.test(msg);
 }
 
+/** True when the model tried to emit a tool/function call even though no
+ *  tools were declared on this request (Groq treats "no tools" as an
+ *  implicit tool_choice: 'none' and rejects the completion outright rather
+ *  than falling back to plain text). Confirmed live (2026-09-01): a
+ *  tool-tuned model (openai/gpt-oss-120b) can spontaneously attempt a
+ *  hallucinated call -- e.g. a nonexistent "repo_browser.search" -- on a
+ *  plain question that merely *sounds* like it wants a lookup ("what's the
+ *  exact command line syntax for..."), with zero tools ever offered this
+ *  turn. Distinct from the already-handled 'required'-tool_choice failure
+ *  (see GROQ_FALLBACK_MODEL's docstring): this one fires even when no tools
+ *  were requested at all, so it wasn't covered by that fix. */
+function isToolUseFailedError(e: unknown): boolean {
+  if (!(e instanceof GroqBadRequestError)) return false;
+  const body = (e as any)?.error?.error ?? (e as any)?.error;
+  if (body?.code === 'tool_use_failed') return true;
+  const msg = e.message || '';
+  return /tool_use_failed|tool choice is none, but model called a tool/i.test(msg);
+}
+
 // Vision support (Phase 2 "Seeing"): a message's content can be a plain
 // string (every existing caller, unchanged) or a real OpenAI/Groq-compatible
 // multimodal content array -- see Groq's vision docs (qwen/qwen3.6-27b is
@@ -193,8 +212,10 @@ async function groqChatWithFallback(
   } catch (e) {
     const rateLimited = e instanceof GroqRateLimitError;
     const tooLong = isContextLengthError(e);
-    if ((rateLimited || tooLong) && preferredModel !== GROQ_FALLBACK_MODEL) {
-      console.warn(`[Chat] ${tooLong ? 'Context length exceeded' : 'Rate-limited'} on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL} (${tooLong ? '262K' : 'higher-quota'} context)`);
+    const toolHallucination = isToolUseFailedError(e);
+    if ((rateLimited || tooLong || toolHallucination) && preferredModel !== GROQ_FALLBACK_MODEL) {
+      const reason = toolHallucination ? 'Model hallucinated a tool call with none offered' : tooLong ? 'Context length exceeded' : 'Rate-limited';
+      console.warn(`[Chat] ${reason} on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL} (${toolHallucination ? 'known more tool-call-disciplined model' : tooLong ? '262K context' : 'higher-quota'})`);
       const fallback = await attempt(GROQ_FALLBACK_MODEL);
       return {
         text: fallback.choices?.[0]?.message?.content || '',

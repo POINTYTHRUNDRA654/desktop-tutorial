@@ -2714,6 +2714,18 @@ const electronAPI = {
   },
 
   /**
+   * Whisper Setup Progress: subscribe to real-time progress events sent by
+   * the faster-whisper auto-install background task (mirrors
+   * onPytorchSetupProgress above).
+   * @returns unsubscribe function
+   */
+  onWhisperSetupProgress: (callback: (data: { message: string }) => void): (() => void) => {
+    const subscription = (_event: any, data: { message: string }) => callback(data);
+    ipcRenderer.on('whisper-setup-progress', subscription);
+    return () => ipcRenderer.removeListener('whisper-setup-progress', subscription);
+  },
+
+  /**
    * Fresh-install detection: fires once when the main process finds a
    * fresh-install.marker written by the Inno Setup installer.  The renderer
    * should reset all onboarding localStorage flags so the wizard runs again.
@@ -2733,6 +2745,39 @@ const electronAPI = {
    */
   notifyPytorchRendererReady: (): void => {
     ipcRenderer.send('pytorch-renderer-ready');
+  },
+
+  /**
+   * Local AI Setup Consent: subscribe to the one-time request the main
+   * process sends (via 'local-ai-setup-consent-request') when PyTorch
+   * and/or faster-whisper aren't configured yet. Nothing is downloaded
+   * until the renderer calls respondLocalAiSetupConsent(true).
+   * @returns unsubscribe function
+   */
+  onLocalAiSetupConsentRequest: (
+    callback: (data: { needsPytorch: boolean; needsWhisper: boolean }) => void
+  ): (() => void) => {
+    const subscription = (_event: any, data: { needsPytorch: boolean; needsWhisper: boolean }) => callback(data);
+    ipcRenderer.on('local-ai-setup-consent-request', subscription);
+    return () => ipcRenderer.removeListener('local-ai-setup-consent-request', subscription);
+  },
+
+  /**
+   * Local AI Setup Consent: tell the main process whether the user approved
+   * downloading PyTorch/faster-whisper. approved=false is remembered so the
+   * user is never asked again; approved=true starts the install(s).
+   */
+  respondLocalAiSetupConsent: (approved: boolean): void => {
+    ipcRenderer.send('local-ai-setup-consent-response', { approved });
+  },
+
+  /**
+   * Local AI Setup Consent: manually re-open the consent dialog (e.g. from
+   * Settings → External Tools) even if the user previously skipped it or
+   * only one of PyTorch/faster-whisper is still missing.
+   */
+  requestLocalAiSetupConsent: (): void => {
+    ipcRenderer.send('local-ai-setup-manual-request');
   },
 
   /**

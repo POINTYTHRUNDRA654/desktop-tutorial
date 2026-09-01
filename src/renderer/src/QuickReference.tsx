@@ -314,7 +314,7 @@ export const QuickReference: React.FC<QuickReferenceProps> = ({ embedded = false
         { name: '04000000-04FFFFFF', description: 'DLC04: Contraptions', category: 'DLC' },
         { name: '05000000-05FFFFFF', description: 'DLC05: Vault-Tec', category: 'DLC' },
         { name: '06000000-06FFFFFF', description: 'DLC06: Nuka-World', category: 'DLC' },
-        { name: 'FE000000-FE000FFF', description: 'ESL light plugins (index 000-FFF) — max 4096 local FormIDs per ESL (0x000-0xFFF). Exceeding 0xFFF causes save corruption. Use xEdit "Compact FormIDs for ESL" to fix.', category: 'Light' },
+        { name: 'FE000000-FE000FFF', description: 'ESL light plugins — max 2,048 new local FormIDs per ESL (range 0x800-0xFFF). Exceeding 0xFFF causes save corruption. Use xEdit "Compact FormIDs for ESL" to fix.', category: 'Light' },
         { name: 'FF000000-FFFFFFFF', description: 'Dynamic forms (runtime)', category: 'Runtime' },
         { name: '00000014', description: 'PlayerREF (player character)', category: 'Special' },
         { name: '00000007', description: 'Player base actor', category: 'Special' },

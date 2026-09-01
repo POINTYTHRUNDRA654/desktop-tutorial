@@ -18,6 +18,7 @@ import InteractiveTutorial from './InteractiveTutorial';
 import TutorialLaunch from './TutorialLaunch';
 import { NotificationProvider } from './NotificationContext';
 import AutoUpdateNotifier from './components/AutoUpdateNotifier';
+import LocalAiSetupConsent from './components/LocalAiSetupConsent';
 import { ensureBrowserTtsSettingsStored } from './browserTts';
 import { initClipboardGate } from './utils/clipboardGate';
 import { AppLockProvider } from './AppLock';
@@ -527,6 +528,39 @@ const App: React.FC = () => {
     // Signal to the main process that the renderer is ready so it can start
     // the background auto-install immediately (instead of waiting for the fallback timeout).
     api.notifyPytorchRendererReady?.();
+
+    return () => {
+      unsubscribe?.();
+      if (loadingToastId) toast.dismiss(loadingToastId);
+    };
+  }, []);
+
+  useEffect(() => {
+    const api = (window as any).electron?.api || (window as any).electronAPI;
+    if (!api?.onWhisperSetupProgress) return;
+
+    let loadingToastId: string | null = null;
+
+    const unsubscribe = api.onWhisperSetupProgress((data: { message: string }) => {
+      const msg = data?.message || '';
+      if (msg.startsWith('✅')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.success(msg, { duration: 6000, id: 'whisper-setup' });
+      } else if (msg.startsWith('❌')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast.error(msg, { duration: 10000, id: 'whisper-setup' });
+      } else if (msg.startsWith('⚠️')) {
+        if (loadingToastId) { toast.dismiss(loadingToastId); loadingToastId = null; }
+        toast(msg, { duration: 8000, id: 'whisper-setup', icon: '⚠️' });
+      } else {
+        // Progress update — show/update a loading toast
+        if (loadingToastId) {
+          toast.loading(msg, { id: loadingToastId });
+        } else {
+          loadingToastId = toast.loading(msg, { id: 'whisper-setup-loading' });
+        }
+      }
+    });
 
     return () => {
       unsubscribe?.();
@@ -1839,6 +1873,9 @@ const App: React.FC = () => {
 
                 {/* Auto-Update Notification */}
                 <AutoUpdateNotifier />
+
+                {/* Local AI Setup Consent (PyTorch / faster-whisper) */}
+                <LocalAiSetupConsent />
               </AppLockProvider>
             </NotificationProvider>
           </PipBoyFrame>

@@ -131,15 +131,15 @@ export const installWizardResources: Record<InstallWizardTopic, InstallWizardRes
       tags: ['xedit', 'fo4edit', 'patching', 'compatibility', 'install-wizard'],
     },
     {
-      label: 'Mator Smash (Nexus #49193)',
+      label: 'Mator Smash (Nexus #90987)',
       url: 'https://www.nexusmods.com/skyrim/mods/90987',
       note: 'Automated conflict resolution tool — creates a bashed/smashed patch from your load order.',
       content: 'Mator Smash automates conflict detection and patch creation across your entire load order. Use it after manually resolving critical conflicts in xEdit to catch remaining record-level overrides. Configure the rule sets for your mod types (weapons, armor, leveled lists, etc.) before running. Review the output patch in xEdit before activating it.',
       tags: ['patching', 'conflict', 'automation', 'install-wizard'],
     },
     {
-      label: 'Wrye Bash (Nexus #20032)',
-      url: 'https://www.nexusmods.com/fallout4/mods/20032',
+      label: 'Wrye Bash (nexusmods.com/site/mods/591)',
+      url: 'https://www.nexusmods.com/site/mods/591',
       note: 'Bashed Patch builder — merges leveled lists and resolves common override conflicts.',
       content: 'Wrye Bash builds a Bashed Patch that merges leveled list changes from multiple mods, preventing loot/spawn conflicts without manual patching. Run it after finalizing your load order. Enable the Leveled Lists patcher, optionally the Tweak Settings patcher, then rebuild the Bashed Patch and place it near the end of your load order. Rebuild after any load order change.',
       tags: ['patching', 'bashed-patch', 'leveled-lists', 'install-wizard'],

@@ -15,37 +15,38 @@ interface LODAsset {
   sourceNif: string;
   lodPass: LODPass;
   targetDir: string;
-  textureReduction: number; // % reduction: 50, 25, 10
-  billboardMode: 'none' | 'auto' | 'custom';
-  mergeChance: number; // 0-100 for LOD1+
+  // Fixed 2026-08-26 (Bug 6): textureReduction/billboardMode/mergeChance used to be
+  // sent as fabricated CLI flags to a tool that doesn't accept them (see runLODGen
+  // below). xLODGen/FO4LODGen-family tools are configured and run through their own
+  // GUI, so these settings now live here only as your own planning notes.
+  notes: string;
   priority: 'high' | 'normal' | 'low';
-  status: 'pending' | 'processing' | 'done' | 'error';
+  status: 'pending' | 'launched' | 'done' | 'error';
   lastRun?: string;
   errorLog?: string;
-  outputFiles: string[];
-  meshReduction?: number; // % mesh reduction achieved
-  estimatedMemorySavings?: number; // MB
-  triangleCount?: { before: number; after: number };
   fullLog?: string;
 }
 
 interface PrecombineJob {
   id: string;
   name: string;
-  cellRange: string; // e.g., "01000000-01FFFFFF" for worldspace 01
+  // Fixed 2026-08-26 (Bug 6): the real tool is PJM's Previs Patching Scripts (Nexus
+  // #69978) via GeneratePrevisibines.bat, which takes the plugin name as its one
+  // real argument -- see runPrecombineJob below. pluginName is what's actually
+  // passed to the tool; cellRange/interiorCells/includeStatics/includeDynamic/
+  // prpMode/billboardFallback are kept as your own planning notes only, they are
+  // NOT passed to the script (it operates on the whole plugin, not a cell range).
+  pluginName: string;
+  cellRange: string;
   interiorCells: boolean;
   includeStatics: boolean;
   includeDynamic: boolean;
-  prpMode: boolean; // Pre-rendered Patches
+  prpMode: boolean;
   billboardFallback: boolean;
   preset?: 'interior-dungeon' | 'dense-exterior' | 'settlement' | 'custom';
   status: 'pending' | 'processing' | 'done' | 'error';
   lastRun?: string;
   errorLog?: string;
-  outputBA2?: string;
-  outputNifs?: number;
-  totalMeshes?: number;
-  compressionRatio?: number; // %
   fullLog?: string;
 }
 
@@ -54,53 +55,11 @@ type LorekeeperProps = {
 };
 
 const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
-  // --- Parsing Utilities ---
-  const parseLODGenOutput = (output: string): Partial<LODAsset> => {
-    const result: Partial<LODAsset> = {};
-    const lines = output.split('\n');
-    
-    // Extract NIF files generated
-    const nifMatch = output.match(/Generated.*?:\s*([\w\-_\.\s\/]+\.nif)/gi);
-    if (nifMatch) result.outputFiles = nifMatch.map(m => m.replace(/Generated.*?:\s*/, ''));
-    
-    // Extract mesh reduction %
-    const reductionMatch = output.match(/Mesh reduction:\s*([\d.]+)%/i);
-    if (reductionMatch) result.meshReduction = parseFloat(reductionMatch[1]);
-    
-    // Extract triangle counts
-    const triMatch = output.match(/Triangles:\s*(\d+)\s*->\s*(\d+)/i);
-    if (triMatch) result.triangleCount = { before: parseInt(triMatch[1]), after: parseInt(triMatch[2]) };
-    
-    // Extract memory savings
-    const memMatch = output.match(/Memory savings:\s*([\d.]+)\s*MB/i);
-    if (memMatch) result.estimatedMemorySavings = parseFloat(memMatch[1]);
-    
-    result.fullLog = output;
-    return result;
-  };
-
-  const parsePJMOutput = (output: string): Partial<PrecombineJob> => {
-    const result: Partial<PrecombineJob> = {};
-    
-    // Extract output NIF count
-    const nifMatch = output.match(/Created\s*(\d+)\s*precombined NIF/i);
-    if (nifMatch) result.outputNifs = parseInt(nifMatch[1]);
-    
-    // Extract total meshes processed
-    const meshMatch = output.match(/Processed\s*(\d+)\s*meshes?/i);
-    if (meshMatch) result.totalMeshes = parseInt(meshMatch[1]);
-    
-    // Extract BA2 path
-    const ba2Match = output.match(/BA2:\s*([^\n]+\.ba2)/i);
-    if (ba2Match) result.outputBA2 = ba2Match[1].trim();
-    
-    // Extract compression ratio
-    const compMatch = output.match(/Compression ratio:\s*([\d.]+)%/i);
-    if (compMatch) result.compressionRatio = parseFloat(compMatch[1]);
-    
-    result.fullLog = output;
-    return result;
-  };
+  // Fixed 2026-08-26 (Bug 6, CK Hub tooling verification): these used to regex-match
+  // fabricated output patterns ("Mesh reduction: X%", "Created N precombined NIF",
+  // "Compression ratio: X%", etc) that no real Fallout 4 tool actually prints. Real
+  // tool output is now just kept and shown as a raw log -- nothing here is invented
+  // and presented to the user as a "parsed metric" the tool didn't actually report.
 
   const precombinePresets: Record<string, Partial<PrecombineJob>> = {
     'interior-dungeon': {
@@ -140,6 +99,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
     try { return localStorage.getItem('lorekeeper-pjm-path') || ''; } catch { return ''; }
   });
   const [newPresetName, setNewPresetName] = useState('');
+  const [newJobPlugin, setNewJobPlugin] = useState('');
   const api = (window as any).electron?.api;
 
   const toolPathsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -184,32 +144,29 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
 
   const runLODGen = async (asset: LODAsset) => {
     if (!lodgenPath) {
-      toast.error('Set LODGEN tool path first');
+      toast.error('Set your LOD tool path first');
       return;
     }
     setProcessingIds(prev => new Set(prev).add(asset.id));
     try {
-      const args = [
-        '--input', asset.sourceNif,
-        '--lod-level', asset.lodPass.replace('lod', ''),
-        '--output', asset.targetDir,
-        '--texture-reduction', asset.textureReduction.toString(),
-        '--merge-chance', asset.mergeChance.toString(),
-        ...(asset.billboardMode !== 'none' ? ['--billboard-mode', asset.billboardMode] : []),
-      ];
-      const result = await api?.runTool?.({ cmd: lodgenPath, args });
-      const log = [result?.stdout, result?.stderr].filter(Boolean).join('\n') || 'LOD generation completed.';
-      const parsed = parseLODGenOutput(log);
+      // Fixed 2026-08-26 (Bug 6): xLODGen/FO4LODGen-family tools are GUI applications
+      // you configure and drive yourself (worldspace, LOD level, texture reduction,
+      // billboards, etc all live in the tool's own UI/INI, not a documented CLI) --
+      // there is no verified real command-line contract for scripting per-asset LOD
+      // generation headlessly. This used to fabricate flags (--texture-reduction,
+      // --merge-chance, --billboard-mode) that don't correspond to any real tool.
+      // This now just launches the configured executable so you can run LOD
+      // generation for real in its own window. It cannot honestly auto-detect
+      // success from that -- mark the job Done/Error yourself below once you're done.
+      const result = await api?.runTool?.({ cmd: lodgenPath, args: [] });
+      const log = [result?.stdout, result?.stderr].filter(Boolean).join('\n')
+        || 'Launched. Configure and run LOD generation in the tool\'s own window, then mark this job Done or Error yourself.';
       setLodAssets(prev => prev.map(a => a.id === asset.id ? {
         ...a,
-        status: result?.exitCode === 0 ? 'done' : 'error',
+        status: 'launched',
         lastRun: new Date().toISOString().slice(0, 16).replace('T', ' '),
-        errorLog: result?.exitCode === 0 ? '' : log,
-        outputFiles: parsed.outputFiles || [],
-        meshReduction: parsed.meshReduction,
-        estimatedMemorySavings: parsed.estimatedMemorySavings,
-        triangleCount: parsed.triangleCount,
-        fullLog: parsed.fullLog
+        errorLog: '',
+        fullLog: log,
       } : a));
     } catch (e) {
       setLodAssets(prev => prev.map(a => a.id === asset.id ? {
@@ -224,34 +181,66 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
     }
   };
 
+  // New 2026-08-26 (Bug 6): since runLODGen can only launch the real tool -- not
+  // truthfully detect whether LOD generation actually succeeded inside it -- this
+  // lets the user record the real outcome themselves after checking the tool's window.
+  const markLODStatus = (assetId: string, status: 'done' | 'error') => {
+    setLodAssets(prev => prev.map(a => a.id === assetId ? { ...a, status } : a));
+  };
+
+  // New 2026-08-26 (Bug 6): there was previously no way to add a LOD asset to this
+  // list at all -- setLodAssets was only ever called from localStorage load and from
+  // run-result updates, so this panel was permanently empty as shipped.
+  const [newLodName, setNewLodName] = useState('');
+  const [newLodNif, setNewLodNif] = useState('');
+  const addLODAsset = () => {
+    if (!newLodName.trim() || !newLodNif.trim()) {
+      toast.error('Enter both a name and a source NIF path');
+      return;
+    }
+    const asset: LODAsset = {
+      id: `lod-${Date.now()}`,
+      name: newLodName.trim(),
+      sourceNif: newLodNif.trim(),
+      lodPass: 'lod0',
+      targetDir: '',
+      notes: '',
+      priority: 'normal',
+      status: 'pending',
+    };
+    setLodAssets(prev => [asset, ...prev]);
+    setNewLodName('');
+    setNewLodNif('');
+  };
+
   const runPrecombineJob = async (job: PrecombineJob) => {
     if (!pjmPath) {
-      toast.error('Set PJM tool path first');
+      toast.error('Set the GeneratePrevisibines.bat path first');
+      return;
+    }
+    if (!job.pluginName.trim()) {
+      toast.error('This job has no plugin name set -- edit it before running.');
       return;
     }
     setProcessingIds(prev => new Set(prev).add(job.id));
     try {
-      const args = [
-        '--cells', job.cellRange,
-        ...(job.interiorCells ? ['--interior'] : []),
-        ...(job.includeStatics ? ['--statics'] : []),
-        ...(job.includeDynamic ? ['--dynamic'] : []),
-        ...(job.prpMode ? ['--prp'] : []),
-        ...(job.billboardFallback ? ['--billboard-fallback'] : []),
-      ];
+      // Fixed 2026-08-26 (Bug 6): the real tool is PJM's Previs Patching Scripts
+      // (Nexus #69978, by PJMail), run via the bundled GeneratePrevisibines.bat as
+      // `GeneratePrevisibines.bat "PluginName.esp"` -- it orchestrates FO4Edit + the
+      // CK to regenerate precombines/previs for that one plugin. This used to pass
+      // fabricated flags (--cells, --interior, --statics, --prp, --billboard-fallback)
+      // the real script does not accept. Double check this against the exact PJM
+      // version you have installed -- script interfaces can change between releases
+      // -- but a single plugin-name argument is the real, documented invocation.
+      const args = [job.pluginName.trim()];
       const result = await api?.runTool?.({ cmd: pjmPath, args });
       const log = [result?.stdout, result?.stderr].filter(Boolean).join('\n') || 'Precombine job completed.';
-      const parsed = parsePJMOutput(log);
       setPrecombineJobs(prev => prev.map(p => p.id === job.id ? {
         ...p,
         status: result?.exitCode === 0 ? 'done' : 'error',
         lastRun: new Date().toISOString().slice(0, 16).replace('T', ' '),
         errorLog: result?.exitCode === 0 ? '' : log,
-        outputBA2: parsed.outputBA2 || '',
-        outputNifs: parsed.outputNifs,
-        totalMeshes: parsed.totalMeshes,
-        compressionRatio: parsed.compressionRatio,
-        fullLog: parsed.fullLog
+        fullLog: log,
       } : p));
     } catch (e) {
       setPrecombineJobs(prev => prev.map(p => p.id === job.id ? {
@@ -269,10 +258,15 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
   const applyPreset = (presetKey: string) => {
     const preset = precombinePresets[presetKey as keyof typeof precombinePresets];
     if (!preset) return;
+    if (!newJobPlugin.trim()) {
+      toast.error('Enter the plugin (.esp/.esm) name this job is for first');
+      return;
+    }
     const newJob: PrecombineJob = {
       id: `prp-${Date.now()}`,
-      name: `${presetKey.replace('-', ' ').toUpperCase()} (${new Date().toLocaleTimeString()})`,
-      cellRange: '00000000-0000FFFF',
+      name: `${presetKey.replace('-', ' ').toUpperCase()} — ${newJobPlugin.trim()}`,
+      pluginName: newJobPlugin.trim(),
+      cellRange: '',
       preset: presetKey as 'interior-dungeon' | 'dense-exterior' | 'settlement' | 'custom',
       status: 'pending',
       interiorCells: preset.interiorCells ?? false,
@@ -283,6 +277,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
     };
     setPrecombineJobs(prev => [newJob, ...prev]);
     setNewPresetName('');
+    setNewJobPlugin('');
   };
 
   const filteredLOD = lodAssets.filter(a => a.name.toLowerCase().includes(searchLOD.toLowerCase()));
@@ -361,6 +356,32 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
       </div>
 
   <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-auto p-6 flex flex-col gap-6">
+        {/* Fixed 2026-08-26 (Bug 6, CK Hub tooling verification): this panel used to
+            drive fabricated CLI tools ("LODGEN.exe"/"PJM.exe" with made-up flags and
+            made-up output parsing) that don't correspond to any real Fallout 4 tool.
+            Corrected: the Precombine Jobs runner below now invokes the real PJM tool
+            (GeneratePrevisibines.bat "PluginName.esp", Nexus #69978) with its real,
+            single plugin-name argument instead of invented flags. The LOD Generation
+            runner now honestly launches your configured LOD tool's own GUI instead of
+            pretending to script it -- there is no verified real CLI contract for
+            headless per-asset LOD automation, so this no longer claims one. This
+            banner stays as a standing reminder of that distinction and to flag that
+            the exact GeneratePrevisibines.bat argument/flag set should be checked
+            against whatever version is actually installed, since script interfaces
+            can change between releases and this was corrected without web access. */}
+        <div className="bg-amber-950/40 border border-amber-700/50 rounded-xl p-4 mb-4 flex gap-3 items-start">
+          <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-200 leading-relaxed">
+            <div className="font-bold text-amber-300 mb-1">Read before using this panel</div>
+            <b>Precombine Jobs</b> now runs the real <code className="text-amber-300">GeneratePrevisibines.bat "PluginName.esp"</code>{' '}
+            (PJM's Previs Patching Scripts, Nexus #69978) — verify that matches the exact version you have installed
+            before relying on it; script interfaces can change between releases.{' '}
+            <b>LOD Generation</b> only launches your configured LOD tool (e.g. xLODGen/FO4LODGen) — it opens the
+            tool's own window for you to configure and run LOD generation yourself, then you mark the job
+            Done or Error here afterward. Neither runner can auto-verify a real tool's success beyond its exit code.
+          </div>
+        </div>
+
         {/* Tool Paths Config */}
         <div ref={toolPathsSectionRef} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-white mb-3">
@@ -368,11 +389,11 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-center gap-2">
-              <span className="w-24 text-slate-500 text-xs">LODGEN</span>
+              <span className="w-24 text-slate-500 text-xs">LOD tool</span>
               <input
                 value={lodgenPath}
                 onChange={e => setLodgenPath(e.target.value)}
-                placeholder="Path to LODGEN.exe"
+                placeholder="Path to your LOD tool's exe (e.g. FO4LODGen64.exe / xLODGen64.exe)"
                 className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
               />
               <button
@@ -390,7 +411,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
               <input
                 value={pjmPath}
                 onChange={e => setPjmPath(e.target.value)}
-                placeholder="Path to PJM.exe"
+                placeholder="Path to GeneratePrevisibines.bat"
                 className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
               />
               <button
@@ -410,11 +431,34 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
         <div ref={lodSectionRef} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Zap className="w-4 h-4 text-amber-400" /> LOD Generation (LODGEN)
+              <Zap className="w-4 h-4 text-amber-400" /> LOD Generation
             </div>
             <div className="text-xs text-slate-400">
               {completedLOD} done / {pendingLOD} pending
             </div>
+          </div>
+          {/* New 2026-08-26 (Bug 6): there was previously no way to add an entry here at all. */}
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="Asset name..."
+              value={newLodName}
+              onChange={e => setNewLodName(e.target.value)}
+              className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
+            />
+            <input
+              type="text"
+              placeholder="Source NIF path..."
+              value={newLodNif}
+              onChange={e => setNewLodNif(e.target.value)}
+              className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
+            />
+            <button
+              onClick={addLODAsset}
+              className="px-3 py-1 bg-forge-accent text-slate-900 hover:bg-sky-400 rounded text-xs font-bold"
+            >
+              Add
+            </button>
           </div>
           <input
             type="text"
@@ -434,25 +478,16 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
                   <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
                     asset.status === 'done' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-700' :
                     asset.status === 'error' ? 'bg-red-900/20 text-red-400 border-red-700' :
-                    asset.status === 'processing' ? 'bg-blue-900/20 text-blue-400 border-blue-700' :
+                    asset.status === 'launched' ? 'bg-blue-900/20 text-blue-400 border-blue-700' :
                     'bg-slate-800 text-slate-300 border-slate-700'
                   }`}>
                     {asset.status}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-2">
+                <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                   <div>LOD Pass: <span className="text-forge-accent font-mono">{asset.lodPass}</span></div>
-                  <div>Texture Reduction: <span className="text-forge-accent">{asset.textureReduction}%</span></div>
-                  <div>Merge: <span className="text-forge-accent">{asset.mergeChance}%</span></div>
-                  <div>Billboard: <span className="text-forge-accent">{asset.billboardMode}</span></div>
+                  {asset.notes && <div className="col-span-2 text-slate-400">Notes: {asset.notes}</div>}
                 </div>
-                {asset.status === 'done' && (asset.meshReduction !== undefined || asset.estimatedMemorySavings !== undefined) && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs mb-2 bg-emerald-900/20 border border-emerald-700 rounded p-2">
-                    {asset.meshReduction !== undefined && <div>Mesh Reduction: <span className="text-emerald-400 font-bold">{asset.meshReduction}%</span></div>}
-                    {asset.estimatedMemorySavings !== undefined && <div>Memory Saved: <span className="text-emerald-400 font-bold">{asset.estimatedMemorySavings} MB</span></div>}
-                    {asset.triangleCount && <div>Triangles: <span className="text-emerald-400 font-mono">{asset.triangleCount.before} → {asset.triangleCount.after}</span></div>}
-                  </div>
-                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => runLODGen(asset)}
@@ -463,8 +498,26 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
                         : 'bg-forge-accent text-slate-900 hover:bg-sky-400'
                     }`}
                   >
-                    <RefreshCw className="w-3 h-3" /> {processingIds.has(asset.id) ? 'Processing...' : 'Generate'}
+                    <RefreshCw className="w-3 h-3" /> {processingIds.has(asset.id) ? 'Launching...' : 'Launch Tool'}
                   </button>
+                  {asset.status === 'launched' && (
+                    <>
+                      <button
+                        onClick={() => markLODStatus(asset.id, 'done')}
+                        className="px-2 py-1 text-xs rounded border border-emerald-700 text-emerald-400 hover:bg-emerald-900/20"
+                        title="Mark this LOD job Done"
+                      >
+                        <CheckCircle2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => markLODStatus(asset.id, 'error')}
+                        className="px-2 py-1 text-xs rounded border border-red-700 text-red-400 hover:bg-red-900/20"
+                        title="Mark this LOD job Error"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
                   {asset.errorLog && (
                     <button
                       onClick={() => setSelectedLOD(asset)}
@@ -491,6 +544,18 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
             </div>
           </div>
           
+          {/* New 2026-08-26 (Bug 6): presets used to create a job with no way to say
+              which plugin it's actually for -- pluginName is what's really passed to
+              GeneratePrevisibines.bat, so it's required before a preset can be applied. */}
+          <div className="mb-2">
+            <input
+              type="text"
+              placeholder="Plugin for this job (e.g. MyMod.esp)..."
+              value={newJobPlugin}
+              onChange={e => setNewJobPlugin(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-200"
+            />
+          </div>
           {/* Preset Templates */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
             <button
@@ -542,7 +607,8 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-bold text-white text-sm">{job.name}</p>
-                    <p className="text-xs text-slate-400">Cell Range: {job.cellRange} {job.preset && <span className="text-purple-400">| Preset: {job.preset.replace('-', ' ')}</span>}</p>
+                    <p className="text-xs text-slate-400">Plugin: <span className="text-purple-300 font-mono">{job.pluginName}</span> {job.preset && <span className="text-purple-400">| Preset: {job.preset.replace('-', ' ')}</span>}</p>
+                    {job.cellRange && <p className="text-[10px] text-slate-500">Notes: {job.cellRange}</p>}
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${
                     job.status === 'done' ? 'bg-emerald-900/20 text-emerald-400 border-emerald-700' :
@@ -559,13 +625,6 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
                   <div>Statics: <span className="text-forge-accent">{job.includeStatics ? 'Yes' : 'No'}</span></div>
                   <div>Billboard: <span className="text-forge-accent">{job.billboardFallback ? 'Yes' : 'No'}</span></div>
                 </div>
-                {job.status === 'done' && (job.outputNifs !== undefined || job.compressionRatio !== undefined) && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs mb-2 bg-emerald-900/20 border border-emerald-700 rounded p-2">
-                    {job.outputNifs !== undefined && <div>Output NIFs: <span className="text-emerald-400 font-bold">{job.outputNifs}</span></div>}
-                    {job.totalMeshes !== undefined && <div>Meshes: <span className="text-emerald-400 font-bold">{job.totalMeshes}</span></div>}
-                    {job.compressionRatio !== undefined && <div>Compression: <span className="text-emerald-400 font-bold">{job.compressionRatio}%</span></div>}
-                  </div>
-                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => runPrecombineJob(job)}
@@ -576,12 +635,13 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
                         : 'bg-purple-600 text-white hover:bg-purple-500'
                     }`}
                   >
-                    <RefreshCw className="w-3 h-3" /> {processingIds.has(job.id) ? 'Processing...' : 'Run PJM'}
+                    <RefreshCw className="w-3 h-3" /> {processingIds.has(job.id) ? 'Processing...' : 'Run GeneratePrevisibines.bat'}
                   </button>
-                  {job.outputBA2 && (
+                  {job.fullLog && (
                     <button
-                      onClick={() => navigator.clipboard?.writeText(job.outputBA2 || '')}
+                      onClick={() => setSelectedPrecombine(job)}
                       className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:border-forge-accent"
+                      title="View log"
                     >
                       <Copy className="w-3 h-3" />
                     </button>
@@ -611,17 +671,8 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
             {selectedLOD && (
               <div className="bg-slate-950/60 rounded p-3 text-xs max-h-96 overflow-y-auto">
                 <p className="text-slate-300 mb-2"><strong>Asset:</strong> {selectedLOD.name}</p>
-                {selectedLOD.meshReduction !== undefined && (
-                  <div className="mb-2 text-slate-300">
-                    <strong>Metrics:</strong> {selectedLOD.meshReduction}% mesh reduction, {selectedLOD.estimatedMemorySavings} MB saved
-                    {selectedLOD.triangleCount && <div className="text-slate-400">Triangles: {selectedLOD.triangleCount.before} → {selectedLOD.triangleCount.after}</div>}
-                  </div>
-                )}
-                {selectedLOD.outputFiles.length > 0 && (
-                  <div className="mb-2 text-slate-300">
-                    <strong>Generated:</strong>
-                    {selectedLOD.outputFiles.map((f, i) => <div key={i} className="text-slate-400 font-mono text-[10px]">{f}</div>)}
-                  </div>
+                {selectedLOD.notes && (
+                  <div className="mb-2 text-slate-300"><strong>Notes:</strong> {selectedLOD.notes}</div>
                 )}
                 {selectedLOD.fullLog && (
                   <div className="bg-slate-900 border border-slate-700 rounded p-2 text-red-300 font-mono whitespace-pre-wrap text-[10px]">
@@ -639,13 +690,7 @@ const Lorekeeper: React.FC<LorekeeperProps> = ({ embedded = false }) => {
             {selectedPrecombine && (
               <div className="bg-slate-950/60 rounded p-3 text-xs max-h-96 overflow-y-auto">
                 <p className="text-slate-300 mb-2"><strong>Job:</strong> {selectedPrecombine.name}</p>
-                {selectedPrecombine.outputNifs !== undefined && (
-                  <div className="mb-2 text-slate-300">
-                    <strong>Output:</strong> {selectedPrecombine.outputNifs} NIFs, {selectedPrecombine.totalMeshes} meshes processed
-                    {selectedPrecombine.compressionRatio !== undefined && <div className="text-slate-400">Compression ratio: {selectedPrecombine.compressionRatio}%</div>}
-                    {selectedPrecombine.outputBA2 && <div className="text-slate-400 font-mono text-[10px]">BA2: {selectedPrecombine.outputBA2}</div>}
-                  </div>
-                )}
+                <p className="text-slate-300 mb-2"><strong>Plugin:</strong> {selectedPrecombine.pluginName}</p>
                 {selectedPrecombine.fullLog && (
                   <div className="bg-slate-900 border border-slate-700 rounded p-2 text-slate-300 font-mono whitespace-pre-wrap text-[10px]">
                     {selectedPrecombine.fullLog}

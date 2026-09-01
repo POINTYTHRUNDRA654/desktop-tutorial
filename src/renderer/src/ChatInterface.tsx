@@ -244,9 +244,9 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
 const QUICK_PROMPTS: { label: string; prompt: string; emoji: string }[] = [
     { emoji: '🔧', label: 'Fix dark face bug', prompt: 'How do I fix the dark face bug on a custom NPC in Fallout 4?' },
     { emoji: '📋', label: 'Sort my load order', prompt: 'What is the correct load order structure for a heavily modded Fallout 4? Walk me through it.' },
-    { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — xLODGen, TexGen, and DynDOLOD?' },
+    { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — TexGen and xLODGen (FO4LODGen mode)?' },
     { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and X-Cell made a crash log. How do I read the call stack and use CLASSIC to figure out which mod caused it?' },
-    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x000-0xFFF) and what happens if I go over them?' },
+    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x800-0xFFF) and what happens if I go over them?' },
     { emoji: '🏗️', label: 'Precombines explained', prompt: 'Why are precombines important and how do I avoid breaking them in my mod?' },
     { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular (_s.dds channels), and height map?' },
     { emoji: '⚙️', label: 'xEdit conflict patch', prompt: 'Two mods conflict on the same NPC record. Walk me through creating a compatibility patch in xEdit.' },
@@ -1844,7 +1844,6 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                     "• FO4 Textures & Materials Hub (/textures): Make DDS format decisions, convert and batch-process textures (DDS Converter), edit BGSM/BGEM material files visually (Material Editor, BGSM Editor), generate textures with AI (Texture Generator), upscale low-res textures (Texture Enhancer), and follow FO4 material pipeline guides.",
                     "• FO4 Packaging & Release (/packaging-release): Pack your mod correctly. Build BA2 archives, create and validate FOMOD installer packages, run pre-release checklists (ITMs, UDRs, conflict scan, file structure), and prepare your mod for Nexus Mods upload.",
                     "• FO4 Guides Hub (/guides-hub): Read in-depth built-in guides — Papyrus scripting, Bodyslide, Blender-to-FO4 NIF pipeline, Quest mod authoring, Sim Settlements 2, animations, and more. Each guide is a full walkthrough, not a stub.",
-                    "• FO4 Automation Studio (/tools/cosmos): Build and run multi-step automation pipelines (Cosmos Workflow). Chain tasks like 'scan → analyze → convert → pack' into a single automated run. Good for batch processing large asset sets.",
                     "• FO4 Mod Builder Hub (/mod-builder): The all-in-one mod construction workspace. Use The Blueprint to plan your mod's architecture, The Workshop to assemble assets and scripts, The Scribe to write dialogue and lore, and Dev Tools for advanced scripting and debugging.",
                     "• FO4 Asset Analysis Hub (/asset-analysis): Deep-dive into your mod's assets. Run the Mining Dashboard to extract and index your FO4 Data folder, use Advanced Analysis to inspect meshes/textures/scripts, and run the Asset Deduplicator to find and eliminate redundant files that bloat your mod.",
                     "• FO4 Automation Orchestrator (/orchestrator): Set up type-based asset pipelines (e.g., 'process all NIF files'), monitor pipeline run logs step-by-step, manage the BA2 staging queue, and view storage stats. More powerful than the Automation Runner — handles complex multi-type workflows.",
@@ -2343,6 +2342,44 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                 ? `⚠️ **Safety warning:** "${blacklistHit.name}" is on your mod blacklist${blacklistHit.reason ? ` — ${blacklistHit.reason}` : ''}. I'll warn about risks and suggest safer alternatives.`
                 : `⚠️ **Safety warning:** "${blacklistHit.name}" is on your program blacklist${blacklistHit.reason ? ` — ${blacklistHit.reason}` : ''}. I'll discourage usage and suggest safer tools.`;
             setMessages(prev => [...prev, { id: Date.now().toString() + '-blacklist-warning', role: 'assistant', content: warning, timestamp: Date.now() }]);
+        }
+
+        // --- DETERMINISTIC XLODGEN CLI-SYNTAX ANSWER ---
+        // Prompt-engineering alone proved unreliable here too (same class of
+        // problem as the nav guards below): asked for xLODGen's exact
+        // command-line flags, the model confidently fabricated a full,
+        // plausible-looking command on every one of three different
+        // phrasings tried during live QA -- even after (1) a "never
+        // fabricate CLI syntax" behavioral rule was added to the system
+        // prompt, and (2) xLODGen's real CLI reference plus a literal
+        // copy-paste example were grounded directly in the same knowledge
+        // passage the model draws from. Each attempt invented a different,
+        // internally-consistent-looking set of fake flags (e.g. -lodCount/
+        // -lodDist/-texGen/-ddsFormat; then -cull/-scale/-smooth/-uvcull
+        // plus an invented Nexus ID; then -i/-o/-p "LOD_"/-nc/--terrain).
+        // xLODGen really has no full-featured CLI at all -- it's GUI-driven
+        // with only a handful of real flags (game mode, -o:/-m:/-p:/-d:
+        // paths, --inputfile/--logfile/--dontGenerateVertexColors/
+        // --verbose/--useHDLOD/--gamemode) -- so any "give me the exact
+        // command" request sits squarely in the model's confabulation zone.
+        // Short-circuiting to a fixed, verified-correct answer removes the
+        // LLM from the loop for this one narrow, high-risk question class,
+        // the same way the nav guards below removed it from an unreliable
+        // routing decision.
+        const xLodGenCliIntent = /\bxlodgen\b/i.test(textToSend)
+            && /\b(command[\s-]?line|cli|flags?|arguments?|argument|switch(?:es)?|syntax|exact command|full command|-fo4)\b/i.test(textToSend);
+        if (xLodGenCliIntent) {
+            setInputText('');
+            setMessages(prev => [...prev,
+            { id: Date.now().toString(), role: 'user', content: textToSend, timestamp: Date.now() },
+            {
+                id: Date.now().toString() + '-xlodgen-cli',
+                role: 'assistant',
+                content: "xLODGen is primarily a **GUI-driven tool** -- LOD level counts, poly-count targets, normal-map generation, and swap distances are all set in its dialogs (Object LOD tab, Terrain LOD tab), not passed as command-line flags. It does not take per-mesh input/output NIF paths like a decimation tool -- it scans your whole Fallout 4 `Data` folder as configured in the GUI (or via `-d:`).\n\nIts only real command-line flags are:\n- Game mode (pick one): `-fo4` `-fnv` `-fo3` `-tes5` `-sse` `-tes5vr` `-enderal` `-enderalse`\n- Paths: `-o:\"[path]\"` (output dir), `-m:\"[path]\"` (INI folder), `-p:\"[path]\"` (plugins.txt), `-d:\"[path]\"` (Data folder)\n- Other: `--inputfile`, `--logfile`, `--dontGenerateVertexColors`, `--verbose`, `--useHDLOD`, `--gamemode`\n\nA real, working example (launch it, then set LOD levels/distances/normal maps in the GUI before running):\n```\n\"C:\\Modding\\xLODGen\\xLODGen64.exe\" -fo4 -o:\"C:\\Modding\\xLODGen\\Output\" -d:\"C:\\Games\\Fallout4\\Data\" -p:\"C:\\Games\\Fallout4\\plugins.txt\" --logfile:\"C:\\Modding\\xLODGen\\xLODGen_log.txt\" --verbose\n```\n\nThere is no `-lodCount`, `-lodDist`, `-type`, `-maxTris`, `-autoSmooth`, `-calcNormals`, `-cull`, `-scale`, `-smooth`, `-uvcull`, `-texGen`, `-mode`, `-targetPolyCount`, `-ddsFormat`, `-i`, `-nc`, or `-terrain`/`-t` flag -- those don't exist, no matter how plausible they look. xLODGen also isn't on Nexus under its own mod ID -- get it from the STEP Modding forum or github.com/sheson/xLODGen.\n\nAsk me anything else about setting it up, and I can walk you through the GUI dialogs step by step.",
+                timestamp: Date.now(),
+            }
+            ]);
+            return;
         }
 
         // --- DETERMINISTIC "START A MOD" NAVIGATION ---

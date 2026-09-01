@@ -112,24 +112,24 @@
         "desc": "Sélectionner le fournisseur IA (Groq/Ollama), le modèle, la longueur de réponse et l'auto-critique."
       },
       "step3b": {
-        "title": "Étape 3b : LLM local — Ollama",
+        "title": "Étape 4 : LLM local — Ollama",
         "desc": "Exécuter des modèles open source localement pour une assistance IA entièrement hors ligne.",
         "badge": "OPTIONNEL"
       },
       "step4": {
-        "title": "Étape 4 : Outils externes",
+        "title": "Étape 8 : Outils externes",
         "desc": "Pointer Mossy vers votre chaîne d'outils de mods FO4 et vérifier les chemins."
       },
       "step5": {
-        "title": "Étape 5 : Sauvegarde et restauration",
+        "title": "Étape 9 : Sauvegarde et restauration",
         "desc": "Exporter ou importer un instantané de paramètres pour une récupération rapide."
       },
       "step6": {
-        "title": "Étape 6 : Tutoriel et intégration",
+        "title": "Étape 10 : Tutoriel et intégration",
         "desc": "Relancer le tutoriel d'installation et l'expérience d'intégration initiale."
       },
       "step7": {
-        "title": "Étape 7 : Test d'accès Internet",
+        "title": "Étape 11 : Test d'accès Internet",
         "desc": "Vérifier que Mossy peut atteindre les fournisseurs de recherche et se connecter en ligne."
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "Bibliothèque de graphiques (MIT)",
         "moddingTools": "Outils de Modding (téléchargements séparés)",
         "blender": "Modélisation 3D (GPL 2.0)",
-        "pynifly": "Import/export NIF pour Blender par BadDogSkyrim (MIT)",
-        "xedit": "Éditeur de plugins par ElminsterAU (GPL 2.0)",
+        "pynifly": "Import/export NIF pour Blender par BadDogSkyrim (GPL 3.0)",
+        "xedit": "Éditeur de plugins par ElminsterAU (MPL-2.0)",
         "creationKit": "Outil de modding officiel Bethesda",
         "nifskope": "Visionneuse de maillages et textures NIF par hexabits (GPL 3.0)",
         "mo2": "Gestionnaire de mods par Tannin42 / Équipe MO2 (GPL 3.0)",
         "vortex": "Gestionnaire de mods par Nexus Mods",
         "f4se": "Fallout 4 Script Extender par ianpatt et behippo",
         "loot": "Outil d'Optimisation de l'Ordre de Chargement (GPL 3.0)",
-        "bodyslide": "Morphing corporel par ousnius et Caliente (MIT)",
+        "bodyslide": "Morphing corporel par ousnius et Caliente (GPL 3.0)",
         "bae": "Extracteur d'Archives Bethesda par jonwd7",
         "gimp": "Programme de Manipulation d'Images GNU (GPL 3.0)",
         "umodel": "Visionneuse de ressources Unreal Engine par Gildor",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "Résultat d'exemple de"
       },
       "step3c": {
-        "title": "Étape 3c : AnythingLLM — Moteur de Connaissances RAG",
+        "title": "Étape 7 : AnythingLLM — Moteur de Connaissances RAG",
         "desc": "Récupération de documents basée sur des vecteurs pour la recherche sémantique de Memory Vault et Knowledge Hub."
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy Tutor · Assistants de Configuration FO4",
     "title": "Centre des Assistants de Configuration FO4",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — patch pré–Next-Gen (avril 2024)",
       "ng": "1.10.984+ — Next-Gen / défaut Steam actuel",
-      "ae": "Contenu du Menu Créations / Édition Anniversaire"
+      "ae": "1.11.x — Contenu du Menu Créations / Édition Anniversaire"
     },
     "stepLabel": "Étape {step} : {title}",
     "setupProgress": "Progression de la Configuration",
@@ -913,7 +913,7 @@
       },
       "loadOrder": {
         "title": "Connaître les Règles d'Ordre de Chargement",
-        "body": "Fallout 4 a une limite de 255 plugins (ESM+ESP+ESL). Les plugins marqués ESL partagent un pool de 2 048 FormID. Utilisez le Centre de Plugins et Ordre de Chargement FO4 pour gérer et valider."
+        "body": "Fallout 4 a une limite stricte de 254 plugins ESM/ESP standards (le slot 0xFE est réservé à l'indicateur ESL). Les plugins marqués ESL se chargent dans une plage FE000-FEFFF distincte et ne comptent pas dans cette limite — chacun dispose de son propre pool de 2 048 FormID. Utilisez le Centre de Plugins et Ordre de Chargement FO4 pour gérer et valider."
       },
       "assetPipeline": {
         "title": "Apprendre le Pipeline de Ressources",

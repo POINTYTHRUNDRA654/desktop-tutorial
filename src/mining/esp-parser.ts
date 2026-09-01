@@ -53,10 +53,29 @@ export class ESPParser {
     // type / cell / worldspace block, etc.), each of which nests further records or GRUPs.
     // Flatten every GRUP's contents into `records` so downstream code keeps seeing the same
     // flat list of real game records it always has.
+    //
+    // Fixed 2026-08-26 (mining pipeline "ESP processing failed" on real, valid game files):
+    // a full game master like Fallout4.esm is 300MB+ and many millions of records deep. This
+    // loop previously had no recovery -- one unexpected/edge-case record anywhere in that
+    // entire file (a corner case this hand-rolled parser doesn't model, a truly malformed
+    // record from some third-party plugin, etc.) threw all the way out of parse() and
+    // aborted the whole file, discarding every record already read with zero indication of
+    // where or why. A partial record set from a huge file is far more useful than a hard
+    // failure for a reporting/analysis feature, so a parse error now stops consumption and
+    // returns everything gathered so far instead of throwing -- callers can inspect
+    // `truncated`/`parseError` to know the result is partial.
+    let truncated = false;
+    let parseError: string | undefined;
     while (this.offset < this.buffer.length) {
-      for (const record of this.parseTopLevel()) {
-        records.push(record);
-        formIdMap.set(record.formId, record);
+      try {
+        for (const record of this.parseTopLevel()) {
+          records.push(record);
+          formIdMap.set(record.formId, record);
+        }
+      } catch (error) {
+        truncated = true;
+        parseError = error instanceof Error ? error.message : String(error);
+        break;
       }
     }
 
@@ -65,7 +84,9 @@ export class ESPParser {
       header,
       records,
       masters,
-      formIdMap
+      formIdMap,
+      truncated,
+      parseError
     };
   }
 
@@ -93,10 +114,23 @@ export class ESPParser {
     this.offset += 2;  // vcInfo
     this.offset += 4;  // unknown
 
+    // Fixed 2026-08-26 (root cause of the "Maximum call stack size exceeded" parse failure
+    // on Fallout4.esm, confirmed live: 582,675 records recovered before the stop point --
+    // exactly the record count you'd expect from this file's largest top-level GRUP, e.g.
+    // its CELL group flattened across the whole game world): `children.push(...arr)` looks
+    // like ordinary array concatenation, but V8 implements a spread call by pushing each
+    // element as a real function argument -- and function calls have a hard argument-count
+    // ceiling (tens of thousands, well under what a full game master's biggest GRUP produces
+    // once flattened). Past that ceiling, `push(...bigArray)` throws exactly this "Maximum
+    // call stack size exceeded" RangeError, even though there's no deep *recursion* going on
+    // at all -- it just looks like a stack overflow because of how spread-call arguments are
+    // implemented. A plain loop pushes one element at a time with no such limit.
     const groupEnd = Math.min(startOffset + groupSize, this.buffer.length);
     const children: ESPRecord[] = [];
     while (this.offset < groupEnd) {
-      children.push(...this.parseTopLevel());
+      for (const record of this.parseTopLevel()) {
+        children.push(record);
+      }
     }
     // Realign exactly on the declared group boundary even if a malformed child under/over-read,
     // so a single corrupt group can't cascade into misreading everything after it.

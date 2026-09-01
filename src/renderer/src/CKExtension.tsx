@@ -77,7 +77,67 @@ function lintPapyrusSource(src: string): LintIssue[] {
       issues.push({ line, severity: 'info', rule: 'line-length',
         message: `Line is ${raw.length} characters. Consider splitting into multiple statements for readability and compiler error isolation.` });
     }
+
+    // Rule: Property declared without Auto and no manual Get/Set block visible.
+    // Added 2026-08-26 (CK Hub tooling verification): a hand-tested script with
+    // `ObjectReference Property MyTarget` (no Auto) reported "no lint issues" —
+    // that line will not compile as written. Papyrus requires either "Auto" /
+    // "AutoReadOnly" on the property line, or a full Function-based Get/Set
+    // block terminated by EndProperty. This is a simple per-line heuristic
+    // (matches "<Type> Property <Name>"), not a real parser, so it can miss a
+    // property split across lines or misfire on a type/name containing "auto"
+    // as a substring -- consistent with the other pattern-based rules here.
+    if (/^\s*\S+\s+Property\s+\S+/i.test(raw) && !l.includes('auto')) {
+      const hasManualPropertyBlock = /endproperty/i.test(src);
+      issues.push({
+        line,
+        severity: hasManualPropertyBlock ? 'info' : 'error',
+        rule: 'missing-auto-property',
+        message: hasManualPropertyBlock
+          ? 'Property declared without Auto. If this isn\'t a full manual property with Get/Set Functions ending in EndProperty, the compiler will reject it.'
+          : 'Property declared without Auto, and no EndProperty block found anywhere in this script. The Papyrus compiler requires either Auto (or AutoReadOnly) on the property line, or a full Function-based Get/Set block ending in EndProperty -- this will fail to compile as written.',
+      });
+    }
   });
+
+  // Rule: infinite busy-wait loop -- a While/EndWhile block whose body has no
+  // yield point (Utility.Wait, RegisterForSingleUpdate/RegisterForUpdate,
+  // Return, or Break). Added 2026-08-26 alongside missing-auto-property: a
+  // hand-tested "While true ... EndWhile" loop with no wait inside reported
+  // clean. Papyrus threads never suspend on their own -- a loop like that
+  // busy-loops the VM thread solid, which hangs or crashes the game. This is
+  // one of the most common real beginner mistakes, so it's worth a dedicated
+  // structural check rather than a single-line pattern match: track While/
+  // EndWhile nesting with a stack and inspect each block's full body once its
+  // EndWhile closes it.
+  {
+    const whileStack: number[] = [];
+    lines.forEach((raw, idx) => {
+      const t = raw.trim();
+      if (t.startsWith(';')) return;
+      if (/^\s*While\b/i.test(raw)) {
+        whileStack.push(idx);
+      } else if (/^\s*EndWhile\b/i.test(raw)) {
+        const startIdx = whileStack.pop();
+        if (startIdx !== undefined) {
+          const body = lines.slice(startIdx + 1, idx).join('\n').toLowerCase();
+          const hasYieldPoint = body.includes('utility.wait(')
+            || body.includes('registerforsingleupdate')
+            || body.includes('registerforupdate')
+            || body.includes('return')
+            || body.includes('break');
+          if (!hasYieldPoint) {
+            issues.push({
+              line: startIdx + 1,
+              severity: 'error',
+              rule: 'busy-wait-loop',
+              message: 'This While loop has no Utility.Wait(), RegisterForSingleUpdate()/RegisterForUpdate(), Return, or Break anywhere in its body. With no yield point it will busy-loop indefinitely and hang or crash the game -- Papyrus script threads never suspend on their own.',
+            });
+          }
+        }
+      }
+    });
+  }
 
   // Check for missing EndEvent / EndFunction / EndState balance
   const openEvents = (src.match(/^\s*Event\s+/gmi) ?? []).length;
@@ -391,7 +451,7 @@ export const CKExtension: React.FC = () => {
               {[
                 { icon: CheckCircle, color: 'text-emerald-400', label: 'Auto-save countdown timer', detail: 'Active — counts down and reminds you to Ctrl+S at each interval' },
                 { icon: CheckCircle, color: 'text-emerald-400', label: 'CK process detection', detail: 'Via Neural Link mossy_active_tools registry (CreationKit.exe)' },
-                { icon: CheckCircle, color: 'text-emerald-400', label: 'Papyrus PSC linter', detail: '8 lint rules run instantly on pasted source — no compiler needed' },
+                { icon: CheckCircle, color: 'text-emerald-400', label: 'Papyrus PSC linter', detail: '10 lint rules run instantly on pasted source — no compiler needed' },
                 { icon: CheckCircle, color: 'text-emerald-400', label: 'Script compilation queue', detail: 'Queues and dispatches compile jobs via IPC when Papyrus compiler is configured' },
                 { icon: Info, color: 'text-amber-400', label: 'CK IPC save trigger', detail: 'Available if desktop bridge exposes ckTriggerSave — otherwise sends reminder' },
                 { icon: Info, color: 'text-amber-400', label: 'Active cell display', detail: 'Requires live CK IPC bridge with cell tracking event stream' },
@@ -660,7 +720,7 @@ export const CKExtension: React.FC = () => {
               <Search className="w-6 h-6 text-purple-400" />
               <div>
                 <h3 className="text-lg font-bold text-white">Papyrus Script Linter</h3>
-                <p className="text-sm text-slate-400">Paste .psc source for instant client-side analysis — 8 rules, no compiler needed</p>
+                <p className="text-sm text-slate-400">Paste .psc source for instant client-side analysis — 10 rules, no compiler needed</p>
               </div>
             </div>
             <textarea
@@ -764,7 +824,7 @@ export const CKExtension: React.FC = () => {
             <ul className="text-xs text-slate-400 space-y-1">
               <li>• Live countdown timer to next auto-save reminder</li>
               <li>• CK IPC save trigger (when desktop bridge supports ckTriggerSave)</li>
-              <li>• Papyrus PSC linter — 8 rules, fully client-side, no compiler needed</li>
+              <li>• Papyrus PSC linter — 10 rules, fully client-side, no compiler needed</li>
               <li>• Script compilation queue with configurable PapyrusCompiler.exe path</li>
               <li>• Real-time activity logging with timestamps</li>
               <li>• Cell/worldspace tracking via CK IPC bridge</li>

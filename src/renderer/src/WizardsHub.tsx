@@ -97,7 +97,7 @@ const VersionBadge: React.FC<{ version: FO4Version }> = ({ version }) => {
   const map: Record<FO4Version, { fallbackLabel: string; cls: string }> = {
     og:  { fallbackLabel: 'OG  1.10.163', cls: 'text-amber-300 border-amber-500/40 bg-amber-900/10' },
     ng:  { fallbackLabel: 'NG  1.10.984+', cls: 'text-sky-300 border-sky-500/40 bg-sky-900/10' },
-    ae:  { fallbackLabel: 'AE / Creations', cls: 'text-purple-300 border-purple-500/40 bg-purple-900/10' },
+    ae:  { fallbackLabel: 'AE  1.11.x / Creations', cls: 'text-purple-300 border-purple-500/40 bg-purple-900/10' },
   };
   const { fallbackLabel, cls } = map[version];
   const label = t(`wizardsHub.versionBadge.${version}`, fallbackLabel);
@@ -307,7 +307,7 @@ const WizardsHub: React.FC = () => {
   const versionOptions: Array<{ id: FO4Version; label: string; note: string }> = [
     { id: 'og',  label: 'OG',  note: t('wizardsHub.versionOptions.og', '1.10.163 — pre–Next-Gen patch (April 2024)') },
     { id: 'ng',  label: 'NG',  note: t('wizardsHub.versionOptions.ng', '1.10.984+ — Next-Gen / current Steam default') },
-    { id: 'ae',  label: 'AE',  note: t('wizardsHub.versionOptions.ae', 'Creations Menu / Anniversary Edition content') },
+    { id: 'ae',  label: 'AE',  note: t('wizardsHub.versionOptions.ae', '1.11.x — Creations Menu / Anniversary Edition content') },
   ];
 
   const stepLabel = (stepNum: number, title: string) =>
@@ -503,8 +503,12 @@ const WizardsHub: React.FC = () => {
 
                 {/* Description bar (always visible) */}
                 {!isExpanded && (
-                  <div className="px-5 pb-3">
-                    <p className="text-[11px] text-slate-500 leading-relaxed ml-[calc(1.75rem+1.25rem+0.75rem)]">
+                  <div className="px-5 pb-3 flex items-center gap-4">
+                    {/* Invisible spacers matching the header row's StepDot + icon-box widths, so the
+                        description text lines up under the title above it regardless of font-size scaling. */}
+                    <div className="w-7 shrink-0" aria-hidden="true" />
+                    <div className="w-8 shrink-0" aria-hidden="true" />
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
                       {section.description}
                     </p>
                   </div>

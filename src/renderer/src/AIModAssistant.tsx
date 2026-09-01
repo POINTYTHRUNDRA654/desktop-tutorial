@@ -59,7 +59,26 @@ teach the "why", don't pad with filler.`;
     const history = useHistory
       ? messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }))
       : [];
-    const result = await LocalAIEngine.generateResponse(userText, systemInstruction, history);
+    // Fixed 2026-08-26 (AI Mod Assistant topic-drift bug): this call used to omit
+    // localOptions entirely, which defaults LocalAIEngine.generateResponse() to
+    // preferCloud: false -- local-first routing. LocalAIEngine.ts's own routing
+    // comment explains why that default exists (SelfImprovementEngine.ts and other
+    // background/automation callers don't need Mossy's full persona/quality, so they
+    // stay local-first for speed/cost) and explicitly calls out that ChatInterface
+    // (main AI Chat) and LiveContext (voice) opt out of it via preferCloud: true --
+    // but AIModAssistant was never added to that opt-out list, even though it is a
+    // full user-facing tutoring/coding chat surface with the exact same ~600KB
+    // system prompt (persona + brain block + FO4 knowledge base) as ChatInterface,
+    // not a lightweight background task. Live-reproduced: with a local Ollama model
+    // (gemma2:9b) running, this system prompt is far larger than that model's real
+    // context window, so the first substantive reply to a real question ("export a
+    // Glowing Sea cell into Blender") came back completely off-topic (a generic
+    // F4SE/xEdit setup checklist) -- the local model was silently working from a
+    // truncated/garbled prompt. ai-diagnostics.log confirmed "providerUsed":"local
+    // (primary)" on that turn. Matching ChatInterface.tsx's own call, force cloud
+    // routing here too so this chat gets Mossy's real primary model and full context
+    // window instead of whatever local model happens to be installed.
+    const result = await LocalAIEngine.generateResponse(userText, systemInstruction, history, false, undefined, { preferCloud: true });
     return result.content || "I'm having trouble responding right now. Please check your AI settings.";
   };
 

@@ -105,7 +105,7 @@ const TABS: TabDef[] = [
   {
     id: 'lod',
     label: 'LOD & Precombine',
-    sublabel: 'xLODGen + DynDOLOD + PRP',
+    sublabel: 'TexGen + xLODGen + PRP',
     description:
       'LOD asset generation, precombine rebuilds, and PRP patch creation. Manage jobs, parse tool output, and ship correct BA2s.',
     icon: Network,

@@ -217,7 +217,7 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
         '🔄 Restart CK every 30–45 minutes to reclaim memory',
         '🛑 Disable precombines before editing large exterior cells',
         '⚙️ Close all other applications before opening CK',
-        '📦 Use CKPE (Nexus #51998) — it patches several CK memory leaks',
+        '📦 Use CKPE (Nexus #51165) — it patches several CK memory leaks',
         '🔧 For game crashes: ensure Addictol (Nexus #84214) is installed; includes memory fixes',
       ],
       preventable: true,
@@ -247,7 +247,7 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
         '✂️ Use the navmesh Cut tool instead of deleting triangles directly',
         '🔄 Regenerate navmesh in the affected cell if corruption is suspected (CK: Navmesh → Finalize Cell)',
         '🔍 Open the plugin in xEdit and check for deleted NAVM records (UDR) — undelete them',
-        '🛡️ Install CKPE (Nexus #51998) — it patches the navmesh crash on large cells',
+        '🛡️ Install CKPE (Nexus #51165) — it patches the navmesh crash on large cells',
       ],
       preventable: true,
       relatedIssues: [
@@ -515,23 +515,21 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
       crashType: 'lod_data_corrupt',
       rootCause:
         'LOD or terrain data is stale, corrupt, or generated with an incompatible tool version. ' +
-        'Occurs when DynDOLOD or xLODGen output references cells or meshes that no longer exist in the mod list.',
-      affectedComponent: 'LOD / Terrain System (DynDOLOD / xLODGen)',
+        'Occurs when xLODGen/TexGen output references cells or meshes that no longer exist in the mod list.',
+      affectedComponent: 'LOD / Terrain System (TexGen / xLODGen)',
       stackTrace: extractStackTrace(logContent),
       recommendations: [
-        '🔄 Regenerate all LOD data after any worldspace-editing mod change: run xLODGen → TexGen → DynDOLOD in that order',
-        '⚠️ DynDOLOD NG requires DynDOLOD 3.x and is separate from DynDOLOD Classic — do not mix outputs',
-        '🗑️ Delete your existing DynDOLOD output in your mod manager before regenerating',
-        '📋 Ensure DynDOLOD is placed AFTER all worldspace mods in load order (especially PRP, UFO4P)',
-        '🔍 If using SSEEdit/FO4Edit Script for LOD flags: re-run after any plugin change',
+        '🔄 Regenerate all LOD data after any worldspace-editing mod change: run TexGen → xLODGen (FO4LODGen mode) in that order. FO4 has no separate DynDOLOD.exe step — DynDOLOD itself only supports Skyrim/Enderal.',
+        '🗑️ Delete your existing xLODGen/TexGen output in your mod manager before regenerating',
+        '📋 Ensure the xLODGen LOD output is placed AFTER all worldspace mods in load order (especially PRP, UFO4P)',
+        '🔍 If using a FOLIP xEdit script for LOD flags: re-run after any plugin change',
         '💾 LGTM data (Lighting LOD): rebuild via CK → File → Build Landscape LOD if you edited exterior cells',
       ],
       preventable: true,
       relatedIssues: [
-        'DynDOLOD output stale after mod list change',
+        'xLODGen/TexGen output stale after mod list change',
         'xLODGen terrain LOD referencing deleted cells',
         'LGTM not rebuilt after exterior cell edits',
-        'Mixing DynDOLOD NG and Classic outputs',
       ],
       confidence: 'high',
     };
@@ -877,7 +875,7 @@ function crashTypeMitigation(t: CrashType): string {
     sim_settlements_error: 'Update SS2 to latest, ensure all chapters installed, increase Papyrus budget in INI',
     papyrus_script_overflow: 'Balance AddInventoryEventFilter calls, replace RegisterForUpdate loops, install BakaMaxPapyrusOps via Addictol',
     loose_file_conflict: 'Remove stale loose .dds/.nif files that override BA2, enable Archive Invalidation',
-    lod_data_corrupt: 'Regenerate LOD: xLODGen â TexGen â DynDOLOD; delete old output first',
+    lod_data_corrupt: 'Regenerate LOD: TexGen then xLODGen (FO4LODGen mode); delete old output first. FO4 has no separate DynDOLOD.exe step.',
     f4se_plugin_crash: 'Install F4SE 0.7.7+ and Address Library AE build; update all F4SE DLL plugins for 1.11.x',
     audio_stream_crash: 'Re-encode audio at 44100 Hz, repack FUZ files correctly, check BA2 audio entries for 0-byte corruption',
   };

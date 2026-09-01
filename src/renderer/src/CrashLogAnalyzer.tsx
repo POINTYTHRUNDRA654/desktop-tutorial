@@ -111,7 +111,7 @@ const KNOWN_CRASH_PATTERNS: Array<{
     pattern: /LOD.*mesh|TES4LOD|lodgen/i,
     description: 'LOD mesh crash — corrupted or incompatible LOD data',
     severity: 'medium',
-    fix: 'Regenerate LOD with xLODGen + DynDOLOD. Ensure you ran them in order: xLODGen terrain → TexGen → DynDOLOD.',
+    fix: 'Regenerate LOD with TexGen + xLODGen (FO4LODGen mode) — FO4 has no separate DynDOLOD.exe step. Ensure you ran them in order: TexGen textures → xLODGen terrain + object + tree LOD.',
   },
   {
     pattern: /CombinedObject|combined mesh/i,

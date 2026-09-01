@@ -45,7 +45,7 @@ function getPluginInfo(fileType: string | undefined): { label: string; color: st
     case 'esp': return {
       label: 'ESP Plugin',
       color: 'text-amber-300',
-      notes: 'Standard plugin — counts against the 255-plugin limit. Can hold up to 16M FormIDs. Open in xEdit or the Creation Kit.',
+      notes: 'Standard plugin — counts against the 254-plugin limit. Can hold up to 16M FormIDs. Open in xEdit or the Creation Kit.',
     };
     case 'esm': return {
       label: 'ESM Master',

@@ -104,10 +104,14 @@
       "flow1": "Lock down privacy and security basics",
       "flow2": "Choose your preferred UI language",
       "flow3": "Configure the AI engine (provider, model, response length, self-critique)",
-      "flow4": "Optionally set up a local Ollama LLM for offline use",
+      "flow4": "Optional: set up a local Ollama LLM for offline use",
+      "flow4b": "Optional: enable Brain B, Mossy's local RAG tutor (NVIDIA GPU required)",
+      "flow4c": "Optional: enable Screen Awareness for live Blender correction",
+      "flow4d": "Optional: enable AnythingLLM for Memory Vault / Knowledge Hub semantic search",
       "flow5": "Point Mossy at your FO4 modding toolchain",
       "flow6": "Export a clean backup snapshot",
       "flow7": "Replay the installation tutorial if needed",
+      "flow8": "Verify Mossy can reach search providers and go online",
       "step1": {
         "title": "Step 1: Privacy & Security",
         "desc": "Control data collection, sharing, security rules, and memory storage."
@@ -121,30 +125,30 @@
         "desc": "Select your AI provider (Groq/Ollama), model, response length, and self-critique."
       },
       "step3b": {
-        "title": "Step 3b: Local LLM — Ollama",
+        "title": "Step 4: Local LLM — Ollama",
         "desc": "Run open-source models locally for fully offline AI assistance.",
         "badge": "OPTIONAL"
       },
       "step4": {
-        "title": "Step 4: External Tools",
+        "title": "Step 8: External Tools",
         "desc": "Point Mossy at your FO4 modding toolchain and verify paths."
       },
       "step5": {
-        "title": "Step 5: Backup & Restore",
+        "title": "Step 9: Backup & Restore",
         "desc": "Export or import a settings snapshot for quick recovery."
       },
       "step6": {
-        "title": "Step 6: Tutorial & Onboarding",
+        "title": "Step 10: Tutorial & Onboarding",
         "desc": "Replay the installation tutorial and first-run onboarding experience."
       },
       "step7": {
-        "title": "Step 7: Internet Access Test",
+        "title": "Step 11: Internet Access Test",
         "desc": "Verify Mossy can reach search providers and go online."
       },
       "credits": {
         "title": "Credits & Acknowledgments",
         "desc": "View the open-source projects and tools that power Mossy.",
-        "builtWithLove": "Built with Love on Amazing Open-Source Software",
+        "builtWithLove": "Built with Love, Powered by These Tools & Libraries",
         "intro": "Mossy stands on the shoulders of giants. Every feature you use is powered by dedicated developers and vibrant communities. Click below to see the full searchable credits, licenses, and attributions for all tools and frameworks.",
         "viewFull": "View Full Credits & Licenses",
         "coreFramework": "Core Framework",
@@ -166,15 +170,15 @@
         "recharts": "Charts library (MIT)",
         "moddingTools": "Modding Tools (separate downloads)",
         "blender": "3D modeling (GPL 2.0)",
-        "pynifly": "NIF import/export for Blender by BadDogSkyrim (MIT)",
-        "xedit": "Plugin editor by ElminsterAU (GPL 2.0)",
+        "pynifly": "NIF import/export for Blender by BadDogSkyrim (GPL 3.0)",
+        "xedit": "Plugin editor by ElminsterAU (MPL-2.0)",
         "creationKit": "Official Bethesda modding tool",
         "nifskope": "NIF mesh & texture viewer by hexabits (GPL 3.0)",
         "mo2": "Mod manager by Tannin42 / MO2 Team (GPL 3.0)",
         "vortex": "Mod manager by Nexus Mods",
         "f4se": "Fallout 4 Script Extender by ianpatt & behippo",
         "loot": "Load Order Optimisation Tool (GPL 3.0)",
-        "bodyslide": "Body morphing by ousnius & Caliente (MIT)",
+        "bodyslide": "Body morphing by ousnius & Caliente (GPL 3.0)",
         "bae": "Bethesda Archive Extractor by jonwd7",
         "gimp": "GNU Image Manipulation Program (GPL 3.0)",
         "umodel": "Unreal Engine asset viewer by Gildor",
@@ -198,7 +202,7 @@
         "sampleResultFrom": "Sample result from"
       },
       "step3c": {
-        "title": "Step 3c: AnythingLLM — RAG Knowledge Engine",
+        "title": "Step 7: AnythingLLM — RAG Knowledge Engine",
         "desc": "Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search."
       },
       "support": {
@@ -731,7 +735,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy Tutor · FO4 Setup Wizards",
     "title": "FO4 Setup Wizards Hub",
@@ -788,7 +792,7 @@
     "versionOptions": {
       "og": "1.10.163 — pre–Next-Gen patch (April 2024)",
       "ng": "1.10.984+ — Next-Gen / current Steam default",
-      "ae": "Creations Menu / Anniversary Edition content"
+      "ae": "1.11.x — Creations Menu / Anniversary Edition content"
     },
     "stepLabel": "Step {step}: {title}",
     "setupProgress": "Setup Progress",
@@ -922,7 +926,7 @@
       },
       "loadOrder": {
         "title": "Know the Load Order Rules",
-        "body": "Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate."
+        "body": "Fallout 4 hard-caps at 254 standard ESM/ESP plugins (slot 0xFE is reserved for the ESL indicator). ESL-flagged plugins load in a separate FE000-FEFFF range and do not count toward that cap — each gets its own 2,048-FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate."
       },
       "assetPipeline": {
         "title": "Learn the Asset Pipeline",

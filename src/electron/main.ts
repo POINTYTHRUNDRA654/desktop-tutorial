@@ -1517,50 +1517,104 @@ function createWindow() {
       console.error('[Main] Failed to initialize Nemotron auto-connection:', error);
     }
 
-    // ── Auto-setup PyTorch on first launch ─────────────────────────────────
-    // Runs silently in the background. If PyTorch is not yet configured, kick
-    // off the installation automatically so users get it out of the box.
-    // We wait for the renderer to signal readiness (pytorch-renderer-ready IPC)
-    // before sending progress events. A 15 s safety fallback ensures the setup
-    // always runs even if the signal is never received (e.g. old renderer build).
-    let pytorchSetupTriggered = false;
-    const triggerPytorchSetup = async () => {
-      if (pytorchSetupTriggered) return;
-      pytorchSetupTriggered = true;
+    // ── Local AI setup (PyTorch + Whisper) ─ consent-gated ────────────
+    // Mossy can auto-install local Python AI dependencies (PyTorch for local
+    // AI features, faster-whisper for voice input) so those features work
+    // out of the box. Installing them downloads real packages from the
+    // internet, so this is never done silently — the renderer shows a
+    // consent dialog (LocalAiSetupConsent) and nothing downloads until the
+    // user explicitly clicks Install. Users who already have these
+    // configured, or who decline, are never asked again.
+    let localAiConsentTriggered = false;
+    const triggerLocalAiSetupConsent = async () => {
+      if (localAiConsentTriggered) return;
+      localAiConsentTriggered = true;
       try {
         const s = loadSettings();
-        const alreadyConfigured = s?.pytorchPath && fs.existsSync(s.pytorchPath as string);
-        if (!alreadyConfigured) {
-          console.log('[PyTorch Auto-Setup] PyTorch not configured; starting automatic installation…');
-          await runPytorchAutoInstall(mainWindow);
-        } else {
-          console.log('[PyTorch Auto-Setup] PyTorch already configured at', s.pytorchPath);
+        const pytorchConfigured = !!(s?.pytorchPath && fs.existsSync(s.pytorchPath as string));
+        // whisperPythonPath is often a bare command ("python", "py") rather than
+        // an absolute path -- fs.existsSync always fails on those, so just check
+        // that a non-empty value was saved (only ever set by a verified check or
+        // successful install elsewhere in this file).
+        const whisperConfigured = !!(s?.whisperPythonPath as string | undefined)?.trim();
+
+        if (pytorchConfigured && whisperConfigured) {
+          console.log('[Local AI Setup] PyTorch and Whisper already configured; nothing to ask.');
+          return;
+        }
+        if (s?.localAiSetupDeclined) {
+          console.log('[Local AI Setup] User previously declined; not asking again.');
+          return;
+        }
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('local-ai-setup-consent-request', {
+            needsPytorch: !pytorchConfigured,
+            needsWhisper: !whisperConfigured,
+          });
         }
       } catch (err: any) {
-        console.error('[PyTorch Auto-Setup] Unexpected error:', err?.message || err);
+        console.error('[Local AI Setup] Unexpected error requesting consent:', err?.message || err);
       }
     };
 
     // Listen for the renderer's readiness signal
-    ipcMain.once('pytorch-renderer-ready', () => triggerPytorchSetup());
-    // Safety fallback: if the renderer never signals, start after 15 s
-    setTimeout(triggerPytorchSetup, 15_000);
+    ipcMain.once('pytorch-renderer-ready', () => triggerLocalAiSetupConsent());
+    // Safety fallback: if the renderer never signals, ask after 15 s
+    setTimeout(triggerLocalAiSetupConsent, 15_000);
 
-    // ── Whisper auto-setup (same pattern as PyTorch above) ───────────────────
-    let whisperSetupTriggered = false;
-    const triggerWhisperSetup = async () => {
-      if (whisperSetupTriggered) return;
-      whisperSetupTriggered = true;
+    // Fires once the user answers the consent dialog. approved=false is
+    // persisted so we never ask again; approved=true installs only whichever
+    // of PyTorch/Whisper isn't already configured.
+    // Manual re-entry point: Settings → External Tools can call this to
+    // re-show the consent dialog even if the user previously declined (they
+    // changed their mind) or only one of the two is still missing.
+    ipcMain.on('local-ai-setup-manual-request', () => {
       try {
-        await runWhisperAutoInstall(mainWindow);
+        const s = loadSettings();
+        const pytorchConfigured = !!(s?.pytorchPath && fs.existsSync(s.pytorchPath as string));
+        // whisperPythonPath is often a bare command ("python", "py") rather than
+        // an absolute path -- fs.existsSync always fails on those, so just check
+        // that a non-empty value was saved (only ever set by a verified check or
+        // successful install elsewhere in this file).
+        const whisperConfigured = !!(s?.whisperPythonPath as string | undefined)?.trim();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('local-ai-setup-consent-request', {
+            needsPytorch: !pytorchConfigured,
+            needsWhisper: !whisperConfigured,
+          });
+        }
       } catch (err: any) {
-        console.error('[Whisper Auto-Setup] Unexpected error:', err?.message || err);
+        console.error('[Local AI Setup] Error handling manual request:', err?.message || err);
       }
-    };
-    // Piggyback on pytorch-renderer-ready (renderer sends it on load anyway),
-    // or wait 20 s as a safety net.
-    ipcMain.once('pytorch-renderer-ready', () => setTimeout(triggerWhisperSetup, 2_000));
-    setTimeout(triggerWhisperSetup, 20_000);
+    });
+
+    ipcMain.on('local-ai-setup-consent-response', async (_event, payload: { approved?: boolean }) => {
+      try {
+        if (!payload?.approved) {
+          const s = loadSettings();
+          saveSettings({ ...s, localAiSetupDeclined: true });
+          console.log('[Local AI Setup] User declined — will not ask again.');
+          return;
+        }
+        const s = loadSettings();
+        const pytorchConfigured = !!(s?.pytorchPath && fs.existsSync(s.pytorchPath as string));
+        // whisperPythonPath is often a bare command ("python", "py") rather than
+        // an absolute path -- fs.existsSync always fails on those, so just check
+        // that a non-empty value was saved (only ever set by a verified check or
+        // successful install elsewhere in this file).
+        const whisperConfigured = !!(s?.whisperPythonPath as string | undefined)?.trim();
+        if (!pytorchConfigured) {
+          console.log('[Local AI Setup] User approved — installing PyTorch…');
+          await runPytorchAutoInstall(mainWindow);
+        }
+        if (!whisperConfigured) {
+          console.log('[Local AI Setup] User approved — installing faster-whisper…');
+          await runWhisperAutoInstall(mainWindow);
+        }
+      } catch (err: any) {
+        console.error('[Local AI Setup] Error handling consent response:', err?.message || err);
+      }
+    });
   });
 
   mainWindow.on('closed', () => {
@@ -3672,11 +3726,30 @@ function setupIpcHandlers() {
     const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
     const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
     const githubTokenConfigured = Boolean(getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN'));
+    // Added 2026-08-26 (API-key-confirmation-dialog fix): the AI Chat cloud
+    // path (LocalAIEngine.ts) used to show a "Mossy is about to use a cloud
+    // AI provider (your configured API key)" confirm() dialog before EVERY
+    // cloud call whenever the "Require Key Confirmation" privacy toggle was
+    // on -- including the default zero-config path, where ai-chat-groq
+    // actually goes through the bundled Render backend (mossy.onrender.com)
+    // using Mossy's own server-side key, not anything the user configured.
+    // getBackendConfig() in this file falls back to that Render URL even
+    // with no env var set, so it's non-null for virtually every install --
+    // "your configured API key" was simply false for almost everyone who
+    // saw that dialog. This flag tells the renderer whether a call will
+    // actually spend a key the user personally supplied: either an Inkling
+    // key (always tried first, unconditionally) or a direct Groq key used
+    // only when no backend is configured at all (an explicit self-hosted/
+    // advanced setup). The renderer now only shows the confirmation when
+    // this is true, so the default Render-backend flow never prompts.
+    const usesOwnCloudApiKey = Boolean(getSecretValue(settings, 'inklingApiKey', 'INKLING_API_KEY'))
+      || (!getBackendConfig() && Boolean(getSecretValue(settings, 'groqApiKey', 'GROQ_API_KEY')));
     return redactSettingsForRenderer({
       ...settings,
       backendBaseUrl,
       backendTokenConfigured,
       githubTokenConfigured,
+      usesOwnCloudApiKey,
     });
   });
 
@@ -10745,6 +10818,55 @@ end.
             messages.splice(messages.length - 1, 0, { role: 'system', content: neuronBlock });
           }
         } catch { /* neurons not yet ready — non-blocking */ }
+      }
+
+      // Safety net added 2026-08-26 (Mossy AI Chat context-overflow fix):
+      // even with BRAIN_NEURON_CHAR_BUDGET lowered, a misclassified turn or
+      // an unusually long conversationHistory can still push the combined
+      // messages array past what either Groq model accepts, producing a raw
+      // "reduce the length of the messages or completion" 400 the user has
+      // no way to recover from. Rather than let that reach the user, cap the
+      // total request here: if we're over budget, trim conversation history
+      // first (oldest turns first — least likely to matter), then as a last
+      // resort shorten the neuron block itself, so the user always gets an
+      // answer instead of a hard failure.
+      {
+        const SAFE_TOTAL_CHAR_BUDGET = 300_000; // conservative vs. both the 131K and 262K token models
+        const totalLen = () => messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
+        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && history.length > 0) {
+          const idx = messages.findIndex(m => history.includes(m as any));
+          if (idx === -1) break;
+          messages.splice(idx, 1);
+          history.shift();
+        }
+        // Corrected 2026-08-26 (live-verified): the block above only ever
+        // targeted the small brain-neuron system message by name. Live
+        // diagnostics (ai-diagnostics.log's [systemPrompt-breakdown] lines)
+        // showed the actual dominant contributor is the renderer-built
+        // systemPrompt itself (ChatInterface.tsx's getFullSystemInstruction()
+        // output plus its injected context blocks) arriving here as
+        // messages[0] -- measured at 600K+ characters on its own, 746K+
+        // total, on a turn that still 400'd after the neuron budget was cut
+        // to 40K. That message was never touched by the old logic, which is
+        // why the fix didn't take on first verification. This trims
+        // whichever message is currently largest -- not a specific named one
+        // -- repeatedly, until the request fits, so it's correct regardless
+        // of which upstream block is the actual offender on a given turn.
+        let guardIterations = 0;
+        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && guardIterations < messages.length + 1) {
+          guardIterations++;
+          let largestIdx = -1;
+          let largestLen = 0;
+          for (let i = 0; i < messages.length; i++) {
+            const len = messages[i].content ? messages[i].content.length : 0;
+            if (len > largestLen) { largestLen = len; largestIdx = i; }
+          }
+          if (largestIdx === -1 || largestLen < 1000) break; // nothing left worth trimming
+          const over = totalLen() - SAFE_TOTAL_CHAR_BUDGET;
+          const keep = Math.max(500, largestLen - over - 500);
+          if (keep >= largestLen) break; // trimming this message alone won't help further
+          messages[largestIdx].content = messages[largestIdx].content.slice(0, keep) + '\n\n[...truncated to fit context budget...]';
+        }
       }
 
       // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
@@ -24791,7 +24913,7 @@ print(json.dumps(result))
   // under one specific model's window. This budget is set well above the
   // current real total (155K) purely as a runaway-growth guard for the
   // future, not a limit anyone should expect to actually hit day to day.
-  const BRAIN_NEURON_CHAR_BUDGET = 200_000;
+  const BRAIN_NEURON_CHAR_BUDGET = 40_000; // lowered 2026-08-26: 200K chars was overflowing both the 131K-token primary model AND the 262K-token fallback once combined with the rest of the system prompt, causing every game-data-related turn (including many misclassified as such) to hard-fail with a Groq 400 context-length error instead of answering. See MOSSY_CHAT_CONTEXT_OVERFLOW_FIX.md.
 
   function buildBrainNeuronBlock(): string {
     const neurons = getAllBrainNeurons();
@@ -30008,7 +30130,20 @@ ${steps}
 
       if (fileName.includes(' '))
         warnings.push({ level: 'warn', msg: 'Filename has spaces — xEdit and LOOT may misidentify it. Rename using underscores.', fixId: 'rename', fixLabel: 'Auto-Rename' });
-      if (!masters.some(m => /^fallout4\.esm$/i.test(m)))
+      // Fixed 2026-08-26 (CK Hub tooling verification): scanning Fallout4.esm
+      // itself (or an official DLC master) used to report "Fallout4.esm is
+      // not listed as a master -- plugin will fail to load" -- a false
+      // positive, since the base game master and its official DLCs don't
+      // list Fallout4.esm as their own master (Fallout4.esm has none at all;
+      // the DLCs depend on it but are not "plugins" that need it added via
+      // xEdit). Skip the check entirely for the base master and the known
+      // official DLC masters -- only a real mod plugin should be held to it.
+      const VANILLA_MASTER_FILENAMES = new Set([
+        'fallout4.esm', 'dlcrobot.esm', 'dlcworkshop01.esm', 'dlcworkshop02.esm',
+        'dlcworkshop03.esm', 'dlccoast.esm', 'dlcnukaworld.esm',
+      ]);
+      const isVanillaMaster = VANILLA_MASTER_FILENAMES.has(fileName.toLowerCase());
+      if (!isVanillaMaster && !masters.some(m => /^fallout4\.esm$/i.test(m)))
         warnings.push({ level: 'error', msg: 'Fallout4.esm is not listed as a master — plugin will fail to load. Add it as master 0 in xEdit.', fixId: 'launch-xedit-open', fixLabel: 'Open in xEdit' });
       if ((isEslExt || eslFlag) && formIdCount > 4096)
         warnings.push({ level: 'error', msg: `ESL FormID overflow: ${formIdCount} local FormIDs exceed 4096. Compact FormIDs with xEdit before distributing as ESL.`, fixId: 'launch-xedit-compact', fixLabel: 'Launch xEdit (Compact)' });
@@ -34194,19 +34329,14 @@ app.whenReady().then(() => {
 
   // ── End F4AI NPC Director ─────────────────────────────────────────────────
 
-  // Initialize auto-updater service
+  // Auto-update checking is disabled for the distributed build. Mossy does not
+  // contact any update server automatically; this repo is the source of truth
+  // for new releases (Nexus Mods does not permit auto-update network traffic).
+  // The IPC handlers (check-for-updates/download-update/install-update) remain
+  // wired below only so a future manual, user-clicked "Check for Updates"
+  // button could opt back in without touching main-process code again.
   if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
-
-    // Check for updates on startup (after a delay to not interfere with onboarding)
-    setTimeout(() => {
-      if (!isDev && mainWindow && !mainWindow.isDestroyed()) {
-        console.log('[Main] Checking for updates...');
-        autoUpdaterService.checkForUpdates().catch(err => {
-          console.error('[Main] Auto-update check failed:', err);
-        });
-      }
-    }, 10000); // Wait 10 seconds after app launch
   }
 
   // Ping backend health to wake up sleeping service (e.g., Render free tier)

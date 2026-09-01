@@ -178,7 +178,7 @@ const MIPMAP_INFO = [
   { item: 'Resolution must be power-of-2', detail: 'FO4 engine requires 2^N textures: 64, 128, 256, 512, 1024, 2048, 4096. Non-POT textures crash or render black.' },
   { item: 'Hero asset ceilings', detail: '4096×4096 for unique hero characters/weapons. 2048×2048 for medium props. 1024×1024 or 512×512 for background/tiling.' },
   { item: 'Mipmaps = full chain by default', detail: 'DDS mipmaps chain all the way down to 1×1. 2048 texture = 12 mip levels. Storage is only 33 % extra.' },
-  { item: 'LOD textures', detail: 'DynDOLOD/xLODGen generates LOD textures automatically from source. Keep source at highest quality; LOD is derived.' },
+  { item: 'LOD textures', detail: 'TexGen (part of the DynDOLOD Resources download) generates LOD textures automatically from source for FO4. Keep source at highest quality; LOD is derived.' },
   { item: 'Streaming budget', detail: 'FO4 streams textures based on VRAM. Keep individual texture total RAM usage per interior scene under ~800 MB on 4 GB GPUs.' },
 ];
 
@@ -334,7 +334,7 @@ const FO4TextureGuide: React.FC = () => (
 const KRITA_SETUP_STEPS = [
   { step: '1', title: 'Install Krita', desc: 'Download from krita.org — free and open source. Windows 64-bit installer recommended.' },
   { step: '2', title: 'Install ComfyUI (AI Backend)', desc: 'The plugin uses ComfyUI as its generation backend. Install ComfyUI with your NVIDIA GPU drivers. Requires 6+ GB VRAM for quality results.' },
-  { step: '3', title: 'Install the Plugin', desc: 'In Krita: Tools → Scripts → Import Python Plugin → select the krita-ai-diffusion folder cloned at D:\\Projects\\desktop-tutorial\\krita-ai-diffusion. Enable in Plugin Manager.' },
+  { step: '3', title: 'Install the Plugin', desc: 'Clone github.com/Acly/krita-ai-diffusion anywhere on your machine. In Krita: Tools → Scripts → Import Python Plugin from File → select the folder you cloned it to. Enable in Plugin Manager.' },
   { step: '4', title: 'Connect to ComfyUI', desc: 'In the AI panel inside Krita: set server URL to http://127.0.0.1:8188, click Connect. Plugin downloads required checkpoints on first use.' },
   { step: '5', title: 'Open Your Texture', desc: 'Open a 1024×1024 or 2048×2048 PNG in Krita (power-of-2 size). Use selections to target specific regions for generation.' },
   { step: '6', title: 'Export PNG → DDS', desc: 'Save output as PNG, then use the DDS Converter tab here to compress to BC1/BC3/BC7 with mipmaps for FO4.' },

@@ -310,7 +310,7 @@ const CosmosWorkflow: React.FC = () => {
         if (!stat?.exists || !stat?.isDirectory) {
           if (api?.pickDirectory) {
             const picked = await api.pickDirectory(`Select ${repo.label} folder`);
-            if (!picked) return;
+            if (!picked) { toast('Folder selection cancelled — nothing was added.'); return; }
             target = String(picked);
           } else {
             toast.error(`${repo.label} not found on disk. Clone it first, then retry.`);

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Link } from 'react-router-dom';
-import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw } from 'lucide-react';
+import { Save, TestTube2, Wrench, FileCog, Swords, Package, ExternalLink, Play, Palette, FolderOpen, ShieldCheck, Zap, Archive, Image as ImageIcon, Terminal, Maximize2, RefreshCw, Download } from 'lucide-react';
 import { executeMossyTool } from './MossyTools';
 import type { Settings } from '../../shared/types';
 import { ToolsInstallVerifyPanel } from './components/ToolsInstallVerifyPanel';
@@ -619,6 +619,11 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
           ]}
         />
 
+        {/* Dev-only: personal AI-research knowledge-root repos (Cosmos, DeepSeek-OCR-2,
+            TripoSG). Not part of what Mossy needs to function for a real modder --
+            same dev-build-only gate used for this content in Sidebar.tsx,
+            CommandPalette.tsx, and GlobalSearch.tsx. */}
+        {process.env.NODE_ENV !== 'production' && (
         <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-slate-900 border border-slate-800 rounded-lg">
             <div className="text-sm font-bold text-white mb-2">Cosmos Transfer2.5 (Local Repo)</div>
@@ -800,6 +805,7 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
             </div>
           </div>
         </div>
+        )}
 
         <div className="mb-6 p-4 bg-blue-900/30 border border-blue-700 rounded-lg text-sm text-blue-300">
           <strong>📌 Quick Start:</strong> Each tool below shows its configuration status (✅ CONFIGURED or ⚠️ NOT SET).
@@ -1027,6 +1033,14 @@ const ExternalToolsSettings: React.FC<ExternalToolsSettingsProps> = ({ embedded 
                 aria-label={pytorchInstalling ? 'Installing PyTorch, please wait' : 'Auto-install PyTorch'}
               >
                 <Archive className="w-3 h-3" /> {pytorchInstalling ? 'Installing…' : 'Auto-Install'}
+              </button>
+              <button
+                onClick={() => (window as any).electron?.api?.requestLocalAiSetupConsent?.()}
+                className="px-3 py-1 bg-emerald-800 hover:bg-emerald-700 border border-emerald-600 rounded text-[11px] font-bold flex items-center gap-1"
+                title="Re-open the Local AI Tools setup dialog (PyTorch + faster-whisper voice input) even if you previously skipped it"
+                aria-label="Set up local AI tools (PyTorch and Whisper voice input)"
+              >
+                <Download className="w-3 h-3" /> Set Up Local AI Tools
               </button>
             </div>
             {pytorchCheckStatus && (

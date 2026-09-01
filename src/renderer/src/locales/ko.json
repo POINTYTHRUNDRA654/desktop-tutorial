@@ -112,24 +112,24 @@
         "desc": "AI 제공업체 (Groq/Ollama), 모델, 응답 길이, 자기 비평을 선택합니다."
       },
       "step3b": {
-        "title": "3b단계: 로컬 LLM — Ollama",
+        "title": "4단계: 로컬 LLM — Ollama",
         "desc": "완전한 오프라인 AI 지원을 위해 오픈 소스 모델을 로컬에서 실행합니다.",
         "badge": "선택"
       },
       "step4": {
-        "title": "4단계: 외부 도구",
+        "title": "8단계: 외부 도구",
         "desc": "FO4 모딩 툴체인에 Mossy를 연결하고 경로를 확인합니다."
       },
       "step5": {
-        "title": "5단계: 백업 및 복원",
+        "title": "9단계: 백업 및 복원",
         "desc": "빠른 복구를 위해 설정 스냅샷을 내보내거나 가져옵니다."
       },
       "step6": {
-        "title": "6단계: 튜토리얼 및 온보딩",
+        "title": "10단계: 튜토리얼 및 온보딩",
         "desc": "설치 튜토리얼과 첫 실행 온보딩 경험을 다시 재생합니다."
       },
       "step7": {
-        "title": "7단계: 인터넷 접속 테스트",
+        "title": "11단계: 인터넷 접속 테스트",
         "desc": "Mossy가 검색 제공업체에 접근하고 온라인으로 연결될 수 있는지 확인합니다."
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "차트 라이브러리 (MIT)",
         "moddingTools": "모딩 도구 (별도 다운로드)",
         "blender": "3D 모델링 (GPL 2.0)",
-        "pynifly": "BadDogSkyrim의 Blender용 NIF 가져오기/내보내기 (MIT)",
-        "xedit": "ElminsterAU의 플러그인 편집기 (GPL 2.0)",
+        "pynifly": "BadDogSkyrim의 Blender용 NIF 가져오기/내보내기 (GPL 3.0)",
+        "xedit": "ElminsterAU의 플러그인 편집기 (MPL-2.0)",
         "creationKit": "공식 Bethesda 모딩 도구",
         "nifskope": "hexabits의 NIF 메시 및 텍스처 뷰어 (GPL 3.0)",
         "mo2": "Tannin42 / MO2 팀의 모드 관리자 (GPL 3.0)",
         "vortex": "Nexus Mods의 모드 관리자",
         "f4se": "ianpatt 및 behippo의 Fallout 4 Script Extender",
         "loot": "로드 순서 최적화 도구 (GPL 3.0)",
-        "bodyslide": "ousnius 및 Caliente의 신체 변형 (MIT)",
+        "bodyslide": "ousnius 및 Caliente의 신체 변형 (GPL 3.0)",
         "bae": "jonwd7의 Bethesda Archive Extractor",
         "gimp": "GNU 이미지 편집 프로그램 (GPL 3.0)",
         "umodel": "Gildor의 Unreal Engine 에셋 뷰어",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "샘플 결과 출처:"
       },
       "step3c": {
-        "title": "3c단계: AnythingLLM — RAG 지식 엔진",
+        "title": "7단계: AnythingLLM — RAG 지식 엔진",
         "desc": "메모리 볼트 및 지식 허브 시맨틱 검색을 위한 벡터 기반 문서 검색."
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy 튜터 · FO4 설정 마법사",
     "title": "FO4 설정 마법사 허브",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — 차세대 패치 이전 (2024년 4월)",
       "ng": "1.10.984+ — 차세대 / 현재 Steam 기본값",
-      "ae": "Creations 메뉴 / 기념판 콘텐츠"
+      "ae": "1.11.x — Creations 메뉴 / 기념판 콘텐츠"
     },
     "stepLabel": "{step}단계: {title}",
     "setupProgress": "설정 진행 상황",

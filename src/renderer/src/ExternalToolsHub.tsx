@@ -97,7 +97,7 @@ const AUTO_CONNECT_TOOLS: AutoConnectTool[] = [
   { id: 'nifskope',     label: 'NifSkope',                  match: ['nifskope'],                                     category: 'editor',      installUrl: 'https://github.com/hexabits/nifskope/releases' },
   { id: 'bodyslide',    label: 'BodySlide / Outfit Studio', match: ['bodyslide', 'outfit studio', 'outfitstudio'],   category: 'editor',      installUrl: 'https://www.nexusmods.com/fallout4/mods/25' },
   { id: 'loot',         label: 'LOOT',                      match: ['loot'],                                         category: 'utility',     installUrl: 'https://loot.github.io/' },
-  { id: 'wrye-bash',    label: 'Wrye Bash',                 match: ['wrye bash', 'wryebash'],                        category: 'utility',     installUrl: 'https://www.nexusmods.com/fallout4/mods/20032' },
+  { id: 'wrye-bash',    label: 'Wrye Bash',                 match: ['wrye bash', 'wryebash'],                        category: 'utility',     installUrl: 'https://www.nexusmods.com/site/mods/591' },
   { id: 'bethini',      label: 'BethINI',                   match: ['bethini'],                                      category: 'utility',     installUrl: 'https://www.nexusmods.com/fallout4/mods/67' },
   { id: 'f4se',         label: 'F4SE (Script Extender)',    match: ['f4se', 'f4se_loader'],                          category: 'utility',     installUrl: 'https://f4se.silverlock.org/' },
   { id: 'comfyui',      label: 'ComfyUI',                   match: ['comfyui', 'comfy'],                             category: 'ai',          installUrl: 'https://github.com/comfyanonymous/ComfyUI' },

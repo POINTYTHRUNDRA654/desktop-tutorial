@@ -114,17 +114,22 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
           <p className="text-xs text-slate-400">
             Controls whether Mossy uses the cloud backend or your local Ollama for chat and analysis.
           </p>
+          <p className="text-[11px] text-amber-400/90 bg-amber-900/10 border border-amber-700/30 rounded px-3 py-2">
+            Locked — the AI provider and model are fixed per Mossy release and aren't user-configurable. Shown below for transparency only.
+          </p>
           <div className="grid grid-cols-1 gap-2">
             {PROVIDER_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setProvider(opt.value)}
+                disabled
+                aria-disabled="true"
+                title="Fixed per release — not user-configurable"
                 className={
-                  'flex items-start gap-3 px-4 py-3 rounded-md border text-left transition-colors ' +
+                  'flex items-start gap-3 px-4 py-3 rounded-md border text-left transition-colors cursor-not-allowed opacity-60 ' +
                   (provider === opt.value
                     ? 'border-cyan-600 bg-cyan-900/20 text-cyan-200'
-                    : 'border-slate-700 bg-slate-900/40 text-slate-300 hover:border-slate-600')
+                    : 'border-slate-700 bg-slate-900/40 text-slate-300')
                 }
               >
                 <span
@@ -188,8 +193,10 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
               <input
                 type="text"
                 value={inklingModel}
-                onChange={(e) => setInklingModel(e.target.value)}
-                className="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-violet-500"
+                readOnly
+                disabled
+                title="Fixed per release — not user-configurable"
+                className="flex-1 bg-slate-800/50 border border-slate-700 rounded px-3 py-1.5 text-xs text-slate-500 font-mono cursor-not-allowed"
               />
             </div>
           </div>

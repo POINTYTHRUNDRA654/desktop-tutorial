@@ -220,18 +220,38 @@ const ModBuilderHub: React.FC = () => {
             </div>
 
             {/* Tab Content */}
+            {/* Fixed 2026-08-26 (Devtools Hub -- and every other tab except Project Creator --
+                silently clipped content with no way to scroll to it): this wrapper is
+                `flex-1 overflow-hidden`, which gives every tab's content a bounded height with
+                no scrollbar of its own -- anything taller than the visible area was simply
+                unreachable, not just hidden behind a missing scrollbar. Only the `creator` tab
+                got its own `h-full overflow-y-auto` wrapper; blueprint/workshop/devtools/scribe
+                did not, so any of those panels whose content could grow taller than the
+                available space (e.g. Devtools Hub's Template Generator accordion, with its
+                description box, tools panel, and template sidebar/output columns) had no path
+                to their own lower content -- mouse-wheel scrolling over them did nothing at all.
+                Every tab now gets the same `h-full overflow-y-auto` wrapper `creator` already
+                had, so each one scrolls internally like it should. */}
             <div className="flex-1 overflow-hidden">
                 {activeTab === 'blueprint' && (
-                    <PanelLoader><TheBlueprint /></PanelLoader>
+                    <div className="h-full overflow-y-auto">
+                        <PanelLoader><TheBlueprint /></PanelLoader>
+                    </div>
                 )}
                 {activeTab === 'workshop' && (
-                    <PanelLoader><Workshop /></PanelLoader>
+                    <div className="h-full overflow-y-auto">
+                        <PanelLoader><Workshop /></PanelLoader>
+                    </div>
                 )}
                 {activeTab === 'devtools' && (
-                    <PanelLoader><DevtoolsHub /></PanelLoader>
+                    <div className="h-full overflow-y-auto">
+                        <PanelLoader><DevtoolsHub /></PanelLoader>
+                    </div>
                 )}
                 {activeTab === 'scribe' && (
-                    <PanelLoader><TheScribe /></PanelLoader>
+                    <div className="h-full overflow-y-auto">
+                        <PanelLoader><TheScribe /></PanelLoader>
+                    </div>
                 )}
                 {activeTab === 'creator' && (
                     <div className="h-full overflow-y-auto">

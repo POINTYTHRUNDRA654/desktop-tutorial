@@ -1103,7 +1103,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   { id: 'c01', category: 'Plugin Hygiene', title: 'Run xEdit Quick Auto Clean', detail: 'Remove Identical-to-Master (ITM) records and restore Undeleted-and-Disabled References (UDRs). Command: FO4Edit.exe -quickautoclean -autoload "plugin.esp"', critical: true },
   { id: 'c02', category: 'Plugin Hygiene', title: 'Verify all master files are listed', detail: 'Open in xEdit and check the File Header → Master Files. Every FormID reference must have its master declared. Missing masters cause immediate CTD on load.', critical: true },
   { id: 'c03', category: 'Plugin Hygiene', title: 'Check for deleted NavMesh records (UDRs)', detail: 'In xEdit, filter for Deleted records in NAVM. Any deleted navmesh = navmesh CTD for users. Undelete and disable instead of hard-deleting.', critical: true },
-  { id: 'c04', category: 'Plugin Hygiene', title: 'ESL-flag if FormID count < 4096', detail: 'If your plugin adds fewer than 4096 new records, ESL-flagging it frees up one of the 255 plugin slots for your users. Use xEdit → Compact FormIDs for ESL first.', critical: false },
+  { id: 'c04', category: 'Plugin Hygiene', title: 'ESL-flag if FormID count < 4096', detail: 'If your plugin adds fewer than 4096 new records, ESL-flagging it frees up one of the 254 plugin slots for your users. Use xEdit → Compact FormIDs for ESL first.', critical: false },
   { id: 'c05', category: 'Plugin Hygiene', title: 'Confirm no BA2 Header V7/V8 for OG users', detail: 'The NG CK outputs V7/V8 BA2 archives by default. If you support OG (1.10.163) users, repack with Archive2 --formatVersion=1 or document the NG requirement.', critical: false },
   // Scripts
   { id: 'c06', category: 'Papyrus Scripts', title: 'All .psc files compiled to .pex', detail: 'Open CK → Gameplay → Papyrus Compiler and check every .psc has a matching .pex in the Scripts\\Compiled folder. Ship only the .pex, not the .psc source (optional but standard).', critical: true },
@@ -1116,7 +1116,7 @@ const CHECKLIST_ITEMS: ChecklistItem[] = [
   { id: 'c12', category: 'Assets & Archives', title: 'Remove .psd, .blend, .fbx source files from release', detail: 'Accidentally shipping source art files increases mod size and leaks your source assets. Ensure only .dds, .nif, .pex, .ba2, and the plugin file are in your release.', critical: false },
   // Worldspace / cells
   { id: 'c13', category: 'Worldspace & Cells', title: 'Precombines regenerated after any exterior cell edit', detail: 'Every exterior cell edit requires CK → File → Generate Precombined Geometry. Skipping this causes previs CTD for users. Repack result into the mod BA2.', critical: true },
-  { id: 'c14', category: 'Worldspace & Cells', title: 'LOD regenerated (xLODGen → TexGen → DynDOLOD)', detail: 'If you add or move objects in exterior cells, LOD must be regenerated. Ship LOD BA2 or document that users must regenerate DynDOLOD themselves.', critical: false },
+  { id: 'c14', category: 'Worldspace & Cells', title: 'LOD regenerated (TexGen → xLODGen)', detail: 'If you add or move objects in exterior cells, LOD must be regenerated. FO4 has no separate DynDOLOD.exe step — TexGen bakes LOD textures, then xLODGen (FO4LODGen mode) generates terrain + object + tree LOD. Ship LOD BA2 or document that users must regenerate LOD themselves.', critical: false },
   { id: 'c15', category: 'Worldspace & Cells', title: 'Room Bounds placed in all interior cells', detail: 'Every interior cell must have a valid RoomBounds marker fully enclosing the playable space. Missing RoomBounds causes CK crash and potential game CTD on cell load.', critical: true },
   // Load order
   { id: 'c16', category: 'Load Order & Compatibility', title: 'Test with a clean save, not an in-progress save', detail: 'First-time installs must be tested on a fresh save or at least a save taken before your mod was added. This is the state your users will experience.', critical: true },
@@ -1441,7 +1441,7 @@ const CRASH_CAUSES = [
     cause: 'Too many forms in ESP (non-ESL)',
     severity: 'medium',
     detail:
-      'Standard ESP/ESM files have a 16M FormID space (0x000800 – 0xFFFFF per mod file). Mods with too many records fragment the space and can cause save corruption. Flag small mods as ESL if new FormID count is ≤ 4096 (0x000–0xFFF) — use xEdit "Compact FormIDs for ESL" first.',
+      'Standard ESP/ESM files have a 16M FormID space (0x000800 – 0xFFFFF per mod file). Mods with too many records fragment the space and can cause save corruption. Flag small mods as ESL if new FormID count is ≤ 2048 (0x800–0xFFF) — use xEdit "Compact FormIDs for ESL" first.',
   },
   {
     cause: 'Overlapping navmesh triangles',
@@ -1468,15 +1468,15 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Use F4CK Fixes / CK Platform Extended',
-    detail: 'CK Platform Extended (Nexus #51998) patches dozens of CK bugs including the 5-second save lag, navmesh crash on large cells, and memory leaks. Essential for stable CK work. Use CKPE 0.3.x for OG (1.10.163) and CKPE 0.5+ for NG/AE/1.11.x — both on the same Nexus page.',
+    detail: 'CK Platform Extended (Nexus #51165) patches dozens of CK bugs including the 5-second save lag, navmesh crash on large cells, and memory leaks. Essential for stable CK work. Use CKPE 0.3.x for OG (1.10.163) and CKPE 0.5+ for NG/AE/1.11.x — both on the same Nexus page.',
   },
   {
     title: 'Disable DistantLOD checkbox for new exterior cells',
-    detail: 'Leave LOD generation to DynDOLOD/xLODGen post-process. Generating LOD from inside CK creates incomplete data.',
+    detail: 'Leave LOD generation to the TexGen/xLODGen post-process (DynDOLOD.exe itself does not support FO4). Generating LOD from inside CK creates incomplete data.',
   },
   {
     title: 'Compact FormIDs before releasing as ESL',
-    detail: 'ESL plugins can only use FormIDs 0x000–0xFFF. Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
+    detail: 'ESL plugins can only use FormIDs 0x800–0xFFF (2,048 new records). Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
   },
   {
     title: 'Script compilation: always check for stale PEX files',
@@ -1493,14 +1493,14 @@ const BEST_PRACTICES = [
 ];
 
 const CK_TOOLS_REF = [
-  { name: 'CK Platform Extended (CKPE)', desc: 'CK bug fixes, memory patches, extra dialogs, navmesh crash fix, 5-second save lag fix. Use CKPE 0.3.x for OG CK, CKPE 0.5.6+ for NG CK / 1.11.x. Essential for any serious CK work.', nexus: '51998' },
+  { name: 'CK Platform Extended (CKPE)', desc: 'CK bug fixes, memory patches, extra dialogs, navmesh crash fix, 5-second save lag fix. Use CKPE 0.3.x for OG CK, CKPE 0.5.6+ for NG CK / 1.11.x. Essential for any serious CK work.', nexus: '51165' },
   { name: 'Addictol', desc: 'All-in-one stability stack for OG/NG/1.11.x. Bundles: Buffout 4 NG, X-Cell, BakaMaxPapyrusOps, Faster Workshop, Long Loading Times Fix, and more. ⚠ Do NOT install standalone Buffout 4 NG alongside it — duplicate DLL = CTD at startup.', nexus: '84214' },
   { name: 'CLASSIC (Crash Log Auto Scanner)', desc: 'Auto-parses Addictol/Buffout 4 crash logs, matches FormIDs to plugin records, and cross-references 250+ known crash patterns. Run this before any crash investigation.', nexus: '56255' },
   { name: 'xEdit (FO4Edit)', desc: 'Plugin editor and validator. Use for: Compact FormIDs for ESL, Quick Auto Clean (ITMs/UDRs), conflict resolution, LVLN analysis, record diffing. Version 4.1.5+ supports 1.11.x.', nexus: '2737' },
   { name: 'Address Library for F4SE (All In One)', desc: 'Memory offset database required by all F4SE DLL plugins. For NG/1.11.x: use the "All In One (Anniversary Edition)" build (Nexus #47327). For OG: use the standard build on the same page.', nexus: '47327' },
-  { name: 'Wrye Bash', desc: 'Bashed patch builder. Merges leveled lists, weapon/armor tags, NPC face data. Required for any load order with more than one LVLN-editing mod.', nexus: '20840' },
+  { name: 'Wrye Bash', desc: 'Bashed patch builder. Merges leveled lists, weapon/armor tags, NPC face data. Required for any load order with more than one LVLN-editing mod. Hosted as a Nexus "site" mod (not a per-game page): nexusmods.com/site/mods/591.', nexus: '' },
   { name: 'NifSkope 2.0 (dev build)', desc: 'NIF validator and viewer for FO4 meshes. Check BSTriShape block counts, BSLightingShaderProperty, normals, and texture paths. Use before placing any custom mesh in CK.', nexus: '' },
-  { name: 'DynDOLOD 3 + xLODGen + TexGen', desc: 'Full LOD pipeline: xLODGen (terrain/water LOD) → TexGen (LOD textures) → DynDOLOD (object/tree LOD). Run this exact order after any worldspace change. DynDOLOD NG is for NG/1.11.x.', nexus: '61931' },
+  { name: 'TexGen + xLODGen (FO4LODGen mode)', desc: 'Full FO4 LOD pipeline: TexGen bakes LOD textures, then xLODGen (FO4LODGen mode) generates terrain + object + tree LOD together. Run in that order after any worldspace change. DynDOLOD.exe itself does not support FO4 (Skyrim/Enderal only) — xLODGen replaces it here.', nexus: '' },
   { name: 'LOOT (Load Order Optimisation Tool)', desc: 'Sorts plugins and flags known issues (missing masters, conflicting plugins). Run before testing any new mod configuration.', nexus: '' },
   { name: 'PRP (Previsibines Repair Pack)', desc: 'Restores broken precombine/previs data for heavily-modded load orders. Use v81.5+ for NG/AE/1.11.x. Load after all worldspace-editing mods.', nexus: '46403' },
   { name: 'Spriggit', desc: 'Converts ESP/ESM plugins to human-readable YAML for Git version control. Essential for collaborative mod projects. Works with Mossy Spriggit Digest integration.', nexus: '' },
@@ -1543,7 +1543,7 @@ const FO4CKGuide: React.FC = () => (
       </h3>
       <div className="space-y-2 text-xs text-slate-200">
         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-          <span className="font-bold text-white">OG (1.10.163.0): </span>Use CK 1.10.130.0 + CKPE 0.3.x (Nexus #51998). F4SE 0.6.x. Address Library "OG" build. BA2 archives are Header V1. Addictol #84214 (OG channel).
+          <span className="font-bold text-white">OG (1.10.163.0): </span>Use CK 1.10.130.0 + CKPE 0.3.x (Nexus #51165). F4SE 0.6.x. Address Library "OG" build. BA2 archives are Header V1. Addictol #84214 (OG channel).
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
           <span className="font-bold text-white">NG/AE (1.10.982 – 1.10.984): </span>Use the NG CK (Steam depot 1091810) + CKPE 0.5+. F4SE 0.7.x. Address Library "All In One (Anniversary Edition)" build. BA2 archives default to V7 (General) / V8 (Textures). Addictol #84214 (NG channel).
@@ -1653,11 +1653,11 @@ const FO4CKGuide: React.FC = () => (
           </thead>
           <tbody>
             {[
-              { type: 'ESP (full)', range: '0x000800–0xFFFFF per mod', max: '16,776,704', notes: 'Standard plugin. Counts toward 255 plugin limit.' },
+              { type: 'ESP (full)', range: '0x000800–0xFFFFF per mod', max: '16,776,704', notes: 'Standard plugin. Counts toward 254 plugin limit.' },
               { type: 'ESM (master)', range: 'Same as ESP but flags as master', max: '16,776,704', notes: 'Used by other plugins as dependency. Full range.' },
-              { type: 'ESL (light)', range: '0x000–0xFFF (0–4095)', max: '4096', notes: 'Does NOT count toward 255 limit. Shares the 4096 ceiling with ESL-flagged ESPs. Exceeding 0xFFF causes save corruption.' },
-              { type: 'ESL-flagged ESP', range: '0x000–0xFFF', max: '4096', notes: 'Regular ESP with ESL flag. Shares the 4096 ceiling with ESL files. Compact FormIDs first.' },
-              { type: 'ESM flagged as ESL', range: '0x000–0x7FF', max: '2048', notes: 'Rare. Used for large content split across ESL-size chunks.' },
+              { type: 'ESL (light)', range: '0x800–0xFFF (2,048–4,095)', max: '2,048', notes: 'Does NOT count toward the 254-plugin limit. Shares the 2,048 new-record ceiling with ESL-flagged ESPs. Exceeding 0xFFF causes save corruption.' },
+              { type: 'ESL-flagged ESP', range: '0x800–0xFFF', max: '2,048', notes: 'Regular ESP with ESL flag. Shares the 2,048 ceiling with ESL files. Compact FormIDs first.' },
+              { type: 'ESM flagged as ESL', range: '0x800–0xFFF', max: '2,048', notes: 'Rare. Used for large content split across ESL-size chunks.' },
             ].map((row) => (
               <tr key={row.type} className="border-b border-slate-800/60">
                 <td className="py-2 pr-4 font-semibold text-white">{row.type}</td>

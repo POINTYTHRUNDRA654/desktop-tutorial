@@ -38,7 +38,7 @@ const LOAD_ORDER_RULES = [
   { rule: 'Masters always load before dependents', detail: 'FO4 enforces this automatically. ESM/ESP that depends on another plugin must have it listed as a master (MAST record). If a master is missing from the load order, the game CTD on startup.' },
   { rule: 'Official DLCs before unofficial patches (UFO4P)', detail: 'Correct order: DLCRobot > DLCworkshop01 > DLCCoast > DLCworkshop02 > DLCworkshop03 > DLCNukaWorld > Unofficial Fallout 4 Patch.esp. UFO4P must load after all DLCs it patches.' },
   { rule: 'LOOT automatically assigns positions for most mods', detail: 'LOOT (Load Order Optimisation Tool) uses community-curated masterlist rules. Run LOOT after any mod change and before playing. Only override manually for well-documented conflict reasons.' },
-  { rule: 'ESL-flagged plugins share the FE slot', detail: 'ESL/ESP-FE plugins occupy indices FE000–FEFFF and do not count toward the 255-plugin limit. Load order position of ESLs relative to each other still matters for record overrides.' },
+  { rule: 'ESL-flagged plugins share the FE slot', detail: 'ESL/ESP-FE plugins occupy indices FE000–FEFFF and do not count toward the 254-plugin limit. Load order position of ESLs relative to each other still matters for record overrides.' },
   { rule: 'Conflict resolution: last-loaded wins', detail: 'For a record that two ESPs both override, the ESP loaded later wins. Patches and overrides belong near the bottom of the load order, after the mods they patch.' },
   { rule: 'Bashed Patch must be the last ESP in the load order', detail: "Wrye Bash's Bashed Patch merges leveled lists and keywords from all loaded ESPs. It must load last so it captures all changes. Regenerate after changing load order." },
 ];
@@ -48,7 +48,7 @@ const XEDIT_WORKFLOW = [
   { step: '2. Clean ITMs (Identical to Master records)', detail: 'Right-click your plugin → Apply Filter for Cleaning. Then right-click → Remove Identical to Master Records. If the count is zero, no ITMs exist — move on.' },
   { step: '3. Clean UDRs (Undelete and Disable References)', detail: 'After ITM cleaning, right-click the plugin → Undelete and Disable References. This converts deleted placed references to the disabled+XDCR pattern, which is engine-safe.' },
   { step: '4. Check for errors', detail: 'Right-click plugin → Check for Errors. Most "could not be resolved" errors indicate broken FormID cross-references — fix or remove those records before distributing.' },
-  { step: '5. Compact FormIDs for ESL flag (if applicable)', detail: 'If you want to flag the plugin as ESL, right-click → Compact FormIDs for ESL. This reassigns all new FormIDs to the 0x000–0x7FF range. Do this ONLY before distributing and NEVER after a save-game has referenced this plugin.' },
+  { step: '5. Compact FormIDs for ESL flag (if applicable)', detail: 'If you want to flag the plugin as ESL, right-click → Compact FormIDs for ESL. This reassigns all new FormIDs to the 0x800–0xFFF range. Do this ONLY before distributing and NEVER after a save-game has referenced this plugin.' },
   { step: '6. Save', detail: 'Ctrl+S or close xEdit and confirm save. Always back up the original before cleaning.' },
 ];
 
@@ -65,8 +65,8 @@ const COMMON_MISTAKES = [
   { mistake: 'Skipping the ITM/UDR clean step', impact: 'high', fix: 'Clean with xEdit before every release. Dirty plugins cause save bloat and can silently override other mods\' changes.' },
   { mistake: 'Not regenerating Bashed Patch after load order change', impact: 'medium', fix: 'Regenerate the Bashed Patch in Wrye Bash every time mods are added, removed, or reordered. Stale Bashed Patches produce wrong leveled lists.' },
   { mistake: 'Editing exterior objects without regenerating precombines', impact: 'critical', fix: 'Any moved or deleted static in a precombined zone breaks precombines for that cell — major FPS drop and possible crash. Always regenerate precombine + previs after exterior edits.' },
-  { mistake: 'ESL flag without compacting FormIDs first', impact: 'critical', fix: 'ESL plugins MUST use FormIDs in 0x000–0x7FF. Compact with xEdit before flagging. Never compact after distributing — it breaks existing save games.' },
-  { mistake: 'Loading more than 255 standard ESPs', impact: 'critical', fix: 'FO4 hard-caps at 255 standard ESPs. Convert small mods to ESL where possible. Wrye Bash can identify which mods qualify automatically.' },
+  { mistake: 'ESL flag without compacting FormIDs first', impact: 'critical', fix: 'ESL plugins MUST use FormIDs in 0x800–0xFFF. Compact with xEdit before flagging. Never compact after distributing — it breaks existing save games.' },
+  { mistake: 'Loading more than 254 standard ESPs', impact: 'critical', fix: 'FO4 hard-caps at 254 standard ESPs (slot 0xFE is reserved for the ESL/light-plugin indicator, so only 0x00–0xFD are usable by full plugins). Convert small mods to ESL where possible. Wrye Bash can identify which mods qualify automatically.' },
   { mistake: 'Putting patch mods above the mods they patch', impact: 'medium', fix: 'A compatibility patch must load AFTER both mods it patches. If Patch_A_B.esp loads before A.esp, its overrides are immediately clobbered and it does nothing.' },
   { mistake: 'No SEQ file for Start Game Enabled quests', impact: 'high', fix: 'Any quest with the Start Game Enabled flag requires a matching .seq file. Without it, the quest never starts on a loaded save. Generate the SEQ file via Creation Kit → Game → Create SEQ File.' },
   { mistake: 'Navmesh edits without a compatibility patch', impact: 'high', fix: 'Navmesh records cannot be partially merged. Two mods editing the same navmesh will CTD. One must win; create a compatibility patch that contains only the winning navmesh.' },
@@ -156,9 +156,9 @@ const FO4PluginGuide: React.FC = () => (
           </thead>
           <tbody>
             {[
-              { type: 'ESP (full)', slot: '0x00–0xFE (255 total)', max: '16,776,704', loot: 'Full masterlist' },
-              { type: 'ESM (master)', slot: '0x00–0xFE', max: '16,776,704', loot: 'Full masterlist' },
-              { type: 'ESL (light)', slot: 'FE000–FEFFF (4096 total)', max: '2,048 (0x000–0x7FF)', loot: 'Partial (position within FE range)' },
+              { type: 'ESP (full)', slot: '0x00–0xFD (254 total)', max: '16,776,704', loot: 'Full masterlist' },
+              { type: 'ESM (master)', slot: '0x00–0xFD', max: '16,776,704', loot: 'Full masterlist' },
+              { type: 'ESL (light)', slot: 'FE000–FEFFF (4096 total)', max: '2,048 (0x800–0xFFF)', loot: 'Partial (position within FE range)' },
               { type: 'ESP-FE (ESL-flagged ESP)', slot: 'FE000–FEFFF', max: '2,048', loot: 'Same as ESL' },
             ].map(r => (
               <tr key={r.type} className="border-b border-slate-800/60">

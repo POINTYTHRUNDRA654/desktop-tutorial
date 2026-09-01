@@ -8,6 +8,7 @@ import {
   ChevronRight, Loader2, Eye, EyeOff, History, Inbox
 } from 'lucide-react';
 import { useI18n } from './i18n';
+import toast from 'react-hot-toast';
 
 type TFn = (key: string, fallback: string) => string;
 
@@ -302,31 +303,47 @@ const FO4AutomationOrchestrator: React.FC = () => {
   const handleStart = async () => {
     if (!api || engineBusy) return;
     setEngineBusy(true);
-    try { await api.start(); await refresh(); } finally { setEngineBusy(false); }
+    try { await api.start(); await refresh(); }
+    catch (err) { console.error(err); toast.error('Failed to start the automation engine.'); }
+    finally { setEngineBusy(false); }
   };
 
   const handleStop = async () => {
     if (!api || engineBusy) return;
     setEngineBusy(true);
-    try { await api.stop(); await refresh(); } finally { setEngineBusy(false); }
+    try { await api.stop(); await refresh(); }
+    catch (err) { console.error(err); toast.error('Failed to stop the automation engine.'); }
+    finally { setEngineBusy(false); }
   };
 
   const handleResetStats = async () => {
     if (!api) return;
-    await api.resetStatistics();
-    await refresh();
+    if (!window.confirm('Reset all automation statistics? This clears rule trigger counts and run history and cannot be undone.')) return;
+    try {
+      await api.resetStatistics();
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to reset automation statistics.');
+    }
   };
 
   const handleToggle = async (ruleId: string, enabled: boolean) => {
     if (!api) return;
-    await api.toggleRule(ruleId, enabled);
-    await refresh();
+    try {
+      await api.toggleRule(ruleId, enabled);
+      await refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Failed to ${enabled ? 'enable' : 'disable'} rule.`);
+    }
   };
 
   const handleTrigger = async (ruleId: string) => {
     if (!api || triggeringId) return;
     setTriggeringId(ruleId);
     try { await api.triggerRule(ruleId); await refresh(); }
+    catch (err) { console.error(err); toast.error('Failed to trigger rule.'); }
     finally { setTriggeringId(null); }
   };
 

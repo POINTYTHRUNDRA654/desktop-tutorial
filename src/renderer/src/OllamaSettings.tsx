@@ -217,9 +217,8 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
       {/* Per-Role Model Assignment */}
       <div className="rounded-md border border-slate-700 bg-slate-800/30 p-4 space-y-5">
         <div className="font-semibold text-slate-200 text-xs">Model Assignment by Role</div>
-        <p className="text-xs text-slate-400">
-          Pin different models to different tasks. With 2x RTX 2070 (8GB each), run one model
-          per GPU simultaneously for best throughput.
+        <p className="text-[11px] text-amber-400/90 bg-amber-900/10 border border-amber-700/30 rounded px-3 py-2">
+          Locked — model assignment is fixed per Mossy release and isn't user-configurable. Shown below for transparency only.
         </p>
 
         {/* Coding / Papyrus model */}
@@ -228,8 +227,9 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           <p className="text-[11px] text-slate-500">Used by the Papyrus AI generator and Mod Builder Hub. Run on GPU 0.</p>
           <select
             value={selectedCodeModel}
-            onChange={(e) => setSelectedCodeModel(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-600 transition-colors"
+            disabled
+            title="Fixed per release — not user-configurable"
+            className="w-full bg-slate-900/50 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-500 outline-none cursor-not-allowed"
           >
             {OLLAMA_RECOMMENDED_CODE.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
@@ -241,9 +241,10 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           <input
             type="text"
             value={selectedCodeModel}
-            onChange={(e) => setSelectedCodeModel(e.target.value)}
-            placeholder="e.g. qwen2.5-coder:7b"
-            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
+            readOnly
+            disabled
+            title="Fixed per release — not user-configurable"
+            className="w-full bg-slate-900/50 border border-slate-800 rounded px-2 py-1 text-xs text-slate-500 font-mono cursor-not-allowed"
           />
         </div>
 
@@ -253,8 +254,9 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           <p className="text-[11px] text-slate-500">Used when provider is set to Ollama for general AI chat. Run on GPU 1.</p>
           <select
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-600 transition-colors"
+            disabled
+            title="Fixed per release — not user-configurable"
+            className="w-full bg-slate-900/50 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-500 outline-none cursor-not-allowed"
           >
             {OLLAMA_RECOMMENDED_CHAT.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
@@ -266,9 +268,10 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           <input
             type="text"
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            placeholder="e.g. gemma2:9b"
-            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono"
+            readOnly
+            disabled
+            title="Fixed per release — not user-configurable"
+            className="w-full bg-slate-900/50 border border-slate-800 rounded px-2 py-1 text-xs text-slate-500 font-mono cursor-not-allowed"
           />
         </div>
 
@@ -279,7 +282,7 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
           className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold text-xs transition-colors"
         >
           <Save className="w-3 h-3" />
-          {saving ? 'Saving…' : 'Save Model Settings'}
+          {saving ? 'Saving…' : 'Save Base URL'}
         </button>
       </div>
 

@@ -112,24 +112,24 @@
         "desc": "Wybierz dostawcę AI (Groq/Ollama), model, długość odpowiedzi i samokrytykę."
       },
       "step3b": {
-        "title": "Krok 3b: Lokalny LLM — Ollama",
+        "title": "Krok 4: Lokalny LLM — Ollama",
         "desc": "Uruchamiaj modele open source lokalnie dla w pełni offline'owego wsparcia AI.",
         "badge": "OPCJONALNE"
       },
       "step4": {
-        "title": "Krok 4: Zewnętrzne narzędzia",
+        "title": "Krok 8: Zewnętrzne narzędzia",
         "desc": "Wskaż Mossy łańcuch narzędzi do modowania FO4 i zweryfikuj ścieżki."
       },
       "step5": {
-        "title": "Krok 5: Kopia zapasowa i przywracanie",
+        "title": "Krok 9: Kopia zapasowa i przywracanie",
         "desc": "Eksportuj lub importuj migawkę ustawień do szybkiego przywracania."
       },
       "step6": {
-        "title": "Krok 6: Tutorial i onboarding",
+        "title": "Krok 10: Tutorial i onboarding",
         "desc": "Odtwórz tutorial instalacji i pierwsze uruchomienie."
       },
       "step7": {
-        "title": "Krok 7: Test dostępu do internetu",
+        "title": "Krok 11: Test dostępu do internetu",
         "desc": "Sprawdź, czy Mossy może dotrzeć do dostawców wyszukiwania i połączyć się online."
       },
       "credits": {
@@ -157,15 +157,15 @@
         "recharts": "Biblioteka wykresów (MIT)",
         "moddingTools": "Narzędzia do Moddingu (osobne pobrania)",
         "blender": "Modelowanie 3D (GPL 2.0)",
-        "pynifly": "Import/eksport NIF dla Blendera od BadDogSkyrim (MIT)",
-        "xedit": "Edytor wtyczek od ElminsterAU (GPL 2.0)",
+        "pynifly": "Import/eksport NIF dla Blendera od BadDogSkyrim (GPL 3.0)",
+        "xedit": "Edytor wtyczek od ElminsterAU (MPL-2.0)",
         "creationKit": "Oficjalne narzędzie do moddingu Bethesda",
         "nifskope": "Przeglądarka siatek i tekstur NIF od hexabits (GPL 3.0)",
         "mo2": "Menedżer modów od Tannin42 / Zespołu MO2 (GPL 3.0)",
         "vortex": "Menedżer modów od Nexus Mods",
         "f4se": "Fallout 4 Script Extender od ianpatt i behippo",
         "loot": "Narzędzie Optymalizacji Kolejności Ładowania (GPL 3.0)",
-        "bodyslide": "Morfowanie ciała od ousnius i Caliente (MIT)",
+        "bodyslide": "Morfowanie ciała od ousnius i Caliente (GPL 3.0)",
         "bae": "Bethesda Archive Extractor od jonwd7",
         "gimp": "Program do Manipulacji Obrazami GNU (GPL 3.0)",
         "umodel": "Przeglądarka zasobów Unreal Engine od Gildora",
@@ -189,7 +189,7 @@
         "sampleResultFrom": "Przykładowy wynik od"
       },
       "step3c": {
-        "title": "Krok 3c: AnythingLLM — Silnik Wiedzy RAG",
+        "title": "Krok 7: AnythingLLM — Silnik Wiedzy RAG",
         "desc": "Wyszukiwanie dokumentów oparte na wektorach do wyszukiwania semantycznego w Skarbcu Pamięci i Centrum Wiedzy."
       },
       "support": {
@@ -722,7 +722,7 @@
     "versionBadge": {
       "og": "OG  1.10.163",
       "ng": "NG  1.10.984+",
-      "ae": "AE / Creations"
+      "ae": "AE  1.11.x / Creations"
     },
     "eyebrow": "Mossy Tutor · Kreatory Konfiguracji FO4",
     "title": "Centrum Kreatorów Konfiguracji FO4",
@@ -779,7 +779,7 @@
     "versionOptions": {
       "og": "1.10.163 — patch sprzed Next-Gen (kwiecień 2024)",
       "ng": "1.10.984+ — Next-Gen / obecny domyślny na Steam",
-      "ae": "Zawartość menu Creations / edycji rocznicowej"
+      "ae": "1.11.x — Zawartość menu Creations / edycji rocznicowej"
     },
     "stepLabel": "Krok {step}: {title}",
     "setupProgress": "Postęp Konfiguracji",

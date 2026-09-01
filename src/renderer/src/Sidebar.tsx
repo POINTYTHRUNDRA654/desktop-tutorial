@@ -211,6 +211,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onToggle, onClose }) 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar" role="navigation" aria-label="Main navigation menu">
         {navItems
           .filter(item => process.env.NODE_ENV !== 'production' || !item.to.startsWith('/dev'))
+          // FO4 Automation Studio (/tools/cosmos) manages the developer's personal
+          // NVIDIA Cosmos research-repo knowledge roots -- not part of what Mossy
+          // needs to function for a real modder, so it's dev-build-only, same as
+          // the /dev routes above.
+          .filter(item => process.env.NODE_ENV !== 'production' || item.to !== '/tools/cosmos')
           .map((item) => (
             <div key={item.to} className="relative group">
               {item.isExternal ? (

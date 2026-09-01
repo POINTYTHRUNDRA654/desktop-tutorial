@@ -1027,11 +1027,23 @@ export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded =
   const toggleCat = (label: string) =>
     setExpandedCats(prev => ({ ...prev, [label]: !prev[label] }));
 
+  // Fixed 2026-08-26 (Devtools Hub Template Generator invisible-output bug):
+  // TemplateGenerator is ONLY ever rendered with embedded=true (DevtoolsHub's
+  // accordion) -- there is no standalone route that uses embedded=false. The
+  // embedded layout previously reused the same flex-1/min-h-0/overflow-hidden
+  // chain the standalone h-full page needs, but the accordion's wrapper div
+  // has no bounded height for flex-1 to grow into. Result: the two-column
+  // body (template sidebar + generated-code panel) collapsed to ~0 height,
+  // so a successful AI generation had nowhere visible to render -- clicking
+  // Generate would work (a real script came back from Groq) but the user
+  // never saw it. Embedded mode now uses a bounded min-height block instead
+  // of the viewport-fill flex chain, matching the pattern ScriptAnalyzer
+  // already uses correctly for its own embedded mode.
   const containerClass = embedded
-    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0'
+    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col'
     : 'h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden flex flex-col min-h-0';
   const headerClass = embedded ? 'p-4 border-b border-slate-700 bg-slate-800/50' : 'p-6 border-b border-slate-700 bg-slate-800/50';
-  const bodyClass   = embedded ? 'flex-1 min-h-0 overflow-hidden flex gap-4 p-4' : 'flex-1 min-h-0 overflow-hidden flex gap-4 p-6';
+  const bodyClass   = embedded ? 'min-h-[560px] flex gap-4 p-4' : 'flex-1 min-h-0 overflow-hidden flex gap-4 p-6';
 
   return (
     <div className={containerClass} onWheel={wheelProxy}>

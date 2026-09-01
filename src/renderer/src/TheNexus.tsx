@@ -372,7 +372,7 @@ const TheNexus: React.FC = () => {
                 icon: Package,
                 step: '3',
                 title: t('home.steps.loadOrder.title', 'Know the Load Order Rules'),
-                body: t('home.steps.loadOrder.body', 'Fallout 4 has a 255 plugin cap (ESM+ESP+ESL). ESL-flagged plugins share a 2,048 FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate.'),
+                body: t('home.steps.loadOrder.body', 'Fallout 4 hard-caps at 254 standard ESM/ESP plugins (slot 0xFE is reserved for the ESL indicator). ESL-flagged plugins load in a separate FE000-FEFFF range and do not count toward that cap — each gets its own 2,048-FormID pool. Use FO4 Plugin & Load Order Hub to manage and validate.'),
                 to: '/plugin-tools',
               },
               {

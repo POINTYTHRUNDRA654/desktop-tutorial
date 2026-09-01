@@ -25,8 +25,21 @@ export default defineConfig(({ mode }) => {
 
   // Production CSP needs to allow React inline styles and optional local bridge checks.
   // Keep network access restricted to HTTPS/WSS plus explicit localhost endpoints.
+  //
+  // Fixed 2026-08-26 (source of a constant CSP-violation warning spam in the renderer
+  // console, discovered while debugging the Asset Analysis mining pipeline -- see Bug 8
+  // in mossy_chat_context_overflow.md): VaultTecOverseerBridge.ts is registered
+  // unconditionally at app startup (bridges/index.ts) and polls
+  // `http://127.0.0.1:8080/status` directly via fetch() every 8 seconds for the whole
+  // life of the app, on every session, whether or not the optional Vault-Tec companion
+  // server is even installed. Every other bridge's port (21337/8188/11434/1234/8766) was
+  // already allowlisted below, but 8080 was missing -- so this one poll was blocked by
+  // CSP and logged a "Refused to connect" violation every 8 seconds, drowning out the
+  // console for anyone trying to debug anything else. Adding it here (matching the same
+  // http(s)/ws(s), 127.0.0.1/localhost pattern already used for the other bridge ports)
+  // fixes it at the source instead of just silencing or removing the health check.
   const CSP_PROD =
-    "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self' https: wss: http://127.0.0.1:21337 http://localhost:21337 ws://127.0.0.1:21337 ws://localhost:21337 http://127.0.0.1:8188 http://localhost:8188 ws://127.0.0.1:8188 ws://localhost:8188 http://127.0.0.1:11434 http://localhost:11434 http://127.0.0.1:1234 http://localhost:1234 http://127.0.0.1:8766 http://localhost:8766; worker-src 'self' blob:";
+    "default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self' https: wss: http://127.0.0.1:8080 http://localhost:8080 ws://127.0.0.1:8080 ws://localhost:8080 http://127.0.0.1:21337 http://localhost:21337 ws://127.0.0.1:21337 ws://localhost:21337 http://127.0.0.1:8188 http://localhost:8188 ws://127.0.0.1:8188 ws://localhost:8188 http://127.0.0.1:11434 http://localhost:11434 http://127.0.0.1:1234 http://localhost:1234 http://127.0.0.1:8766 http://localhost:8766; worker-src 'self' blob:";
 
   const csp = mode === 'development' ? CSP_DEV : CSP_PROD;
 
