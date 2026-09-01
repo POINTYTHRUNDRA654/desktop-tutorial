@@ -636,7 +636,7 @@ export type DedupeScanResult = {
  * API exposed to renderer via contextBridge
  */
 export interface ElectronAPI {
-  detectPrograms: () => Promise<InstalledProgram[]>;
+  detectPrograms: (force?: boolean) => Promise<InstalledProgram[]>;
   openProgram: (path: string) => Promise<{ success: boolean; error?: string; method?: string }>;
   openExternal: (path: string) => Promise<void>;
   revealInFolder: (path: string) => Promise<{ success: boolean; error?: string }>;

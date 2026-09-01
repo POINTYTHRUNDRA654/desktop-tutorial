@@ -3225,19 +3225,28 @@ function setupIpcHandlers() {
   });
 
   // Program detection handler
-  registerHandler(IPC_CHANNELS.DETECT_PROGRAMS, async () => {
+  registerHandler(IPC_CHANNELS.DETECT_PROGRAMS, async (_event, force?: boolean) => {
     try {
-      // Check if we have cached results from the last hour
+      // Check if we have cached results from the last hour -- unless the
+      // caller explicitly asks to bypass this (force === true). Renderer's
+      // "Full System Scan" button passes force:true, since a user who
+      // deliberately clicks a scan button expects a real scan to run, not
+      // an instant cache hit that reads as the scan "starting and stopping"
+      // immediately -- confirmed live: with a cache hit, detectPrograms()
+      // was resolving in ~47ms instead of the 30-90+ seconds a real 13,000+
+      // program filesystem walk takes, so the progress ticker never got a
+      // chance to move. Other, non-user-initiated callers (e.g. background
+      // context refreshes) keep the cache for performance.
       const lastScan = getLastProgramScan();
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
 
-      if (lastScan > oneHourAgo) {
+      if (!force && lastScan > oneHourAgo) {
         console.log('[Program Detection] Using cached results from', new Date(lastScan).toISOString());
         return getDetectedPrograms();
       }
 
-      // No recent cache, perform fresh scan
-      console.log('[Program Detection] Performing fresh scan...');
+      // No recent cache (or a forced fresh scan was requested), perform a real scan
+      console.log(force ? '[Program Detection] Forced fresh scan requested...' : '[Program Detection] Performing fresh scan...');
       const programs = await detectPrograms();
 
       // Cache the results

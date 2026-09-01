@@ -477,8 +477,8 @@ const electronAPI = {
    * 
    * Always check response.success before accessing response.data
    */
-  detectPrograms: (): Promise<IpcResponse<InstalledProgram[]>> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.DETECT_PROGRAMS);
+  detectPrograms: (force?: boolean): Promise<IpcResponse<InstalledProgram[]>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.DETECT_PROGRAMS, force);
   },
 
   /**

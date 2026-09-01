@@ -488,7 +488,22 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
 
         let allApps: any[];
         try {
-            allApps = await detectPrograms();
+            // Reliability sweep (2026-09-01), round 3: force:true bypasses the
+            // main process's 1-hour program-scan cache (src/electron/main.ts's
+            // DETECT_PROGRAMS handler). Without this, clicking "Full System Scan"
+            // within an hour of any earlier scan -- including one from before
+            // today's fixes were even installed -- returned the SAME cached
+            // result in ~50ms instead of actually re-scanning. Confirmed live via
+            // DevTools: window.electronAPI.detectPrograms() resolved in 47ms, not
+            // the 30-90+ seconds a real 13,000+ program filesystem walk takes.
+            // This is exactly why the button reads as "started and stopped" --
+            // the promise resolves before the progress ticker above ever gets a
+            // chance to move, and it also means the fix to the four detect+
+            // filter+approve mechanisms found earlier today could never take
+            // effect on already-cached (pre-fix) results, no matter how many
+            // times "Full System Scan" was clicked. A user explicitly clicking
+            // a button labeled "scan" expects a real scan to run.
+            allApps = await detectPrograms(true);
         } finally {
             if (scanDetectionTimerRef.current !== null) {
                 window.clearInterval(scanDetectionTimerRef.current);
@@ -698,7 +713,10 @@ const SystemMonitor: React.FC<SystemMonitorProps> = ({ embedded = false }) => {
       setFoundTools([]);
 
       try {
-          const apps = window.electronAPI?.detectPrograms ? await window.electronAPI.detectPrograms() : [];
+          // force:true here too (2026-09-01, round 3) -- Link Bridge is an
+          // explicit user-initiated scan just like Full System Scan, and should
+          // not silently serve results cached from before this session's fixes.
+          const apps = window.electronAPI?.detectPrograms ? await window.electronAPI.detectPrograms(true) : [];
           // Reliability sweep (2026-09-01): 'edit', 'unwrap', and 'fbx' were removed
           // below -- they're generic enough to match unrelated installed software (a
           // bare 'edit' matches almost any "___ Editor" program; 'unwrap' and 'fbx'
