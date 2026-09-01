@@ -38,6 +38,7 @@ import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DE
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
+import { trimMessagesToBudget } from './messageBudget';
 import fs from 'fs';
 import { spawn, exec } from 'child_process';
 import { auditLogger } from './auditLogger';
@@ -10820,74 +10821,16 @@ end.
         } catch { /* neurons not yet ready — non-blocking */ }
       }
 
-      // Safety net added 2026-08-26 (Mossy AI Chat context-overflow fix):
-      // even with BRAIN_NEURON_CHAR_BUDGET lowered, a misclassified turn or
-      // an unusually long conversationHistory can still push the combined
-      // messages array past what either Groq model accepts, producing a raw
-      // "reduce the length of the messages or completion" 400 the user has
-      // no way to recover from. Rather than let that reach the user, cap the
-      // total request here: if we're over budget, trim conversation history
-      // first (oldest turns first — least likely to matter), then as a last
-      // resort shorten the neuron block itself, so the user always gets an
-      // answer instead of a hard failure.
-      //
-      // Fixed 2026-09-01 (live-observed mid-conversation memory loss): this
-      // loop used to run until EITHER totalLen() fit the budget OR history
-      // was fully exhausted -- with no floor. Live diagnostics confirmed the
-      // renderer-built systemPrompt (messages[0]) routinely runs 600K-746K
-      // characters on its own, already far past SAFE_TOTAL_CHAR_BUDGET before
-      // a single history message is even counted. Whenever that happens this
-      // loop could never satisfy its own exit condition by removing history
-      // alone, so it silently deleted the ENTIRE conversationHistory array --
-      // including the exchange from one turn ago -- every time, then fell
-      // through to the largest-message pass below to shrink the system
-      // prompt. The user-visible symptom was Mossy re-asking a question she
-      // had just been answered, because the request that actually reached
-      // Groq carried zero prior turns. MIN_HISTORY_MESSAGES_TO_KEEP protects
-      // the most recent exchanges from ever being sacrificed to this budget
-      // cut -- the oversized system prompt (see the "Corrected 2026-08-26"
-      // pass immediately below) is what should shrink instead, since losing
-      // some knowledge-base padding is far less disruptive than losing what
-      // the user just said.
-      {
-        const SAFE_TOTAL_CHAR_BUDGET = 300_000; // conservative vs. both the 131K and 262K token models
-        const MIN_HISTORY_MESSAGES_TO_KEEP = 6; // last ~3 user/assistant exchanges, never trimmed for budget
-        const totalLen = () => messages.reduce((sum, m) => sum + (m.content ? m.content.length : 0), 0);
-        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && history.length > MIN_HISTORY_MESSAGES_TO_KEEP) {
-          const idx = messages.findIndex(m => history.includes(m as any));
-          if (idx === -1) break;
-          messages.splice(idx, 1);
-          history.shift();
-        }
-        // Corrected 2026-08-26 (live-verified): the block above only ever
-        // targeted the small brain-neuron system message by name. Live
-        // diagnostics (ai-diagnostics.log's [systemPrompt-breakdown] lines)
-        // showed the actual dominant contributor is the renderer-built
-        // systemPrompt itself (ChatInterface.tsx's getFullSystemInstruction()
-        // output plus its injected context blocks) arriving here as
-        // messages[0] -- measured at 600K+ characters on its own, 746K+
-        // total, on a turn that still 400'd after the neuron budget was cut
-        // to 40K. That message was never touched by the old logic, which is
-        // why the fix didn't take on first verification. This trims
-        // whichever message is currently largest -- not a specific named one
-        // -- repeatedly, until the request fits, so it's correct regardless
-        // of which upstream block is the actual offender on a given turn.
-        let guardIterations = 0;
-        while (totalLen() > SAFE_TOTAL_CHAR_BUDGET && guardIterations < messages.length + 1) {
-          guardIterations++;
-          let largestIdx = -1;
-          let largestLen = 0;
-          for (let i = 0; i < messages.length; i++) {
-            const len = messages[i].content ? messages[i].content.length : 0;
-            if (len > largestLen) { largestLen = len; largestIdx = i; }
-          }
-          if (largestIdx === -1 || largestLen < 1000) break; // nothing left worth trimming
-          const over = totalLen() - SAFE_TOTAL_CHAR_BUDGET;
-          const keep = Math.max(500, largestLen - over - 500);
-          if (keep >= largestLen) break; // trimming this message alone won't help further
-          messages[largestIdx].content = messages[largestIdx].content.slice(0, keep) + '\n\n[...truncated to fit context budget...]';
-        }
-      }
+      // Safety net added 2026-08-26 (Mossy AI Chat context-overflow fix),
+      // fixed 2026-09-01 (live-observed mid-conversation memory loss) and
+      // extracted 2026-09-01 into messageBudget.ts so this logic is unit
+      // tested (see src/electron/__tests__/messageBudget.test.ts) and can't
+      // silently regress into wiping out conversation history again -- see
+      // that file's module docstring for the full history of this bug.
+      // `history` is always messages[1 .. 1+history.length) at this point:
+      // messages[0] is the system prompt and everything after history is
+      // the (optional) neuron block plus the final user query.
+      trimMessagesToBudget(messages, { start: 1, end: 1 + history.length });
 
       // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
       let content = '';
