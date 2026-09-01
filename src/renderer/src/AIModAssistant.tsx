@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Mic, Send, MessageCircle, Code, Zap, Book, Wrench, Lightbulb, ChevronRight } from 'lucide-react';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction } from './MossyBrain';
-import { formatFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
+import { formatRelevantFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
 import { useHorizontalScroll } from './components/useHorizontalScroll';
 import { VoiceService, VoiceServiceConfig } from './voice-service';
 
@@ -54,7 +54,12 @@ the user learns the underlying modding concept, not just the fix. Keep it concis
 teach the "why", don't pad with filler.`;
 
   const callAI = async (userText: string, systemExtra: string, useHistory = true): Promise<string> => {
-    const withBrain = `${systemExtra}\n\n${brainBlockRef.current}\n\n${formatFO4KnowledgeBaseForAI()}`;
+    // Reliability sweep (2026-09-01): was formatFO4KnowledgeBaseForAI() -- the full
+    // ~280K-char knowledge base dump on every call, a major contributor to this chat's
+    // oversized system prompt (see AIModAssistant's own 2026-08-26 comment below about
+    // this surface carrying the same ~600KB prompt as ChatInterface). Filtered to the
+    // sections relevant to what the user actually asked.
+    const withBrain = `${systemExtra}\n\n${brainBlockRef.current}\n\n${formatRelevantFO4KnowledgeBaseForAI(userText)}`;
     const systemInstruction = getFullSystemInstruction(learningMode ? `${withBrain}${LEARNING_MODE_INSTRUCTION}` : withBrain);
     const history = useHistory
       ? messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.text }))

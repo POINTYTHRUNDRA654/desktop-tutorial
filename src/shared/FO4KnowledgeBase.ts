@@ -2095,6 +2095,24 @@ function serializeKnowledge(value: unknown, depth: number): string {
 
 let _cachedKnowledgeBlock: string | null = null;
 
+/**
+ * Full, unconditional dump of the entire knowledge base -- every one of the
+ * ~85 top-level sections (papyrusTemplates, hkxAnimationPipeline,
+ * voiceAndLipSync, f4sePluginDevelopment, etc.), regardless of what the user
+ * actually asked. Kept for any caller that genuinely needs the whole thing,
+ * but NOT what normal chat/voice turns should use -- see
+ * `formatRelevantFO4KnowledgeBaseForAI` below for why.
+ *
+ * Reliability-sweep finding (2026-09-01): this function, called
+ * unconditionally from ChatInterface.tsx's per-turn context builder and from
+ * AIModAssistant.tsx, was the single largest contributor to Mossy's system
+ * prompt routinely running 600K-746K characters (see messageBudget.ts's
+ * docstring for the memory-loss bug that oversized prompt caused). The whole
+ * ~85-section, 300KB+ knowledge base was being serialized and injected on
+ * EVERY turn -- a question about voice acting paid for the full Papyrus
+ * F4SE plugin reference, terminal system docs, power armor system docs,
+ * etc., every single time, none of which that turn could ever use.
+ */
 export function formatFO4KnowledgeBaseForAI(): string {
   if (_cachedKnowledgeBlock) return _cachedKnowledgeBlock;
   _cachedKnowledgeBlock = [
@@ -2108,6 +2126,128 @@ export function formatFO4KnowledgeBaseForAI(): string {
     '╚════════════════════════════════════════════════════════════╝',
   ].join('\n');
   return _cachedKnowledgeBlock;
+}
+
+// Always surfaced regardless of topic -- a real community policy Mossy must
+// proactively mention (see the key's own text), not something that should
+// depend on keyword luck.
+const ALWAYS_INCLUDE_SECTIONS: Array<keyof typeof FO4KnowledgeBase> = [
+  'criticalCommunityPolicies',
+];
+
+// Used only when NOTHING in the query matched any section by keyword --
+// a small, genuinely general-purpose baseline (script templates, the most
+// common errors, core record types, load order) so a vague/generic modding
+// question still gets real grounding instead of an empty knowledge block.
+const DEFAULT_FALLBACK_SECTIONS: Array<keyof typeof FO4KnowledgeBase> = [
+  'papyrusTemplates',
+  'papyrusPatterns',
+  'commonErrors',
+  'recordTypes',
+  'loadOrderRules',
+];
+
+const STOPWORDS = new Set([
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'your', 'with', 'this',
+  'that', 'from', 'have', 'how', 'what', 'when', 'where', 'why', 'can',
+  'will', 'about', 'into', 'get', 'got', 'like', 'just', 'also', 'want',
+  'need', 'make', 'making', 'does', 'doing', 'use', 'using', 'mod', 'mods',
+  'modding', 'fallout', 'game',
+]);
+
+const extractQueryWords = (query: string): string[] => {
+  const words = (query.toLowerCase().match(/[a-z0-9]+/g) || [])
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+  return Array.from(new Set(words));
+};
+
+// Splits a camelCase key like "hkxAnimationPipeline" into ["hkx",
+// "animation", "pipeline"] so a query for "animation" matches the section
+// name even though the key itself has no spaces.
+const splitCamelCaseKey = (key: string): string[] =>
+  key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+/**
+ * Relevance-filtered replacement for formatFO4KnowledgeBaseForAI(): scores
+ * every top-level section against the user's actual query (section-name
+ * word matches count more than a bare content match, since a name match is
+ * a much stronger relevance signal) and includes only the top-scoring
+ * sections, capped at `maxChars`. Falls back to DEFAULT_FALLBACK_SECTIONS
+ * when nothing scores, so a generic question still gets baseline grounding
+ * instead of nothing. criticalCommunityPolicies is always included -- see
+ * ALWAYS_INCLUDE_SECTIONS.
+ *
+ * Same keyword-ranking shape knowledgeRetrieval.ts's Knowledge Vault
+ * functions already use (extractKeywords + a maxChars cap) -- this closes
+ * the one place that pattern was never applied, which is exactly what made
+ * this the single biggest lever in the 2026-09-01 prompt-size sweep.
+ */
+export function formatRelevantFO4KnowledgeBaseForAI(
+  query: string,
+  opts?: { maxSections?: number; maxChars?: number },
+): string {
+  const maxSections = opts?.maxSections ?? 10;
+  const maxChars = opts?.maxChars ?? 60000;
+  const words = extractQueryWords(query || '');
+
+  const allKeys = Object.keys(FO4KnowledgeBase) as Array<keyof typeof FO4KnowledgeBase>;
+  const candidateKeys = allKeys.filter((k) => !ALWAYS_INCLUDE_SECTIONS.includes(k));
+
+  let selected: Array<keyof typeof FO4KnowledgeBase> = [];
+  if (words.length > 0) {
+    const scored = candidateKeys.map((key) => {
+      const nameWords = splitCamelCaseKey(key);
+      let score = 0;
+      for (const w of words) {
+        if (nameWords.some((nw) => nw.includes(w) || w.includes(nw))) score += 5;
+      }
+      if (score === 0) {
+        // Only fall back to scanning content when the name itself didn't
+        // already match -- avoids JSON.stringify-ing every section on every
+        // turn once a query has already found its sections by name.
+        const contentLower = JSON.stringify(FO4KnowledgeBase[key]).toLowerCase();
+        for (const w of words) {
+          if (contentLower.includes(w)) score += 1;
+        }
+      }
+      return { key, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    selected = scored.filter((s) => s.score > 0).slice(0, maxSections).map((s) => s.key);
+  }
+  if (selected.length === 0) {
+    selected = DEFAULT_FALLBACK_SECTIONS.filter((k) => allKeys.includes(k));
+  }
+
+  const finalKeys = [...ALWAYS_INCLUDE_SECTIONS, ...selected];
+  const subset: Partial<typeof FO4KnowledgeBase> = {};
+  for (const key of finalKeys) {
+    (subset as any)[key] = FO4KnowledgeBase[key];
+  }
+
+  let body = serializeKnowledge(subset, 0);
+  let truncatedNote = '';
+  if (body.length > maxChars) {
+    body = body.slice(0, maxChars);
+    truncatedNote = '\n[...truncated to fit prompt budget -- ask a more specific question to surface more of this section...]';
+  }
+
+  return [
+    '╔════════════════════════════════════════════════════════════╗',
+    '║  MOSSY MODDING KNOWLEDGE BASE — sections relevant to this turn',
+    '║  (curated + verified process knowledge, not raw game data --',
+    '║  only the sections matching this question are included; if you',
+    "║  need something that isn't here, say so rather than guessing)",
+    '╚════════════════════════════════════════════════════════════╝',
+    body + truncatedNote,
+    '╔════════════════════════════════════════════════════════════╗',
+    '║  END MODDING KNOWLEDGE BASE (relevant sections)',
+    '╚════════════════════════════════════════════════════════════╝',
+  ].join('\n');
 }
 
 export default FO4KnowledgeBase;

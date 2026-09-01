@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import ReactMarkdown from 'react-markdown';
 import { LocalAIEngine } from './LocalAIEngine';
 import { getFullSystemInstruction, toGroqTools } from './MossyBrain';
-import { formatFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
+import { formatRelevantFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBase';
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
@@ -1895,7 +1895,12 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
     ${getPanelActivityContext()}
       ${learnedCtx}
             ${communityLearningCtx}
-      ${formatFO4KnowledgeBaseForAI()}
+      // Reliability sweep (2026-09-01): this used to be formatFO4KnowledgeBaseForAI()
+      // -- the ENTIRE ~85-section, 280K+ char knowledge base, unconditionally, on every
+      // turn. That was the single largest contributor to the system prompt's routine
+      // 600K-746K character size (see FO4KnowledgeBase.ts and messageBudget.ts's
+      // docstrings). Now filtered to the sections actually relevant to this query.
+      ${formatRelevantFO4KnowledgeBaseForAI(query || '')}
       `;
         } catch (e) {
             console.error("Context Error:", e);
