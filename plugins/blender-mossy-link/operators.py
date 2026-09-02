@@ -3686,11 +3686,50 @@ class FO4_OT_SetupLeafCard(Operator):
         default='Z',
     )
 
+    @staticmethod
+    def _find_existing_diffuse_image(obj):
+        """Return the bpy.data.images.Image already wired into obj's first
+        material's diffuse/base-color texture node, if any.
+
+        Imported NIFs already arrive with their real material and texture
+        assigned -- this used to be ignored entirely (texture_path only ever
+        pre-filled from the AI-generation-specific fo4_source_image custom
+        property), so setting up a leaf card on a normally-imported mesh
+        started from a BLANK texture every time, even though the correct one
+        was sitting right there on the mesh already.
+        """
+        if not obj or not obj.data.materials:
+            return None
+        mat = obj.data.materials[0]
+        if not mat or not mat.use_nodes or not mat.node_tree:
+            return None
+        for node in mat.node_tree.nodes:
+            if node.type != 'TEX_IMAGE' or not node.image:
+                continue
+            name_low = (node.name or "").lower()
+            label_low = (node.label or "").lower()
+            if "diffuse" in name_low or "diffuse" in label_low or "base color" in label_low:
+                return node.image
+        # No node clearly labelled diffuse -- fall back to whatever's wired
+        # into the BSDF's Base Color input, if the material has one.
+        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+        if bsdf:
+            base_color = bsdf.inputs.get('Base Color')
+            if base_color and base_color.is_linked:
+                src = base_color.links[0].from_node
+                if src.type == 'TEX_IMAGE' and src.image:
+                    return src.image
+        return None
+
     def invoke(self, context, event):
-        # Pre-fill texture path from the last AI generation image if stored
         obj = context.active_object
         if obj and not self.texture_path:
-            self.texture_path = obj.get("fo4_source_image", "")
+            existing_img = self._find_existing_diffuse_image(obj)
+            if existing_img and existing_img.filepath:
+                self.texture_path = bpy.path.abspath(existing_img.filepath)
+            else:
+                # Pre-fill texture path from the last AI generation image if stored
+                self.texture_path = obj.get("fo4_source_image", "")
         return context.window_manager.invoke_props_dialog(self, width=440)
 
     def draw(self, context):
@@ -3741,54 +3780,132 @@ class FO4_OT_SetupLeafCard(Operator):
             steps.append("UV map created (Smart UV Project)")
 
         # ── 3. Alpha-clip material ────────────────────────────────────────────
-        mat_name = f"{obj.name}_LeafCard"
-        mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
-        mat.use_nodes = True
-        mat.blend_method  = 'CLIP'
-        try:
-            mat.shadow_method = 'CLIP'  # removed in Blender 4.2+ (EEVEE Next)
-        except AttributeError:
-            pass
-        mat.alpha_threshold = self.alpha_threshold
-        mat.use_backface_culling = False  # leaves visible from both sides
+        # Imported meshes already arrive with a real material carrying the
+        # correct diffuse (and often normal/specular/glow) textures. This
+        # used to always throw that away and build a brand-new, blank
+        # "{name}_LeafCard" material from scratch (nodes.clear() on a new
+        # material, replacing material slot 0 entirely) -- so running this
+        # on a normally-imported mesh silently lost every texture the user
+        # never asked to change, and reported it as a fresh "leaf card"
+        # setup with no texture until they manually re-browsed for it and
+        # reinstalled it. There should be one set of materials/textures per
+        # mesh -- the ones it imported with -- and this operator should only
+        # ADD the leaf-card alpha-clip behaviour to them, not replace them.
+        #
+        # Now: reuse the existing material in place when there is one, and
+        # only add what leaf-card setup actually needs (alpha-clip blend
+        # mode + an Alpha wire) -- every other node (diffuse, normal,
+        # specular, glow) stays exactly as it was imported. A brand-new
+        # material is only built as a last resort, for a genuinely
+        # materialless mesh.
+        existing_mat = obj.data.materials[0] if obj.data.materials else None
 
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
-        nodes.clear()
-
-        out  = nodes.new('ShaderNodeOutputMaterial'); out.location  = (500, 0)
-        bsdf = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location = (150, 0)
-        bsdf.name = "Principled BSDF"
-        tex  = nodes.new('ShaderNodeTexImage');       tex.location  = (-250, 100)
-        tex.name  = "Diffuse"
-        tex.label = "Diffuse (_d)"
-
-        if self.texture_path and _os.path.exists(self.texture_path):
+        if existing_mat is not None:
+            mat = existing_mat
+            if not mat.use_nodes:
+                mat.use_nodes = True
+            mat.blend_method = 'CLIP'
             try:
-                img = bpy.data.images.load(self.texture_path)
-                tex.image = img
-                steps.append(f"Texture: {_os.path.basename(self.texture_path)}")
-            except Exception as exc:
-                steps.append(f"Texture load failed ({exc})")
-        else:
-            steps.append("No texture loaded — assign in Material Properties")
+                mat.shadow_method = 'CLIP'
+            except AttributeError:
+                pass
+            mat.alpha_threshold = self.alpha_threshold
+            mat.use_backface_culling = False
 
-        links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
-        # Only wire Alpha once a real image is loaded -- an empty Image
-        # Texture node outputs Alpha=0, and blend_method is 'CLIP' above,
-        # so wiring this unconditionally would make the card render fully
-        # invisible (only its selection outline visible) until a texture
-        # is assigned later, since a later manual image assignment in the
-        # Material Properties panel wouldn't re-run this wiring step.
-        if tex.image is not None:
-            links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
-        links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+            bsdf = next((n for n in nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if bsdf is None:
+                # No Principled BSDF on this material at all (unusual, but
+                # possible on a hand-built/imported node setup) -- add one
+                # without touching whatever nodes are already there.
+                bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+                bsdf.location = (150, 0)
+                out = next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
+                if out is None:
+                    out = nodes.new('ShaderNodeOutputMaterial')
+                    out.location = (500, 0)
+                links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
 
-        if obj.data.materials:
-            obj.data.materials[0] = mat
+            tex_node = None
+            for node in nodes:
+                if node.type != 'TEX_IMAGE' or not node.image:
+                    continue
+                name_low = (node.name or "").lower()
+                label_low = (node.label or "").lower()
+                if "diffuse" in name_low or "diffuse" in label_low or "base color" in label_low:
+                    tex_node = node
+                    break
+
+            if tex_node is None and self.texture_path and _os.path.exists(self.texture_path):
+                # No diffuse node existed on the original material (or the
+                # user explicitly picked a different texture) -- add one,
+                # still without disturbing any other existing node.
+                tex_node = nodes.new('ShaderNodeTexImage')
+                tex_node.name = "Diffuse"
+                tex_node.label = "Diffuse (_d)"
+                tex_node.location = (bsdf.location.x - 400, bsdf.location.y + 100)
+                try:
+                    tex_node.image = bpy.data.images.load(self.texture_path)
+                    steps.append(f"Texture: {_os.path.basename(self.texture_path)}")
+                except Exception as exc:
+                    steps.append(f"Texture load failed ({exc})")
+                links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+            elif tex_node is not None:
+                steps.append(f"Reused existing texture: {tex_node.image.name}")
+                if not bsdf.inputs['Base Color'].is_linked:
+                    links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+            else:
+                steps.append("No diffuse texture found on the existing material — assign one in Material Properties")
+
+            # Only wire Alpha once a real image is loaded -- an empty Image
+            # Texture node outputs Alpha=0, and blend_method is 'CLIP' above,
+            # so wiring this unconditionally would make the card render
+            # fully invisible until a texture is assigned.
+            if tex_node is not None and tex_node.image is not None:
+                links.new(tex_node.outputs['Alpha'], bsdf.inputs['Alpha'])
+            steps.append(f"Alpha-clip applied to existing material '{mat.name}' — other textures untouched")
         else:
+            # Genuinely no material on this mesh -- build a minimal one from
+            # scratch, same as before.
+            mat_name = f"{obj.name}_LeafCard"
+            mat = bpy.data.materials.get(mat_name) or bpy.data.materials.new(mat_name)
+            mat.use_nodes = True
+            mat.blend_method = 'CLIP'
+            try:
+                mat.shadow_method = 'CLIP'
+            except AttributeError:
+                pass
+            mat.alpha_threshold = self.alpha_threshold
+            mat.use_backface_culling = False
+
+            nodes = mat.node_tree.nodes
+            links = mat.node_tree.links
+            nodes.clear()
+
+            out  = nodes.new('ShaderNodeOutputMaterial'); out.location  = (500, 0)
+            bsdf = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location = (150, 0)
+            bsdf.name = "Principled BSDF"
+            tex_node  = nodes.new('ShaderNodeTexImage');  tex_node.location = (-250, 100)
+            tex_node.name  = "Diffuse"
+            tex_node.label = "Diffuse (_d)"
+
+            if self.texture_path and _os.path.exists(self.texture_path):
+                try:
+                    tex_node.image = bpy.data.images.load(self.texture_path)
+                    steps.append(f"Texture: {_os.path.basename(self.texture_path)}")
+                except Exception as exc:
+                    steps.append(f"Texture load failed ({exc})")
+            else:
+                steps.append("No texture loaded — assign in Material Properties")
+
+            links.new(tex_node.outputs['Color'], bsdf.inputs['Base Color'])
+            if tex_node.image is not None:
+                links.new(tex_node.outputs['Alpha'], bsdf.inputs['Alpha'])
+            links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
+
             obj.data.materials.append(mat)
-        steps.append("Alpha-clip leaf material set up")
+            steps.append("No existing material found — created a new alpha-clip leaf material")
 
         # ── 4. Wind weights ────────────────────────────────────────────────────
         try:
