@@ -116,6 +116,8 @@ interface AiDetailStage extends PipelineStage {
   steps: number;                // ComfyUI only
   cfg: number;                  // ComfyUI only
   promptOverride: string;       // empty = auto-build from the selected Material Surface
+  removeBackground: boolean;    // post-step after either backend: transparent cutout via local ComfyUI-RMBG
+  bgRemovalModel: string;       // 'BEN2' | 'INSPYRENET' | 'BEN' -- see BG_REMOVAL_MODELS below
 }
 
 interface Pipeline {
@@ -419,7 +421,7 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
 const DEFAULT_PIPELINE: Pipeline = {
   // Off by default — opt-in since it requires ComfyUI running and takes real
   // generation time, unlike every classical stage below which is instant.
-  aiDetail:  { enabled: false, backend: 'comfyui', model: '', geminiModel: 'gemini-3.1-flash-image', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '' },
+  aiDetail:  { enabled: false, backend: 'comfyui', model: '', geminiModel: 'gemini-3.1-flash-image', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '', removeBackground: false, bgRemovalModel: 'BEN2' },
   albedo:    { enabled: true,  deLighting: true, deLight_strength: 0.5, detailBoost: 1.0, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
   normal:    { enabled: true,  method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
   roughness: { enabled: true,  base: 0.7, luminanceInfluence: 0.5, variation: 0.15, invert: false },
@@ -636,6 +638,17 @@ const GEMINI_IMAGE_MODELS: { id: string; label: string }[] = [
   { id: 'gemini-3-pro-image', label: 'Nano Banana Pro (highest quality, up to 4K, slower)' },
   { id: 'gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite (fastest/cheapest, 1K cap)' },
   { id: 'gemini-2.5-flash-image', label: 'Nano Banana (original)' },
+];
+
+// Same three permissively-licensed ComfyUI-RMBG models the standalone
+// Background Remover panel offers (BackgroundRemover.tsx) -- kept identical
+// here for consistency. All MIT-licensed, verified against their real repos;
+// RMBG-2.0 itself is deliberately left out (CC BY-NC 4.0, gated) even though
+// the node supports it.
+const BG_REMOVAL_MODELS: { id: string; label: string }[] = [
+  { id: 'BEN2', label: 'BEN2 (recommended)' },
+  { id: 'INSPYRENET', label: 'InSPyReNet' },
+  { id: 'BEN', label: 'BEN' },
 ];
 
 export default function TextureEnhancer() {
@@ -1032,6 +1045,25 @@ export default function TextureEnhancer() {
                 )}
                 {pipeline.aiDetail.enabled && pipeline.aiDetail.backend !== 'gemini' && comfyStatus === 'offline' && (
                   <p className="text-xs text-red-300/80">ComfyUI not running at 127.0.0.1:8188 — start it in AI Image Studio or External Integrations Hub first.</p>
+                )}
+                {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && (
+                  <div className="pt-1 space-y-1.5">
+                    <ToggleRow label="Remove background after generation" checked={pipeline.aiDetail.removeBackground} onChange={v => updateStage('aiDetail', { removeBackground: v })} />
+                    {pipeline.aiDetail.removeBackground && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-400 w-36">Background removal model</span>
+                          <select value={pipeline.aiDetail.bgRemovalModel} onChange={e => updateStage('aiDetail', { bgRemovalModel: e.target.value })}
+                            className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500">
+                            {BG_REMOVAL_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                          </select>
+                        </div>
+                        <p className="text-xs text-slate-600">
+                          Runs as a separate step through your local ComfyUI's RMBG node after either backend above generates the texture — needs ComfyUI running (regardless of which backend made the image) with the RMBG custom node installed. Produces a true alpha-channel cutout; if the model can't get clean alpha it falls back to whatever background it detects rather than adding haze or a gradient around the edges.
+                        </p>
+                      </>
+                    )}
+                  </div>
                 )}
                 {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && pipeline.aiDetail.backend === 'gemini' && (
                   <div className="pt-2 space-y-2 border-t border-slate-700">

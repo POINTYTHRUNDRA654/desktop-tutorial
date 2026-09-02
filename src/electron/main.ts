@@ -23121,6 +23121,33 @@ Rules:
     }
   }
 
+  /**
+   * Runs the AI Detail Synthesis stage's optional post-step: transparent-
+   * background cutout via the user's local ComfyUI + ComfyUI-RMBG custom node
+   * (same buildComfyRmbgWorkflow()/model choices as the standalone Background
+   * Remover panel's ComfyUI backend -- BEN2/INSPYRENET/BEN, MIT-licensed).
+   * Applies after EITHER generation backend (Gemini or local ComfyUI img2img),
+   * since it's a separate local ComfyUI call either way. Non-fatal on failure
+   * -- caller keeps working with the pre-cutout image and just reports why.
+   */
+  async function comfyuiRemoveBackgroundFor(imagePath: string, model?: string): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    try {
+      const uploadResult = await comfyuiUploadImage(imagePath);
+      if (!uploadResult.success || !uploadResult.name) {
+        return { success: false, error: uploadResult.error || 'upload to ComfyUI failed' };
+      }
+      const workflow = buildComfyRmbgWorkflow({ uploadedImage: uploadResult.name, model: model || 'BEN2' });
+      const runResult = await comfyuiRunWorkflow(workflow);
+      if (!runResult.success || !runResult.imageData) {
+        return { success: false, error: runResult.error || 'RMBG workflow failed' };
+      }
+      const outputPath = saveComfyuiResult(imagePath, 'nobg', runResult.imageData);
+      return { success: true, outputPath };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+
   // Reliability sweep (2026-09-02): this only ever asked a LIVE ComfyUI instance
   // "do you have this node?" over HTTP -- if ComfyUI simply isn't running at the
   // moment the AI Texture Tools wizard checks (which is common; it doesn't auto-
@@ -32019,6 +32046,29 @@ end.
           } catch (err: any) {
             errors.push(`AI detail synthesis: ${err?.message || err} — continuing with original texture.`);
           }
+        }
+
+        // Optional post-step, runs after EITHER backend above (Gemini or
+        // ComfyUI img2img) succeeded and updated workingInputPath: transparent-
+        // background cutout via local ComfyUI-RMBG, matching the "true
+        // transparent background, otherwise pure solid white, no haze/glow
+        // around the UV islands" requirement of Billy's locked Glowing Sea
+        // prompt. Non-fatal -- keeps the pre-cutout AI-detailed texture on
+        // failure rather than losing the generation entirely.
+        if (pipeline.aiDetail.removeBackground && workingInputPath !== inputPath) {
+          try {
+            const bgResult = await comfyuiRemoveBackgroundFor(workingInputPath, pipeline.aiDetail.bgRemovalModel);
+            if (bgResult.success && bgResult.outputPath) {
+              workingInputPath = bgResult.outputPath;
+              outputs.aiDetailBackgroundRemoved = workingInputPath;
+            } else {
+              errors.push(`Background removal: ${bgResult.error || 'RMBG failed'} — continuing with the AI-detailed texture as-is (background not removed).`);
+            }
+          } catch (err: any) {
+            errors.push(`Background removal: ${err?.message || err} — continuing with the AI-detailed texture as-is (background not removed).`);
+          }
+        } else if (pipeline.aiDetail.removeBackground && workingInputPath === inputPath) {
+          errors.push('Background removal: skipped because AI detail synthesis did not produce a new image (nothing to remove the background from).');
         }
       }
 
