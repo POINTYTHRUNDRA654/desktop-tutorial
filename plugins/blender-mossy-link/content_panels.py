@@ -129,6 +129,13 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         row.operator("fo4.optimize_vegetation_fps", text="Optimize for FPS", icon='TIME')
 
         # LOD generation
+        # Consolidated onto fo4.generate_lods -- the same operator used by
+        # the Mesh Helpers and FO4: LOD + Collision Pipeline panels, not a
+        # fourth separate implementation. It already covers this panel's
+        # old "Generate LOD + Collision" button (LOD1-3 + billboard +
+        # export in one dialog) and reuses whatever real collision was
+        # already made via Generate Collision / Custom Collision instead of
+        # building its own.
         box = layout.box()
         box.label(text="LOD System", icon='OUTLINER_OB_MESH')
         sub = box.column(align=True)
@@ -140,18 +147,12 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         row = box.row()
         row.enabled = has_mesh
         row.scale_y = 1.3
-        row.operator("fo4.generate_lod_and_collision",
-                     text="Generate LOD + Collision", icon='SHADERFX')
+        row.operator("fo4.generate_lods",
+                     text="Generate LOD Chain (LOD1-4 + Export)", icon='OUTLINER_OB_MESH')
 
         legacy = box.box()
         legacy.scale_y = 0.85
-        legacy.label(text="Legacy / manual alternative:", icon='DOT')
-        row = legacy.row()
-        row.enabled = has_mesh
-        row.operator("fo4.create_vegetation_lod_chain", text="Create LOD Chain (manual, no billboard/collision)", icon='MESH_GRID')
-        row2 = legacy.row()
-        row2.enabled = has_mesh
-        row2.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+        legacy.label(text="Manual alternative (import your own LOD meshes):", icon='DOT')
         row3 = legacy.row()
         row3.enabled = has_mesh
         row3.operator("fo4.import_glb_as_lod", text="Import GLB / GLTF as LOD", icon='IMPORT')

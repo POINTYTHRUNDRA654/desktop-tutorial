@@ -597,14 +597,35 @@ class FO4_OT_GenerateLODs(Operator):
     lod1_ratio: FloatProperty(name="LOD1 Ratio", default=0.30, min=0.05, max=0.95)
     lod2_ratio: FloatProperty(name="LOD2 Ratio", default=0.12, min=0.01, max=0.50)
     lod3_ratio: FloatProperty(name="LOD3 Ratio", default=0.08, min=0.005, max=0.20)
-    collision_from_lod3: BoolProperty(
-        name="Auto-Collision from LOD3",
+    generate_billboard: BoolProperty(
+        name="Generate Billboard (LOD4, farthest)",
         description=(
-            "Use the LOD3 mesh (~4% polys) as the source for the UCX_ convex "
-            "collision hull instead of decimating the original again. "
-            "LOD3 is already the right density for physics — no extra work needed."
+            "Bake a cross-billboard (matches real FO4 reference assets' "
+            "farthest LOD level) and export it as its own NIF alongside "
+            "LOD1-3. The temporary billboard object is removed from the "
+            "scene right after a successful export -- it's a bake result, "
+            "not something to keep cluttering the scene."
         ),
         default=True,
+    )
+    billboard_tex_size: IntProperty(
+        name="Billboard Texture Size",
+        default=512, min=64, max=2048,
+    )
+    collision_from_lod3: BoolProperty(
+        name="Auto-Build Collision from LOD3 (fallback)",
+        description=(
+            "Only used when the source mesh has no collision yet. If you've "
+            "already made real collision with Generate Collision / Custom "
+            "Collision (Exact Mesh), this is ignored and that collision is "
+            "reused for every LOD instead -- there should be one place to "
+            "make collision, not a second one hidden in the LOD generator. "
+            "Enable this only as a convenience fallback for a mesh you "
+            "haven't set up collision for yet: builds a UCX_ convex hull "
+            "from the LOD3 mesh (~4% polys, already the right density for "
+            "physics) instead of decimating the original again."
+        ),
+        default=False,
     )
 
     # Hidden property: detected FO4 class of the source mesh.
@@ -703,6 +724,10 @@ class FO4_OT_GenerateLODs(Operator):
         row = layout.row()
         row.prop(self, "generate_lod3")
         row.prop(self, "lod3_ratio", text="Ratio")
+        row = layout.row()
+        row.prop(self, "generate_billboard")
+        if self.generate_billboard:
+            row.prop(self, "billboard_tex_size", text="Tex Size")
         layout.separator()
 
         # ── Collision ─────────────────────────────────────────────────────────
@@ -825,16 +850,29 @@ class FO4_OT_GenerateLODs(Operator):
                 except Exception as e:
                     self.report({'WARNING'}, f"LOD generation failed for {obj.name} {lod_key}: {e}")
 
-            # ── Collision from LOD3 ───────────────────────────────────────────────
-            # Rules:
-            #   GRASS / MUSHROOM (fo4_collision_type) – thin ground-cover; no NIF
-            #       collision.  Footprint is authored in the CK ESP record.
-            #   CHARACTER / CREATURE / SKINNED / ARMOR – collision is part of the
-            #       skeleton/ragdoll rig; do not create a static UCX_ hull.
-            #   VEGETATION / FLORA (trees, large shrubs, custom plants) – DO need a
-            #       UCX_ convex hull in the LOD NIF; a tree without collision is
-            #       just a decoration you walk straight through.
-            #   Everything else (STATIC, LOD, ARCHITECTURE, WEAPON…) – normal hull.
+            # ── Collision ────────────────────────────────────────────────────────
+            # There is exactly one place in this add-on meant for making
+            # collision: Generate Collision / Custom Collision (Exact Mesh)
+            # (MeshHelpers.add_collision_mesh / add_custom_collision). This
+            # used to be a second, independent collision-creation path that
+            # silently built its own UCX_ hull from LOD3 by default -- worth
+            # noting even though it was already broken as a hider of real
+            # collision: it parented that hull to *obj* (the untouched
+            # LOD0 source), but this operator never exports *obj* itself,
+            # only the LOD1/2/3 copies -- and export_mesh_to_nif() only
+            # looks for collision among the *exported object's own*
+            # children. So every LOD NIF this operator has ever produced
+            # was exported with NO collision at all, regardless of this
+            # setting.
+            #
+            # Rules (unchanged): GRASS/MUSHROOM ground-cover and
+            # CHARACTER/CREATURE/SKINNED/ARMOR meshes never get a static
+            # UCX_ hull (ground-cover collision is CK-authored; skinned
+            # collision lives in the ragdoll rig). Everything else prefers
+            # whatever real collision the user already built on *obj* via
+            # the one true collision tool, reused as-is; only when *obj*
+            # has none does the old LOD3-hull auto-build kick in, and only
+            # if explicitly opted into via "Auto-Build Collision from LOD3".
             # fo4_collision_type is a real RNA EnumProperty set via attribute
             # assignment -- obj.get() only sees custom ID properties and always
             # silently returned "DEFAULT" here, so GRASS/MUSHROOM objects never
@@ -842,12 +880,8 @@ class FO4_OT_GenerateLODs(Operator):
             coll_type = getattr(obj, "fo4_collision_type", "DEFAULT")
             is_ground_cover = coll_type in _NO_COLLISION_MESH_TYPES
 
-            collision_possible = (
-                not is_ground_cover
-                and not is_skinned
-                and self.collision_from_lod3
-                and self.generate_lod3
-            )
+            collision_template = None  # the single collision object/mesh to
+                                        # copy onto every exported LOD level
 
             if is_ground_cover:
                 steps.append(
@@ -859,82 +893,112 @@ class FO4_OT_GenerateLODs(Operator):
                     f"✓ {obj.name} [{src_class}]: collision skipped — "
                     "collision is part of the armature/ragdoll rig"
                 )
-            elif collision_possible:
-                lod3_obj = next(
-                    (o for o in lod_objects if o.get("fo4_lod_level") == "LOD3"), None
-                )
-                if lod3_obj:
-                    try:
-                        ucx_name = f"UCX_{obj.name}"
-                        # Remove existing UCX if present
-                        existing_ucx = bpy.data.objects.get(ucx_name)
-                        if existing_ucx:
-                            bpy.data.objects.remove(existing_ucx, do_unlink=True)
+            else:
+                try:
+                    from . import export_helpers
+                    collision_template = export_helpers.ExportHelpers._find_collision_mesh(obj)
+                except Exception:
+                    collision_template = None
 
-                        # Duplicate LOD3 as the collision source
-                        import bmesh as _bm
-                        ucx_mesh = lod3_obj.data.copy()
-                        ucx_obj  = lod3_obj.copy()
-                        ucx_obj.data = ucx_mesh
-                        ucx_obj.name = ucx_name
-                        ucx_mesh.name = ucx_name
-                        bpy.context.collection.objects.link(ucx_obj)
-
-                        # Build a clean convex hull from LOD3 vertices
-                        bm = _bm.new()
-                        bm.from_mesh(ucx_mesh)
-                        result = _bm.ops.convex_hull(bm, input=bm.verts)
-                        # Keep only outer hull geometry
-                        interior = result.get("geom_interior", [])
-                        unused   = result.get("geom_unused", [])
-                        _bm.ops.delete(
-                            bm,
-                            geom=[g for g in interior + unused
-                                  if isinstance(g, _bm.types.BMVert)],
-                            context='VERTS',
-                        )
-                        bm.to_mesh(ucx_mesh)
-                        ucx_mesh.update()
-                        bm.free()
-
-                        # Tag as FO4 collision
-                        ucx_obj["fo4_collision"]        = True
-                        ucx_obj["fo4_collision_source"] = "LOD3"
-                        ucx_obj["fo4_lod_source"]       = obj.name
-                        ucx_obj.display_type            = 'WIRE'
-                        ucx_obj.hide_render             = True
-                        ucx_obj.parent                  = obj
-
-                        # Rigid body for Blender physics preview
-                        # Restore whatever was active before this block afterward
-                        # -- leaving the collision mesh as the active object leaks
-                        # into any subsequent bpy.ops call in the same context that
-                        # reads context.active_object (e.g. a caller that invokes
-                        # this whole operator a second time via EXEC_DEFAULT would
-                        # silently operate on the collision mesh instead of the
-                        # real source object).
-                        _prev_active_for_rb = context.view_layer.objects.active
+                if collision_template is not None:
+                    steps.append(
+                        f"✓ {obj.name}: reusing existing collision "
+                        f"'{collision_template.name}' for every LOD export "
+                        "(made once via Generate Collision / Custom Collision)"
+                    )
+                elif self.collision_from_lod3 and self.generate_lod3:
+                    lod3_obj = next(
+                        (o for o in lod_objects if o.get("fo4_lod_level") == "LOD3"), None
+                    )
+                    if lod3_obj:
                         try:
-                            context.view_layer.objects.active = ucx_obj
-                            ucx_obj.select_set(True)
-                            bpy.ops.rigidbody.object_add()
-                            ucx_obj.rigid_body.type            = 'PASSIVE'
-                            ucx_obj.rigid_body.collision_shape = 'CONVEX_HULL'
-                        except Exception:
-                            pass
-                        finally:
-                            context.view_layer.objects.active = _prev_active_for_rb
+                            ucx_name = f"UCX_{obj.name}_fromLOD3"
+                            existing_ucx = bpy.data.objects.get(ucx_name)
+                            if existing_ucx:
+                                bpy.data.objects.remove(existing_ucx, do_unlink=True)
 
-                        n_verts = len(ucx_mesh.vertices)
-                        steps.append(
-                            f"✓ UCX_{obj.name}: convex hull from LOD3 "
-                            f"({n_verts} vertices) — no extra decimation needed"
-                        )
-                    except Exception as e:
-                        self.report({'WARNING'}, f"Collision from LOD3 failed for {obj.name}: {e}")
+                            # Duplicate LOD3 as the collision source
+                            import bmesh as _bm
+                            ucx_mesh = lod3_obj.data.copy()
+                            ucx_obj  = lod3_obj.copy()
+                            ucx_obj.data = ucx_mesh
+                            ucx_obj.name = ucx_name
+                            ucx_mesh.name = ucx_name
+                            bpy.context.collection.objects.link(ucx_obj)
+
+                            # Build a clean convex hull from LOD3 vertices
+                            bm = _bm.new()
+                            bm.from_mesh(ucx_mesh)
+                            result = _bm.ops.convex_hull(bm, input=bm.verts)
+                            interior = result.get("geom_interior", [])
+                            unused   = result.get("geom_unused", [])
+                            _bm.ops.delete(
+                                bm,
+                                geom=[g for g in interior + unused
+                                      if isinstance(g, _bm.types.BMVert)],
+                                context='VERTS',
+                            )
+                            bm.to_mesh(ucx_mesh)
+                            ucx_mesh.update()
+                            bm.free()
+
+                            ucx_obj["fo4_collision"]        = True
+                            ucx_obj["fo4_collision_source"] = "LOD3"
+                            ucx_obj["fo4_lod_source"]       = obj.name
+                            ucx_obj.display_type            = 'WIRE'
+                            ucx_obj.hide_render             = True
+                            ucx_obj.parent                  = obj
+
+                            n_verts = len(ucx_mesh.vertices)
+                            steps.append(
+                                f"✓ UCX_{obj.name}: convex hull built from LOD3 "
+                                f"({n_verts} vertices) — no existing collision found, "
+                                "used the LOD3-hull fallback"
+                            )
+                            collision_template = ucx_obj
+                        except Exception as e:
+                            self.report({'WARNING'}, f"Collision from LOD3 failed for {obj.name}: {e}")
+                    else:
+                        self.report({'WARNING'},
+                            f"{obj.name}: LOD3 not generated — enable 'LOD3 (8%)' to use it as collision source.")
                 else:
-                    self.report({'WARNING'},
-                        f"{obj.name}: LOD3 not generated — enable 'LOD3 (8%)' to use it as collision source.")
+                    steps.append(
+                        f"○ {obj.name} [{src_class}]: no collision made yet — "
+                        "use Generate Collision / Custom Collision (Exact Mesh) first "
+                        "if this mesh needs physics collision in-game"
+                    )
+
+            # Copy the chosen collision (reused or freshly built) onto every
+            # LOD level that will actually be exported, parented to that
+            # LOD object specifically -- export_mesh_to_nif()'s collision
+            # lookup only checks the exported object's own children, so a
+            # collision parented only to *obj* (never itself exported here)
+            # was never found by any previous version of this operator.
+            if collision_template is not None:
+                for lod_obj in lod_objects:
+                    try:
+                        lod_ucx_name = f"UCX_{lod_obj.name}"
+                        existing = bpy.data.objects.get(lod_ucx_name)
+                        if existing:
+                            bpy.data.objects.remove(existing, do_unlink=True)
+                        lod_ucx_mesh = collision_template.data.copy()
+                        lod_ucx_obj  = collision_template.copy()
+                        lod_ucx_obj.data = lod_ucx_mesh
+                        lod_ucx_obj.name = lod_ucx_name
+                        lod_ucx_mesh.name = lod_ucx_name
+                        bpy.context.collection.objects.link(lod_ucx_obj)
+                        lod_ucx_obj["fo4_collision"] = True
+                        lod_ucx_obj["pynRigidBody"] = collision_template.get(
+                            "pynRigidBody", "bhkPhysicsSystem")
+                        lod_ucx_obj["pynCollisionShapeType"] = collision_template.get(
+                            "pynCollisionShapeType", "polytope")
+                        lod_ucx_obj.display_type = 'WIRE'
+                        lod_ucx_obj.hide_render = True
+                        lod_ucx_obj.parent = lod_obj
+                        lod_ucx_obj.matrix_parent_inverse = lod_obj.matrix_world.inverted()
+                        lod_obj["pynCollisionTarget"] = lod_ucx_obj.name
+                    except Exception as e:
+                        self.report({'WARNING'}, f"Could not attach collision to {lod_obj.name}: {e}")
 
             # ── Export NIFs ───────────────────────────────────────────────────────
             # Skinned meshes are excluded: the Decimate modifier strips the skin
@@ -974,6 +1038,66 @@ class FO4_OT_GenerateLODs(Operator):
 
             if lod_objects and not is_skinned:
                 all_lod_objects.extend(lod_objects)
+
+            # ── Billboard (LOD4, farthest level) ────────────────────────────────
+            # Real FO4 assets don't keep decimating the organic mesh for the
+            # farthest level -- they switch to a baked cross-billboard (see
+            # generate_billboard_lod's own docstring for the reference-asset
+            # evidence). Generated, exported, and then removed from the scene
+            # in one step: it's a disposable bake result, not something meant
+            # to stay in the user's working scene the way LOD1-3 do.
+            if self.generate_billboard and not is_skinned and not is_ground_cover:
+                try:
+                    billboard_name = f"{obj.name}_LOD4"
+                    billboard_obj, billboard_msg = generate_billboard_lod(
+                        obj, billboard_name, tex_size=self.billboard_tex_size
+                    )
+                    steps.append(f"{obj.name}: {billboard_msg}")
+
+                    billboard_exported = False
+                    if self.export_nifs and self.mod_folder:
+                        try:
+                            from . import export_helpers
+                            sub = self.mesh_subpath.strip("/\\")
+                            nif_name = f"{obj.name}_lod4.nif"
+                            nif_path = os.path.normpath(os.path.join(
+                                self.mod_folder, "Data", "Meshes", sub, nif_name
+                            ) if sub else os.path.join(
+                                self.mod_folder, "Data", "Meshes", nif_name
+                            ))
+                            os.makedirs(os.path.dirname(nif_path), exist_ok=True)
+                            context.view_layer.objects.active = billboard_obj
+                            bpy.ops.object.select_all(action='DESELECT')
+                            billboard_obj.select_set(True)
+                            result = export_helpers.ExportHelpers.export_mesh_to_nif(
+                                billboard_obj, nif_path
+                            )
+                            ok = result[0] if isinstance(result, tuple) else \
+                                 result in ({'FINISHED'}, 'FINISHED')
+                            if ok:
+                                billboard_exported = True
+                                steps.append(f"Exported billboard: {os.path.basename(nif_path)}")
+                            else:
+                                msg = result[1] if isinstance(result, tuple) else str(result)
+                                steps.append(f"⚠ Billboard export failed for {obj.name}: {msg}")
+                        except Exception as e:
+                            self.report({'WARNING'}, f"Billboard export error for {obj.name}: {e}")
+
+                    # Remove the temporary billboard object once it's safely
+                    # exported (or if exporting was never requested for this
+                    # run -- either way, nothing downstream needs it sitting
+                    # in the scene, and a bake left behind after every run
+                    # would just accumulate as clutter across every LOD pass).
+                    if billboard_exported or not self.export_nifs:
+                        try:
+                            bd = billboard_obj.data
+                            bpy.data.objects.remove(billboard_obj, do_unlink=True)
+                            if bd and bd.users == 0:
+                                bpy.data.meshes.remove(bd)
+                        except Exception:
+                            pass
+                except Exception as e:
+                    self.report({'WARNING'}, f"Billboard generation failed for {obj.name}: {e}")
 
         # ── Downscale/share textures across every target's LOD objects ────────
         # Real assets give their real-mesh LOD levels a dedicated, much

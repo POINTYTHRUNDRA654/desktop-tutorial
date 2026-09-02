@@ -990,26 +990,26 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             box.separator()
 
             # ── LOD Meshes ─────────────────────────────────────────────
+            # One button, one dialog: LOD1-3 decimation + LOD4 billboard +
+            # NIF export, all in a single pass -- this used to be four
+            # separate buttons (Generate LOD Chain / Generate LOD +
+            # Collision / Collision from Lowest LOD / Export LOD Chain as
+            # NIF), each a different partial implementation. fo4.generate_lods
+            # (also used by the FO4: LOD + Collision Pipeline panel -- same
+            # operator, not a second copy) now covers everything they did:
+            # it reuses whatever real collision you made above via Generate
+            # Collision / Custom Collision instead of building its own, and
+            # auto-exports every LOD level (plus the billboard) once done.
             box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
             sub = box.column(align=True)
             sub.scale_y = 0.75
-            sub.label(text="FO4 uses LOD0 (close) → LOD4 (far) as separate NIFs", icon='INFO')
-            sub.label(text="Source object = LOD0 · Generates LOD1–LOD4 copies", icon='INFO')
-            sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
+            sub.label(text="FO4 uses LOD0 (close) → LOD4 billboard (far) as separate NIFs", icon='INFO')
+            sub.label(text="One dialog: LOD1-3 + billboard + auto-export, in one pass", icon='INFO')
             box.separator()
             row = box.row()
             row.enabled = bool(has_mesh)
             row.scale_y = 1.3
-            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            row = box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
-            row = box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
-            row = box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+            row.operator("fo4.generate_lods", text="Generate LOD Chain (LOD1-4 + Export)", icon='OUTLINER_OB_MESH')
             box.separator()
 
             # ── Advanced Mesh Tools ─────────────────────────────────────
@@ -1217,26 +1217,19 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
             row.operator("fo4.export_mesh_with_collision", text="Generate + Export NIF", icon='EXPORT')
 
             lod_box = layout.box()
+            # Same consolidation as the unified layout above -- one operator
+            # (fo4.generate_lods) instead of four separate partial
+            # implementations. See the comment there for the full reasoning.
             lod_box.label(text="LOD Meshes (Level of Detail)", icon='OUTLINER_OB_MESH')
             sub = lod_box.column(align=True)
             sub.scale_y = 0.75
-            sub.label(text="FO4: LOD0 (close) → LOD4 (far), each a separate NIF", icon='INFO')
-            sub.label(text="Source object = LOD0. LOD1–LOD4 copies are created.", icon='INFO')
-            sub.label(text="Tip: 'Collision from Lowest LOD' uses LOD4 as collision base", icon='INFO')
+            sub.label(text="FO4: LOD0 (close) → LOD4 billboard (far), each a separate NIF", icon='INFO')
+            sub.label(text="One dialog: LOD1-3 + billboard + auto-export, in one pass", icon='INFO')
             lod_box.separator()
             row = lod_box.row()
             row.enabled = bool(has_mesh)
             row.scale_y = 1.3
-            row.operator("fo4.generate_lod", text="Generate LOD Chain", icon='OUTLINER_OB_MESH')
-            row = lod_box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.generate_lod_and_collision", text="Generate LOD + Collision", icon='SHADERFX')
-            row = lod_box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.collision_from_lowest_lod", text="Collision from Lowest LOD", icon='MESH_ICOSPHERE')
-            row = lod_box.row()
-            row.enabled = bool(has_mesh)
-            row.operator("fo4.export_lod_chain_as_nif", text="Export LOD Chain as NIF", icon='EXPORT')
+            row.operator("fo4.generate_lods", text="Generate LOD Chain (LOD1-4 + Export)", icon='OUTLINER_OB_MESH')
 
             adv_box = layout.box()
             adv_box.label(text="Advanced Mesh Tools", icon='MODIFIER')
@@ -1804,7 +1797,7 @@ class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
         lod_box.label(text="LOD0=original  LOD1=30%  LOD2=12%  LOD3=8%", icon='DOT')
         row = lod_box.row()
         row.enabled = has_mesh
-        row.operator("fo4.generate_lods", text="Generate LOD0–LOD3", icon='DUPLICATE')
+        row.operator("fo4.generate_lods", text="Generate LOD Chain (LOD1-4 + Export)", icon='DUPLICATE')
         lod_box.label(text="LOD3 materials cleared — collision candidate", icon='DOT')
 
         # ── Collision Mesh ───────────────────────────────────────────────
