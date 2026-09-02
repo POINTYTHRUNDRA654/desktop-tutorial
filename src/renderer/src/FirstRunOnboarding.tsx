@@ -1311,20 +1311,30 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
             setScanProgress(80);
 
             // Analyze and categorize
+            // Reliability sweep (2026-09-02): match on a.name first, not displayName.
+            // detectPrograms.ts prefixes displayName with an ancestor folder name for
+            // generically-named exes (e.g. a bare "cli.exe" found under Blender's own
+            // bundled Python folder becomes displayName "Blender Foundation - cli"), so
+            // checking displayName here let those console-script stubs get recommended
+            // to the user as "Blender" during onboarding -- same root cause as the
+            // ExternalToolsHub.tsx/SystemMonitor.tsx/ChatInterface.tsx fixes made earlier
+            // today (see e2c32c46), just not yet applied to this file. name never carries
+            // that prefix, so checking it first is the correct fix everywhere this
+            // pattern appears.
             const nvidia = allDetectedApps.filter((a: any) =>
-                (a.displayName || a.name || '').toLowerCase().match(/nvidia|geforce|cuda|rtx|canvas|nsight|omniverse/)
+                (a.name || a.displayName || '').toLowerCase().match(/nvidia|geforce|cuda|rtx|canvas|nsight|omniverse/)
             );
 
             const ai = allDetectedApps.filter((a: any) =>
-                (a.displayName || a.name || '').toLowerCase().match(/ollama|luma|comfy|stable|gpt|kobold|automatic1111/)
+                (a.name || a.displayName || '').toLowerCase().match(/ollama|luma|comfy|stable|gpt|kobold|automatic1111/)
             );
 
             const creative = allDetectedApps.filter((a: any) =>
-                (a.displayName || a.name || '').toLowerCase().match(/gimp|photoshop|blender|substance|marmoset/)
+                (a.name || a.displayName || '').toLowerCase().match(/gimp|photoshop|blender|substance|marmoset/)
             );
 
             const modding = allDetectedApps.filter((a: any) =>
-                (a.displayName || a.name || '').toLowerCase().match(/xedit|fo4edit|creation kit|nifskope|outfit studio|bodyslide|wrye bash|loot|vortex|mod organizer/)
+                (a.name || a.displayName || '').toLowerCase().match(/xedit|fo4edit|creation kit|nifskope|outfit studio|bodyslide|wrye bash|loot|vortex|mod organizer/)
             );
 
             // Build recommendations - prioritize tools that boost Mossy
@@ -2470,7 +2480,9 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                 return dl.supportedFo4Versions.includes(scopedFo4Version);
                             }).map((dl) => {
                                 const alreadyInstalled = allApps && allApps.length > 0 && allApps.some((app: { displayName?: string; name?: string }) => {
-                                    const n = (app.displayName || app.name || '').toLowerCase();
+                                    // name first, not displayName -- see the 2026-09-02 note above
+                                    // (detectPrograms.ts's ancestor-folder-prefixed displayName).
+                                    const n = (app.name || app.displayName || '').toLowerCase();
                                     return dl.detectKeywords.some((kw) => n.includes(kw));
                                 });
                                 const manualPath = manuallyLocated[dl.name];
