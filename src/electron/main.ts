@@ -23160,7 +23160,10 @@ Rules:
       // onto the mesh's existing UVs. Can't undo the model reinterpreting
       // internal proportions, but guarantees the output is the right size to
       // drop straight into the existing texture slot.
-      let finalBuf = outBuf;
+      // Declared as plain Buffer (not narrowed to Buffer<ArrayBuffer> via
+      // inference from outBuf) -- sharp's .toBuffer() returns the wider
+      // Buffer<ArrayBufferLike>, which doesn't satisfy that narrower type.
+      let finalBuf: Buffer;
       if (origWidth && origHeight) {
         finalBuf = await sharp(outBuf).resize(origWidth, origHeight, { fit: 'fill' }).png().toBuffer();
       } else {
