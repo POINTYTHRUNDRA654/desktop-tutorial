@@ -327,14 +327,18 @@ export const ComfyUIExtension: React.FC = () => {
   const launchComfyUI = async () => {
     if (!installPath) { setEditingPath(true); return; }
     const bridge: any = (window as any).electron?.api;
-    if (!bridge?.openProgram) { setStatusMsg('openProgram not available.'); return; }
-    const sep = installPath.includes('/') ? '/' : '\\';
-    const batPath = installPath.replace(/[/\\]+$/, '') + sep + 'run_nvidia_gpu.bat';
+    if (!bridge?.invoke) { setStatusMsg('ComfyUI launch isn\'t available.'); return; }
     setLaunching(true);
     try {
-      await bridge.openProgram(batPath).catch(() => null);
-      setStatusMsg('ComfyUI launch requested — waiting for server…');
-      setTimeout(() => void checkConnection(), 6000);
+      // Delegates to the same main-process restart-and-wait logic AI Image Studio
+      // uses, which auto-detects whether this install is the "portable" ComfyUI
+      // release (run_nvidia_gpu.bat) or the official ComfyUI Desktop app
+      // (ComfyUI.exe, nested resources/ComfyUI backend) instead of assuming
+      // portable and building a run_nvidia_gpu.bat path that may not exist.
+      setStatusMsg('Starting ComfyUI — this can take a little while…');
+      const result = await bridge.invoke('textures:comfyui-restart').catch((err: any) => ({ success: false, error: err?.message }));
+      setStatusMsg(result?.success ? 'ComfyUI is up.' : (result?.error || 'Failed to start ComfyUI.'));
+      await checkConnection();
     } finally {
       setLaunching(false);
     }
@@ -624,7 +628,7 @@ export const ComfyUIExtension: React.FC = () => {
               <Settings className="w-4 h-4 text-pink-400" /> ComfyUI Install Path
             </h3>
             <p className="text-xs text-slate-400 mb-3">
-              Point MOSSY to your ComfyUI folder (containing <code className="bg-slate-900 px-1 rounded">run_nvidia_gpu.bat</code>) to enable one-click launch.
+              Point MOSSY to your ComfyUI install folder — either the portable release (containing <code className="bg-slate-900 px-1 rounded">run_nvidia_gpu.bat</code>) or the official ComfyUI Desktop app's install folder (containing <code className="bg-slate-900 px-1 rounded">ComfyUI.exe</code>) — to enable one-click launch.
             </p>
             <div className="flex gap-2">
               <input

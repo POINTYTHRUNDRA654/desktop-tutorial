@@ -209,7 +209,7 @@ const AIImageStudio: React.FC = () => {
   };
 
   const browseComfyPath = async () => {
-    const picked = await bridge?.pickDirectory?.('Select your ComfyUI install folder (the one containing run_nvidia_gpu.bat)').catch(() => null);
+    const picked = await bridge?.pickDirectory?.('Select your ComfyUI install folder (the portable release folder with run_nvidia_gpu.bat, or the ComfyUI Desktop app\'s install folder with ComfyUI.exe)').catch(() => null);
     if (picked) setComfyPathInput(picked);
   };
 

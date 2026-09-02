@@ -22484,6 +22484,89 @@ Rules:
   // ── ComfyUI AI Image Studio (txt2img + img2img, port 8188) ──────────────────
   const COMFYUI_BASE = 'http://127.0.0.1:8188';
 
+  // ComfyUI ships in two completely different shapes and this integration must
+  // support both:
+  //  - "portable": the ZIP release -- <root>/ComfyUI/main.py, <root>/python_embeded,
+  //    <root>/run_nvidia_gpu.bat.
+  //  - "desktop": the official ComfyUI Desktop app (what Billy actually has) --
+  //    <root>/ComfyUI.exe is just the Electron shell; the real backend lives
+  //    nested at <root>/resources/ComfyUI, there's no run_nvidia_gpu.bat, and
+  //    the Desktop app manages its own Python env via `uv` rather than a
+  //    bundled python_embeded folder. Detect which one `comfyuiPath` (or the
+  //    hardcoded fallback) actually points at instead of assuming portable.
+  type ComfyUiInstall = {
+    layout: 'portable' | 'desktop' | 'unknown';
+    /** Install root -- the folder the user would point a file picker at. */
+    root: string;
+    /** Folder containing main.py, custom_nodes/, models/ -- always use this
+     *  for custom-node/model paths, never re-join 'ComfyUI' onto it. */
+    backendDir: string;
+    /** A python.exe usable for `pip install`, if one could be located. */
+    pythonExe: string | null;
+    /** How to actually start this install, if we found a way to. */
+    launch: { exe: string; args: string[]; cwd: string; isBatch: boolean } | null;
+  };
+
+  const detectComfyUiInstall = (): ComfyUiInstall => {
+    const configured = String(loadSettings()?.comfyuiPath || '').trim();
+    const fallback = 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
+    const root = configured || fallback;
+
+    // Desktop app, pointed at the install root (contains ComfyUI.exe + resources/).
+    const desktopBackendFromRoot = path.join(root, 'resources', 'ComfyUI');
+    if (fs.existsSync(path.join(desktopBackendFromRoot, 'main.py'))) {
+      return buildDesktopComfyInstall(root, desktopBackendFromRoot);
+    }
+    // Desktop app, pointed directly at the nested resources/ComfyUI backend folder.
+    if (fs.existsSync(path.join(root, 'main.py')) && path.basename(root).toLowerCase() === 'comfyui'
+      && fs.existsSync(path.join(root, '..', '..', 'ComfyUI.exe'))) {
+      const installRoot = path.resolve(root, '..', '..');
+      return buildDesktopComfyInstall(installRoot, root);
+    }
+    // Portable release: <root>/ComfyUI/main.py + <root>/python_embeded.
+    if (fs.existsSync(path.join(root, 'ComfyUI', 'main.py'))) {
+      const launcherPath = path.join(root, 'run_nvidia_gpu.bat');
+      return {
+        layout: 'portable',
+        root,
+        backendDir: path.join(root, 'ComfyUI'),
+        pythonExe: fs.existsSync(path.join(root, 'python_embeded', 'python.exe'))
+          ? path.join(root, 'python_embeded', 'python.exe') : null,
+        launch: fs.existsSync(launcherPath) ? { exe: launcherPath, args: [], cwd: root, isBatch: true } : null,
+      };
+    }
+    return { layout: 'unknown', root, backendDir: path.join(root, 'ComfyUI'), pythonExe: null, launch: null };
+  };
+
+  function buildDesktopComfyInstall(installRoot: string, backendDir: string): ComfyUiInstall {
+    const exePath = path.join(installRoot, 'ComfyUI.exe');
+    // The Desktop app doesn't keep its Python env under the install folder --
+    // `uv` provisions it into the app's own data directory after the user
+    // completes ComfyUI Desktop's first-run setup (GPU picker + install step).
+    // Until that's happened there is no venv to find, which is expected, not
+    // a bug -- installComfyUiCustomNode below handles pythonExe being null.
+    let pythonExe: string | null = null;
+    const venvSearchRoots = [
+      installRoot,
+      path.join(os.homedir(), 'AppData', 'Roaming', 'ComfyUI'),
+      path.join(os.homedir(), 'AppData', 'Local', 'ComfyUI'),
+      path.join(os.homedir(), 'Documents', 'ComfyUI'),
+    ];
+    outer: for (const base of venvSearchRoots) {
+      for (const venvName of ['venv', '.venv']) {
+        const candidate = path.join(base, venvName, 'Scripts', 'python.exe');
+        if (fs.existsSync(candidate)) { pythonExe = candidate; break outer; }
+      }
+    }
+    return {
+      layout: 'desktop',
+      root: installRoot,
+      backendDir,
+      pythonExe,
+      launch: fs.existsSync(exePath) ? { exe: exePath, args: [], cwd: installRoot, isBatch: false } : null,
+    };
+  }
+
   function buildComfyTxt2ImgWorkflow(p: {
     model: string; positive: string; negative: string;
     width: number; height: number; steps: number; cfg: number; seed: number;
@@ -22863,7 +22946,7 @@ Rules:
       // as missing just because ComfyUI happens to be offline right now.
       if (nodeInfo?.repo) {
         try {
-          const nodeDir = path.join(getComfyUiRoot(), 'ComfyUI', 'custom_nodes', nodeInfo.repo);
+          const nodeDir = path.join(detectComfyUiInstall().backendDir, 'custom_nodes', nodeInfo.repo);
           if (fs.existsSync(nodeDir)) {
             return { available: true, comfyOffline: true };
           }
@@ -23194,7 +23277,8 @@ Rules:
         (pct) => onProgress(`Downloading ${repo}… ${pct}%`),
       );
 
-      const customNodesDir = path.join(getComfyUiRoot(), 'ComfyUI', 'custom_nodes');
+      const comfyInstall = detectComfyUiInstall();
+      const customNodesDir = path.join(comfyInstall.backendDir, 'custom_nodes');
       const destDir = path.join(customNodesDir, repo);
       onProgress(`Extracting to ${destDir}…`);
       fs.mkdirSync(customNodesDir, { recursive: true });
@@ -23215,8 +23299,8 @@ Rules:
 
       const requirementsPath = path.join(destDir, 'requirements.txt');
       if (fs.existsSync(requirementsPath)) {
-        const pythonExe = path.join(getComfyUiRoot(), 'python_embeded', 'python.exe');
-        if (fs.existsSync(pythonExe)) {
+        const pythonExe = comfyInstall.pythonExe;
+        if (pythonExe && fs.existsSync(pythonExe)) {
           onProgress(`Installing ${repo}'s Python dependencies (this can take a while)…`);
           await new Promise<void>((resolve) => {
             const child = spawn(pythonExe, ['-m', 'pip', 'install', '--no-warn-script-location', '-r', requirementsPath], {
@@ -23227,8 +23311,10 @@ Rules:
             child.on('close', () => resolve());
             child.on('error', () => resolve());
           });
+        } else if (comfyInstall.layout === 'desktop') {
+          onProgress(`⚠️ Couldn't find ComfyUI Desktop's Python environment yet — open ComfyUI Desktop and let it finish first-run setup (pick your GPU and let it install), then try installing ${repo} again. You can also install its requirements.txt manually once it's set up.`);
         } else {
-          onProgress(`⚠️ Couldn't find ComfyUI's embedded Python at ${pythonExe} — install ${repo}'s requirements.txt manually.`);
+          onProgress(`⚠️ Couldn't find ComfyUI's embedded Python at ${comfyInstall.root}\\python_embeded\\python.exe — install ${repo}'s requirements.txt manually.`);
         }
       }
 
@@ -23243,7 +23329,7 @@ Rules:
   async function downloadComfyUiModel(
     url: string, subfolder: string, filename: string, onProgress: (msg: string) => void,
   ): Promise<{ success: boolean; error?: string }> {
-    const destPath = path.join(getComfyUiRoot(), 'ComfyUI', 'models', ...subfolder.split('/'), filename);
+    const destPath = path.join(detectComfyUiInstall().backendDir, 'models', ...subfolder.split('/'), filename);
     if (fs.existsSync(destPath) && fs.statSync(destPath).size > 1024 * 1024) {
       onProgress(`${filename} already present.`);
       return { success: true };
@@ -23294,11 +23380,7 @@ Rules:
   // field to configure it, so this silently pointed at a nonexistent folder on every
   // other machine. ComfyUIExtension.tsx already saves a real, user-configured
   // `comfyuiPath` via setSettings({ comfyuiPath }) — read it here instead.
-  const getComfyUiCheckpointsDir = (): string => {
-    const configured = String(loadSettings()?.comfyuiPath || '').trim();
-    const base = configured || 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
-    return path.join(base, 'ComfyUI', 'models', 'checkpoints');
-  };
+  const getComfyUiCheckpointsDir = (): string => path.join(detectComfyUiInstall().backendDir, 'models', 'checkpoints');
 
   registerHandler('textures:comfyui-download-model', async (event, params: { url: string; filename: string }) => {
     const dest = path.join(getComfyUiCheckpointsDir(), params.filename);
@@ -23402,35 +23484,44 @@ Rules:
     }
   });
 
-  const getComfyUiRoot = (): string => {
-    const configured = String(loadSettings()?.comfyuiPath || '').trim();
-    return configured || 'G:\\New folder (2)\\ComfyUI_windows_portable_nvidia\\ComfyUI_windows_portable';
-  };
-
   /** Extracted from the textures:comfyui-restart handler so post-process:comfyui-install-node
    *  can reuse the exact same restart-and-wait logic after installing a new custom node,
-   *  instead of duplicating it. */
+   *  instead of duplicating it. Supports both the "portable" ZIP release (launched via
+   *  run_nvidia_gpu.bat, a console app whose output we can Tee-Object into a log file) and
+   *  the official ComfyUI Desktop app (launched via ComfyUI.exe, a GUI app that manages its
+   *  own backend process internally -- there's no launcher-script console output to capture). */
   async function comfyuiRestartAndWait(event: Electron.IpcMainInvokeEvent): Promise<{ success: boolean; error?: string }> {
     try {
-      const comfyRoot = getComfyUiRoot();
+      const install = detectComfyUiInstall();
       const isConfigured = !!String(loadSettings()?.comfyuiPath || '').trim();
 
       // Fail fast with a real, actionable error instead of silently spawning a doomed
       // process and burning the full 120s timeout — this was previously indistinguishable
       // from "ComfyUI is just slow to start" and left the user with no idea what was wrong.
-      if (!fs.existsSync(comfyRoot)) {
+      if (!fs.existsSync(install.root)) {
         return {
           success: false,
           error: isConfigured
-            ? `Configured ComfyUI folder doesn't exist: ${comfyRoot}. Check the path in External Integrations Hub → ComfyUI.`
-            : `No ComfyUI folder configured yet (checked the default fallback path: ${comfyRoot}, which doesn't exist on this machine). Set your real ComfyUI install location in External Integrations Hub → ComfyUI.`,
+            ? `Configured ComfyUI folder doesn't exist: ${install.root}. Check the path in External Integrations Hub → ComfyUI.`
+            : `No ComfyUI folder configured yet (checked the default fallback path: ${install.root}, which doesn't exist on this machine). Set your real ComfyUI install location in External Integrations Hub → ComfyUI.`,
         };
       }
-      const launcherPath = path.join(comfyRoot, 'run_nvidia_gpu.bat');
-      if (!fs.existsSync(launcherPath)) {
+      if (!install.launch) {
+        if (install.layout === 'desktop') {
+          return {
+            success: false,
+            error: `Couldn't find ComfyUI.exe in ${install.root}. Make sure the path set in External Integrations Hub → ComfyUI points at your ComfyUI Desktop install folder (the one containing ComfyUI.exe) — or just start ComfyUI Desktop yourself and click refresh here afterward.`,
+          };
+        }
+        if (install.layout === 'portable') {
+          return {
+            success: false,
+            error: `run_nvidia_gpu.bat not found in ${install.root}. If you use a different launcher (run_cpu.bat, a custom venv, etc.), start ComfyUI yourself and just click the refresh button here afterward.`,
+          };
+        }
         return {
           success: false,
-          error: `run_nvidia_gpu.bat not found in ${comfyRoot}. If you use a different launcher (run_cpu.bat, a custom venv, etc.), start ComfyUI yourself and just click the refresh button here afterward.`,
+          error: `${install.root} doesn't look like either a ComfyUI portable release or a ComfyUI Desktop install (no ComfyUI\\main.py or resources\\ComfyUI\\main.py found there). Check the path in External Integrations Hub → ComfyUI, or start ComfyUI yourself and click refresh here afterward.`,
         };
       }
 
@@ -23445,27 +23536,7 @@ Rules:
       // Give OS time to release file handles / port 8188
       await new Promise<void>(r => setTimeout(r, 2500));
 
-      // Spawn ComfyUI in a visible console window, teeing all output to a log
-      // file via PowerShell's Tee-Object. `cmd /K` alone (the previous fix)
-      // doesn't reliably keep the window open — if run_nvidia_gpu.bat itself
-      // calls a bare `exit` anywhere in an error path, that unconditionally
-      // kills the containing shell regardless of /K, so the window can still
-      // flash shut before anyone reads it. Capturing to a log file sidesteps
-      // that entirely: the real failure is readable afterward no matter how
-      // fast the window closes.
       const launchLogPath = path.join(app.getPath('temp'), 'mossy-comfyui-launch.log');
-      try { fs.rmSync(launchLogPath, { force: true }); } catch { /* fine if it didn't exist */ }
-      const escapedLauncher = launcherPath.replace(/'/g, "''");
-      const escapedLog = launchLogPath.replace(/'/g, "''");
-      const psCommand = `& '${escapedLauncher}' 2>&1 | Tee-Object -FilePath '${escapedLog}'`;
-      const child = spawn('cmd.exe', ['/C', 'start', '"ComfyUI"', 'powershell.exe', '-NoProfile', '-Command', psCommand], {
-        cwd: comfyRoot,
-        detached: true,
-        stdio: 'ignore',
-        shell: false,
-      });
-      child.unref();
-
       const readLogTail = (): string => {
         try {
           if (!fs.existsSync(launchLogPath)) return '';
@@ -23473,28 +23544,62 @@ Rules:
           return content.split('\n').filter(l => l.trim()).slice(-20).join('\n').trim();
         } catch { return ''; }
       };
+      try { fs.rmSync(launchLogPath, { force: true }); } catch { /* fine if it didn't exist */ }
 
-      // Early-failure check: a launcher crashing on a missing dependency or bad
-      // path typically fails within a few seconds, not the full 120s timeout —
-      // no reason to make the user wait two minutes to learn that. If the log
-      // already has content and ComfyUI still isn't answering by ~10s in, it's
-      // almost certainly dead rather than just slow to import torch/CUDA.
-      await new Promise<void>(r => setTimeout(r, 10_000));
-      try {
-        const earlyResp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });
-        if (earlyResp.ok) return { success: true };
-      } catch { /* not up yet — keep going, this alone doesn't mean it crashed */ }
-      const earlyLog = readLogTail();
-      if (earlyLog) {
-        return {
-          success: false,
-          error: `ComfyUI's launcher produced output and exited (or is stuck) within 10 seconds — that's almost always a crash, not slow loading. Real output from the launcher:\n\n${earlyLog}`,
-        };
+      if (install.launch.isBatch) {
+        // Portable launcher script: spawn in a visible console window, teeing all
+        // output to a log file via PowerShell's Tee-Object. `cmd /K` alone doesn't
+        // reliably keep the window open — if the .bat calls a bare `exit` anywhere in
+        // an error path, that unconditionally kills the containing shell regardless
+        // of /K, so the window can still flash shut before anyone reads it.
+        // Capturing to a log file sidesteps that entirely: the real failure is
+        // readable afterward no matter how fast the window closes.
+        const escapedLauncher = install.launch.exe.replace(/'/g, "''");
+        const escapedLog = launchLogPath.replace(/'/g, "''");
+        const psCommand = `& '${escapedLauncher}' 2>&1 | Tee-Object -FilePath '${escapedLog}'`;
+        const child = spawn('cmd.exe', ['/C', 'start', '"ComfyUI"', 'powershell.exe', '-NoProfile', '-Command', psCommand], {
+          cwd: install.launch.cwd,
+          detached: true,
+          stdio: 'ignore',
+          shell: false,
+        });
+        child.unref();
+      } else {
+        // ComfyUI Desktop is a GUI app that manages its own backend process
+        // internally — just launch it, there's no launcher-script console output
+        // to capture the way there is for the portable release's .bat file.
+        const child = spawn(install.launch.exe, install.launch.args, {
+          cwd: install.launch.cwd,
+          detached: true,
+          stdio: 'ignore',
+        });
+        child.unref();
       }
 
-      // Poll until port 8188 responds (max 120s total, including the 10s above)
-      const deadline = Date.now() + 110_000;
-      let elapsed = 10;
+      // Early-failure check (portable only — a launcher crashing on a missing
+      // dependency or bad path typically fails within a few seconds, not the full
+      // 120s timeout, and its output lands in launchLogPath via Tee-Object above.
+      // ComfyUI Desktop is a GUI app with no equivalent console output to check, and
+      // can legitimately take longer to show up the very first time it has to finish
+      // installing its own dependencies — so for it we just go straight to polling.)
+      if (install.launch.isBatch) {
+        await new Promise<void>(r => setTimeout(r, 10_000));
+        try {
+          const earlyResp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });
+          if (earlyResp.ok) return { success: true };
+        } catch { /* not up yet — keep going, this alone doesn't mean it crashed */ }
+        const earlyLog = readLogTail();
+        if (earlyLog) {
+          return {
+            success: false,
+            error: `ComfyUI's launcher produced output and exited (or is stuck) within 10 seconds — that's almost always a crash, not slow loading. Real output from the launcher:\n\n${earlyLog}`,
+          };
+        }
+      }
+
+      // Poll until port 8188 responds (max 120s total)
+      const deadline = Date.now() + (install.launch.isBatch ? 110_000 : 120_000);
+      let elapsed = install.launch.isBatch ? 10 : 0;
       while (Date.now() < deadline) {
         await new Promise<void>(r => setTimeout(r, 3000));
         elapsed += 3;
@@ -23507,8 +23612,10 @@ Rules:
       const finalLog = readLogTail();
       return {
         success: false,
-        error: `ComfyUI did not respond within 120 seconds (launched from ${comfyRoot}).` +
-          (finalLog ? ` Real output from the launcher:\n\n${finalLog}` : ' No output was captured — it may still be loading a large model; try again, or check for errors in its console window.'),
+        error: `ComfyUI did not respond within ${elapsed} seconds (launched from ${install.root}).` +
+          (finalLog ? ` Real output from the launcher:\n\n${finalLog}` : install.launch.isBatch
+            ? ' No output was captured — it may still be loading a large model; try again, or check for errors in its console window.'
+            : ' It may still be starting for the first time — ComfyUI Desktop can take several minutes if it needs to finish installing dependencies — check the ComfyUI Desktop window for progress, or start it yourself and click refresh.'),
       };
     } catch (err: any) {
       return { success: false, error: err.message };
