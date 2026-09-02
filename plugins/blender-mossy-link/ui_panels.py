@@ -1808,30 +1808,48 @@ class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
         lod_box.label(text="LOD3 materials cleared — collision candidate", icon='DOT')
 
         # ── Collision Mesh ───────────────────────────────────────────────
+        # This used to be its own "Mark as Collision Mesh" button
+        # (fo4.setup_collision_mesh, from the pre-UCX_ era of this add-on).
+        # That operator just renames the active object to the fixed literal
+        # "Mesh_Collision" -- it never sets the fo4_collision flag, never
+        # sets pynCollisionTarget, and never parents anything -- so
+        # ExportHelpers._find_collision_mesh() (the function every real
+        # export path actually calls to look for collision) can never find
+        # what it produces. It was a dead end: clicking it looked like it
+        # worked (renamed the object, no error) but silently produced a NIF
+        # with no collision at all -- worse than doing nothing, since
+        # nothing here told the user that.
+        #
+        # It was also observed live to crash this panel's draw() on every
+        # redraw (layout.operator("fo4.setup_collision_mesh", ...) returned
+        # None and the trailing ".collision_type = ..." assignment then hit
+        # 'NoneType' object has no attribute 'collision_type'), flooding the
+        # system console and burying real messages -- including NIF export
+        # results -- under repeated tracebacks. The exact reason
+        # layout.operator() returned None wasn't pinned down (the operator
+        # class and its bl_idname both check out fine in source), but since
+        # this whole button was a non-functional dead end regardless, the
+        # fix is to stop exposing it here rather than chase that further.
+        #
+        # There is only one real, working collision system in this add-on
+        # (MeshHelpers.add_collision_mesh / add_custom_collision, driven by
+        # obj.fo4_collision_type + the UCX_ naming convention) -- it already
+        # has its own UI in the Mesh Helpers panel and the Automation & Quick
+        # Tools panel. Rather than keep a second, non-functional entry point
+        # here, this step now just uses that same real system directly.
         layout.separator()
         col_box = layout.box()
-        col_box.label(text="Step 2 — Set Up Collision Mesh", icon='PHYSICS')
-        col_box.label(text="Select LOD3 → mark as Mesh_LOD3_COL", icon='DOT')
+        col_box.label(text="Step 2 — Add Collision", icon='PHYSICS')
+        col_box.label(text="Select LOD3, then generate real collision below", icon='DOT')
         sub = col_box.column(align=True)
         sub.enabled = has_mesh
-        sub.prop(context.scene, "fo4_collision_type_choice", text="Type")
-        # NOTE: fo4_collision_type_choice holds a MeshHelpers.COLLISION_TYPES
-        # value (NONE/DEFAULT/ROCK/TREE/BUILDING/VEGETATION/GRASS/MUSHROOM/
-        # CREATURE) -- it does NOT correspond to FO4_OT_SetupCollisionMesh's
-        # own, unrelated collision_type enum (CONVEX/BOX/RIGIDBODY). Assigning
-        # the former into the latter here previously crashed this panel's
-        # draw() on every redraw (an invalid enum identifier on the returned
-        # OperatorProperties raised inside layout.operator(), which returned
-        # None, so the trailing ".collision_type = ..." then hit
-        # 'NoneType' object has no attribute 'collision_type' -- spamming the
-        # system console on every UI refresh and burying any real messages,
-        # export results included, under a wall of tracebacks). The "Type"
-        # dropdown above is informational only for this legacy button; it is
-        # the modern Mesh Helpers / FO4: LOD + Collision Pipeline generators
-        # (add_collision_mesh / add_custom_collision) that actually consume
-        # fo4_collision_type_choice-style values. Call the operator with its
-        # own default (CONVEX) instead of cross-wiring the two enums.
-        sub.operator("fo4.setup_collision_mesh", text="Mark as Collision Mesh", icon='META_CUBE')
+        if has_mesh:
+            sub.prop(obj, "fo4_collision_type", text="Type")
+        row = sub.row()
+        row.enabled = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
+        row.operator("fo4.generate_collision_mesh", text="Generate Collision", icon='MESH_DATA')
+        row = sub.row()
+        row.operator("fo4.add_custom_collision", text="Custom Collision (Exact Mesh)", icon='OUTLINER_OB_MESH')
 
         # ── pyNIF collision export ───────────────────────────────────────
         layout.separator()
