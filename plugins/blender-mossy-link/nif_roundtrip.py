@@ -443,20 +443,49 @@ def patch_native_collision(exported_path, collision_obj) -> dict:
         # game engine dereferences as a bad index in
         # bhkNPCollisionObject::CreateInstance and CRASHES on load -- this
         # is not just a PyNifly-side issue, it produces a broken NIF.
-        # inspect the live signature rather than hard-coding a version
-        # check so this keeps working whether the installed PyNifly is the
-        # older (no body_id) or newer (requires it) build.
-        import inspect
+        # NOTE: we previously tried to detect whether the installed PyNifly's
+        # add_collision() accepts body_id via inspect.signature(). That is
+        # unreliable here -- add_collision is a pybind11-wrapped native
+        # method, and those routinely report to Python's inspect module as a
+        # bare (*args, **kwargs) signature with no named parameters (or raise
+        # ValueError: "no signature found") regardless of what keyword
+        # arguments the underlying C++ binding actually accepts. That made
+        # the old "body_id" in ...parameters check silently evaluate False
+        # even on a PyNifly build that DOES require body_id, so it was never
+        # passed -- leaving CreateInstance's sentinel default in place and
+        # crashing the game/CK on load exactly as this comment always warned
+        # it would. Determine support empirically instead: try the call WITH
+        # body_id=0 (correct for our single-body shapes=[shape] list) first,
+        # and only drop it if the installed build genuinely rejects the
+        # keyword.
         add_collision_kwargs = {"flags": 0, "collision_type": PynBufferTypes.bhkNPCollisionObjectBufType}
         try:
-            if "body_id" in inspect.signature(exp.root.add_collision).parameters:
-                add_collision_kwargs["body_id"] = 0
-        except (TypeError, ValueError):
-            pass
-        coll_node = exp.root.add_collision(None, **add_collision_kwargs)
+            coll_node = exp.root.add_collision(None, body_id=0, **add_collision_kwargs)
+        except TypeError:
+            coll_node = exp.root.add_collision(None, **add_collision_kwargs)
         _pynifly.bhkPhysicsSystem.New(exp, shapes=[shape], parent=coll_node)
         exp.save()
-        report["restored"].append(f"Havok collision ({shape_type})")
+
+        # Verify the block actually persisted rather than trusting a
+        # non-exception return -- this module's own docstring documents a
+        # real, confirmed case (leaf-shape attachment) where PyNifly created
+        # the blocks in the live DLL model but they silently failed to
+        # survive save()/reload. Reload the file fresh and re-check
+        # root.collision_object so a similarly silent failure at the root
+        # level is reported honestly instead of being counted as success.
+        try:
+            _verify = _load(exported_path)
+            _persisted = _verify.root.collision_object is not None
+        except Exception:
+            _persisted = False
+        if _persisted:
+            report["restored"].append(f"Havok collision ({shape_type})")
+        else:
+            report["could_not_restore"].append(
+                f"Havok collision ({shape_type}) -- wrote without error but did "
+                "not persist on reload; NOT attached, export left without collision"
+            )
+            return report
 
         # bhkPhysicsSystem.New() above has no material parameter at all (see
         # _patch_havok_material's docstring) -- every freshly-built shape
