@@ -22666,17 +22666,52 @@ Rules:
   function buildComfyImg2ImgWorkflow(p: {
     model: string; positive: string; negative: string;
     steps: number; cfg: number; seed: number; denoise: number; uploadedImage: string;
+    // Optional structure-lock: when set, routes the positive/negative
+    // conditioning through a Tile ControlNet before KSampler so the sampler
+    // stays anchored to the source image's existing layout/silhouette instead
+    // of drifting -- this is what actually gives Billy's "UV layout must stay
+    // 100% fixed" requirement real teeth beyond just a low denoise value.
+    // Uses core ComfyUI's own ControlNetLoader/ControlNetApplyAdvanced nodes
+    // (ship with every install, no custom node required) rather than the
+    // separately-installed Advanced-ControlNet package, so this works even on
+    // installs that never added that extension.
+    controlNetName?: string; controlNetStrength?: number;
   }): Record<string, unknown> {
-    return {
+    const workflow: Record<string, unknown> = {
       '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: p.model } },
       '2': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
       '3': { class_type: 'VAEEncode', inputs: { pixels: ['2', 0], vae: ['1', 2] } },
       '4': { class_type: 'CLIPTextEncode', inputs: { clip: ['1', 1], text: p.positive } },
       '5': { class_type: 'CLIPTextEncode', inputs: { clip: ['1', 1], text: p.negative } },
-      '6': { class_type: 'KSampler', inputs: { cfg: p.cfg, denoise: p.denoise, latent_image: ['3', 0], model: ['1', 0], negative: ['5', 0], positive: ['4', 0], sampler_name: 'dpmpp_2m', scheduler: 'karras', seed: p.seed, steps: p.steps } },
       '7': { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
       '8': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy_studio_', images: ['7', 0] } },
     };
+
+    let positiveRef: [string, number] = ['4', 0];
+    let negativeRef: [string, number] = ['5', 0];
+    if (p.controlNetName) {
+      workflow['9'] = { class_type: 'ControlNetLoader', inputs: { control_net_name: p.controlNetName } };
+      workflow['10'] = {
+        class_type: 'ControlNetApplyAdvanced',
+        inputs: {
+          positive: ['4', 0], negative: ['5', 0], control_net: ['9', 0], image: ['2', 0],
+          strength: p.controlNetStrength ?? 0.6, start_percent: 0, end_percent: 1,
+        },
+      };
+      positiveRef = ['10', 0];
+      negativeRef = ['10', 1];
+    }
+
+    workflow['6'] = {
+      class_type: 'KSampler',
+      inputs: {
+        cfg: p.cfg, denoise: p.denoise, latent_image: ['3', 0], model: ['1', 0],
+        negative: negativeRef, positive: positiveRef,
+        sampler_name: 'dpmpp_2m', scheduler: 'karras', seed: p.seed, steps: p.steps,
+      },
+    };
+
+    return workflow;
   }
 
   async function comfyuiRunWorkflow(workflow: Record<string, unknown>): Promise<{ success: boolean; imageData?: string; error?: string }> {
@@ -22756,6 +22791,22 @@ Rules:
       if (!resp.ok) return { success: false, models: [] };
       const info = await resp.json() as any;
       const models: string[] = info?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
+      return { success: true, models };
+    } catch (err: any) {
+      return { success: false, models: [], error: err.message };
+    }
+  });
+
+  // Same live object_info query pattern as textures:comfyui-models above, just
+  // for ControlNetLoader's control_net_name list instead of checkpoints --
+  // added for Texture Enhancer's optional "lock UV layout with ControlNet
+  // Tile" feature (buildComfyImg2ImgWorkflow's controlNetName param below).
+  registerHandler('textures:comfyui-controlnets', async () => {
+    try {
+      const resp = await fetch(`${COMFYUI_BASE}/object_info/ControlNetLoader`, { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) return { success: false, models: [] };
+      const info = await resp.json() as any;
+      const models: string[] = info?.ControlNetLoader?.input?.required?.control_net_name?.[0] ?? [];
       return { success: true, models };
     } catch (err: any) {
       return { success: false, models: [], error: err.message };
@@ -23608,8 +23659,13 @@ Rules:
   // `comfyuiPath` via setSettings({ comfyuiPath }) — read it here instead.
   const getComfyUiCheckpointsDir = (): string => path.join(detectComfyUiInstall().backendDir, 'models', 'checkpoints');
 
-  registerHandler('textures:comfyui-download-model', async (event, params: { url: string; filename: string }) => {
-    const dest = path.join(getComfyUiCheckpointsDir(), params.filename);
+  registerHandler('textures:comfyui-download-model', async (event, params: { url: string; filename: string; subfolder?: string }) => {
+    // subfolder defaults to 'checkpoints' for backwards compatibility with the
+    // original AI Image Studio callers, which never passed one. Texture
+    // Enhancer's ControlNet download (Glowing Sea UV-lock feature) passes
+    // 'controlnet' so the same download machinery can drop a model into any
+    // ComfyUI models/ subfolder rather than duplicating this whole handler.
+    const dest = path.join(detectComfyUiInstall().backendDir, 'models', params.subfolder || 'checkpoints', params.filename);
     const tmp  = dest + '.part';
     try {
       if (fs.existsSync(dest)) {
@@ -32034,6 +32090,8 @@ end.
                 seed: Math.floor(Math.random() * 1_000_000),
                 denoise: pipeline.aiDetail.denoise ?? 0.45,
                 uploadedImage: uploadResult.name,
+                controlNetName: pipeline.aiDetail.useControlNet ? (pipeline.aiDetail.controlNetModel || undefined) : undefined,
+                controlNetStrength: pipeline.aiDetail.controlNetStrength,
               });
               const runResult = await comfyuiRunWorkflow(workflow);
               if (runResult.success && runResult.imageData) {

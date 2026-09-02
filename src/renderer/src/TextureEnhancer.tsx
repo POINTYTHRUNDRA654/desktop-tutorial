@@ -118,6 +118,9 @@ interface AiDetailStage extends PipelineStage {
   promptOverride: string;       // empty = auto-build from the selected Material Surface
   removeBackground: boolean;    // post-step after either backend: transparent cutout via local ComfyUI-RMBG
   bgRemovalModel: string;       // 'BEN2' | 'INSPYRENET' | 'BEN' -- see BG_REMOVAL_MODELS below
+  useControlNet: boolean;       // ComfyUI only -- lock UV layout/silhouette via a Tile ControlNet during generation
+  controlNetModel: string;      // ComfyUI checkpoint name for the ControlNet (as listed by ComfyUI itself)
+  controlNetStrength: number;   // 0-1, how strongly the ControlNet constrains the sampler to the source layout
 }
 
 interface Pipeline {
@@ -421,7 +424,7 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
 const DEFAULT_PIPELINE: Pipeline = {
   // Off by default — opt-in since it requires ComfyUI running and takes real
   // generation time, unlike every classical stage below which is instant.
-  aiDetail:  { enabled: false, backend: 'comfyui', model: '', geminiModel: 'gemini-3.1-flash-image', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '', removeBackground: false, bgRemovalModel: 'BEN2' },
+  aiDetail:  { enabled: false, backend: 'comfyui', model: '', geminiModel: 'gemini-3.1-flash-image', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '', removeBackground: false, bgRemovalModel: 'BEN2', useControlNet: false, controlNetModel: '', controlNetStrength: 0.6 },
   albedo:    { enabled: true,  deLighting: true, deLight_strength: 0.5, detailBoost: 1.0, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
   normal:    { enabled: true,  method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
   roughness: { enabled: true,  base: 0.7, luminanceInfluence: 0.5, variation: 0.15, invert: false },
@@ -651,6 +654,27 @@ const BG_REMOVAL_MODELS: { id: string; label: string }[] = [
   { id: 'BEN', label: 'BEN' },
 ];
 
+// Recommended one-click downloads for the ComfyUI backend, added so "no
+// checkpoints found" isn't a dead end -- both license-verified directly
+// against their real HuggingFace model cards (2026-09-02) before being
+// wired in, same standard as every other auto-download in this app.
+const RECOMMENDED_TEXTURE_CHECKPOINT = {
+  filename: 'RealVisXL_V5.0_fp16.safetensors',
+  url: 'https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors',
+  sizeMB: 6940,
+  label: 'RealVisXL V5.0 (recommended)',
+  license: 'OpenRAIL++ — Free',
+  note: 'Strong photoreal SDXL base -- fine organic/biological surface detail (grain, decay, moss, pores) for restyles like the Glowing Sea set.',
+};
+const RECOMMENDED_TILE_CONTROLNET = {
+  filename: 'controlnet-tile-sdxl-1.0.safetensors',
+  url: 'https://huggingface.co/xinsir/controlnet-tile-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors',
+  sizeMB: 2500,
+  label: 'SDXL Tile ControlNet (recommended)',
+  license: 'Apache-2.0 — Free',
+  note: "Built specifically for \"keep the same structure, change the surface\" work -- this is what actually locks the UV layout/silhouette during generation instead of relying on denoise strength alone.",
+};
+
 export default function TextureEnhancer() {
   // ── Input state ──────────────────────────────────────────────────────────
   const [mode, setMode] = useState<'single' | 'batch'>('single');
@@ -667,26 +691,82 @@ export default function TextureEnhancer() {
   // ── AI Detail Synthesis (ComfyUI) ────────────────────────────────────────
   const [comfyStatus, setComfyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [comfyModels, setComfyModels] = useState<string[]>([]);
+  const [comfyControlNets, setComfyControlNets] = useState<string[]>([]);
+
+  const refreshComfyModels = useCallback(async () => {
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    if (!api?.invoke) { setComfyStatus('offline'); return; }
+    try {
+      const status = await api.invoke('textures:comfyui-status');
+      if (!status?.online) { setComfyStatus('offline'); return; }
+      setComfyStatus('online');
+      const [modelsResp, controlNetsResp] = await Promise.all([
+        api.invoke('textures:comfyui-models'),
+        api.invoke('textures:comfyui-controlnets').catch(() => null),
+      ]);
+      const models: string[] = modelsResp?.success ? (modelsResp.models ?? []) : [];
+      setComfyModels(models);
+      if (models.length > 0) {
+        setPipeline(prev => prev.aiDetail.model ? prev : { ...prev, aiDetail: { ...prev.aiDetail, model: models[0] } });
+      }
+      const controlNets: string[] = controlNetsResp?.success ? (controlNetsResp.models ?? []) : [];
+      setComfyControlNets(controlNets);
+      if (controlNets.length > 0) {
+        setPipeline(prev => prev.aiDetail.controlNetModel ? prev : { ...prev, aiDetail: { ...prev.aiDetail, controlNetModel: controlNets[0] } });
+      }
+    } catch {
+      setComfyStatus('offline');
+    }
+  }, []);
+
+  useEffect(() => { void refreshComfyModels(); }, [refreshComfyModels]);
+
+  // One-click downloads for the ComfyUI backend (recommended checkpoint +
+  // Tile ControlNet) -- same textures:comfyui-download-model handler and
+  // progress-event pattern already used by AI Image Studio's model library,
+  // just reused here so "no checkpoints found" isn't a dead end.
+  type DlState = 'idle' | 'downloading' | 'restarting' | 'done' | 'error';
+  const [checkpointDl, setCheckpointDl] = useState<DlState>('idle');
+  const [checkpointDlError, setCheckpointDlError] = useState('');
+  const [controlNetDl, setControlNetDl] = useState<DlState>('idle');
+  const [controlNetDlError, setControlNetDlError] = useState('');
+  const [dlProgress, setDlProgress] = useState<Record<string, { percent: number; received: number; total: number }>>({});
 
   useEffect(() => {
     const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    if (!api?.invoke) { setComfyStatus('offline'); return; }
-    (async () => {
-      try {
-        const status = await api.invoke('textures:comfyui-status');
-        if (!status?.online) { setComfyStatus('offline'); return; }
-        setComfyStatus('online');
-        const modelsResp = await api.invoke('textures:comfyui-models');
-        const models: string[] = modelsResp?.success ? (modelsResp.models ?? []) : [];
-        setComfyModels(models);
-        if (models.length > 0) {
-          setPipeline(prev => prev.aiDetail.model ? prev : { ...prev, aiDetail: { ...prev.aiDetail, model: models[0] } });
-        }
-      } catch {
-        setComfyStatus('offline');
-      }
-    })();
+    if (!api?.on) return;
+    const off = api.on('textures:download-progress', (data: { filename: string; percent: number; received: number; total: number }) => {
+      setDlProgress(prev => ({ ...prev, [data.filename]: { percent: data.percent, received: data.received, total: data.total } }));
+    });
+    return () => { off?.(); };
   }, []);
+
+  const downloadRecommendedModel = async (
+    model: { filename: string; url: string },
+    subfolder: 'checkpoints' | 'controlnet',
+    setState: (s: DlState) => void,
+    setErr: (s: string) => void,
+  ) => {
+    const api = (window as any).electron?.api ?? (window as any).electronAPI;
+    setState('downloading');
+    setErr('');
+    setDlProgress(prev => ({ ...prev, [model.filename]: { percent: 0, received: 0, total: 0 } }));
+    try {
+      const r = await api.invoke('textures:comfyui-download-model', { url: model.url, filename: model.filename, subfolder });
+      if (!r?.success) { setState('error'); setErr(r?.error || 'Download failed'); return; }
+      setState('restarting');
+      const restart = await api.invoke('textures:comfyui-restart');
+      setState('done');
+      if (!restart?.success) setErr('Downloaded. Start ComfyUI manually to load it.');
+      await refreshComfyModels();
+    } catch (e: any) {
+      setState('error');
+      setErr(e?.message || 'Download failed');
+    }
+  };
+
+  const downloadCheckpoint = () => downloadRecommendedModel(RECOMMENDED_TEXTURE_CHECKPOINT, 'checkpoints', setCheckpointDl, setCheckpointDlError);
+  const downloadControlNet = () => downloadRecommendedModel(RECOMMENDED_TILE_CONTROLNET, 'controlnet', setControlNetDl, setControlNetDlError);
 
   // ── AI Detail Synthesis (Gemini / "Nano Banana") ────────────
   const [geminiKeyConfigured, setGeminiKeyConfigured] = useState(false);
@@ -1121,10 +1201,65 @@ export default function TextureEnhancer() {
                         {comfyModels.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
+                    {comfyStatus === 'online' && comfyModels.length === 0 && (
+                      <div className="bg-slate-900/60 border border-slate-700 rounded p-2 space-y-1">
+                        <p className="text-xs text-amber-300/90">No checkpoint installed — this backend can't generate anything yet.</p>
+                        <p className="text-xs text-slate-500">{RECOMMENDED_TEXTURE_CHECKPOINT.note} ({RECOMMENDED_TEXTURE_CHECKPOINT.license})</p>
+                        {checkpointDl === 'idle' || checkpointDl === 'error' ? (
+                          <button onClick={downloadCheckpoint}
+                            className="px-2 py-1 rounded text-xs bg-purple-600 hover:bg-purple-500 text-white">
+                            Download {RECOMMENDED_TEXTURE_CHECKPOINT.label} ({(RECOMMENDED_TEXTURE_CHECKPOINT.sizeMB / 1024).toFixed(1)} GB)
+                          </button>
+                        ) : checkpointDl === 'downloading' ? (
+                          <p className="text-xs text-slate-400">Downloading… {dlProgress[RECOMMENDED_TEXTURE_CHECKPOINT.filename]?.percent ?? 0}%</p>
+                        ) : checkpointDl === 'restarting' ? (
+                          <p className="text-xs text-slate-400">Restarting ComfyUI to load it…</p>
+                        ) : (
+                          <p className="text-xs text-green-400/80">Installed.</p>
+                        )}
+                        {checkpointDlError && <p className="text-xs text-red-300/80">{checkpointDlError}</p>}
+                      </div>
+                    )}
                     <Slider label="Denoise (new detail)" value={pipeline.aiDetail.denoise} min={0.1} max={0.85} step={0.01} onChange={v => updateStage('aiDetail', { denoise: v })} />
                     <p className="text-xs text-slate-600 -mt-1">Higher = more new detail generated, but less faithful to the original. 0.3–0.5 keeps shape/color; 0.5–0.7 repaints heavily.</p>
                     <Slider label="Steps" value={pipeline.aiDetail.steps} min={10} max={60} step={1} onChange={v => updateStage('aiDetail', { steps: v })} />
                     <Slider label="CFG" value={pipeline.aiDetail.cfg} min={1} max={15} step={0.5} onChange={v => updateStage('aiDetail', { cfg: v })} />
+                    <div className="pt-1 border-t border-slate-700/60 space-y-1.5">
+                      <ToggleRow label="Lock UV layout with ControlNet Tile" checked={pipeline.aiDetail.useControlNet} onChange={v => updateStage('aiDetail', { useControlNet: v })} />
+                      {pipeline.aiDetail.useControlNet && (
+                        comfyControlNets.length === 0 ? (
+                          <div className="bg-slate-900/60 border border-slate-700 rounded p-2 space-y-1">
+                            <p className="text-xs text-amber-300/90">No ControlNet installed yet.</p>
+                            <p className="text-xs text-slate-500">{RECOMMENDED_TILE_CONTROLNET.note} ({RECOMMENDED_TILE_CONTROLNET.license})</p>
+                            {controlNetDl === 'idle' || controlNetDl === 'error' ? (
+                              <button onClick={downloadControlNet}
+                                className="px-2 py-1 rounded text-xs bg-purple-600 hover:bg-purple-500 text-white">
+                                Download {RECOMMENDED_TILE_CONTROLNET.label} ({(RECOMMENDED_TILE_CONTROLNET.sizeMB / 1024).toFixed(1)} GB)
+                              </button>
+                            ) : controlNetDl === 'downloading' ? (
+                              <p className="text-xs text-slate-400">Downloading… {dlProgress[RECOMMENDED_TILE_CONTROLNET.filename]?.percent ?? 0}%</p>
+                            ) : controlNetDl === 'restarting' ? (
+                              <p className="text-xs text-slate-400">Restarting ComfyUI to load it…</p>
+                            ) : (
+                              <p className="text-xs text-green-400/80">Installed.</p>
+                            )}
+                            {controlNetDlError && <p className="text-xs text-red-300/80">{controlNetDlError}</p>}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-400 w-36">ControlNet model</span>
+                              <select value={pipeline.aiDetail.controlNetModel} onChange={e => updateStage('aiDetail', { controlNetModel: e.target.value })}
+                                className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500">
+                                {comfyControlNets.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
+                            <Slider label="ControlNet strength" value={pipeline.aiDetail.controlNetStrength} min={0.1} max={1} step={0.05} onChange={v => updateStage('aiDetail', { controlNetStrength: v })} />
+                            <p className="text-xs text-slate-600 -mt-1">Higher = the source layout is enforced more strictly (less drift, but less new detail can come through). 0.5–0.7 is a good starting point for keeping UV islands intact.</p>
+                          </>
+                        )
+                      )}
+                    </div>
                     <div className="space-y-1">
                       <span className="text-xs text-slate-400">Prompt override (optional)</span>
                       <textarea
