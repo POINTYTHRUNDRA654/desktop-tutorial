@@ -308,13 +308,17 @@ const ExternalToolsHub: React.FC = () => {
   }, []);
   useEffect(() => { sessionStorage.setItem('ext_hub_tab', activeTab); }, [activeTab]);
 
-  // Ping ComfyUI port 8188
+  // Ping ComfyUI port 8188. Routed through the main process (see
+  // textures:comfyui-status in main.ts) rather than fetch()ing it directly
+  // from the renderer -- newer ComfyUI builds run an origin-check middleware
+  // that 403s a renderer fetch() (it carries Sec-Fetch-Site/Origin headers a
+  // main-process fetch doesn't), which is why this used to always read as
+  // offline even while ComfyUI was actually running and reachable.
   const pingComfyUI = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch('http://127.0.0.1:8188/system_stats', {
-        signal: AbortSignal.timeout(1500),
-      }).catch(() => null);
-      const online = res?.ok === true;
+      const bridge: any = (window as any).electron?.api || (window as any).electronAPI;
+      const res = await bridge?.invoke?.('textures:comfyui-status').catch(() => null);
+      const online = res?.online === true;
       setComfyOnline(online);
       return online;
     } catch {
