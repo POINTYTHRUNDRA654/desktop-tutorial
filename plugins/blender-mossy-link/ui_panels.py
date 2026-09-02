@@ -1815,7 +1815,23 @@ class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
         sub = col_box.column(align=True)
         sub.enabled = has_mesh
         sub.prop(context.scene, "fo4_collision_type_choice", text="Type")
-        sub.operator("fo4.setup_collision_mesh", text="Mark as Collision Mesh", icon='META_CUBE').collision_type = context.scene.fo4_collision_type_choice
+        # NOTE: fo4_collision_type_choice holds a MeshHelpers.COLLISION_TYPES
+        # value (NONE/DEFAULT/ROCK/TREE/BUILDING/VEGETATION/GRASS/MUSHROOM/
+        # CREATURE) -- it does NOT correspond to FO4_OT_SetupCollisionMesh's
+        # own, unrelated collision_type enum (CONVEX/BOX/RIGIDBODY). Assigning
+        # the former into the latter here previously crashed this panel's
+        # draw() on every redraw (an invalid enum identifier on the returned
+        # OperatorProperties raised inside layout.operator(), which returned
+        # None, so the trailing ".collision_type = ..." then hit
+        # 'NoneType' object has no attribute 'collision_type' -- spamming the
+        # system console on every UI refresh and burying any real messages,
+        # export results included, under a wall of tracebacks). The "Type"
+        # dropdown above is informational only for this legacy button; it is
+        # the modern Mesh Helpers / FO4: LOD + Collision Pipeline generators
+        # (add_collision_mesh / add_custom_collision) that actually consume
+        # fo4_collision_type_choice-style values. Call the operator with its
+        # own default (CONVEX) instead of cross-wiring the two enums.
+        sub.operator("fo4.setup_collision_mesh", text="Mark as Collision Mesh", icon='META_CUBE')
 
         # ── pyNIF collision export ───────────────────────────────────────
         layout.separator()
