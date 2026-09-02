@@ -1,0 +1,8 @@
+{
+  "_comment": [
+    "Hydra ScriptObject binding disabled — scripts are bound via CK quest aliases instead.",
+    "Scripts extend ReferenceAlias and cannot be attached to PlayerREF (an ObjectReference).",
+    "All F4AI monitor scripts are attached to PlayerAlias on F4AI_MainQuest in the ESP."
+  ],
+  "objects": []
+}

@@ -1,0 +1,68 @@
+F4AI_MiscUtil — Build Instructions
+====================================
+This plugin replaces the PapyrusUtil/Papyrus Common Library dependency
+with a self-contained MiscUtil.dll that works on Fallout 4 AE (F4SE 0.7.x).
+
+
+WHAT YOU NEED
+-------------
+1. Visual Studio 2022 (Community is free)
+   - Workload: "Desktop development with C++"
+   - Make sure "MSVC v143" and "Windows 10/11 SDK" are ticked
+
+2. CMake 3.21+  (bundled with VS2022, or grab from cmake.org)
+
+3. F4SE SOURCE code (NOT the runtime installer)
+   - Go to https://f4se.silverlock.org
+   - Download the SOURCE archive: f4se_0_07_XX_src.7z  (use the newest 0.7.x)
+   - Extract it somewhere, e.g. C:\dev\f4se_src
+
+
+BUILD STEPS
+-----------
+Open "Developer Command Prompt for VS 2022" (search Start menu), then:
+
+  cd "D:\Projects\Fallout-4-advanced-AI\f4se_plugin"
+  mkdir build && cd build
+  cmake .. -DF4SE_SOURCE_DIR="C:\dev\f4se_src" -A x64
+  cmake --build . --config Release
+
+This produces:
+  build\Release\F4AI_MiscUtil.dll
+
+
+INSTALL
+-------
+Copy  build\Release\F4AI_MiscUtil.dll
+  to  <Fallout 4 root>\Data\F4SE\Plugins\F4AI_MiscUtil.dll
+
+If using MO2, drop the DLL into a new mod with the path:
+  Data\F4SE\Plugins\F4AI_MiscUtil.dll
+
+
+VERIFY IT LOADED
+----------------
+Launch Fallout 4 via F4SE. Open the Papyrus log at:
+  %USERPROFILE%\Documents\My Games\Fallout4\Logs\Script\Papyrus.0.log
+
+You should see NO MORE errors like:
+  "Unable to obtain function call information" in F4AI_PushToTalkTrigger
+
+And the AI dialogue bridge should start responding when you press Left Alt
+(or controller A button) near an NPC.
+
+
+TROUBLESHOOTING
+---------------
+- "Cannot open include file: 'f4se/PluginAPI.h'"
+  → F4SE_SOURCE_DIR path is wrong. Check it points to the folder that
+    CONTAINS the "f4se" subfolder (not the "f4se" folder itself).
+
+- DLL loads but functions still not found
+  → Make sure you rebuilt the Papyrus scripts (.pex files) with the
+    MiscUtil.psc stub in papyrus/stubs/ — the stub tells the compiler
+    the functions exist; this DLL provides the actual runtime implementation.
+    The existing stub in the repo is already correct, no changes needed.
+
+- Game crashes on startup
+  → Likely a 32-bit vs 64-bit mismatch. Confirm cmake was run with -A x64.

@@ -1,0 +1,293 @@
+Scriptname F4AI:F4AI_CombatMonitor extends ReferenceAlias
+; Timer uses Utility.Wait loop with generation counter (RegisterForUpdate not on ReferenceAlias in FO4)
+; Bound to PlayerRef via Data/Hydra/ScriptObjects/F4AI_Monitors.json
+; No CK quest attachment needed — Hydra Script Object Runner handles binding.
+;
+; Responsibilities:
+;   - Detect NPC combat start/end events within scan radius
+;   - Track health thresholds and send combat state to Mossy bridge
+;   - Receive directives back: take_cover, flee, change_tactic, regroup
+;   - Persist learned combat patterns in Hydra:SaveMap
+;   - Use Hydra:TempMap for active in-combat state (fast, non-persistent)
+;   - Use Hydra:Mutex to prevent concurrent bridge writes
+
+String Property CombatInputPath  = "Data/F4AI/combat_event.json"    Auto Const
+String Property CombatOutputPath = "Data/F4AI/combat_directive.json" Auto Const
+Float  Property ScanRadius        = 3000.0 Auto   ; ~55 in-game meters
+Float  Property ScanInterval      = 2.0    Auto   ; seconds between scans
+Float  Property FleeHealthDefault = 0.25   Auto   ; flee below 25% HP by default
+Bool   Property EnableCombatAI    = true   Auto
+Int    Property _loopGen          = 0      Auto Hidden  ; incremented each InitMonitor to kill stale loops
+
+; ── Lifecycle ────────────────────────────────────────────────────────────────
+
+Event OnInit()
+    InitMonitor()
+EndEvent
+
+Event OnPlayerLoadGame()
+    InitMonitor()
+EndEvent
+
+Function InitMonitor()
+    _loopGen += 1
+    Int myGen = _loopGen
+    if (EnableCombatAI)
+        MonitorLoop(myGen)
+    endif
+EndFunction
+
+Function MonitorLoop(Int myGen)
+    While (myGen == _loopGen)
+        if (EnableCombatAI)
+            ScanCombatants()
+        endif
+        Utility.Wait(ScanInterval)
+    EndWhile
+EndFunction
+
+; ── Combat Scan ───────────────────────────────────────────────────────────────
+
+Function ScanCombatants()
+    Actor player = Game.GetPlayer()
+    Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
+    ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
+    if (refs == None)
+        return
+    endif
+
+    Int i = 0
+    While (i < refs.Length)
+        Actor npc = refs[i] as Actor
+        if (npc != None && !npc.IsDead() && npc != player)
+            if (npc.IsInCombat())
+                ProcessCombatant(npc)
+            else
+                String npcID = GetNPCID(npc)
+                if (Hydra:TempMap.GetValue("F4AI_T", "cmbt_active_" + npcID) as Bool)
+                    OnCombatEnd(npc, npcID)
+                endif
+            endif
+        endif
+        i += 1
+    EndWhile
+
+    if (MiscUtil.FileExists(CombatOutputPath))
+        ProcessCombatDirective()
+    endif
+EndFunction
+
+Function ProcessCombatant(Actor npc)
+    String npcID   = GetNPCID(npc)
+    String npcName = npc.GetActorBase().GetName()
+    Bool wasActive = Hydra:TempMap.GetValue("F4AI_T", "cmbt_active_" + npcID) as Bool
+
+    if (!wasActive)
+        Bool bTrue = true
+        Hydra:TempMap.SetValue("F4AI_T", "cmbt_active_" + npcID, bTrue as Var)
+        OnCombatStart(npc, npcID, npcName)
+    endif
+
+    Float currentHP = npc.GetValue(Game.GetForm(0x000002D4) as ActorValue)
+    Float maxHP     = npc.GetBaseValue(Game.GetForm(0x000002D4) as ActorValue)
+    if (maxHP <= 0.0)
+        return
+    endif
+    Float hpPct = currentHP / maxHP
+
+    Float fleeThreshold = Hydra:SaveMap.GetValue("F4AI_S", "cmbt_flee_" + npcID) as Float
+    if (fleeThreshold == 0.0)
+        fleeThreshold = FleeHealthDefault
+    endif
+
+    Float lastReportedHP = Hydra:TempMap.GetValue("F4AI_T", "cmbt_lasthp_" + npcID) as Float
+    if (Math.Abs(hpPct - lastReportedHP) >= 0.1)
+        Hydra:TempMap.SetValue("F4AI_T", "cmbt_lasthp_" + npcID, hpPct as Var)
+        SendCombatEvent(npc, npcID, npcName, hpPct, fleeThreshold, "update")
+    endif
+EndFunction
+
+Function OnCombatStart(Actor npc, String npcID, String npcName)
+    Float fleeThreshold = Hydra:SaveMap.GetValue("F4AI_S", "cmbt_flee_" + npcID) as Float
+    if (fleeThreshold == 0.0)
+        fleeThreshold = FleeHealthDefault
+    endif
+    Bool prefersCover = Hydra:SaveMap.GetValue("F4AI_S", "cmbt_cover_" + npcID) as Bool
+    SendCombatEvent(npc, npcID, npcName, 1.0, fleeThreshold, "start")
+    Debug.Trace("[F4AI_Combat] " + npcName + " entered combat (cover=" + prefersCover + ")")
+EndFunction
+
+Function OnCombatEnd(Actor npc, String npcID)
+    Bool bFalse = false
+    Float fZero = 0.0
+    Hydra:TempMap.SetValue("F4AI_T", "cmbt_active_" + npcID, bFalse as Var)
+    Hydra:TempMap.SetValue("F4AI_T", "cmbt_lasthp_" + npcID, fZero as Var)
+    String npcName = npc.GetActorBase().GetName()
+    SendCombatEvent(npc, npcID, npcName, -1.0, 0.0, "end")
+    Debug.Trace("[F4AI_Combat] " + npcName + " left combat")
+EndFunction
+
+; ── Bridge I/O ────────────────────────────────────────────────────────────────
+
+Function SendCombatEvent(Actor npc, String npcID, String npcName, Float hpPct, Float fleeThr, String eventType)
+    Actor target = npc.GetCombatTarget() as Actor
+    String targetName = ""
+    if (target != None)
+        targetName = target.GetActorBase().GetName()
+    endif
+
+    String raceTag = GetRaceTag(npc)
+    String locName = npc.GetCurrentLocation().GetName()
+    if (locName == "")
+        locName = "The Commonwealth"
+    endif
+
+    Bool prefersCover = Hydra:SaveMap.GetValue("F4AI_S", "cmbt_cover_" + npcID) as Bool
+
+    String json = "{"
+    json += "\"event_type\": \"combat\","
+    json += "\"combat_event\": \"" + eventType + "\","
+    json += "\"npc_id\": \"" + npcID + "\","
+    json += "\"npc_name\": \"" + npcName + "\","
+    json += "\"npc_race\": \"" + raceTag + "\","
+    json += "\"location\": \"" + locName + "\","
+    json += "\"hp_pct\": " + hpPct + ","
+    json += "\"flee_threshold\": " + fleeThr + ","
+    json += "\"prefers_cover\": " + BoolToStr(prefersCover) + ","
+    json += "\"target\": \"" + targetName + "\""
+    json += "}"
+
+    Hydra:Mutex.LockGlobal("F4AI", "Bridge")
+    MiscUtil.WriteToFile(CombatInputPath, json, false)
+    Hydra:Mutex.UnlockGlobal("F4AI", "Bridge")
+EndFunction
+
+Function ProcessCombatDirective()
+    ; Use Hydra:IO:Json to cache the directive file, read fields via Hydra:MemMap,
+    ; then uncache and delete (file path becomes the MemMap namespace)
+    Hydra:IO:Json.Cache_TempMap(CombatOutputPath)
+    String npcID         = Hydra:MemMap.GetValue(CombatOutputPath, "/npc_id") as String
+    String directive     = Hydra:MemMap.GetValue(CombatOutputPath, "/directive") as String
+    Float  learnedFlee   = Hydra:MemMap.GetValue(CombatOutputPath, "/learned_flee_threshold") as Float
+    Bool   learnCover    = Hydra:MemMap.GetValue(CombatOutputPath, "/prefers_cover") as Bool
+    String newTargetName = Hydra:MemMap.GetValue(CombatOutputPath, "/new_target") as String
+    Hydra:IO:Json.Uncache_TempMap(CombatOutputPath)
+    MiscUtil.DeleteFile(CombatOutputPath)
+
+    if (learnedFlee > 0.0)
+        Hydra:SaveMap.SetValue("F4AI_S", "cmbt_flee_" + npcID, learnedFlee as Var)
+    endif
+    Hydra:SaveMap.SetValue("F4AI_S", "cmbt_cover_" + npcID, learnCover as Var)
+
+    Actor npc = FindNPCByID(npcID)
+    if (npc == None || npc.IsDead())
+        return
+    endif
+
+    if (directive == "flee")
+        ExecuteFlee(npc)
+    elseif (directive == "take_cover")
+        ExecuteTakeCover(npc)
+    elseif (directive == "regroup")
+        ExecuteRegroup(npc)
+    elseif (directive == "change_target")
+        ExecuteChangeTarget(npc, newTargetName)
+    endif
+
+    Debug.Trace("[F4AI_Combat] Directive '" + directive + "' applied to " + npcID)
+EndFunction
+
+; ── Directive Executors ───────────────────────────────────────────────────────
+
+Function ExecuteFlee(Actor npc)
+    ; FleeFrom() doesn't exist in FO4 Papyrus — stop combat and let sandbox package take over
+    npc.StopCombat()
+    npc.SetAlert(false)
+    npc.EvaluatePackage()
+EndFunction
+
+Function ExecuteTakeCover(Actor npc)
+    npc.SetAlert(true)
+    npc.EvaluatePackage()
+EndFunction
+
+Function ExecuteRegroup(Actor npc)
+    npc.StopCombatAlarm()
+    Utility.Wait(0.5)
+    npc.StartCombat(npc.GetCombatTarget() as Actor)
+EndFunction
+
+Function ExecuteChangeTarget(Actor npc, String targetName)
+    Actor player = Game.GetPlayer()
+    Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
+    ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
+    if (refs == None)
+        return
+    endif
+    Int i = 0
+    While (i < refs.Length)
+        Actor candidate = refs[i] as Actor
+        if (candidate != None && !candidate.IsDead())
+            if (candidate.GetActorBase().GetName() == targetName)
+                npc.StartCombat(candidate)
+                return
+            endif
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+; ── Helpers ───────────────────────────────────────────────────────────────────
+
+String Function GetNPCID(Actor npc)
+    return npc.GetActorBase().GetFormID() as String
+EndFunction
+
+Actor Function FindNPCByID(String npcID)
+    Actor player = Game.GetPlayer()
+    Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
+    if (kActorTypeNPC == None)
+        return None
+    endif
+    ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
+    if (refs == None)
+        return None
+    endif
+    Int targetFormID = npcID as Int
+    Int i = 0
+    While (i < refs.Length)
+        Actor candidate = refs[i] as Actor
+        if (candidate != None)
+            if (candidate.GetActorBase().GetFormID() == targetFormID)
+                return candidate
+            endif
+        endif
+        i += 1
+    EndWhile
+    return None
+EndFunction
+
+String Function GetRaceTag(Actor npc)
+    Race npcRace = npc.GetRace()
+    if (npcRace == Game.GetForm(0x0001D4B5) as Race)
+        return "Super Mutant"
+    elseif (npcRace == Game.GetForm(0x000EAFDF) as Race)
+        return "Ghoul"
+    elseif (npcRace == Game.GetForm(0x0002C4C6) as Race)
+        return "Synth"
+    elseif (npcRace == Game.GetForm(0x000F81ED) as Race)
+        return "Deathclaw"
+    elseif (npcRace == Game.GetForm(0x000B2BF2) as Race)
+        return "Mirelurk"
+    elseif (npcRace == Game.GetForm(0x0017B2A0) as Race)
+        return "Radscorpion"
+    endif
+    return ""
+EndFunction
+
+String Function BoolToStr(Bool b)
+    if (b)
+        return "true"
+    endif
+    return "false"
+EndFunction

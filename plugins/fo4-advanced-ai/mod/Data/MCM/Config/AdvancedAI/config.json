@@ -1,0 +1,274 @@
+{
+  "modName": "Advanced AI System",
+  "displayName": "Advanced AI",
+  "minMCMVersion": 11,
+  "pluginRequirements": [
+    {
+      "name": "Fallout 4 Advanced AI - Mossy Industries.esp",
+      "file": "Fallout 4 Advanced AI - Mossy Industries.esp",
+      "label": "Fallout 4 Advanced AI - Mossy Industries",
+      "url": "https://www.nexusmods.com/fallout4"
+    }
+  ],
+  "pages": [
+    {
+      "pageDisplayName": "Main",
+      "content": [
+        {
+          "type": "section",
+          "text": "Advanced AI System v1.0.0"
+        },
+        {
+          "type": "toggle",
+          "text": "Enable Advanced AI",
+          "help": "Master toggle for the entire system. Disable if you experience issues.",
+          "groupControl": 1,
+          "id": "AAI_Enabled",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gEnabled"
+          }
+        },
+        {
+          "type": "section",
+          "text": "AI Modules",
+          "groupBehavior": { "groupControl": 1, "groupValues": [true] }
+        },
+        {
+          "type": "toggle",
+          "text": "Enhanced Creature AI",
+          "help": "Pack behavior, ambush system, enrage states for all creatures.",
+          "id": "AAI_CreatureAI",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gCreatureAI"
+          }
+        },
+        {
+          "type": "toggle",
+          "text": "Enhanced Humanoid NPC AI",
+          "help": "Squad tactics, morale system, leader/medic roles.",
+          "id": "AAI_NPCAI",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gNPCAI"
+          }
+        },
+        {
+          "type": "toggle",
+          "text": "Companion Memory System",
+          "help": "Companions remember your actions and conversations across sessions.",
+          "id": "AAI_CompanionAI",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gCompanionAI"
+          }
+        },
+        {
+          "type": "toggle",
+          "text": "Enhanced Robot/Synth AI",
+          "help": "Laser charges, self-repair, alarm networks, Courser protocols.",
+          "id": "AAI_RobotAI",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gRobotAI"
+          }
+        },
+        {
+          "type": "section",
+          "text": "Systems"
+        },
+        {
+          "type": "toggle",
+          "text": "Group Tactics",
+          "help": "NPCs coordinate attacks, call backup, and follow leaders.",
+          "id": "AAI_GroupTactics",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gGroupTactics"
+          }
+        },
+        {
+          "type": "toggle",
+          "text": "Dynamic Difficulty",
+          "help": "Scales enemy HP to match your level. Keeps fights challenging.",
+          "id": "AAI_DynDiff",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gDynDiff"
+          }
+        },
+        {
+          "type": "toggle",
+          "text": "Detection Overhaul",
+          "help": "Enhanced sight/hearing ranges. Makes stealth more realistic.",
+          "id": "AAI_Detection",
+          "valueOptions": {
+            "default": true,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gDetection"
+          }
+        },
+        {
+          "type": "section",
+          "text": "Maintenance"
+        },
+        {
+          "type": "toggle",
+          "text": "Debug Logging (Papyrus)",
+          "help": "Writes [AAI] tagged lines to Papyrus.0.log. Required for Mossy Bridge.",
+          "id": "AAI_Debug",
+          "valueOptions": {
+            "default": false,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gDebug"
+          }
+        }
+      ]
+    },
+    {
+      "pageDisplayName": "Difficulty",
+      "content": [
+        {
+          "type": "section",
+          "text": "AI Difficulty Multipliers"
+        },
+        {
+          "type": "slider",
+          "text": "Aggression Multiplier",
+          "help": "How aggressively enemies pursue and attack. Default: 1.0",
+          "id": "AAI_AggrMult",
+          "valueOptions": {
+            "default": 1.0,
+            "min": 0.5,
+            "max": 3.0,
+            "step": 0.1,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gAggrMult"
+          }
+        },
+        {
+          "type": "slider",
+          "text": "Confidence Multiplier",
+          "help": "How fearless enemies are. Higher = enemies never flee. Default: 1.0",
+          "id": "AAI_ConfMult",
+          "valueOptions": {
+            "default": 1.0,
+            "min": 0.5,
+            "max": 3.0,
+            "step": 0.1,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gConfMult"
+          }
+        },
+        {
+          "type": "slider",
+          "text": "Detection Range Multiplier",
+          "help": "How easily enemies spot and hear you. Default: 1.0",
+          "id": "AAI_DetMult",
+          "valueOptions": {
+            "default": 1.0,
+            "min": 0.5,
+            "max": 2.5,
+            "step": 0.1,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gDetMult"
+          }
+        },
+        {
+          "type": "slider",
+          "text": "Health Scale Multiplier",
+          "help": "Dynamic difficulty HP boost for enemies below player level. Default: 1.0",
+          "id": "AAI_HPMult",
+          "valueOptions": {
+            "default": 1.0,
+            "min": 1.0,
+            "max": 4.0,
+            "step": 0.1,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gHPMult"
+          }
+        }
+      ]
+    },
+    {
+      "pageDisplayName": "Mossy Bridge",
+      "content": [
+        {
+          "type": "section",
+          "text": "Mossy AI Bridge Integration"
+        },
+        {
+          "type": "text",
+          "text": "Connect the Mossy desktop AI assistant to monitor this mod in real time.",
+          "help": ""
+        },
+        {
+          "type": "section",
+          "text": "Connection Info"
+        },
+        {
+          "type": "text",
+          "text": "Bridge Port: 28485",
+          "help": "Mossy connects to localhost:28485"
+        },
+        {
+          "type": "text",
+          "text": "Log Path: My Documents\\My Games\\Fallout4\\Logs\\Script\\",
+          "help": "The bridge reads Papyrus.0.log from this path"
+        },
+        {
+          "type": "section",
+          "text": "External Memory (Mossy)"
+        },
+        {
+          "type": "text",
+          "text": "NPC conversation history is stored externally by Mossy to avoid Papyrus memory limits.",
+          "help": "Mossy stores full conversation logs on your PC. This allows NPCs to remember much more than the game's script memory allows."
+        },
+        {
+          "type": "toggle",
+          "text": "Use External Memory (Mossy Bridge required)",
+          "help": "Store NPC memory on PC via Mossy Bridge. Unlimited conversation history.",
+          "id": "AAI_ExternalMemory",
+          "valueOptions": {
+            "default": false,
+            "storageType": "GlobalVariable",
+            "storageID": "AAI_gExternalMemory"
+          }
+        },
+        {
+          "type": "section",
+          "text": "Push-to-Talk NPC Dialogue"
+        },
+        {
+          "type": "text",
+          "text": "Default hotkey: Left Alt (keyboard)  |  A button (controller)",
+          "help": "Press near any NPC to trigger AI dialogue. The bridge must be running."
+        },
+        {
+          "type": "text",
+          "text": "If hotkeys stop responding after loading a save, open the console and type:",
+          "help": ""
+        },
+        {
+          "type": "text",
+          "text": "  StopQuest F4AI_MainQuest   then   StartQuest F4AI_MainQuest",
+          "help": "Paste each command into the console tilde (~) menu one at a time."
+        },
+        {
+          "type": "text",
+          "text": "Bridge status: watch for [F4AI] Sent to <NPC>... in the top-left HUD",
+          "help": "This notification appears immediately when Left Alt is pressed. If you don't see it, the bridge_input write failed — check the Papyrus log."
+        }
+      ]
+    }
+  ]
+}

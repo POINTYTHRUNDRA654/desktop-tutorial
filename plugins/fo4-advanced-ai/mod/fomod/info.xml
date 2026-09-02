@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fomod>
+  <Name>Fallout 4 Advanced AI System</Name>
+  <Author>POINTYTHRUNDRA654</Author>
+  <Version>0.1.0-Alpha.9</Version>
+  <Description>
+    Advances Fallout 4's AI system for ALL entity types — creatures, humanoids,
+    robots, synths, super mutants, and feral ghouls.
+
+    Features:
+    - Enhanced creature pack behavior, ambush AI, and enrage states
+    - Humanoid NPC squad tactics, morale system, and drug usage
+    - Companion persistent memory — NPCs remember your conversations and actions
+    - Robot/Synth precision targeting, self-repair, and special ability AI
+    - Dynamic difficulty scaling based on player level
+    - Detection overhaul — smarter sight, hearing, and stealth detection
+    - Full MCM configuration (requires MCM Helper)
+    - Mossy AI Bridge — connect Mossy desktop AI to monitor the mod live
+    - Modder API — other mods can hook into the affinity and memory systems
+
+    Requirements:
+    - Fallout 4 (latest version)
+    - F4SE 0.6.23+
+    - Address Library for F4SE Plugins
+    - MCM Helper (FallUI MCM)
+    - (Optional) FallUI for enhanced in-game UI
+  </Description>
+  <Groups />
+</fomod>

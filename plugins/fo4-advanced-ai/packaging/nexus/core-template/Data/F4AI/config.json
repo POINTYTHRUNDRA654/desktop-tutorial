@@ -1,0 +1,19 @@
+{
+  "ai_temperature": 0.7,
+
+  "enable_memory": 1,
+  "voice_history_turns": 8,
+
+  "enable_voice_input": 0,
+
+  "speech_speed": 1.0,
+  "enable_mossy_bridge": 1,
+  "mossy_endpoint": "http://127.0.0.1:8787/v1/chat",
+  "mossy_timeout": 5.0,
+  "enable_plugin_hooks": 0,
+  "plugin_endpoints": [],
+  "plugin_timeout": 3.0,
+  "disable_auto_update": 1,
+  "kobold_api_url": "http://127.0.0.1:5001/api/v1/generate",
+  "kobold_port": 5001
+}

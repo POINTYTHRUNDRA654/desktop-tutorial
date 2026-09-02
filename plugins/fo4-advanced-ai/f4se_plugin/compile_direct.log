@@ -1,0 +1,163 @@
+[F4AI] Compiling F4AI_MiscUtil.dll...
+Microsoft (R) C/C++ Optimizing Compiler Version 19.16.27054 for x64
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+MiscUtil.cpp
+D:\Projects\Fallout-4-advanced-AI\f4se_plugin\src\MiscUtil.cpp(7): warning C4005: 'WIN32_LEAN_AND_MEAN': macro redefinition
+D:\Projects\Fallout-4-advanced-AI\f4se_plugin\src\MiscUtil.cpp: note: see previous definition of 'WIN32_LEAN_AND_MEAN'
+D:\Projects\Fallout-4-advanced-AI\f4se_plugin\src\MiscUtil.cpp(8): warning C4005: 'NOMINMAX': macro redefinition
+D:\Projects\Fallout-4-advanced-AI\f4se_plugin\src\MiscUtil.cpp: note: see previous definition of 'NOMINMAX'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals_core.h(700): warning C4067: unexpected tokens following preprocessor directive - expected a newline
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals_core.h(921): error C2338: error STL1001: Unexpected compiler version, expected MSVC Compiler 19.50 or newer.
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\xtr1common(180): error C3861: '__builtin_is_constant_evaluated': identifier not found
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\xtr1common(179): error C3615: constexpr function 'std::_Is_constant_evaluated' cannot result in a constant expression
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\xtr1common(181): note: failure was caused by control reaching the end of a constexpr function
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1256): error C2338: You've instantiated std::aligned_storage<Len, Align> with an extended alignment (in other words, Align > alignof(max_align_t)). Before VS 2017 15.8, the member "type" would non-conformingly have an alignment of only alignof(max_align_t). VS 2017 15.8 was fixed to handle this correctly, but the fix inherently changes layout and breaks binary compatibility (*only* for uses of aligned_storage with extended alignments). To suppress this error, please define either (1) _ENABLE_EXTENDED_ALIGNED_STORAGE to confirm that you want a type with an extended alignment, or (2) _DISABLE_EXTENDED_ALIGNED_STORAGE to get the old non-conforming behavior.
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1268): note: see reference to class template instantiation 'std::_Aligned<_Len,_Align,double,false>' being compiled
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): error C2440: 'initializing': cannot convert from 'const char [14]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): error C2146: syntax error: missing ';' before identifier '_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1335): error C2059: syntax error: '...'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1336): error C2065: '_Len': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1336): error C2065: '_Types': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1336): error C3544: '_Types': parameter pack expects a type template argument
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1336): error C2955: 'std::aligned_union': use of class template requires template argument list
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1326): note: see declaration of 'std::aligned_union'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1337): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1337): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1339): error C2440: 'initializing': cannot convert from 'const char [13]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1339): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1339): error C2059: syntax error: ''template<''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1339): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1339): error C2923: 'std::is_enum_v': '_Ty' is not a valid template type argument for parameter '_Ty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1340): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1340): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1345): error C2988: unrecognizable template declaration/definition
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1345): error C2143: syntax error: missing ';' before '<'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1345): error C2059: syntax error: '<'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1345): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1345): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1946): error C2338: result_of<CallableType> is invalid; use result_of<CallableType(zero or more argument types)> instead.
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1948): note: see reference to class template instantiation 'std::result_of<_Fty>' being compiled
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1959): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1959): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1959): error C2440: 'initializing': cannot convert from 'const char [14]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1959): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1959): error C2146: syntax error: missing ';' before identifier '_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1961): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1961): error C2923: 'std::result_of': '_Ty' is not a valid template type argument for parameter '_Fty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1961): error C2955: 'std::result_of': use of class template requires template argument list
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1945): note: see declaration of 'std::result_of'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1961): error C2039: 'type': is not a member of 'std::result_of<_Fty>'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1962): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1962): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1965): error C2440: 'initializing': cannot convert from 'const char [13]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1965): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1965): error C2059: syntax error: ''template<''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1965): error C2059: syntax error: '...'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1966): error C2065: '_Callable': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1966): error C2065: '_Args': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1966): error C3544: '_Args': parameter pack expects a type template argument
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1966): error C2039: 'type': is not a member of '`global namespace''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2087): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2087): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2087): error C2440: 'initializing': cannot convert from 'const char [14]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2087): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2087): error C2146: syntax error: missing ';' before identifier '_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2089): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2089): error C2653: '_Ty': is not a class or namespace name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2089): error C2146: syntax error: missing '>' before identifier 'result_type'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2089): error C2923: 'std::_Weak_result_type': '_Ty' is not a valid template type argument for parameter '_Ty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2089): error C2990: 'std::_Weak_result_type': non-class template has already been declared as a class template
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2085): note: see declaration of 'std::_Weak_result_type'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2092): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2092): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2094): error C2440: 'initializing': cannot convert from 'const char [13]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2094): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2094): error C2059: syntax error: ''template<''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2094): error C2332: 'class': missing tag name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2095): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2095): error C2059: syntax error: 'function-style cast'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2095): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2095): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2097): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2097): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2097): error C2440: 'initializing': cannot convert from 'const char [14]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2097): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2097): error C2146: syntax error: missing ';' before identifier '_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2653: '_Ty': is not a class or namespace name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2146: syntax error: missing '>' before identifier 'argument_type'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2059: syntax error: 'function-style cast'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2099): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2103): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2103): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2105): error C2440: 'initializing': cannot convert from 'const char [13]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2105): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2105): error C2059: syntax error: ''template<''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2105): error C2332: 'class': missing tag name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2106): error C2143: syntax error: missing ';' before '<'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2106): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2106): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2106): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2108): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2108): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2108): error C2440: 'initializing': cannot convert from 'const char [14]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2108): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2108): error C2146: syntax error: missing ';' before identifier '_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2110): error C2653: '_Ty': is not a class or namespace name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2110): error C2146: syntax error: missing '>' before identifier 'first_argument_type'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2111): error C2653: '_Ty': is not a class or namespace name
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2112): error C2143: syntax error: missing ';' before '<'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2112): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2112): error C2086: 'int std::_Weak_argument_type': redefinition
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2106): note: see declaration of 'std::_Weak_argument_type'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2112): error C2143: syntax error: missing ';' before '{'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2112): error C2447: '{': missing function header (old-style formal list?)
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2116): error C4430: missing type specifier - int assumed. Note: C++ does not support default-int
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2116): error C2374: 'std::_Pragma': redefinition; multiple initialization
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(1334): note: see declaration of 'std::_Pragma'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2118): error C2440: 'initializing': cannot convert from 'const char [13]' to 'int'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2118): note: There is no context in which this conversion is possible
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2118): error C2059: syntax error: ''template<''
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2119): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2119): error C2923: 'std::remove_pointer_t': '_Ty' is not a valid template type argument for parameter '_Ty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2119): error C3245: 'std::is_function_v': use of a variable template requires template argument list
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(589): note: see declaration of 'std::is_function_v'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C2065: '_Ty': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C2923: 'std::is_member_function_pointer_v': '_Ty' is not a valid template type argument for parameter '_Ty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C3245: 'std::is_member_function_pointer_v': use of a variable template requires template argument list
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(559): note: see declaration of 'std::is_member_function_pointer_v'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C2923: 'std::remove_cv_t': '_Ty' is not a valid template type argument for parameter '_Ty'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C2065: '_Weak_binary_args': undeclared identifier
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C3203: '_Is_memfunptr': unspecialized class template can't be used as a template argument for template parameter '_Ty1', expected a real type
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C2974: 'std::conditional_t': invalid template argument for '_Ty2', type expected
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\xtr1common(71): note: see declaration of 'std::conditional_t'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2120): error C3203: '_Function_args': unspecialized class template can't be used as a template argument for template parameter '_Ty1', expected a real type
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2137): error C2143: syntax error: missing ',' before '<'
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2173): note: see reference to class template instantiation 'std::reference_wrapper<_Ty>' being compiled
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2471): error C2801: 'std::_Conditionally_enabled_hash<_Kty,_Enabled>::operator ()' must be a non-static member
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2474): note: see reference to class template instantiation 'std::_Conditionally_enabled_hash<_Kty,_Enabled>' being compiled
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2471): error C2333: 'std::_Conditionally_enabled_hash<_Kty,_Enabled>::operator ()': error in function declaration; skipping function body
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2498): error C2801: 'std::hash<float>::operator ()' must be a non-static member
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2498): error C2333: 'std::hash<float>::operator ()': error in function declaration; skipping function body
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2507): error C2801: 'std::hash<double>::operator ()' must be a non-static member
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\type_traits(2507): fatal error C1003: error count exceeds 100; stopping compilation
+[F4AI] BUILD FAILED - DLL not produced.
+
+Press any key to continue . . . 
+'d' is not recognized as an internal or external command,
+operable program or batch file.
+[F4AI] BUILD FAILED - DLL not produced.
+
+Press any key to continue . . . 

@@ -1,0 +1,216 @@
+# Fallout 4 Advanced AI - Mossy Industries
+
+**A subsidiary of Mossy Industries**
+
+This mod is part of the Mossy Industries ecosystem, providing advanced AI-powered NPC dialogue for Fallout 4.
+
+---
+
+## About Mossy Industries
+
+**Mossy Industries** is a comprehensive AI modding platform that provides:
+- Advanced AI dialogue systems
+- Voice synthesis and emotion detection
+- Plugin architecture for extensibility
+- Local and cloud-based AI backends
+- Cross-game compatibility framework
+
+**Fallout 4 Advanced AI** is a specialized implementation of Mossy Industries technology for Fallout 4, designed to work both standalone and as part of the larger Mossy ecosystem.
+
+---
+
+## Integration with Mossy
+
+This mod can operate in two modes:
+
+### Standalone Mode (Default)
+- Uses local KoboldCPP for AI generation
+- Uses bundled Piper TTS for voice synthesis
+- Fully offline, no external services required
+- Perfect for users who want a simple, self-contained solution
+
+### Mossy Integration Mode (Optional)
+- Connects to Mossy Industries endpoint
+- Leverages Mossy's advanced AI capabilities
+- Unified conversation memory across games
+- Enhanced emotion detection and character consistency
+- Enable by setting `enable_mossy_bridge: 1` in config.json
+
+---
+
+## Why Mossy Industries?
+
+### For Users:
+- **One-click installation** - Just install and play
+- **No technical knowledge required** - Everything bundled
+- **Works offline** - No cloud services or API keys
+- **Modular design** - Use what you need, disable what you don't
+- **Cross-platform** - Same AI system across multiple games
+
+### For Modders:
+- **Plugin architecture** - Extend functionality without editing core
+- **Open source** - Full transparency and customization
+- **Well documented** - Comprehensive guides and examples
+- **Active development** - Regular updates and community support
+
+---
+
+## Mossy Industries Product Line
+
+### Current Products:
+- **Fallout 4 Advanced AI** (this mod) - NPC dialogue and conversation
+- **Mossy Core** - Central AI orchestration platform
+- **Mossy Bridge** - Cross-game integration layer
+
+### Planned Products:
+- Skyrim Special Edition AI
+- Starfield AI integration
+- Voice cloning tools
+- Custom character training system
+
+---
+
+## Contributing to Mossy Industries
+
+This mod is part of a larger open-source initiative:
+
+**Repository:** https://github.com/POINTYTHRUNDRA654/Fallout-4-advanced-AI  
+**Main Mossy Project:** (Coming soon)  
+**Discord:** (Coming soon)  
+
+We welcome:
+- Bug reports and feature requests
+- Code contributions and improvements
+- Documentation enhancements
+- Voice model training
+- Plugin development
+
+---
+
+## Technical Architecture
+
+### Standalone Architecture:
+```
+Fallout 4
+	↓
+F4AI_Core.esp (Papyrus scripts)
+	↓
+Fallout4_AI_Engine.exe (Python bridge)
+	↓
+KoboldCPP (local LLM) ← User provides
+	+
+Piper TTS (bundled) ← Included in mod
+```
+
+### Mossy Integration Architecture:
+```
+Fallout 4
+	↓
+F4AI_Core.esp (Papyrus scripts)
+	↓
+Fallout4_AI_Engine.exe (Python bridge)
+	↓
+Mossy Bridge (optional)
+	↓
+Mossy Core (centralized AI)
+	↓
+Multiple AI backends
+	+
+Unified memory system
+	+
+Cross-game features
+```
+
+---
+
+## Configuration
+
+Enable Mossy integration in `Data/F4AI/config.json`:
+
+```json
+{
+  "enable_mossy_bridge": 1,
+  "mossy_endpoint": "http://127.0.0.1:8765/f4ai/bridge",
+  "mossy_timeout": 3.0
+}
+```
+
+Default is `0` (disabled) for standalone operation.
+
+---
+
+## Support
+
+### For Fallout 4 Advanced AI:
+- GitHub Issues: https://github.com/POINTYTHRUNDRA654/Fallout-4-advanced-AI/issues
+- Nexus Mods Comments: (after release)
+- Check: `Data/F4AI/NEXUS_TROUBLESHOOTING.txt`
+
+### For Mossy Industries Platform:
+- Main project repository (coming soon)
+- Discord community (coming soon)
+- Documentation wiki (coming soon)
+
+---
+
+## License
+
+This mod is open source under MIT License.
+
+**Mossy Industries** is a trademark of the Mossy Industries open source project.
+
+Bundled components:
+- **Piper TTS** - MIT License (see CREDITS.txt)
+- **F4SE** - Required dependency (not bundled)
+- **KoboldCPP** - User-provided backend
+
+---
+
+## Credits
+
+**Developed by:** POINTYTHRUNDRA654  
+**Organization:** Mossy Industries  
+**Special Thanks:**
+- Piper TTS team for offline voice synthesis
+- KoboldCPP developers for local LLM runtime
+- F4SE team for script extender
+- Fallout 4 modding community
+
+---
+
+## Roadmap
+
+### Current Release (Alpha 3):
+- ✅ Standalone AI dialogue system
+- ✅ Bundled Piper TTS
+- ✅ KoboldCPP integration
+- ✅ Conversation memory
+- ✅ FOMOD installer
+- ✅ Optional Mossy integration
+
+### Future Updates:
+- Enhanced emotion detection
+- Multiple voice options
+- Advanced memory system
+- Quest-aware dialogue
+- Faction reputation integration
+- Full Mossy ecosystem integration
+
+---
+
+## Join Mossy Industries
+
+Be part of the future of AI modding:
+- Star the GitHub repository
+- Share feedback and suggestions
+- Contribute code or documentation
+- Help test new features
+- Spread the word about Mossy Industries
+
+**Together, we're building the next generation of AI-powered gaming experiences.**
+
+---
+
+**Mossy Industries** - *Advancing AI in Gaming*
+
+*A subsidiary of Mossy Industries open source project*

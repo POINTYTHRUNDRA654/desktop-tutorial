@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build & Deploy F4AI_MiscUtil.dll",
+            "type": "shell",
+            "command": "${workspaceFolder}\\f4se_plugin\\build_dll.bat",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true,
+                "echo": true
+            },
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}

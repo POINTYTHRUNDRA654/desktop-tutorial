@@ -1,0 +1,100 @@
+Fallout 4 Advanced AI - Mossy Industries
+A subsidiary of Mossy Industries
+
+First Run Guide
+
+═══════════════════════════════════════════════════════
+
+✨ TRUE ONE-CLICK INSTALLATION!
+
+This mod includes EVERYTHING needed:
+- ✅ AI model (TinyLlama-1.1B) - BUNDLED!
+- ✅ KoboldCPP runtime - BUNDLED!
+- ✅ Piper TTS - BUNDLED!
+- ✅ Voice models - BUNDLED!
+
+NO external downloads required!
+NO technical setup needed!
+
+═══════════════════════════════════════════════════════
+
+🚀 QUICK START:
+
+1) Install this mod with Mod Organizer 2 or Vortex
+   (FOMOD installer handles everything automatically)
+
+2) Run: Data/F4AI/AUTO_START.bat
+   (This starts the AI backend - takes 10-30 seconds first time)
+
+3) Launch Fallout 4 with F4SE
+
+4) Talk to any NPC and enjoy AI conversations!
+
+═══════════════════════════════════════════════════════
+
+ℹ️  WHAT HAPPENS BEHIND THE SCENES:
+
+AUTO_START.bat automatically:
+- Starts KoboldCPP with bundled TinyLlama model
+- Starts the F4AI bridge
+- Everything runs in the background
+
+You only need to run AUTO_START.bat once per gaming session.
+It will detect if already running and skip startup.
+
+═══════════════════════════════════════════════════════
+
+⚡ PERFORMANCE NOTES:
+
+The bundled TinyLlama model is:
+- Small (~668 MB)
+- Fast (works on most PCs)
+- Good quality for NPC dialogue
+
+It runs on CPU (no GPU required).
+First response may take 5-10 seconds as model loads into RAM.
+
+═══════════════════════════════════════════════════════
+
+🔧 OPTIONAL: Advanced Configuration
+
+Want better AI quality? You can use external models!
+
+Edit Data/F4AI/config.json:
+  "use_external_model": 1
+  "external_kobold_endpoint": "http://localhost:5001"
+
+Then run your own KoboldCPP with a larger model instead.
+The bundled model will be ignored.
+
+═══════════════════════════════════════════════════════
+
+🆘 TROUBLESHOOTING:
+
+Audio not working?
+→ Run AUTO_START.bat again
+→ Check Data/F4AI/bridge_output.json for errors
+
+AI not responding?
+→ Wait 30 seconds after running AUTO_START.bat
+→ Check Task Manager for koboldcpp.exe process
+
+Game crashes?
+→ Ensure F4SE is installed: https://f4se.silverlock.org/
+→ Check Papyrus logs in Documents/My Games/Fallout4/Logs/
+
+═══════════════════════════════════════════════════════
+
+📖 MORE HELP:
+
+See: NEXUS_TROUBLESHOOTING.txt
+See: ABOUT_MOSSY_INDUSTRIES.txt
+
+Nexus page: (your mod page link)
+GitHub: https://github.com/POINTYTHRUNDRA654/Fallout-4-advanced-AI
+
+═══════════════════════════════════════════════════════
+
+Mossy Industries - Advancing AI in Gaming
+
+Thank you for using Fallout 4 Advanced AI!

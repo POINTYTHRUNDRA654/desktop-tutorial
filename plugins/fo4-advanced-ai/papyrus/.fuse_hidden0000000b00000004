@@ -1,0 +1,420 @@
+Scriptname F4AI:F4AI_CreatureDirector extends ReferenceAlias
+; Timer uses Utility.Wait loop with generation counter (RegisterForUpdate not on ReferenceAlias in FO4)
+; Bound to PlayerRef via Data/Hydra/ScriptObjects/F4AI_Monitors.json
+; No CK quest attachment needed — Hydra Script Object Runner handles binding.
+;
+; Responsibilities:
+;   - Execute creature behavior directives received from Mossy via the bridge
+;   - Predator behaviors: hunt, stalk, ambush, retreat_to_territory
+;   - Prey behaviors: flee, herd_up, scatter, graze
+;   - Reads ecosystem state from Hydra:TempMap (written by EcosystemMonitor)
+;   - Reads migration directives from Hydra:TempMap (eco_migrate_*)
+;
+; NOTE: FleeFrom() doesn't exist in FO4 Papyrus. Flee behavior is approximated
+; via StopCombat + SetAlert(false) + EvaluatePackage, letting sandbox AI take over.
+
+; ── Properties ────────────────────────────────────────────────────────────────
+
+String Property DirectivePath      = "Data/F4AI/creature_directive.json" Auto Const
+Float  Property ScanRadius         = 5000.0 Auto
+Float  Property DirectiveInterval  = 5.0    Auto
+Bool   Property EnableCreatureAI   = true   Auto
+Int    Property _loopGen           = 0      Auto Hidden  ; incremented each InitMonitor to kill stale loops
+
+; ── Lifecycle ─────────────────────────────────────────────────────────────────
+
+Event OnInit()
+    InitMonitor()
+EndEvent
+
+Event OnPlayerLoadGame()
+    InitMonitor()
+EndEvent
+
+Function InitMonitor()
+    _loopGen += 1
+    Int myGen = _loopGen
+    if (EnableCreatureAI)
+        MonitorLoop(myGen)
+    endif
+EndFunction
+
+Function MonitorLoop(Int myGen)
+    While (myGen == _loopGen)
+        if (EnableCreatureAI)
+            if (MiscUtil.FileExists(DirectivePath))
+                ProcessDirectiveFile()
+            endif
+            ProcessMigrationDirective()
+            ProcessHuntingPressure()
+        endif
+        Utility.Wait(DirectiveInterval)
+    EndWhile
+EndFunction
+
+; ── Directive File Processing ─────────────────────────────────────────────────
+
+Function ProcessDirectiveFile()
+    Hydra:IO:Json.Cache_TempMap(DirectivePath)
+    String directive = Hydra:MemMap.GetValue(DirectivePath, "/directive") as String
+    String species   = Hydra:MemMap.GetValue(DirectivePath, "/species") as String
+    Float  intensity = Hydra:MemMap.GetValue(DirectivePath, "/intensity") as Float
+    Hydra:IO:Json.Uncache_TempMap(DirectivePath)
+    MiscUtil.DeleteFile(DirectivePath)
+
+    if (intensity == 0.0)
+        intensity = 0.5
+    endif
+
+    Actor[] targets = FindCreaturesBySpecies(species)
+    if (targets == None)
+        return
+    endif
+
+    Debug.Trace("[F4AI_Creature] Directive '" + directive + "' for " + species + " x" + targets.Length)
+
+    if (directive == "hunt")
+        ExecuteHunt(targets, intensity)
+    elseif (directive == "flee_territory")
+        ExecuteFleeTerritory(targets)
+    elseif (directive == "patrol")
+        ExecutePatrol(targets)
+    elseif (directive == "herd")
+        ExecuteHerd(targets)
+    elseif (directive == "scatter")
+        ExecuteScatter(targets)
+    elseif (directive == "ambush")
+        ExecuteAmbush(targets, intensity)
+    elseif (directive == "challenge")
+        ExecuteChallenge(targets)
+    elseif (directive == "graze")
+        ExecuteGraze(targets)
+    endif
+EndFunction
+
+; ── Migration (from EcosystemMonitor TempMap) ─────────────────────────────────
+
+Function ProcessMigrationDirective()
+    String migrateSpecies = Hydra:TempMap.GetValue("F4AI_T", "eco_migrate_species") as String
+    if (migrateSpecies == "")
+        return
+    endif
+
+    String targetRegion = Hydra:TempMap.GetValue("F4AI_T", "eco_migrate_to") as String
+
+    ; Clear directive so we don't repeat
+    Hydra:TempMap.SetValue("F4AI_T", "eco_migrate_species", "" as Var)
+    Hydra:TempMap.SetValue("F4AI_T", "eco_migrate_to", "" as Var)
+
+    Actor[] targets = FindCreaturesBySpecies(migrateSpecies)
+    if (targets == None)
+        return
+    endif
+
+    ; Migration: stop combat and let sandbox AI move them away
+    Int i = 0
+    While (i < targets.Length)
+        Actor creature = targets[i]
+        if (creature != None && !creature.IsDead() && !creature.IsInCombat() && !creature.IsQuestItem())
+            creature.StopCombat()
+            creature.SetAlert(false)
+            creature.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+
+    Debug.Trace("[F4AI_Creature] Migration: " + migrateSpecies + " → " + targetRegion)
+EndFunction
+
+; ── Hunting Pressure (from EcosystemMonitor TempMap) ─────────────────────────
+
+Function ProcessHuntingPressure()
+    String[] predators = new String[5]
+    predators[0] = "Deathclaw"
+    predators[1] = "Yao Guai"
+    predators[2] = "Radscorpion"
+    predators[3] = "Mirelurk"
+    predators[4] = "Fog Crawler"
+
+    Int i = 0
+    While (i < predators.Length)
+        String species = predators[i]
+        if (Hydra:TempMap.GetValue("F4AI_T", "eco_hunting_pressure_" + species) as Bool)
+            Bool bFalse = false
+            Hydra:TempMap.SetValue("F4AI_T", "eco_hunting_pressure_" + species, bFalse as Var)
+            Actor[] predatorActors = FindCreaturesBySpecies(species)
+            if (predatorActors != None)
+                ExecuteHunt(predatorActors, 0.8)
+            endif
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+; ── Behavior Executors ────────────────────────────────────────────────────────
+
+Function ExecuteHunt(Actor[] creatures, Float intensity)
+    Actor player = Game.GetPlayer()
+    Actor[] nearbyPrey = FindNearbyPrey()
+
+    Int i = 0
+    While (i < creatures.Length)
+        Actor predator = creatures[i]
+        if (predator != None && !predator.IsDead() && !predator.IsInCombat())
+            predator.SetAlert(true)
+            if (nearbyPrey != None && nearbyPrey.Length > 0)
+                Int preyIdx = Utility.RandomInt(0, nearbyPrey.Length - 1)
+                Actor prey = nearbyPrey[preyIdx]
+                if (prey != None && !prey.IsDead())
+                    predator.StartCombat(prey)
+                endif
+            endif
+            predator.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteAmbush(Actor[] creatures, Float intensity)
+    ; Ambush: set creatures non-alert, then after a delay trigger combat on nearest prey
+    ; Uses Utility.Wait() — acceptable for a per-script creature behavior call
+    Float ambushDelay = 10.0 - (intensity * 8.0)  ; 2s-10s range
+
+    Int i = 0
+    While (i < creatures.Length)
+        Actor predator = creatures[i]
+        if (predator != None && !predator.IsDead() && !predator.IsInCombat())
+            predator.SetAlert(false)
+            predator.StopCombatAlarm()
+            predator.EvaluatePackage()
+            Utility.Wait(ambushDelay)
+            ; After delay, trigger combat if prey is nearby
+            if (predator != None && !predator.IsDead() && !predator.IsInCombat())
+                Actor[] prey = FindNearbyPrey()
+                if (prey != None && prey.Length > 0)
+                    predator.StartCombat(prey[0])
+                endif
+            endif
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteChallenge(Actor[] creatures)
+    Actor player = Game.GetPlayer()
+    Int i = 0
+    While (i < creatures.Length)
+        Actor creature = creatures[i]
+        if (creature != None && !creature.IsDead())
+            creature.SetAlert(true)
+            Float distToPlayer = creature.GetDistance(player)
+            if (distToPlayer < 2000.0)
+                creature.StartCombat(player)
+            endif
+            creature.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecutePatrol(Actor[] creatures)
+    Int i = 0
+    While (i < creatures.Length)
+        Actor creature = creatures[i]
+        if (creature != None && !creature.IsDead() && !creature.IsInCombat())
+            creature.SetAlert(true)
+            creature.StopCombatAlarm()
+            creature.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteFleeTerritory(Actor[] creatures)
+    ; FleeFrom() doesn't exist in FO4 — stop combat and let sandbox AI handle movement
+    Int i = 0
+    While (i < creatures.Length)
+        Actor creature = creatures[i]
+        if (creature != None && !creature.IsDead())
+            creature.StopCombat()
+            creature.StopCombatAlarm()
+            creature.SetAlert(false)
+            creature.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteHerd(Actor[] creatures)
+    if (creatures.Length == 0)
+        return
+    endif
+    Actor anchor = creatures[0]
+    if (anchor == None || anchor.IsDead())
+        return
+    endif
+    Int i = 1
+    While (i < creatures.Length)
+        Actor prey = creatures[i]
+        if (prey != None && !prey.IsDead() && !prey.IsInCombat())
+            prey.SetAlert(false)
+            prey.StopCombatAlarm()
+            prey.MoveTo(anchor, Utility.RandomFloat(-200.0, 200.0), Utility.RandomFloat(-200.0, 200.0), 0.0, true)
+            prey.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteScatter(Actor[] creatures)
+    ; Scatter: stop combat and flee — sandbox AI handles actual movement direction
+    Actor player = Game.GetPlayer()
+    Int i = 0
+    While (i < creatures.Length)
+        Actor prey = creatures[i]
+        if (prey != None && !prey.IsDead())
+            prey.StopCombat()
+            prey.SetAlert(false)
+            prey.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+Function ExecuteGraze(Actor[] creatures)
+    Int i = 0
+    While (i < creatures.Length)
+        Actor prey = creatures[i]
+        if (prey != None && !prey.IsDead() && !prey.IsInCombat())
+            prey.SetAlert(false)
+            prey.StopCombatAlarm()
+            prey.EvaluatePackage()
+        endif
+        i += 1
+    EndWhile
+EndFunction
+
+; ── Finders ───────────────────────────────────────────────────────────────────
+
+Actor[] Function FindCreaturesBySpecies(String species)
+    Actor player = Game.GetPlayer()
+    Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
+    if (kActorTypeNPC == None)
+        return None
+    endif
+    ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
+    if (refs == None)
+        return None
+    endif
+
+    Actor[] results = new Actor[128]
+    Int count = 0
+
+    Int i = 0
+    While (i < refs.Length && count < 128)
+        Actor a = refs[i] as Actor
+        if (a != None && !a.IsDead() && a != player && !a.IsQuestItem())
+            if (GetSpeciesTag(a) == species)
+                results[count] = a
+                count += 1
+            endif
+        endif
+        i += 1
+    EndWhile
+
+    if (count == 0)
+        return None
+    endif
+
+    Actor[] trimmed = new Actor[count]
+    Int j = 0
+    While (j < count)
+        trimmed[j] = results[j]
+        j += 1
+    EndWhile
+    return trimmed
+EndFunction
+
+Actor[] Function FindNearbyPrey()
+    Actor player = Game.GetPlayer()
+    Keyword kActorTypeNPC = Game.GetCommonProperties().ActorTypeNPC
+    if (kActorTypeNPC == None)
+        return None
+    endif
+    ObjectReference[] refs = player.FindAllReferencesWithKeyword(kActorTypeNPC, ScanRadius)
+    if (refs == None)
+        return None
+    endif
+
+    Actor[] results = new Actor[64]
+    Int count = 0
+
+    Int i = 0
+    While (i < refs.Length && count < 64)
+        Actor a = refs[i] as Actor
+        if (a != None && !a.IsDead() && a != player)
+            String species = GetSpeciesTag(a)
+            if (species != "" && !IsPredator(species))
+                results[count] = a
+                count += 1
+            endif
+        endif
+        i += 1
+    EndWhile
+
+    if (count == 0)
+        return None
+    endif
+
+    Actor[] trimmed = new Actor[count]
+    Int j = 0
+    While (j < count)
+        trimmed[j] = results[j]
+        j += 1
+    EndWhile
+    return trimmed
+EndFunction
+
+; ── Classification (mirrors EcosystemMonitor) ─────────────────────────────────
+
+String Function GetSpeciesTag(Actor a)
+    Race r = a.GetRace()
+    if (r == Game.GetForm(0x000F81ED) as Race)
+        return "Deathclaw"
+    elseif (r == Game.GetForm(0x000B2BF2) as Race || r == Game.GetForm(0x000B2BF5) as Race)
+        return "Mirelurk"
+    elseif (r == Game.GetForm(0x0017B2A0) as Race)
+        return "Radscorpion"
+    elseif (r == Game.GetForm(0x000B2BF4) as Race)
+        return "Yao Guai"
+    elseif (r == Game.GetForm(0x00020198) as Race)
+        return "Brahmin"
+    elseif (r == Game.GetForm(0x000A82AB) as Race)
+        return "Dog"
+    elseif (r == Game.GetForm(0x00109473) as Race)
+        return "Bloatfly"
+    elseif (r == Game.GetForm(0x0001CF74) as Race)
+        return "Radroach"
+    elseif (r == Game.GetForm(0x001092C3) as Race)
+        return "Stingwing"
+    endif
+    return ""
+EndFunction
+
+Bool Function IsPredator(String species)
+    if (species == "Deathclaw" || species == "Yao Guai" || species == "Radscorpion")
+        return true
+    elseif (species == "Mirelurk" || species == "Fog Crawler" || species == "Gulper")
+        return true
+    elseif (species == "Angler" || species == "Stingwing" || species == "Bloatfly")
+        return true
+    endif
+    return false
+EndFunction
+
+String Function BoolToStr(Bool b)
+    if (b)
+        return "true"
+    endif
+    return "false"
+EndFunction

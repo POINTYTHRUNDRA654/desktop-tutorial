@@ -1,0 +1,17 @@
+{
+  "ai_temperature": 0.7,
+  "enable_memory": 1,
+  "speech_speed": 1.0,
+  "enable_mossy_bridge": 1,
+  "mossy_endpoint": "http://127.0.0.1:8765/f4ai/bridge",
+  "mossy_timeout": 20.0,
+  "enable_plugin_hooks": 0,
+  "plugin_endpoints": [],
+  "plugin_timeout": 3.0,
+  "disable_auto_update": 1,
+  "kobold_api_url": "http://127.0.0.1:5001/api/v1/generate",
+  "kobold_port": 5001,
+
+  "_memory_path_help": "Leave memory_path empty to use the default (Documents/My Games/Fallout4/F4AI/NPC_Memories). Set it to any folder on any drive if your C: drive is full. Example: H:/F4AI_Memory  or  D:/Games/FO4_AI_Memory",
+  "memory_path": ""
+}

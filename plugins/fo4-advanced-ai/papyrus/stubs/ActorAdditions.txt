@@ -1,0 +1,6 @@
+Add these lines to E:\Steam\steamapps\common\Fallout 4\Data\Scripts\Source\Base\Actor.psc
+if they are not already present (add at the bottom of the file, before the last line):
+
+    Bool Function IsSwimming() Native
+
+Sky.psc and Weather.psc are already in Source\Base — no changes needed there.

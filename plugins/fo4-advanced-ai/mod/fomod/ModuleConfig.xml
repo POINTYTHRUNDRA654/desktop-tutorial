@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="http://qconsulting.ca/fo3/ModConfig5.0.xsd">
+
+  <moduleName>Fallout 4 Advanced AI System</moduleName>
+
+  <requiredInstallFiles>
+    <!-- Core scripts and config always installed -->
+    <folder source="Core" destination="" />
+  </requiredInstallFiles>
+
+  <installSteps order="Explicit">
+
+    <!-- ── STEP 1: Required Dependencies ─────────────────────────────────── -->
+    <installStep name="Requirements Check">
+      <optionalFileGroups order="All">
+        <group name="Required Masters" type="selectAll">
+          <plugins order="Explicit">
+            <plugin name="F4SE + Address Library (REQUIRED)">
+              <description>
+                This mod requires:
+                - F4SE 0.6.23+ (https://f4se.silverlock.org/)
+                - Address Library for F4SE Plugins (Nexus ID: 47327)
+
+                Install both before continuing.
+                The installer cannot proceed without these.
+              </description>
+              <files />
+              <typeDescriptor>
+                <type name="Required" />
+              </typeDescriptor>
+            </plugin>
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+
+    <!-- ── STEP 2: MCM Selection ──────────────────────────────────────────── -->
+    <installStep name="MCM Framework">
+      <optionalFileGroups order="SelectExactlyOne">
+        <group name="Choose MCM Framework" type="selectExactlyOne">
+          <plugins order="Explicit">
+
+            <plugin name="MCM Helper (Recommended)">
+              <description>
+                MCM Helper by Neanka
+                https://www.nexusmods.com/fallout4/mods/21497
+
+                Lightweight and compatible with FallUI.
+                RECOMMENDED for most users.
+              </description>
+              <files>
+                <folder source="MCM_Helper" destination="" priority="0" />
+              </files>
+              <typeDescriptor>
+                <dependencyType>
+                  <defaultType name="Recommended" />
+                  <patterns>
+                    <pattern>
+                      <dependencies operator="And">
+                        <fileDependency file="MCMHelper.esp" state="Active" />
+                      </dependencies>
+                      <type name="Recommended" />
+                    </pattern>
+                  </patterns>
+                </dependencyType>
+              </typeDescriptor>
+            </plugin>
+
+            <plugin name="No MCM (Standalone — limited config)">
+              <description>
+                Install without MCM.
+                All AI modules will be enabled by default.
+                You can toggle features via the Mossy AI Bridge or by
+                editing the GlobalVariables directly in FO4Edit.
+              </description>
+              <files />
+              <typeDescriptor>
+                <type name="Optional" />
+              </typeDescriptor>
+            </plugin>
+
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+
+    <!-- ── STEP 3: Mossy AI Bridge ───────────────────────────────────────── -->
+    <installStep name="Mossy AI Bridge">
+      <optionalFileGroups order="SelectAll">
+        <group name="Mossy Integration (Optional)" type="selectAny">
+          <plugins order="Explicit">
+
+            <plugin name="Install Mossy AI Bridge Files">
+              <description>
+                Installs the Mossy AI Bridge — a Python server that connects
+                Fallout 4 Advanced AI to the Mossy desktop AI assistant.
+
+                Mossy can:
+                - Monitor mod status in real time
+                - Read Papyrus log for errors
+                - Help you configure AI settings
+                - Assist with creating compatible mods
+
+                Requires: Python 3.10+, Mossy desktop app
+                Bridge files installed to: [Game Root]\MossyBridge\
+              </description>
+              <files>
+                <folder source="MossyBridge" destination="MossyBridge" priority="0" />
+              </files>
+              <typeDescriptor>
+                <type name="Optional" />
+              </typeDescriptor>
+            </plugin>
+
+          </plugins>
+        </group>
+      </optionalFileGroups>
+    </installStep>
+
+  </installSteps>
+
+</config>

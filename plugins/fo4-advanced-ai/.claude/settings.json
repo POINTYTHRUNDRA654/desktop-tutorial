@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Projects/Fallout-4-advanced-AI/papyrus/**)",
+      "Read(//e/Mod.Organizer-2.5.2 Overwrites/**)",
+      "Read(//c/Users/Owner/AppData/Local/ModOrganizer/Fallout 4/**)",
+      "PowerShell(cmd.exe /c \"d:\\\\Projects\\\\Fallout-4-advanced-AI\\\\compile_papyrus.bat\" 2>&1)",
+      "PowerShell(Invoke-RestMethod \"http://localhost:28485/status\")",
+      "Read(//c/Users/Owner/Documents/My Games/Fallout4/Logs/Script/**)",
+      "PowerShell(Test-Path \"H:\\\\Mossy Memory\\\\AdvancedAI_Memory.db\" && \\(Get-Item \"H:\\\\Mossy Memory\\\\AdvancedAI_Memory.db\" | Select-Object FullName, Length, LastWriteTime\\))",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c `\"d:\\\\Projects\\\\Fallout-4-advanced-AI\\\\compile_papyrus.bat`\" > `\"d:\\\\Projects\\\\Fallout-4-advanced-AI\\\\compile_log.txt`\" 2>&1\" -WindowStyle Normal)"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+Fallout 4 Advanced AI - Mossy Industries
+Troubleshooting Guide
+
+A subsidiary of Mossy Industries
+
+Required free prerequisites:
+- F4SE
+- KoboldCPP
+- A loaded GGUF model
+
+- KoboldCPP not running on localhost:5001:
+  Start KoboldCPP and load a GGUF model.
+- F4SE not loaded:
+  Launch Fallout 4 through f4se_loader.exe.
+- Bridge did not start:
+  Run Data/F4AI/Launch_F4AI_Bridge.bat and check for missing executable warnings.

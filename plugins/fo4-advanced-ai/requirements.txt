@@ -1,0 +1,17 @@
+# HTTP client used for local KoboldCPP API calls in src/main.py and src/ai/*
+requests>=2.31.0
+# Numeric arrays used by STT noise gating and WAV normalization helpers
+numpy>=1.26.0
+# Audio I/O utilities used by src/tts.py for lipgen-ready WAV conversion
+scipy>=1.11.0
+# HTTP server for Mossy Industries local AI bridge (src/mossy_server.py)
+flask>=3.0.0
+
+# ── Voice pipeline (push-to-talk STT + NPC TTS) — bridge/mossy_fo4_bridge.py ──
+# STT: transcribes your mic after the push-to-talk press
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+# TTS: NPC voice output (edge-tts = neural, needs internet; pyttsx3 = offline fallback)
+edge-tts>=6.1.0
+pydub>=0.25.1
+pyttsx3>=2.90
