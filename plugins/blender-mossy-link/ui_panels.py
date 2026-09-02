@@ -1736,7 +1736,11 @@ class FO4_PT_CreaturePipeline(_FO4SubPanel):
         imp.label(text="Skeletons: Deathclaw / Radroach / Ghoul / Super Mutant", icon='DOT')
         imp.label(text="Import Skeleton + Skin Weights + Partitions = ON", icon='DOT')
         imp.prop(context.scene, "fo4_creature_type_choice", text="")
-        imp.operator("fo4.copy_creature_template", text="Copy Creature Type Template", icon='COPYDOWN').creature_type = context.scene.fo4_creature_type_choice
+        # fo4.copy_creature_template is a Phase 2 operator (ai_gen_operators.py);
+        # see the bgsm_op note above for why this can't chain directly.
+        _op = imp.operator("fo4.copy_creature_template", text="Copy Creature Type Template", icon='COPYDOWN')
+        if _op is not None:
+            _op.creature_type = context.scene.fo4_creature_type_choice
 
         # ── Bind + transfer ──────────────────────────────────────────────
         layout.separator()
@@ -1754,7 +1758,10 @@ class FO4_PT_CreaturePipeline(_FO4SubPanel):
         part.label(text="Step 5 — Partition (if gore needed)", icon='GROUP_VERTEX')
         part.enabled = has_mesh
         part.prop(context.scene, "fo4_sbp_slot_choice", text="Slot")
-        part.operator("fo4.add_dismember_partition", text="Add Partition", icon='PLUS').slot = context.scene.fo4_sbp_slot_choice
+        # fo4.add_dismember_partition is a Phase 2 operator (ai_gen_operators.py).
+        _op = part.operator("fo4.add_dismember_partition", text="Add Partition", icon='PLUS')
+        if _op is not None:
+            _op.slot = context.scene.fo4_sbp_slot_choice
 
         # ── Export ───────────────────────────────────────────────────────
         layout.separator()
@@ -1858,7 +1865,14 @@ class FO4_PT_LODCollisionPipeline(_FO4SubPanel):
         bgsm_box = layout.box()
         bgsm_box.label(text="Generate BGSM Material File", icon='MATERIAL')
         bgsm_box.prop(context.scene, "fo4_bgsm_template_choice", text="")
-        bgsm_box.operator("fo4.generate_bgsm_file", text="Save .bgsm File", icon='FILE_TICK').template = context.scene.fo4_bgsm_template_choice
+        # fo4.generate_bgsm_file is a Phase 2 operator (ai_gen_operators.py) --
+        # not yet registered during the ~3s startup window, when
+        # layout.operator() returns None and chaining .template = ... onto it
+        # crashes draw() on every redraw (RECURRING BUG #1 pattern). Capture
+        # the return value first so the button always draws either way.
+        bgsm_op = bgsm_box.operator("fo4.generate_bgsm_file", text="Save .bgsm File", icon='FILE_TICK')
+        if bgsm_op is not None:
+            bgsm_op.template = context.scene.fo4_bgsm_template_choice
         bgsm_box.label(text="Fill DDS paths in NifSkope / Material Editor", icon='DOT')
 
         # ── Materials reminder ───────────────────────────────────────────
@@ -1913,7 +1927,10 @@ class FO4_PT_RiggedArmorPipeline(_FO4SubPanel):
         col = layout.column(align=True)
         col.enabled = has_mesh
         col.prop(context.scene, "fo4_sbp_slot_choice", text="Slot")
-        col.operator("fo4.add_dismember_partition", text="Add Partition Slot", icon='PLUS').slot = context.scene.fo4_sbp_slot_choice
+        # fo4.add_dismember_partition is a Phase 2 operator (ai_gen_operators.py).
+        _op = col.operator("fo4.add_dismember_partition", text="Add Partition Slot", icon='PLUS')
+        if _op is not None:
+            _op.slot = context.scene.fo4_sbp_slot_choice
 
         layout.separator()
         layout.label(text="Step 6b — Cloth / Strap physics bones (optional):", icon='PHYSICS')
@@ -2505,7 +2522,8 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
             # use_llm=True triggers AI analysis via Mossy (the only AI
             # backend this addon supports -- see advisor_helpers.query_mossy).
             op = row.operator("fo4.advisor_analyze", text="Ask Mossy for Advice", icon='LIGHT_HEMI')
-            op.use_llm = True
+            if op is not None:  # fo4.advisor_analyze is a Phase 2 operator
+                op.use_llm = True
             _activation_op(mossy_box, 'WM_OT_MossyCheckHttp', "wm.mossy_check_http",
                             "Check Mossy HTTP", icon='QUESTION')
 
@@ -2536,7 +2554,8 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         box.label(text="Scene Analysis", icon='INFO')
         row = box.row(align=True)
         op = row.operator("fo4.advisor_analyze", text="Analyze (Local)", icon='SHADERFX')
-        op.use_llm = False
+        if op is not None:  # fo4.advisor_analyze is a Phase 2 operator
+            op.use_llm = False
         if not use_mossy:
             box.label(text="Enable 'Use Mossy as AI Advisor' above for AI analysis", icon='ERROR')
 
@@ -2545,13 +2564,16 @@ class FO4_PT_AdvisorPanel(_FO4SubPanel):
         fixes.label(text="Quick Fixes", icon='MODIFIER')
         row = fixes.row()
         op = row.operator("fo4.advisor_quick_fix", text="Apply Transforms", icon='ORIENTATION_VIEW')
-        op.action = 'APPLY_TRANSFORMS'
+        if op is not None:  # fo4.advisor_quick_fix is a Phase 2 operator
+            op.action = 'APPLY_TRANSFORMS'
         row = fixes.row()
         op = row.operator("fo4.advisor_quick_fix", text="Auto Smooth + Shade", icon='SHADING_RENDERED')
-        op.action = 'SHADE_SMOOTH_AUTOSMOOTH'
+        if op is not None:  # fo4.advisor_quick_fix is a Phase 2 operator
+            op.action = 'SHADE_SMOOTH_AUTOSMOOTH'
         row = fixes.row()
         op = row.operator("fo4.advisor_quick_fix", text="Validate Export", icon='CHECKMARK')
-        op.action = 'VALIDATE_EXPORT'
+        if op is not None:  # fo4.advisor_quick_fix is a Phase 2 operator
+            op.action = 'VALIDATE_EXPORT'
 
         # ── Info / KB ────────────────────────────────────────────────────
         info = layout.box()
@@ -2945,7 +2967,8 @@ class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
         row = paths_box.row(align=True)
         row.prop(scene, "fo4_asset_lib_path", text="All Assets")
         op = row.operator("fo4.set_asset_lib_path", text="", icon='FILE_FOLDER')
-        op.slot = 'all'
+        if op is not None:  # fo4.set_asset_lib_path is a Phase 2 operator
+            op.slot = 'all'
 
         sep_box = paths_box.box()
         sep_col = sep_box.column(align=True)
@@ -2955,17 +2978,20 @@ class FO4_PT_GameAssetsLibraryPanel(_FO4SubPanel):
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_mesh_path", text="Meshes")
         op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'meshes'
+        if op is not None:  # fo4.set_asset_folder_path is a Phase 2 operator
+            op.slot = 'meshes'
 
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_tex_path", text="Textures")
         op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'textures'
+        if op is not None:  # fo4.set_asset_folder_path is a Phase 2 operator
+            op.slot = 'textures'
 
         row = sep_col.row(align=True)
         row.prop(scene, "fo4_asset_lib_mat_path", text="Materials")
         op = row.operator("fo4.set_asset_folder_path", text="", icon='FILE_FOLDER')
-        op.slot = 'materials'
+        if op is not None:  # fo4.set_asset_folder_path is a Phase 2 operator
+            op.slot = 'materials'
 
         scan_row = paths_box.row(align=True)
         scan_row.scale_y = 1.3
@@ -3474,7 +3500,8 @@ class FO4_PT_AutomationQuickPanel(_FO4SubPanel):
             wf_box.prop(context.scene, "fo4_workflow_preset_name", text="Name")
             wf_row = wf_box.row(align=True)
             save_op = wf_row.operator("fo4.save_workflow_settings", text="Save Workflow", icon='FILE_TICK')
-            save_op.preset_name = context.scene.fo4_workflow_preset_name
+            if save_op is not None:  # fo4.save_workflow_settings is a Phase 2 operator
+                save_op.preset_name = context.scene.fo4_workflow_preset_name
             wf_row.operator_menu_enum("fo4.load_workflow_settings", "preset_name",
                                        text="Load Workflow", icon='FILE_FOLDER')
 
@@ -5104,7 +5131,8 @@ class FO4_PT_NPCAnimPanel(_FO4SubPanel):
             row = grp.row(align=True)
             for btn_label, preset in items:
                 op = row.operator("fo4.set_npc_preset", text=btn_label)
-                op.preset = preset
+                if op is not None:  # fo4.set_npc_preset is a Phase 2 operator
+                    op.preset = preset
         kw = box.box(); kw.label(text="Keywords (combine freely):", icon='INFO')
         col = kw.column(align=True); col.scale_y = 0.72
         for line in ["idle/stand/crouch/duck/slide/dodge/roll",
@@ -5267,10 +5295,11 @@ class FO4_PT_ESPGeneratorPanel(_FO4SubPanel):
         box.prop(scene, "fo4_esp_xedit",   text="Also write xEdit script (.pas)")
         go = box.row(); go.scale_y = 1.4; go.enabled = len(selected) > 0
         go_op = go.operator("fo4.generate_esp", text=f"Generate ESP ({len(selected)} objects)", icon='FILE_NEW')
-        go_op.plugin_name = scene.fo4_plugin_name
-        go_op.author      = scene.fo4_esp_author
-        go_op.output_dir  = scene.fo4_esp_output
-        go_op.also_xedit  = scene.fo4_esp_xedit
+        if go_op is not None:  # fo4.generate_esp is a Phase 2 operator
+            go_op.plugin_name = scene.fo4_plugin_name
+            go_op.author = scene.fo4_esp_author
+            go_op.output_dir = scene.fo4_esp_output
+            go_op.also_xedit = scene.fo4_esp_xedit
 
 
 class FO4_PT_TextureGeneratorPanel(_FO4SubPanel):
@@ -5321,15 +5350,17 @@ class FO4_PT_BatchToolsPanel(_FO4SubPanel):
         exp.prop(scene, "fo4_batch_fo4_prep", text="Apply FO4 Prep")
         go = exp.row(); go.scale_y = 1.3; go.enabled = len(selected) > 0
         go_op = go.operator("fo4.batch_export", text=f"Export {len(selected)} Objects as NIFs", icon='FILE_NEW')
-        go_op.output_dir     = scene.fo4_batch_output
-        go_op.apply_fo4_prep = scene.fo4_batch_fo4_prep
+        if go_op is not None:  # fo4.batch_export is a Phase 2 operator
+            go_op.output_dir = scene.fo4_batch_output
+            go_op.apply_fo4_prep = scene.fo4_batch_fo4_prep
         lod = layout.box(); lod.label(text="Batch LOD Generate + Export", icon='MOD_DECIM')
         lod.operator("fo4.batch_generate_lod", text="Auto LOD1/2/3 for Selected", icon='OUTLINER_OB_MESH')
         pre = layout.box(); pre.label(text="Workflow Presets", icon='PRESET')
         pre.prop(scene, "fo4_workflow_preset_name", text="Name")
         row = pre.row(align=True)
         save_op = row.operator("fo4.save_workflow_settings", text="Save Current Settings", icon='FILE_TICK')
-        save_op.preset_name = scene.fo4_workflow_preset_name
+        if save_op is not None:  # fo4.save_workflow_settings is a Phase 2 operator
+            save_op.preset_name = scene.fo4_workflow_preset_name
         row.operator_menu_enum("fo4.load_workflow_settings", "preset_name",
                                 text="Load Preset", icon='FILE_FOLDER')
 
@@ -5353,8 +5384,9 @@ class FO4_PT_SS2PlotBuilderPanel(_FO4SubPanel):
         row = guide.row(align=True)
         for code, label, _ in _ss2_size_items():
             op = row.operator("fo4.add_plot_boundary_guide", text=label)
-            op.size = code
-            op.front_axis = scene.fo4_ss2_front_axis
+            if op is not None:  # fo4.add_plot_boundary_guide is a Phase 2 operator
+                op.size = code
+                op.front_axis = scene.fo4_ss2_front_axis
         hint = guide.column(align=True); hint.scale_y = 0.72
         hint.label(text="Real measured footprint per size -- build within it.")
         hint.label(text="Front-arrow direction is a best guess -- verify in CK.")
@@ -5367,9 +5399,10 @@ class FO4_PT_SS2PlotBuilderPanel(_FO4SubPanel):
         row.prop(scene, "fo4_ss2_tag_stage", text="Stage")
         stage.prop(scene, "fo4_ss2_tag_final")
         tag_op = stage.operator("fo4.assign_plot_stage", text="Tag Selected as Stage", icon='CHECKMARK')
-        tag_op.level = scene.fo4_ss2_tag_level
-        tag_op.stage = scene.fo4_ss2_tag_stage
-        tag_op.is_final = scene.fo4_ss2_tag_final
+        if tag_op is not None:  # fo4.assign_plot_stage is a Phase 2 operator
+            tag_op.level = scene.fo4_ss2_tag_level
+            tag_op.stage = scene.fo4_ss2_tag_stage
+            tag_op.is_final = scene.fo4_ss2_tag_final
         levels = {}
         for obj in context.scene.objects:
             if obj.type == 'MESH' and "fo4_ss2_level" in obj.keys():
@@ -5391,9 +5424,10 @@ class FO4_PT_SS2PlotBuilderPanel(_FO4SubPanel):
         row.prop(scene, "fo4_ss2_spawn_stage_start_ui", text="Start")
         row.prop(scene, "fo4_ss2_spawn_stage_end_ui", text="End")
         spawn_op = spawn.operator("fo4.add_plot_spawn_marker", text="Add Spawn Marker at Cursor", icon='ADD')
-        spawn_op.level = scene.fo4_ss2_spawn_level_ui
-        spawn_op.stage_start = scene.fo4_ss2_spawn_stage_start_ui
-        spawn_op.stage_end = scene.fo4_ss2_spawn_stage_end_ui
+        if spawn_op is not None:  # fo4.add_plot_spawn_marker is a Phase 2 operator
+            spawn_op.level = scene.fo4_ss2_spawn_level_ui
+            spawn_op.stage_start = scene.fo4_ss2_spawn_stage_start_ui
+            spawn_op.stage_end = scene.fo4_ss2_spawn_stage_end_ui
         active = context.active_object
         if active and active.get("fo4_ss2_spawn_marker"):
             sm = spawn.box()
@@ -5457,13 +5491,15 @@ class FO4_PT_WorkshopPanel(_FO4SubPanel):
         row = cobj.row(align=True)
         for code, label in cats[:5]:
             op = row.operator("fo4.generate_workshop_stubs", text=label)
-            op.category = code
-            op.plugin_name = scene.fo4_plugin_name
+            if op is not None:  # fo4.generate_workshop_stubs is a Phase 2 operator
+                op.category = code
+                op.plugin_name = scene.fo4_plugin_name
         row2 = cobj.row(align=True)
         for code, label in cats[5:]:
             op = row2.operator("fo4.generate_workshop_stubs", text=label)
-            op.category = code
-            op.plugin_name = scene.fo4_plugin_name
+            if op is not None:  # fo4.generate_workshop_stubs is a Phase 2 operator
+                op.category = code
+                op.plugin_name = scene.fo4_plugin_name
 
         if hasattr(scene, "fo4_workshop_batch_category"):
             batch = box.box()
