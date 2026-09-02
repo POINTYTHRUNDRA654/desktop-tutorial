@@ -22839,13 +22839,36 @@ Rules:
     return outputPath;
   }
 
-  registerHandler('post-process:comfyui-check-tool', async (_event, classType: string) => {
+  // Reliability sweep (2026-09-02): this only ever asked a LIVE ComfyUI instance
+  // "do you have this node?" over HTTP -- if ComfyUI simply isn't running at the
+  // moment the AI Texture Tools wizard checks (which is common; it doesn't auto-
+  // start), every single tool came back available:false, identical to "never
+  // installed". Confirmed live with Billy: tools he'd already installed and
+  // verified in an earlier session showed as "missing" again on a later
+  // onboarding replay, with ComfyUI not running at the time, making it look like
+  // nothing had been remembered. Now accepts an optional {owner, repo} so it can
+  // fall back to checking whether the custom node's folder actually exists on
+  // disk (installComfyUiCustomNode always extracts to
+  // <comfyUiRoot>/ComfyUI/custom_nodes/<repo>) when the live check can't run at
+  // all -- distinguishing "installed, just start ComfyUI" from "never installed".
+  registerHandler('post-process:comfyui-check-tool', async (_event, classType: string, nodeInfo?: { owner?: string; repo?: string }) => {
     try {
       const resp = await fetch(`${COMFYUI_BASE}/object_info/${encodeURIComponent(classType)}`, { signal: AbortSignal.timeout(5000) });
-      if (!resp.ok) return { available: false };
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const info = await resp.json() as Record<string, unknown>;
       return { available: !!info?.[classType] };
     } catch {
+      // ComfyUI unreachable (not running, wrong port, still starting up, etc.) --
+      // fall back to an on-disk check so an already-installed tool doesn't read
+      // as missing just because ComfyUI happens to be offline right now.
+      if (nodeInfo?.repo) {
+        try {
+          const nodeDir = path.join(getComfyUiRoot(), 'ComfyUI', 'custom_nodes', nodeInfo.repo);
+          if (fs.existsSync(nodeDir)) {
+            return { available: true, comfyOffline: true };
+          }
+        } catch { /* fall through to available:false below */ }
+      }
       return { available: false };
     }
   });

@@ -131,9 +131,17 @@ export const AITextureToolsSetupWizard: React.FC<AITextureToolsSetupWizardProps>
       const tool = COMFYUI_TOOLS[i];
       const req = reqs[i + 1];
       try {
-        const check = await api?.invoke?.('post-process:comfyui-check-tool', tool.checkClassType);
+        // Reliability sweep (2026-09-02): pass {owner, repo} so the main process can
+        // fall back to an on-disk check when ComfyUI isn't reachable -- otherwise a
+        // tool already installed in an earlier session shows as "missing" again
+        // every single time this screen is revisited while ComfyUI happens to be
+        // offline (confirmed live: this is exactly what made it look like nothing
+        // was being remembered between onboarding runs).
+        const check = await api?.invoke?.('post-process:comfyui-check-tool', tool.checkClassType, { owner: tool.owner, repo: tool.repo });
         req.status = check?.available ? 'ok' : 'missing';
-        if (!check?.available && !comfyOnline) {
+        if (check?.available && check?.comfyOffline) {
+          req.details = (req.details ? req.details + ' ' : '') + 'Already installed — start ComfyUI to use it.';
+        } else if (!check?.available && !comfyOnline) {
           req.details = (req.details ? req.details + ' ' : '') + 'ComfyUI isn\'t running — installing will try to start it, or start it yourself first from AI Image Studio.';
         }
       } catch {
