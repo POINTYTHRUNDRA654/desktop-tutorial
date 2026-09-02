@@ -1,0 +1,12 @@
+{
+  "material_type": "BGSM",
+  "label": "Plastic / Painted Metal (FO4 Clutter Style)",
+  "diffuse": "",
+  "normal": "",
+  "smoothness": 0.25,
+  "specular": 0.3,
+  "roughness": 0.75,
+  "metallic": 0.2,
+  "enable_environment_mapping": true,
+  "environment_map_scale": 0.1
+}

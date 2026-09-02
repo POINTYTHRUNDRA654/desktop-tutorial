@@ -1,0 +1,22 @@
+# Optional Python packages for the Mossy's Blender Add-On add-on.
+# These are NOT required for core functionality; they enable additional
+# AI-powered or heavy-processing features.
+#
+# Uncomment a line (remove the leading #) to include that package when
+# "Install Python Requirements (including optional)" is run.
+#
+# PyTorch (required for: get3d_helpers, imageto3d_helpers, hunyuan3d_helpers, hymotion_helpers)
+# Use CPU version for smaller download; GPU version available via --index-url
+# WARNING: PyTorch is ~2 GB. Uncomment only when needed for AI features.
+# torch>=2.0.0
+# torchvision>=0.15.0
+
+# 3D mesh processing and PDF parsing
+trimesh>=4.0.0
+pypdf>=6.0.0
+
+# gradio>=3.50.0
+# diffusers>=0.21.0
+# transformers>=4.30.0
+# accelerate>=0.24.0
+# openai>=1.0.0

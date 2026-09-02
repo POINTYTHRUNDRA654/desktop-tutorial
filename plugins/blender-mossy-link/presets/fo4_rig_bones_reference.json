@@ -1,0 +1,30 @@
+{
+  "label": "FO4 Physics & Rig Bones Reference",
+  "cloth_physics_bones": [
+    "NPC L Breast",
+    "NPC R Breast",
+    "NPC L Skirt",
+    "NPC R Skirt",
+    "NPC L Cloth",
+    "NPC R Cloth",
+    "NPC L Strap",
+    "NPC R Strap"
+  ],
+  "weapon_bones": [
+    "WEAPON",
+    "WeaponMagazine",
+    "WeaponBolt",
+    "WeaponTrigger",
+    "ProjectileNode",
+    "WeaponOptics1",
+    "WeaponOptics2",
+    "Grip",
+    "Barrel",
+    "Hammer"
+  ],
+  "notes": {
+    "cloth": "Weight cloth/strap geo to these bones. Add Havok XML in CK for physics.",
+    "weapon": "WEAPON is the root node (verified against real vanilla weapon NIFs via PyNifly -- not 'WeaponRoot'). Animate WeaponBolt/WeaponTrigger for reload; ProjectileNode is the muzzle/projectile-origin node. Grip/Barrel/Hammer have no confirmed real NIF node equivalent and exist only as Blender-side animation-authoring aids.",
+    "creature": "Use creature-specific skeleton NIF. Convert animations to HKX via hkxcmd."
+  }
+}

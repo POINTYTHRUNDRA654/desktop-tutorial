@@ -1,0 +1,1785 @@
+"""
+mossy_link.py
+=============
+Connects the Blender add-on to the Mossy desktop application.
+
+Two-way connection
+------------------
+1. **TCP command server (Blender side, port 9999)**
+   Mossy's Bridge Server (running on port 21337) forwards commands here.
+   The server receives JSON payloads and executes them inside Blender on the
+   main thread using ``bpy.app.timers``.
+
+   Supported command types (matching BridgeServer.ts):
+     • ``{"type": "script", "code": "..."}``  – exec Python inside Blender
+     • ``{"type": "text",   "code": "...",
+          "name": "...", "run": true/false}``  – create/update a Text datablock
+
+2. **Nemotron LLM client (outbound, port 5000)**
+   ``ask_mossy()`` sends natural-language queries to Mossy's local Nemotron
+   AI service (``POST http://localhost:5000/nemotron``).  This is the
+   "Mossy brain" that answers FO4-modding questions without sending any data
+   to the cloud.
+
+3. **Bridge health check (outbound, port 21337)**
+   ``check_bridge()`` pings ``GET http://localhost:21337/health`` to confirm
+   the Mossy desktop app is running.
+
+Ports are read from the add-on preferences on every call so the user can
+change them without restarting Blender.
+"""
+
+import json
+import os
+import queue
+import socket
+import sys
+import threading
+import time
+from urllib import error as _url_error
+from urllib import request as _url_request
+
+import bpy
+
+# CPython lazily imports codec modules like encodings.idna/encodings.ascii
+# the first time socket.getaddrinfo() actually needs them (inside
+# urlopen() -> getaddrinfo() -> hostname.encode(...)). This module spawns
+# background daemon threads (_bg_push, _bg_health_ping, etc.) that make HTTP
+# calls to the local Mossy bridge, and if the FIRST such lazy codec import
+# in the whole process happens concurrently on one of those threads while
+# the main thread is also doing dynamic imports (e.g. this addon's own
+# _try_import machinery during registration, or any importlib usage), the
+# import system's lock can be entered from two threads for the first-ever
+# import of the same module -- observed as a hard EXCEPTION_ACCESS_VIOLATION
+# crash inside python311.dll, confirmed via blender.crash.txt showing the
+# fault inside encodings/idna.py's search_function, reached through exactly
+# this module's _bg_push -> push_blender_context -> urlopen call chain.
+# Forcing these imports here, at module load time on the main thread (during
+# addon registration, before any of this module's background threads can
+# exist), pre-populates sys.modules so no thread ever has to race to
+# perform the first-time import.
+import encodings.idna    # noqa: F401
+import encodings.ascii   # noqa: F401
+
+# ── Internal state ─────────────────────────────────────────────────────────────
+_server_thread: "threading.Thread | None" = None
+_server_socket: "socket.socket | None" = None
+_active: bool = False
+_command_queue: queue.Queue = queue.Queue()
+_pytorch_path: "str | None" = None  # Will be set by Mossy via set_pytorch_path command
+
+# ── Auto-reconnect / health monitor state ─────────────────────────────────────
+_last_health_check: float = 0.0
+_health_check_interval: float = 15.0   # seconds between bridge health pings
+_bridge_online: bool = False
+_llm_online: bool = False
+_reconnect_attempts: int = 0
+_MAX_RECONNECT: int = 5                # give up auto-reconnect after this many failures
+
+# ── FO4 system context injected into every LLM query ─────────────────────────
+# This ensures the Nemotron model always answers in the FO4 modding context
+# regardless of how the query is phrased.
+_FO4_SYSTEM_CONTEXT = (
+    "You are Mossy, an expert Fallout 4 modding assistant built into Blender via "
+    "the Mossy Industries add-on (v5.1+). You are the user's personal guide — you "
+    "know every panel, button, and workflow in the add-on and can walk the user "
+    "through any process step by step.\n\n"
+
+    "YOUR ROLE:\n"
+    "- Guide users through every step of creating a Fallout 4 mod in Blender\n"
+    "- Explain exactly which button to click, which panel to open, what settings to use\n"
+    "- Diagnose and fix problems with meshes, exports, textures, and materials\n"
+    "- Answer questions about FO4 modding, the Creation Kit, and the NIF format\n\n"
+
+    "HOW TO OPEN THE ADD-ON: Press N in the 3D Viewport → click the 'Fallout 4' tab.\n\n"
+
+    "ALL PANELS IN THE N-PANEL (in order):\n"
+    "1. Fallout 4 Tutorial (Main) — Full FO4 Pipeline, Prepare External Mesh, Export Static Mesh, Validate\n"
+    "2. Setup & Status — Install Core Dependencies, Auto-Install PyNifly, Environment Check, Reload Add-on\n"
+    "3. Mesh Helpers — Prepare, Validate, Auto-Fix, Decimate, Merge by Distance, Smooth Normals,\n"
+    "   Generate Collision Mesh (UCX_), Generate LOD Chain (LOD0-3), Thicken Flat Planes\n"
+    "4. Texture Helpers — Auto-Load Textures, Convert to DDS, Set Texture Path, Auto-Setup Material\n"
+    "5. Image to Mesh — Generate Mesh from Image (ZoeDepth depth estimation + PyTorch)\n"
+    "6. Animation Helpers — Smart Wind + FO4 Export Prep, Generate Wind Weights, Import FO4 Skeleton,\n"
+    "   Auto-Weight Paint, Enforce Bone Limit (max 4), Normalize Weights\n"
+    "7. Auto-Rigging (RigNet) — Auto-Rig Mesh (AI skeleton from mesh shape), Refine Rig\n"
+    "8. Texture Conversion (NVTT) — Convert to DDS BC1/BC3/BC7, Batch Convert Folder\n"
+    "9. Advisor — AI chat (you are here), powered by Mossy Bridge + Nemotron LLM\n"
+    "10. External Tools — FFmpeg, NVTT, TexConv, ck-cmd, RealESRGAN, Instant-NGP paths\n"
+    "11. Game Assets & Library — FO4 Data Folder setting, Mod Output Folder, Import Asset,\n"
+    "    Scan Library, Browse Meshes/Textures/Materials\n"
+    "12. Export to Fallout 4 — Export Static Mesh (Full Pipeline), Export Mesh to NIF,\n"
+    "    Export Scene as NIF, Export BGSM, Export TRI Morphs, NIF Exporter dropdown,\n"
+    "    Game Version dropdown (OG/Next-Gen/AE -- persists across Blender restarts)\n"
+    "13. Batch Processing — Batch Prepare, Batch Export, Batch Validate, Batch Convert Textures\n"
+    "14. Automation & Quick Tools — Full Auto-Pipeline, Quick Static Prop, Quick Vegetation,\n"
+    "    Quick NPC Mesh, Save/Load Workflow\n"
+    "15. Animation Export (HKX) — Export Animation (HKX), Import HKX, Convert HKX→FBX,\n"
+    "    Batch Export Animations; requires ck-cmd path in External Tools\n"
+    "16. Armor & Clothing — Setup Armor Rig, Assign Biped Slot, Auto-Weight Armor,\n"
+    "    Mirror Weights, Export Armor NIF\n"
+    "17. Preset Library — Save Current as Preset, Load Preset, Delete Preset, Export/Import Presets\n"
+    "18. Add-on Integrations — PyNifly/Niftools/Daz/Mesh2Rig status + settings\n"
+    "19. Desktop Tutorial App — Server Port (9999), AI Port (5000), Token, Start/Stop Server,\n"
+    "    Generate Token, Copy Token\n"
+    "20. Diagnostics & Health — Run Diagnostics, Auto-Fix Issues, Clear Tool Path Cache\n"
+    "21. Operation Log — session history, Clear Log, Export Log\n"
+    "22. Mossy (Quick Connect) — Quick Connect button tests Bridge (21337) + AI (5000) + Server (9999)\n"
+    "23. NPCs & Creatures (v5.2) — describe animation → Full Pipeline (skeleton+animate) or\n"
+    "    Generate Animations; quick picks: idle/crouch/combat/sneak/creature/social/power-armor\n"
+    "24. Weapons (v5.2) — describe weapon → Full Pipeline (rig+animate) or Auto-Rig or Animate;\n"
+    "    quick picks: 10mm pistol, pipe pistol, combat rifle, shotgun, knife, bat, grenade\n"
+    "25. Glow & Spore Effects (v5.2) — Color, Speed, Strength sliders + description;\n"
+    "    Apply Glow Effect, Bake _g Sequence; quick picks: pulse/breathe/flicker/spore\n"
+    "26. CK Cell Editor (v5.2) — Import from ESP/ESM or xEdit CSV, Prepare Cell for Editing,\n"
+    "    Export Cell NIF + ESP, Export Single Object\n"
+    "27. ESP Generator (v5.2) — Plugin Name, Author, Output Folder, record types\n"
+    "    (STAT/FLOR/ACTI/WEAP/ARMO/MISC/LIGH), Generate ESP button\n"
+    "28. AI Texture Generator (v5.2) — Base Name, Description, Resolution (512/1024/2048),\n"
+    "    Output Folder; generates _d.dds + _n.dds + _s.dds from text prompt\n"
+    "29. Batch Export & Presets (v5.2) — Export N Objects as NIFs, Auto LOD1/2/3 for Selected,\n"
+    "    Save/Load Workflow Presets\n"
+    "30. Settlement Workshop (v5.2) — Add Snap Points (auto-detect), Check Budget,\n"
+    "    Plugin name, category buttons (STRUCTURES/FURNITURE/POWER/FOOD/DEFENSE/LIGHTING/etc),\n"
+    "    Generate Workshop Stubs (COBJ + menu entry + Papyrus script)\n"
+    "31. Compatibility Checker (v5.2) — Run Full Compatibility Scan; checks CBBE, bone naming,\n"
+    "    scale, naming conventions, AWKCR slot conflicts\n"
+    "32. Dialogue Tree Editor (v5.2) — New Dialogue Tree (node editor), Export JSON + xEdit\n"
+    "33. Weather & Interior (v5.2) — Add particles: Rain/Snow/Ash/Rad Storm/Fog/Blizzard;\n"
+    "    Interior lights: Warm/Cool/Vault/Neon R/Neon B/Candle/Rad; Add Room Snap Grid\n"
+    "34. NavMesh Generator (v5.2) — Generate NavMesh from Selected, Validate, Decimate,\n"
+    "    Left/Right/Edge Cover markers; limits: 32767 verts / 16384 tris, all-triangles\n"
+    "35. Mesh Tools (PyMeshLab) — Install PyMeshLab (if not installed); then: Repair Mesh,\n"
+    "    Decimate Mesh (high-quality LOD), Split by Components, Clean & Reduce pipeline\n"
+    "36. SS2 Plot Builder (v5.2) — build custom Sim Settlements 2 plot structures: Boundary\n"
+    "    Guide (real-size 1x1/2x2/3x3/Interior box + front arrow), Stage Tagging (Level 1-3 +\n"
+    "    Stage + Final, 'Tag Selected as Plot Stage' -- select ALL of a stage's kit-bashed\n"
+    "    pieces at once and tag them together, they combine into one NIF per stage, matching\n"
+    "    how real SS2 buildings are made), Spawn Markers ('Add Spawn Marker at Cursor' + Form\n"
+    "    EditorID field), Export Plot (Prefix/Plan Name/Build Material/Output Folder → exports\n"
+    "    one NIF+BGSM per stage, writes an xEdit Static-record script + Models.csv + Spawns.csv\n"
+    "    for the user's own SS2_ImportStageData.pas xEdit script)\n\n"
+
+    "KEY WORKFLOWS:\n"
+    "1. MESH PREP (always do this first): select mesh → Mesh Helpers → 'Prepare External Mesh for FO4'\n"
+    "   Fixes: transforms, UV name, extra UVs, material, merged doubles, non-manifold edges\n"
+    "2. VEGETATION: Prepare mesh → Thicken Flat Planes (Cross Card) → Smart Wind + FO4 Export Prep\n"
+    "   → Generate LOD Chain → Export Static Mesh\n"
+    "3. STATIC PROP: Prepare mesh → Generate Collision Mesh (UCX_) → Validate → Export Static Mesh\n"
+    "4. NPC/CREATURE: Prepare mesh → Import FO4 Skeleton or Auto-Rig → Auto-Weight Paint\n"
+    "   → Enforce Bone Limit → Export Mesh to NIF\n"
+    "5. EXPORT: Export → Export Static Mesh (Full Pipeline) → choose output NIF path in file browser\n"
+    "6. HKX ANIMATION: set ck-cmd path in External Tools → Animation Export panel → Export Animation (HKX)\n"
+    "7. DDS TEXTURES: External Tools → set NVTT or TexConv path → Texture Conversion panel\n"
+    "8. SETTLEMENT ITEM: Prepare + Collision → Settlement Workshop → Add Snap Points\n"
+    "   → Generate Workshop Stubs → Export\n"
+    "9. FIRST MOD: Setup & Status (install PyNifly) → External Tools (set paths) → Game Assets\n"
+    "    (set FO4 Data Folder + Mod Output Folder) → model/import → Prepare → Export\n"
+    "10. SS2 PLOT: SS2 Plot Builder → Add Boundary Guide for your plot size → build custom\n"
+    "    meshes within it → Tag Selected as Plot Stage for each construction stage (Level 1-3,\n"
+    "    mark the last stage of each level Final) → optionally Add Spawn Marker at Cursor for\n"
+    "    decorations → Export Plot → in FO4Edit apply the generated Statics.pas script, then run\n"
+    "    SS2_ImportStageData.pas pointed at the generated Models.csv/Spawns.csv → finish in CK\n\n"
+
+    "TECHNICAL FO4 KNOWLEDGE:\n"
+    "- NIF format: version 20.2.0.7, UserVersion 12, BSVersion 130\n"
+    "- Key NIF nodes: BSFadeNode (root), BSTriShape (mesh), BSLightingShaderProperty,\n"
+    "  BSShaderTextureSet, bhkCollisionObject, bhkRigidBody, NiControllerSequence\n"
+    "- BGSM/BGEM material files in Data/Materials/\n"
+    "- Texture naming: _d.dds (diffuse), _n.dds (normal, DirectX), _s.dds (specular), _g.dds (glow)\n"
+    "- Mesh limits: 65535 verts/tris per BSTriShape, max 4 bone influences per vertex\n"
+    "- UV map must be named exactly 'UVMap', all transforms applied before export\n"
+    "- Havok physics: UCX_ prefix for collision, bhkConvexVerticesShape for simple props\n"
+    "- Biped slots: 30=Head, 31=Hair, 32=Body, 33=Hands, 34=Forearms, 37=Feet, etc.\n"
+    "- NavMesh: BSTreeShape, all-triangles, manifold, max 32767 verts, max 16384 tris\n"
+    "- Shape keys → .tri morph files (FRTRI003 format) for NPC facial morphs\n"
+    "- PyNifly for Blender 4.x/5.x; Niftools v0.1.1 for Blender 3.6 LTS\n"
+    "- Papyrus: .psc source → .pex compiled; BA2 archives pack Data folder\n\n"
+
+    "COMMON FIXES:\n"
+    "- Panel not visible: press N in 3D Viewport → click 'Fallout 4' tab\n"
+    "- PyNifly missing: Setup & Status → Auto-Install PyNifly\n"
+    "- Mossy Bridge not reachable: open Mossy desktop app first\n"
+    "- Mossy LLM timed out: in Mossy desktop, start the Nemotron/LLM service\n"
+    "- Module failed: Diagnostics panel → Auto-Fix Issues\n"
+    "- Non-manifold edges: 'Prepare External Mesh' auto-fixes; or PyMeshLab → Repair Mesh\n"
+    "- Too many verts (>65535): Mesh Helpers → Decimate, or PyMeshLab → Decimate Mesh\n"
+    "- Wrong scale in-game: Ctrl+A → Apply All Transforms before export\n"
+    "- No UV map: Edit Mode → select all → U → Smart UV Project\n"
+    "- DDS not showing: enable DDS add-on in Blender Preferences, or convert to PNG\n"
+    "- NVTT/DDS conversion fails: External Tools → set NVTT or TexConv path\n"
+    "- HKX export fails: External Tools → set ck-cmd path (must be compiled from source)\n"
+    "- SS2_ImportStageData.pas says 'found no Form for X': you ran it before applying the\n"
+    "  generated Statics.pas script — apply Statics.pas to your plugin in xEdit first\n"
+    "- SS2 Plot Builder 'Export Plot' says no stages/no Final: tag every stage with Tag\n"
+    "  Selected as Plot Stage, and mark exactly one stage per level as Final\n"
+    "- SS2 Plot Builder: tagging many pieces of one kit-bashed stage the same Level/Stage/\n"
+    "  Final is correct and expected -- they combine into one NIF at export (fixed; used to\n"
+    "  wrongly error 'duplicate stage numbers')\n"
+    "- SS2 Plot Builder 'Export Plot' crashes with 'ReferenceError: StructRNA ... has been\n"
+    "  removed' on a second export: fixed -- re-exporting after collision already exists\n"
+    "  used to mistake the previous run's own UCX_ collision object for extra plot content\n"
+    "- SS2 Plot Builder: a stage's export fails with 'No objects selected for export' /\n"
+    "  'result=set()' -- a known Blender/PyNifly context quirk when the exporter runs\n"
+    "  repeatedly in one loop rather than once per click; Export Plot now retries once\n"
+    "  automatically, if it still fails after the retry check the System Console for which\n"
+    "  specific stage/object failed\n"
+    "- NIF export crashes with 'pack_compressed_mesh: max 255 verts per section': fixed --\n"
+    "  Custom Collision (Exact Mesh), Generate Collision Mesh, and LOD-based collision all\n"
+    "  now automatically decimate down to fit FO4's real 255-vertex Havok collision limit\n"
+    "  when the source mesh is detailed enough to exceed it\n"
+    "- Game Version dropdown resets every time Blender restarts: fixed -- it now persists\n"
+    "  via addon preferences (saved to userpref.blend automatically on every change) like\n"
+    "  every other sticky setting; if it's still resetting after updating, Blender likely\n"
+    "  can't write to its config folder -- check for a permissions issue there\n"
+    "- Generated collision shows as a solid/textured mesh instead of a see-through wireframe:\n"
+    "  fixed -- Generate Collision Mesh, Custom Collision (Exact Mesh), and LOD-based collision\n"
+    "  now always display wireframe-only, matching every other collision object\n"
+    "- NavMesh Validate reports many 'boundary/non-manifold edge(s)' and the generated navmesh\n"
+    "  looks torn apart / doesn't match the ground: fixed -- Generate NavMesh from Selected now\n"
+    "  follows the true terrain shape instead of flattening each face to its own height, which\n"
+    "  used to tear adjacent faces apart on any non-flat ground (ramps, stairs, cave floors).\n"
+    "  Generate NavMesh from Selected also now skips collision (UCX_) objects, the SS2 Plot\n"
+    "  Builder boundary-guide box/arrow, and hidden objects automatically\n"
+    "- PyMeshLab not installed: Mesh Tools panel → Install PyMeshLab button\n\n"
+
+    "EXTERNAL TOOL DEFAULT PATHS:\n"
+    "- NVTT: D:\\blender_tools\\nvtt\\nvidia-texture-tools-2.1.2-win\\bin\\nvcompress.exe\n"
+    "- TexConv: D:\\blender_tools\\texconv\\texconv.exe\n"
+    "- ck-cmd: D:\\blender_tools\\ck-cmd\\ (folder with ck-cmd.exe)\n"
+    "- RealESRGAN: D:\\blender_tools\\realesrgan\\realesrgan-ncnn-vulkan.exe\n"
+    "- FFmpeg: D:\\blender_tools\\ffmpeg\\...\\bin\\ffmpeg.exe\n\n"
+
+    "STYLE:\n"
+    "Give exact, actionable numbered steps. Name the specific button or panel every time. "
+    "Be friendly and encouraging — modding is hard. "
+    "Never say 'use the export feature' — say exactly which panel and button. "
+    "If someone is stuck, ask one clarifying question then give the fix.\n"
+)
+
+# ── Port helpers ───────────────────────────────────────────────────────────────
+
+def _get_ports():
+    """Return (tcp_port, llm_port, token) from prefs, falling back to defaults."""
+    tcp_port = 9999
+    llm_port = 5000
+    token = ""
+    try:
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs:
+            tcp_port = getattr(prefs, "port",            tcp_port)
+            llm_port = getattr(prefs, "mossy_http_port", llm_port)
+            token    = getattr(prefs, "token",           token)
+    except Exception:
+        pass
+    return tcp_port, llm_port, token
+
+
+def _store_pytorch_path_in_prefs(path: str) -> None:
+    """Store the PyTorch path in Blender preferences so it persists."""
+    global _pytorch_path
+    _pytorch_path = path
+    try:
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs:
+            prefs.pytorch_path = path
+            print(f"[Mossy Link] Stored PyTorch path in preferences: {path}")
+            # ── Persist to disk, two complementary mechanisms ────────────────
+            # 1. JSON keys file: reliable backup that does not depend on the
+            #    Blender operator context.  Survives addon renames / reinstalls.
+            try:
+                _prefs_mod.save_api_keys()
+            except Exception as _json_exc:
+                print(f"[Mossy Link] Warning: Could not save to JSON keys file: {_json_exc}")
+            # 2. Blender user-preferences: uses save_prefs_deferred() which
+            #    applies a proper window-context override so the operator
+            #    succeeds even when called from inside a timer callback
+            #    (bare wm.save_userpref can return CANCELLED silently when
+            #    bpy.context.window is None from a timer — RECURRING BUG #12).
+            try:
+                _prefs_mod.save_prefs_deferred()
+            except Exception as _save_exc:
+                print(f"[Mossy Link] Warning: Could not schedule prefs save: {_save_exc}")
+    except Exception as e:
+        print(f"[Mossy Link] Warning: Could not store path in prefs: {e}")
+
+
+def _load_pytorch_path_from_prefs() -> "str | None":
+    """Load the PyTorch path from Blender preferences if available."""
+    global _pytorch_path
+    try:
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs and hasattr(prefs, "pytorch_path"):
+            path = getattr(prefs, "pytorch_path", None)
+            if path:
+                _pytorch_path = path
+                print(f"[Mossy Link] Loaded PyTorch path from preferences: {path}")
+                # Also apply to sys.path and environment
+                _apply_pytorch_path(path)
+                return path
+    except Exception as e:
+        print(f"[Mossy Link] Could not load path from prefs: {e}")
+    return None
+
+
+def _apply_pytorch_path(path: str) -> None:
+    """Apply the PyTorch path to sys.path and environment variables."""
+    global _pytorch_path
+
+    # Add to sys.path if not already there
+    if path and path not in sys.path:
+        sys.path.insert(0, path)
+        print(f"[Mossy Link] Added {path} to sys.path")
+
+    # Set PYTHONPATH environment variable so subprocesses (Blender operators, etc.) can find torch
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    if path:
+        paths = [p for p in current_pythonpath.split(os.pathsep) if p]  # Remove empty strings
+        if path not in paths:
+            paths.insert(0, path)
+            os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+            print(f"[Mossy Link] Updated PYTHONPATH environment variable")
+
+    _pytorch_path = path
+
+    # Try to import torch as a test
+    try:
+        import torch
+        print(f"[Mossy Link] ✅ PyTorch {torch.__version__} is accessible from {path}")
+        return True
+    except ImportError as e:
+        # Check if it's a DLL error (CUDA mismatch) vs regular import error
+        error_msg = str(e)
+        if "DLL" in error_msg or "CUDA" in error_msg or "driver" in error_msg or "WinError 1114" in error_msg:
+            print(f"[Mossy Link] ❌ PyTorch DLL failed to load (likely CPU vs GPU version mismatch)")
+            print(f"[Mossy Link] Error: {e}")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] FIX: Mossy likely installed a GPU version but Blender needs CPU-only")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] Reinstall PyTorch CPU-only version:")
+            print(f"[Mossy Link]   1. Open Mossy Settings → PyTorch Manager")
+            print(f"[Mossy Link]   2. Click 'Uninstall PyTorch'")
+            print(f"[Mossy Link]   3. Click 'Install PyTorch (CPU-only)' Button")
+            print(f"[Mossy Link]   4. Restart Blender")
+            print(f"[Mossy Link] ")
+            print(f"[Mossy Link] OR manually reinstall:")
+            print(f"[Mossy Link]   python.exe -m pip uninstall torch torchvision torchaudio -y")
+            print(f"[Mossy Link]   python.exe -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu")
+        else:
+            print(f"[Mossy Link] ⚠️ PyTorch import failed: {e}")
+        return False
+
+
+def _handle_connection(conn: "socket.socket", token: str) -> None:
+    """Handle a single TCP connection in a background thread.
+
+    A non-empty ``token`` is required.  Any connection that does not supply a
+    matching token is rejected immediately -- no code is executed.  This keeps
+    the exec() gateway closed to every process that does not know the shared
+    secret, including other local processes on the same machine.
+
+    To connect from Mossy: set the same token in the Mossy desktop app and in
+    the Blender add-on preferences (Add-ons > Blender Game Tools > Mossy Link
+    Token).
+    """
+    try:
+        chunks = []
+        while True:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            # A well-formed JSON command fits in one recv on localhost; stop
+            # when the buffer ends with a newline or is smaller than full MTU.
+            if b"\n" in chunk or len(chunk) < 4096:
+                break
+        data = b"".join(chunks)
+        if not data:
+            return
+
+        cmd = json.loads(data.decode("utf-8"))
+
+        # Mandatory auth check -- reject if token is empty or does not match.
+        if not token or cmd.get("token") != token:
+            conn.sendall(
+                json.dumps({"status": "error", "message": "Unauthorized"}).encode()
+            )
+            return
+
+        # Hand off to the Blender main thread via the queue.
+        response_event: threading.Event = threading.Event()
+        response_holder: list = [None]
+        _command_queue.put((cmd, response_event, response_holder))
+
+        # Block this background thread until the main thread replies (10 s max).
+        response_event.wait(timeout=10.0)
+        result = response_holder[0] or {
+            "status": "error", "message": "Blender main-thread timeout"
+        }
+        conn.sendall(json.dumps(result).encode("utf-8"))
+
+    except Exception as exc:
+        try:
+            conn.sendall(
+                json.dumps({"status": "error", "message": str(exc)}).encode()
+            )
+        except Exception:
+            pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _tcp_server_loop(host: str, port: int, token: str) -> None:
+    """Background thread: accept TCP connections and queue commands."""
+    global _server_socket, _active
+    try:
+        _server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        _server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _server_socket.bind((host, port))
+        _server_socket.listen(5)
+        _server_socket.settimeout(1.0)   # allows periodic _active check
+        print(f"[Mossy Link] TCP server listening on {host}:{port}")
+        while _active:
+            try:
+                conn, _addr = _server_socket.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            threading.Thread(
+                target=_handle_connection,
+                args=(conn, token),
+                daemon=True,
+            ).start()
+    except Exception as exc:
+        print(f"[Mossy Link] TCP server error: {exc}")
+    finally:
+        try:
+            if _server_socket:
+                _server_socket.close()
+        except Exception:
+            pass
+        _server_socket = None
+        print("[Mossy Link] TCP server stopped.")
+
+
+def _process_command_queue() -> "float | None":
+    """
+    Called by ``bpy.app.timers`` on the Blender main thread every 0.1 s.
+    Drains the command queue and executes each command in Blender's context.
+    Returns ``None`` to unregister itself when the server has been stopped.
+    """
+    import bpy  # only available on the main thread
+
+    try:
+        while not _command_queue.empty():
+            cmd, event, holder = _command_queue.get_nowait()
+            try:
+                holder[0] = _execute_command_on_main_thread(cmd, bpy)
+            except Exception as exc:
+                holder[0] = {"status": "error", "message": str(exc)}
+            finally:
+                event.set()
+    except Exception:
+        pass
+
+    return 0.1 if _active else None
+
+
+def _get_addon_version() -> list:
+    """Live bl_info version, not a hardcoded duplicate — a stale copy of the
+    version number would be exactly the kind of silent-drift bug get_context
+    itself was added to stop. Degrades to [0, 0, 0] rather than raising if
+    addon_utils can't find this module for any reason."""
+    try:
+        import addon_utils
+        for mod in addon_utils.modules():
+            if mod.__name__ == __package__:
+                return list(mod.bl_info.get("version", (0, 0, 0)))
+    except Exception:
+        pass
+    return [0, 0, 0]
+
+
+def _build_scene_context(bpy) -> dict:
+    """
+    Full FO4-aware scene snapshot for Mossy's Bridge to pull on demand
+    (get_context command, see _execute_command_on_main_thread). Field shape
+    matches desktop-tutorial's public/mossy_link_addon.py _build_scene_context
+    exactly (activeObject, selected, meshCount, etc.) — that file's pull-based
+    get_context was the reference implementation this add-on converged onto
+    as the single source of truth for the Blender side of the integration;
+    keeping the same field names means Mossy's client code (LocalAIEngine.ts,
+    BridgeServer.ts) needed zero changes when the add-ons converged.
+    """
+    scene    = bpy.context.scene
+    active   = bpy.context.active_object
+    selected = [o.name for o in bpy.context.selected_objects]
+
+    active_action, pose_markers = None, 0
+    if active and active.animation_data and active.animation_data.action:
+        act           = active.animation_data.action
+        active_action = act.name
+        pose_markers  = len(act.pose_markers)
+
+    ctx = {
+        "blender_version": bpy.app.version_string,
+        "scene":           scene.name,
+        "mode":            bpy.context.mode,
+        "activeObject":    active.name if active else None,
+        "activeType":      active.type if active else None,
+        "selected":        selected,
+        "objectCount":     len(bpy.data.objects),
+        "meshCount":       len(bpy.data.meshes),
+        "armatureCount":   len(bpy.data.armatures),
+        "unitSystem":      scene.unit_settings.system,
+        "unitScale":       round(scene.unit_settings.scale_length, 6),
+        "fps":             scene.render.fps,
+        "frameStart":      scene.frame_start,
+        "frameEnd":        scene.frame_end,
+        "activeAction":    active_action,
+        "actionPoseMarkers": pose_markers,
+        "addonVersion":    _get_addon_version(),
+    }
+
+    if active and active.type == "MESH":
+        mesh    = active.data
+        tri_est = sum(max(0, len(p.vertices) - 2) for p in mesh.polygons)
+        ctx["activeMesh"] = {
+            "vertices":         len(mesh.vertices),
+            "polygons":         len(mesh.polygons),
+            "triangleEstimate": tri_est,
+            "uvLayers":         len(mesh.uv_layers),
+            "materials":        len(active.material_slots),
+            "modifiers":        [m.name for m in active.modifiers],
+        }
+    return ctx
+
+
+def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
+    """Execute a single command dict.  Must run on the Blender main thread."""
+    global _pytorch_path
+
+    cmd_type = cmd.get("type", "script")
+
+    # NEW: Handle set_pytorch_path command from Mossy
+    if cmd_type == "set_pytorch_path":
+        path = cmd.get("path", "")
+        if not path:
+            return {"status": "error", "message": "No path provided"}
+
+        # Check if path exists
+        if not os.path.isdir(path):
+            return {"status": "error", "message": f"Path does not exist: {path}"}
+
+        # Apply the path and store it
+        _store_pytorch_path_in_prefs(path)
+        success = _apply_pytorch_path(path)
+
+        if success:
+            return {"status": "success", "message": f"PyTorch path set and verified: {path}"}
+        else:
+            return {"status": "warning", "message": f"Path set ({path}) but torch not found"}
+
+    if cmd_type == "script":
+        code = cmd.get("code", "")
+        # SECURITY NOTE: this executes arbitrary Python code sent by Mossy.
+        # The token check in _handle_connection guards access - keep the token
+        # non-empty and private to limit who can send commands.
+        ns = {"bpy": bpy, "__name__": "__mossy_script__"}
+        exec(compile(code, "<mossy_script>", "exec"), ns)  # noqa: S102
+        return {"status": "success", "message": "Script executed"}
+
+    if cmd_type == "text":
+        name = cmd.get("name") or "MOSSY_SCRIPT"
+        code = cmd.get("code", "")
+        run  = bool(cmd.get("run", False))
+        if name in bpy.data.texts:
+            text_block = bpy.data.texts[name]
+            text_block.clear()
+        else:
+            text_block = bpy.data.texts.new(name)
+        text_block.write(code)
+        if run:
+            # Same security note as above - execution is gated by the token check.
+            ns = {"bpy": bpy, "__name__": "__mossy_script__"}
+            exec(compile(code, name, "exec"), ns)  # noqa: S102
+        return {"status": "success", "message": f"Text block '{name}' updated"}
+
+    if cmd_type == "operator":
+        op_id = cmd.get("id", "")          # e.g. "fo4.pipeline_static_mesh"
+        params = cmd.get("params", {})      # e.g. {"auto_pack_ba2": True}
+
+        if not op_id:
+            return {"status": "error", "message": "operator id required"}
+
+        # Resolve bpy.ops.<category>.<name>
+        parts = op_id.split(".", 1)
+        if len(parts) != 2:
+            return {"status": "error", "message": f"Invalid operator id format: {op_id}"}
+
+        category, name = parts
+        try:
+            op_category = getattr(bpy.ops, category)
+            op_func = getattr(op_category, name)
+        except AttributeError:
+            return {"status": "error", "message": f"Operator not found: {op_id}"}
+
+        try:
+            result = op_func(**params)
+            return {"status": "ok", "result": str(result)}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    if cmd_type == "get_context":
+        return {"status": "success", "context": _build_scene_context(bpy)}
+
+    if cmd_type == "get_capabilities":
+        return {
+            "status": "success",
+            "addon_version": _get_addon_version(),
+            # Mossy's Bridge (BridgeServer.ts) queries this before relying on a
+            # feature this add-on might not have — added alongside get_context
+            # specifically because the two add-ons that both listen on this
+            # port (this one, and desktop-tutorial's public/mossy_link_addon.py
+            # before it converged onto this file as the single source of
+            # truth) had silently diverged on supported commands with no way
+            # for Mossy to tell which one it was actually talking to. See
+            # desktop-tutorial's ARCHITECTURE.md "Bridge auth" section for the
+            # incident this closes.
+            "supported_commands": [
+                "script", "text", "operator", "set_pytorch_path",
+                "get_context", "get_capabilities",
+            ],
+        }
+
+    return {"status": "error", "message": f"Unknown command type: {cmd_type!r}"}
+
+# ── Public server control ──────────────────────────────────────────────────────
+
+def is_server_running() -> bool:
+    """Return ``True`` if the Mossy Link TCP server is currently active."""
+    return _active
+
+
+def generate_new_token() -> tuple:
+    """Generate a fresh auth token and save it to preferences on demand.
+
+    Same generation call start_server() uses automatically on first run
+    (secrets.token_hex(16)) -- exposed standalone so the user can rotate
+    the token without restarting the server.
+    """
+    import secrets as _secrets
+    token = _secrets.token_hex(16)
+    try:
+        from . import preferences as _prefs_tok
+        prefs = _prefs_tok.get_preferences()
+        if not (prefs and hasattr(prefs, "token")):
+            return False, "Preferences unavailable -- open the addon preferences panel first"
+        prefs.token = token
+    except Exception as exc:
+        return False, f"Failed to save new token: {exc}"
+    return True, token
+
+
+def start_server() -> tuple:
+    """
+    Start the TCP command server.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _server_thread, _active
+
+    if _active:
+        return True, "Mossy Link server is already running."
+
+    tcp_port, _llm_port, token = _get_ports()
+
+    # Auto-generate a token if none is set — saves the user from having to
+    # configure one manually on first run.  The generated token is saved to
+    # preferences so it persists across sessions and Mossy can read it.
+    if not token or not token.strip():
+        import secrets as _secrets
+        token = _secrets.token_hex(16)
+        try:
+            from . import preferences as _prefs_tok
+            prefs = _prefs_tok.get_preferences()
+            if prefs and hasattr(prefs, "token"):
+                prefs.token = token
+                print(f"[Mossy Link] Auto-generated token: {token}")
+                print(f"[Mossy Link] Copy this token into Mossy desktop app settings.")
+        except Exception:
+            pass
+
+    _active = True
+
+    # Load PyTorch path from preferences if available
+    pytorch_path = _load_pytorch_path_from_prefs()
+    if pytorch_path:
+        print(f"[Mossy Link] PyTorch path loaded and ready: {pytorch_path}")
+
+    _server_thread = threading.Thread(
+        target=_tcp_server_loop,
+        args=("127.0.0.1", tcp_port, token),
+        daemon=True,
+        name="MossyLinkTCP",
+    )
+    _server_thread.start()
+
+    # Register the main-thread queue processor with Blender's timer system.
+    try:
+        import bpy
+        if not bpy.app.timers.is_registered(_process_command_queue):
+            bpy.app.timers.register(_process_command_queue, first_interval=0.1)
+    except Exception:
+        pass
+
+    return True, f"Mossy Link server started on port {tcp_port}."
+
+
+def stop_server() -> tuple:
+    """
+    Stop the TCP command server.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _active, _server_socket
+
+    if not _active:
+        return True, "Mossy Link server is not running."
+
+    _active = False
+
+    # Unblock the accept() call by closing the socket.
+    try:
+        if _server_socket:
+            _server_socket.close()
+    except Exception:
+        pass
+
+    # Unregister the Blender timer (safe to call even if not registered).
+    try:
+        import bpy
+        if bpy.app.timers.is_registered(_process_command_queue):
+            bpy.app.timers.unregister(_process_command_queue)
+    except Exception:
+        pass
+
+    # Update the WindowManager property if we can reach bpy.
+    try:
+        import bpy
+        bpy.context.window_manager["mossy_link_active"] = False
+    except Exception:
+        pass
+
+    return True, "Mossy Link server stopped."
+
+# ── Outbound: Nemotron LLM (Mossy brain) ──────────────────────────────────────
+
+def ask_mossy(
+    query: str,
+    context_data=None,
+    timeout: float = 15,
+    fo4_context: bool = True,
+    max_tokens: int = 500,
+    temperature: float = 0.7,
+) -> "str | None":
+    """
+    Send a natural-language query to Mossy's local Nemotron AI service.
+
+    Mossy must be running on the desktop.  The request goes to
+    ``POST http://localhost:{mossy_http_port}/nemotron`` - no data leaves the
+    machine.
+
+    :param query:        The natural-language question or prompt.
+    :param context_data: Optional dict of structured context (e.g. mesh issues,
+                         UV analysis).  Serialised and appended to the prompt.
+    :param timeout:      Seconds to wait before giving up.
+    :param fo4_context:  When True (default), prepends the FO4 system context so
+                         the AI always answers in the Fallout 4 modding domain.
+    :param max_tokens:   Maximum tokens in the response.
+    :param temperature:  Sampling temperature (lower = more deterministic).
+    :returns:            The AI's plain-text response, or ``None`` on any error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+
+    # ── Build prompt with optional FO4 system context ─────────────────────────
+    parts = []
+    if fo4_context:
+        parts.append(_FO4_SYSTEM_CONTEXT)
+    parts.append(query)
+
+    if context_data:
+        try:
+            def _trim(obj, max_chars=1800):
+                serialised = json.dumps(obj)
+                if len(serialised) <= max_chars:
+                    return obj
+                if isinstance(obj, dict):
+                    trimmed = {}
+                    for k, v in obj.items():
+                        trimmed[k] = v
+                        if len(json.dumps(trimmed)) > max_chars:
+                            trimmed.pop(k)
+                            break
+                    return trimmed
+                if isinstance(obj, list):
+                    result = []
+                    for item in obj:
+                        result.append(item)
+                        if len(json.dumps(result)) > max_chars:
+                            result.pop()
+                            break
+                    return result
+                return obj
+
+            parts.append("\nContext:\n" + json.dumps(_trim(context_data), indent=2))
+        except Exception:
+            pass
+
+    full_prompt = "\n".join(parts)
+
+    payload = json.dumps({
+        "prompt":      full_prompt,
+        "max_tokens":  max_tokens,
+        "temperature": temperature,
+        "top_p":       0.9,
+    }).encode("utf-8")
+
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/nemotron",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                return (
+                    data.get("response")
+                    or data.get("text")
+                    or data.get("content")
+                    or data.get("message")
+                )
+    except Exception:
+        pass
+
+    return None
+
+
+def ask_mossy_fo4(
+    query: str,
+    mesh_obj=None,
+    issues: "list | None" = None,
+    timeout: float = 20,
+) -> "str | None":
+    """
+    Ask Mossy AI a Fallout 4-specific question with automatic mesh context.
+
+    Convenience wrapper around :func:`ask_mossy` that builds the ``context_data``
+    dict from a Blender mesh object automatically.  Always injects FO4 system
+    context so the AI knows the full FO4 modding domain.
+
+    :param query:    The specific question (e.g. "How do I fix this UV issue?").
+    :param mesh_obj: Optional active Blender mesh object for auto context.
+    :param issues:   Optional list of validation issue strings from validators.
+    :param timeout:  Seconds to wait.
+    :returns:        AI advice string, or ``None`` when Mossy is offline.
+    """
+    context: dict = {"domain": "fallout4_modding"}
+
+    if mesh_obj is not None:
+        try:
+            me = mesh_obj.data
+            context["object_name"]  = mesh_obj.name
+            context["vertex_count"] = len(me.vertices)
+            context["face_count"]   = len(me.polygons)
+            context["material_count"] = len(mesh_obj.material_slots)
+            context["uv_layers"]    = [uv.name for uv in me.uv_layers]
+            context["has_armature"] = any(
+                m.type == 'ARMATURE' for m in mesh_obj.modifiers
+            )
+            context["custom_props"] = {
+                k: v for k, v in mesh_obj.items()
+                if not k.startswith("_")
+            }
+        except Exception:
+            pass
+
+    if issues:
+        context["validation_issues"] = issues[:10]  # cap to avoid overflow
+
+    # Inject relevant addon knowledge base snippets so Mossy can give
+    # specific guidance about add-on features, panels, and workflows.
+    try:
+        from . import knowledge_helpers as _kh
+        # query is the actual question being asked — use it to rank the
+        # knowledge base by relevance instead of always loading whichever
+        # files happen to sort first alphabetically.
+        snippets = _kh.load_snippets(max_files=4, max_chars=3000, query=query)
+        if snippets:
+            context["addon_knowledge"] = snippets[:4]
+    except Exception:
+        pass
+
+    # Inject real, in-game-working reference examples from the user's
+    # configured FO4 Reference Mesh Library (see fo4_reference_library.py) so
+    # Mossy's guidance is grounded in actual game conventions instead of
+    # guessing -- e.g. asking about armor pulls in how a real CombatArmor NIF
+    # is structured (shape type, partitions, shader).
+    try:
+        category = _infer_reference_category(mesh_obj)
+        if category:
+            from . import fo4_reference_library as _frl
+            from . import preferences as _prefs_mod
+            prefs = _prefs_mod.get_preferences()
+            mesh_root = getattr(prefs, "fo4_reference_meshes_path", "") if prefs else ""
+            examples = _frl.get_reference_examples(category, root=mesh_root or None, kind="mesh")
+            if examples:
+                context["reference_mesh_examples"] = examples
+
+            tex_root = _frl.derive_sibling_root(mesh_root, "Textures") if mesh_root else None
+            tex_examples = _frl.get_reference_examples(category, root=tex_root, kind="texture")
+            if tex_examples:
+                context["reference_texture_examples"] = tex_examples
+
+            mat_root = _frl.derive_sibling_root(mesh_root, "Materials") if mesh_root else None
+            mat_examples = _frl.get_reference_examples(category, root=mat_root, kind="material")
+            if mat_examples:
+                context["reference_material_examples"] = mat_examples
+    except Exception:
+        pass
+
+    return ask_mossy(query, context_data=context, timeout=timeout, fo4_context=True)
+
+
+def _infer_reference_category(mesh_obj) -> "str | None":
+    """Best-effort category guess for reference-library lookups.
+
+    Prefers the object's own imported source path (``fo4_source_nif``, set on
+    import -- see operators.py) since that directly tells us which top-level
+    Meshes/<Category>/ folder it came from, matching how the reference index
+    itself is categorized. Falls back to loose hints from FO4 custom props
+    for freshly-authored objects with no source NIF.
+    """
+    if mesh_obj is None:
+        return None
+    src = mesh_obj.get("fo4_source_nif")
+    if src:
+        try:
+            parts = str(src).replace("\\", "/").split("/")
+            low = [p.lower() for p in parts]
+            if "meshes" in low:
+                idx = low.index("meshes")
+                if idx + 1 < len(parts):
+                    return parts[idx + 1]
+        except Exception:
+            pass
+    if mesh_obj.get("fo4_body_slot") or mesh_obj.get("fo4_armor_body_slot"):
+        return "Armor"
+    if str(mesh_obj.get("fo4_object_type", "")).upper() == "VEGETATION":
+        return "Landscape"
+    return None
+
+
+def quick_connect() -> dict:
+    """
+    One-click connection to Mossy.  Tests bridge + LLM, starts the TCP
+    server (auto-generating a token if needed), and returns a status dict:
+
+        {
+            "bridge": (True, "Mossy Bridge online (v1.2)"),
+            "llm":    (True, "Mossy LLM online"),
+            "server": (True, "Mossy Link server started on port 9999"),
+            "token":  "abc123...",   # the token to enter in Mossy settings
+        }
+    """
+    result = {}
+
+    # 1. Test outbound connections (no token needed)
+    result["bridge"] = check_bridge(timeout=2.0)
+    result["llm"]    = check_llm(timeout=2.0)
+
+    # 2. Start inbound TCP server (auto-generates token if blank)
+    if not is_server_running():
+        ok, msg = start_server()
+        result["server"] = (ok, msg)
+    else:
+        result["server"] = (True, "Mossy Link server already running")
+
+    # 3. Return current token so user can copy it into Mossy
+    _, _, token = _get_ports()
+    result["token"] = token
+
+    return result
+
+
+# ── Outbound: Bridge health check ─────────────────────────────────────────────
+
+_BRIDGE_PORT = 21337
+
+def check_bridge(timeout: float = 3.0) -> tuple:
+    """
+    Check whether the Mossy Bridge Server is running.
+
+    :returns: ``(online: bool, message: str)``
+    """
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/health",
+            method="GET",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                version = data.get("version", "unknown")
+                return True, f"Mossy Bridge online (v{version})"
+    except Exception as exc:
+        return False, f"Mossy Bridge not reachable: {exc}"
+    return False, "Mossy Bridge returned unexpected status"
+
+
+def request_package_install(
+    package: str,
+    timeout: float = 120.0,
+) -> "tuple[bool, str]":
+    """
+    Ask the Mossy desktop app to install a single Python package into
+    Blender's bundled Python environment.
+
+    Mossy handles the build toolchain (Visual Studio, cmake, ninja) so
+    packages requiring C++ compilation (e.g. libigl) install cleanly.
+
+    Sends ``POST http://localhost:21337/install_package``::
+
+        {"package": "libigl", "python_exe": "...", "reason": "..."}
+
+    Expected response::
+
+        {"status": "success"|"error", "message": "...", "requires_restart": false}
+
+    :param package:  pip package name (e.g. ``"libigl"``).
+    :param timeout:  Seconds to wait for Mossy to finish.
+    :returns:        ``(success: bool, message: str)``
+    """
+    import sys as _sys
+    try:
+        payload = json.dumps({
+            "package":    package,
+            "python_exe": _sys.executable,
+            "reason":     f"Requested by Mossy Blender add-on",
+        }).encode("utf-8")
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_package",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            ok = data.get("status") == "success"
+            return ok, data.get("message", "No message returned")
+    except _url_error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")[:200]
+        except Exception:
+            pass
+        return False, f"Bridge endpoint not supported (HTTP {exc.code}) — update Mossy. {body}".strip()
+    except _url_error.URLError as exc:
+        return False, f"Mossy Bridge not reachable: {exc.reason}"
+    except Exception as exc:
+        return False, f"install_package request failed: {exc}"
+
+
+def install_package_via_mossy(
+    package: str,
+    github_url: "str | None" = None,
+    timeout: float = 300.0,
+) -> "tuple[bool, str]":
+    """Ask Mossy to install a tool — pip package or GitHub source build.
+
+    When *github_url* is supplied the payload includes it so Mossy can
+    git-clone + cmake-build the project instead of running pip.
+    """
+    import sys as _sys
+    try:
+        payload: dict = {
+            "package":    package,
+            "python_exe": _sys.executable,
+            "reason":     "Requested by Mossy Blender add-on",
+        }
+        if github_url:
+            payload["github_url"]       = github_url
+            payload["build_from_source"] = True
+        data = json.dumps(payload).encode("utf-8")
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_package",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            ok = result.get("status") == "success"
+            return ok, result.get("message", "No message returned")
+    except _url_error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode("utf-8", errors="replace")[:200]
+        except Exception:
+            pass
+        return False, f"Bridge endpoint returned HTTP {exc.code}. {body}".strip()
+    except _url_error.URLError as exc:
+        return False, f"Mossy Bridge not reachable: {exc.reason}"
+    except Exception as exc:
+        return False, f"install_package request failed: {exc}"
+
+
+def request_packages_install(
+    packages: "list[str]",
+    timeout: float = 300.0,
+) -> "dict[str, tuple[bool, str]]":
+    """
+    Ask Mossy to install multiple packages, returning a per-package result dict.
+
+    Sends ``POST http://localhost:21337/install_packages`` (batch endpoint)::
+
+        {"packages": ["scipy", "trimesh", "libigl"], "python_exe": "..."}
+
+    Falls back to calling :func:`request_package_install` one-by-one if the
+    batch endpoint is not available (older Mossy versions).
+
+    :param packages: List of pip package names.
+    :param timeout:  Total seconds to wait for all installs.
+    :returns:        ``{package: (success, message), ...}``
+    """
+    import sys as _sys
+    results: "dict[str, tuple[bool, str]]" = {}
+
+    # Try the batch endpoint first
+    try:
+        payload = json.dumps({
+            "packages":   packages,
+            "python_exe": _sys.executable,
+        }).encode("utf-8")
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/install_packages",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for pkg in packages:
+                pkg_data = data.get(pkg, {})
+                ok = pkg_data.get("status") == "success"
+                results[pkg] = (ok, pkg_data.get("message", "no detail"))
+            return results
+    except Exception:
+        pass  # fall through to one-by-one
+
+    # Per-package fallback
+    per_timeout = max(60.0, timeout / max(len(packages), 1))
+    for pkg in packages:
+        results[pkg] = request_package_install(pkg, timeout=per_timeout)
+    return results
+
+
+def check_llm(timeout: float = 3.0) -> tuple:
+    """
+    Check whether Mossy's Nemotron LLM service is running.
+
+    :returns: ``(online: bool, message: str)``
+    """
+    _tcp, llm_port, _tok = _get_ports()
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/health",
+            method="GET",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return True, f"Mossy LLM online (port {llm_port})"
+    except Exception as exc:
+        return False, f"Mossy LLM not reachable on port {llm_port}: {exc}"
+    return False, f"Mossy LLM returned unexpected status on port {llm_port}"
+
+# ── Outbound: Mossy AI delegation helpers ─────────────────────────────────────
+#
+# These functions let the Blender add-on offload heavy AI work (mesh
+# generation, texture processing, scene analysis) to the Mossy desktop
+# application so the add-on itself does not need PyTorch or multi-gigabyte
+# model weights installed locally.  Each call posts a JSON payload to a
+# named endpoint on the Mossy LLM/AI service and returns the parsed
+# response dict (or None on any error).
+
+def generate_mesh(
+    prompt: str,
+    image_base64: "str | None" = None,
+    style: str = "realistic",
+    timeout: float = 120,
+) -> "dict | None":
+    """
+    Ask Mossy AI to generate a 3-D mesh from a text description or image.
+
+    Offloads heavy inference (Shape-E, Point-E, Image-to-3D, …) to the
+    Mossy desktop application so the Blender add-on does not need local
+    model weights.
+
+    :param prompt:       Natural-language description of the desired object.
+    :param image_base64: Optional base-64 encoded reference image (PNG/JPEG).
+    :param style:        Generation style: ``"realistic"``, ``"stylized"``,
+                         ``"lowpoly"``, or ``"armor"``.
+    :param timeout:      Seconds to wait (AI generation can take a while).
+    :returns:            On success a dict ``{"status": "success",
+                         "obj_data": "<Wavefront OBJ text>",
+                         "mesh_name": "generated_mesh"}``; ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    payload = json.dumps({
+        "prompt": prompt,
+        "style":  style,
+        "image":  image_base64,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/generate_mesh",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"[Mossy Link] generate_mesh error: {exc}")
+    return None
+
+
+def process_texture(
+    image_data_base64: str,
+    fmt: str = "dds",
+    quality: str = "high",
+    timeout: float = 60,
+) -> "dict | None":
+    """
+    Ask Mossy AI to convert or compress a texture.
+
+    Offloads DDS/BC7 compression (NVTT, texconv) to the Mossy desktop
+    application so the Blender add-on does not need local CLI tools.
+
+    :param image_data_base64: Base-64 encoded source image (PNG/JPEG/TGA).
+    :param fmt:               Target format: ``"dds"``, ``"png"``, ``"tga"``.
+    :param quality:           Compression quality: ``"high"``, ``"medium"``,
+                              ``"fast"``.
+    :param timeout:           Seconds to wait.
+    :returns:                 On success a dict ``{"status": "success",
+                              "texture_data": "<base64 result>",
+                              "format": "dds"}``; ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    payload = json.dumps({
+        "image_data": image_data_base64,
+        "format":     fmt,
+        "quality":    quality,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/process_texture",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:
+        print(f"[Mossy Link] process_texture error: {exc}")
+    return None
+
+
+def analyze_texture_content(image) -> dict:
+    """
+    Analyze a Blender image's channel content for AI context.
+    Returns a dict with stats Mossy can use to give texture advice.
+    """
+    try:
+        import numpy as np
+        pixels = np.array(image.pixels[:])
+        w, h = image.size
+        channels = image.channels  # usually 4 (RGBA)
+        pixels = pixels.reshape((h, w, channels))
+
+        stats = {
+            "name": image.name,
+            "width": w,
+            "height": h,
+            "channels": channels,
+            "has_alpha": channels == 4,
+        }
+
+        for i, ch_name in enumerate(['R', 'G', 'B', 'A'][:channels]):
+            ch = pixels[:, :, i]
+            stats[f"channel_{ch_name}_min"] = round(float(ch.min()), 3)
+            stats[f"channel_{ch_name}_max"] = round(float(ch.max()), 3)
+            stats[f"channel_{ch_name}_mean"] = round(float(ch.mean()), 3)
+            stats[f"channel_{ch_name}_variance"] = round(float(ch.var()), 5)
+            # Flag flat channels (possible mis-assignment)
+            stats[f"channel_{ch_name}_is_flat"] = bool(ch.var() < 0.001)
+
+        return stats
+    except Exception as e:
+        return {"error": str(e), "name": getattr(image, 'name', 'unknown')}
+
+
+def analyze_scene(scene_info: dict, timeout: float = 30) -> "str | None":
+    """
+    Send structured scene data to Mossy AI for analysis and advice.
+
+    A richer alternative to :func:`ask_mossy` when you have structured
+    mesh/material/physics data rather than a free-form question.
+
+    :param scene_info: Dict with keys such as ``"mesh_stats"``,
+                       ``"material_count"``, ``"polycount"``,
+                       ``"physics_enabled"``, ``"issues"``.
+    :param timeout:    Seconds to wait.
+    :returns:          Plain-text analysis/advice, or ``None`` on error.
+    """
+    _tcp_port, llm_port, _token = _get_ports()
+    # Inject FO4 context into scene analysis so the AI knows the domain
+    scene_info_with_ctx = dict(scene_info)
+    scene_info_with_ctx.setdefault("domain", "fallout4_modding")
+    payload = json.dumps({
+        "scene_info":  scene_info_with_ctx,
+        "system":      _FO4_SYSTEM_CONTEXT,
+        "max_tokens":  800,
+        "temperature": 0.4,
+    }).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{llm_port}/analyze_scene",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=timeout) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                return (
+                    data.get("analysis")
+                    or data.get("response")
+                    or data.get("text")
+                )
+    except Exception as exc:
+        print(f"[Mossy Link] analyze_scene error: {exc}")
+    return None
+
+
+# ── Health monitor (auto-reconnect) ───────────────────────────────────────────
+
+def _health_monitor() -> "float | None":
+    """
+    Blender timer callback: runs every ``_health_check_interval`` seconds on
+    the main thread.
+
+    * Pings the Mossy Bridge (port 21337) and Nemotron LLM (port 5000).
+    * Updates ``_bridge_online`` / ``_llm_online`` so the UI reflects live status.
+    * If the TCP command server was active but the thread died, attempts to
+      restart it automatically (up to ``_MAX_RECONNECT`` times).
+    """
+    global _last_health_check, _bridge_online, _llm_online
+    global _reconnect_attempts, _server_thread
+
+    now = time.monotonic()
+    if now - _last_health_check < _health_check_interval:
+        return _health_check_interval
+
+    _last_health_check = now
+
+    # Run health pings in a background thread so HTTP timeouts never
+    # block Blender's main thread.  Results are written back to the
+    # module-level flags which the UI reads on the next redraw.
+    def _bg_health_ping():
+        global _bridge_online, _llm_online
+        try:
+            bridge_ok, _ = check_bridge(timeout=0.5)
+            _bridge_online = bridge_ok
+        except Exception:
+            _bridge_online = False
+        try:
+            llm_ok, _ = check_llm(timeout=0.5)
+            _llm_online = llm_ok
+        except Exception:
+            _llm_online = False
+    threading.Thread(target=_bg_health_ping, daemon=True,
+                     name="MossyHealthPing").start()
+
+    # Auto-reconnect TCP server if it crashed
+    if _active and (_server_thread is None or not _server_thread.is_alive()):
+        if _reconnect_attempts < _MAX_RECONNECT:
+            _reconnect_attempts += 1
+            print(f"[Mossy Link] TCP server appears dead — auto-reconnect attempt "
+                  f"{_reconnect_attempts}/{_MAX_RECONNECT}")
+            try:
+                tcp_port, _, token = _get_ports()
+                if token and token.strip():
+                    t = threading.Thread(
+                        target=_tcp_server_loop,
+                        args=("127.0.0.1", tcp_port, token),
+                        daemon=True,
+                        name="MossyLinkTCP",
+                    )
+                    t.start()
+                    _server_thread = t
+                    print("[Mossy Link] TCP server restarted successfully.")
+                    _reconnect_attempts = 0
+            except Exception as exc:
+                print(f"[Mossy Link] Auto-reconnect failed: {exc}")
+        else:
+            print(f"[Mossy Link] Max reconnect attempts ({_MAX_RECONNECT}) reached — "
+                  "stopping auto-reconnect.")
+
+    # Sync status to WindowManager for UI
+    try:
+        import bpy as _bpy
+        wm = _bpy.context.window_manager
+        if hasattr(wm, "mossy_link_active"):
+            wm.mossy_link_active = _active
+        if hasattr(wm, "mossy_bridge_status"):
+            wm.mossy_bridge_status = "Mossy Bridge online" if _bridge_online else "Mossy Bridge offline"
+    except Exception:
+        pass
+
+    return _health_check_interval
+
+
+def get_connection_status() -> dict:
+    """
+    Return a dict summarising the current Mossy connection state.
+
+        status = mossy_link.get_connection_status()
+        # {"server_active": True, "bridge_online": True, "llm_online": False,
+        #   "pytorch_path": "D:/torch", "reconnect_attempts": 0}
+    """
+    return {
+        "server_active":      _active,
+        "bridge_online":      _bridge_online,
+        "llm_online":         _llm_online,
+        "pytorch_path":       _pytorch_path,
+        "reconnect_attempts": _reconnect_attempts,
+    }
+
+
+# ── Scene watcher: push live Blender context to Mossy ─────────────────────────
+#
+# The depsgraph_update_post handler fires after every change in Blender
+# (mesh edit, mode switch, modifier apply, object move, etc.).  It is
+# throttled by _last_context_push / _PUSH_THROTTLE_SECONDS so Mossy
+# receives at most one update every 2 seconds during active editing.
+#
+# Two things happen on each push:
+#   1. push_blender_context()    — sends structured scene state to Mossy bridge
+#      so the desktop app always knows what object is active, its stats, and
+#      any custom properties (fo4_mesh_type, fo4_collision_type, etc.).
+#   2. _auto_validate_and_advise() — runs validate_mesh() on the active mesh
+#      and, if new issues are detected, queries the Mossy AI for specific fix
+#      advice which is cached for the AI Advisor panel to display.
+#
+# Validation is throttled more aggressively (10 s) and only runs when the
+# vertex count changes (i.e. the mesh geometry actually changed).
+#
+# The watcher can be started/stopped independently of the TCP server so
+# users can run the bridge without live scene monitoring if desired.
+
+_last_context_push: float = 0.0        # module-level (replaces the stub above)
+_PUSH_THROTTLE_SECONDS: float = 2.0    # max 1 push per N seconds
+_last_validation_time: float = 0.0
+_VALIDATE_THROTTLE_SECONDS: float = 10.0
+_last_validated_vert_count: int = -1
+_last_ai_advice: dict = {}             # {object_name: advice_string}
+_scene_watcher_active: bool = False
+
+
+def push_blender_context(obj=None) -> bool:
+    """POST the current Blender scene state to the Mossy Bridge.
+
+    Sends to ``POST http://localhost:21337/blender_context``.  Mossy uses
+    this to keep its UI, AI prompts, and tool suggestions in sync with
+    whatever the user is working on in Blender.
+
+    :param obj: Active Blender object (resolved from bpy.context if None).
+    :returns:   True if the push was accepted by the bridge, else False.
+    """
+    try:
+        import bpy as _bpy
+        if obj is None:
+            obj = _bpy.context.active_object
+    except Exception:
+        return False
+
+    ctx: dict = {
+        "source":    "blender_addon",
+        "domain":    "fallout4_modding",
+        "timestamp": time.monotonic(),
+    }
+
+    if obj is not None:
+        ctx["object_name"] = obj.name
+        ctx["object_type"] = obj.type
+        if obj.type == 'MESH':
+            me = obj.data
+            ctx["vertex_count"]    = len(me.vertices)
+            ctx["poly_count"]      = len(me.polygons)
+            ctx["uv_layers"]       = [uv.name for uv in me.uv_layers]
+            ctx["material_slots"]  = len(obj.material_slots)
+            ctx["modifiers"]       = [m.name for m in obj.modifiers]
+            ctx["has_armature"]    = any(m.type == 'ARMATURE' for m in obj.modifiers)
+            # fo4_mesh_type/fo4_collision_type are real RNA EnumProperties
+            # (bpy.types.Object.fo4_mesh_type/fo4_collision_type = EnumProperty(...)),
+            # set via attribute assignment everywhere they're actually used --
+            # obj.get(...) only reads custom ID properties and always
+            # silently returned "" for these two. fo4_object_type genuinely
+            # IS a custom property (set via obj["fo4_object_type"] = ...
+            # elsewhere), so its .get() lookup was already correct.
+            ctx["fo4_mesh_type"]   = getattr(obj, "fo4_mesh_type", "")
+            ctx["fo4_collision"]   = getattr(obj, "fo4_collision_type", "")
+            ctx["fo4_object_type"] = obj.get("fo4_object_type", "")
+            ctx["scale_applied"]   = all(abs(s - 1.0) < 1e-4 for s in obj.scale)
+            # Flag common problems directly so Mossy can highlight them
+            ctx["issues"] = _last_ai_advice.get(obj.name + "_issues", [])
+        ctx["mode"]            = getattr(obj, "mode", "OBJECT")
+        ctx["custom_props"]    = {
+            k: v for k, v in obj.items()
+            if not k.startswith("_") and k not in ("cycles", "cycles_visibility")
+        }
+    else:
+        ctx["object_name"] = None
+        ctx["object_type"] = None
+
+    payload = json.dumps(ctx).encode("utf-8")
+    try:
+        req = _url_request.Request(
+            f"http://localhost:{_BRIDGE_PORT}/blender_context",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with _url_request.urlopen(req, timeout=0.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def _auto_validate_and_advise(obj) -> None:
+    """Validate *obj* (mesh only) and request AI advice when issues are found.
+
+    Results are stored in ``_last_ai_advice`` keyed by object name so the
+    AI Advisor panel can display them without blocking the main thread.
+    The actual AI query runs on a background thread to keep Blender responsive.
+    """
+    global _last_validation_time, _last_validated_vert_count
+
+    try:
+        if obj is None or obj.type != 'MESH':
+            return
+    except ReferenceError:
+        return  # object was deleted before this thread ran
+
+    now = time.monotonic()
+    if now - _last_validation_time < _VALIDATE_THROTTLE_SECONDS:
+        return
+
+    vert_count = len(obj.data.vertices)
+    if vert_count == _last_validated_vert_count and _last_validation_time > 0:
+        return  # geometry did not change — skip
+
+    _last_validation_time = now
+    _last_validated_vert_count = vert_count
+
+    # Capture what we need from the main thread before handing off.
+    obj_name = obj.name
+
+    def _bg_validate():
+        try:
+            from . import mesh_helpers as _mh
+            ok, issues = _mh.MeshHelpers.validate_mesh(obj)
+            _last_ai_advice[obj_name + "_issues"] = issues if not ok else []
+
+            if not ok and _bridge_online:
+                # Build a concise query describing the actual issues
+                issue_list = "; ".join(issues[:5])
+                query = (
+                    f"The active object \"{obj_name}\" has these issues: {issue_list}. "
+                    "What is the fastest way to fix each one in Blender so the mesh "
+                    "is ready for Fallout 4 NIF export?"
+                )
+                advice = ask_mossy(query, fo4_context=True, max_tokens=400, timeout=15)
+                if advice:
+                    _last_ai_advice[obj_name] = advice
+                    print(f"[Mossy Link] AI advice cached for \"{obj_name}\": {len(advice)} chars")
+        except Exception as exc:
+            print(f"[Mossy Link] Auto-validate error: {exc}")
+
+    threading.Thread(target=_bg_validate, daemon=True,
+                     name="MossyAutoValidate").start()
+
+
+@bpy.app.handlers.persistent
+def _depsgraph_handler(scene, depsgraph) -> None:
+    """bpy.app.handlers.depsgraph_update_post handler.
+
+    Throttled to fire at most once every _PUSH_THROTTLE_SECONDS seconds.
+    Pushes context to Mossy bridge and triggers background validation.
+    Heavy work (HTTP, LLM queries) runs on daemon threads so Blender stays
+    responsive.
+    """
+    global _last_context_push
+
+    if not _scene_watcher_active:
+        return
+
+    now = time.monotonic()
+    if now - _last_context_push < _PUSH_THROTTLE_SECONDS:
+        return
+    _last_context_push = now
+
+    try:
+        import bpy as _bpy
+        obj = _bpy.context.active_object
+    except Exception:
+        return
+
+    # Push context on a background thread so HTTP never blocks main thread.
+    def _bg_push():
+        try:
+            push_blender_context(obj)
+        except ReferenceError:
+            return  # object was deleted between handler fire and thread start
+        except Exception:
+            pass
+        try:
+            _auto_validate_and_advise(obj)
+        except ReferenceError:
+            pass  # object deleted mid-flight
+        except Exception:
+            pass
+
+    threading.Thread(target=_bg_push, daemon=True,
+                     name="MossyContextPush").start()
+
+
+def get_last_ai_advice(obj_name: str) -> "str | None":
+    """Return the most recent Mossy AI advice for *obj_name*, or None.
+
+    Called by the AI Advisor panel to display proactive fix suggestions
+    without triggering a new LLM query on every UI redraw.
+    """
+    return _last_ai_advice.get(obj_name)
+
+
+def get_last_validation_issues(obj_name: str) -> "list[str]":
+    """Return the last validation issues detected for *obj_name*."""
+    return _last_ai_advice.get(obj_name + "_issues", [])
+
+
+def start_scene_watcher() -> tuple:
+    """Register the depsgraph handler so Mossy can watch Blender in real time.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _scene_watcher_active
+    try:
+        import bpy as _bpy
+        if _depsgraph_handler not in _bpy.app.handlers.depsgraph_update_post:
+            _bpy.app.handlers.depsgraph_update_post.append(_depsgraph_handler)
+        _scene_watcher_active = True
+        return True, "Scene watcher started — Mossy is now watching Blender"
+    except Exception as exc:
+        return False, f"Could not start scene watcher: {exc}"
+
+
+def stop_scene_watcher() -> tuple:
+    """Unregister the depsgraph handler.
+
+    :returns: ``(success: bool, message: str)``
+    """
+    global _scene_watcher_active
+    _scene_watcher_active = False
+    try:
+        import bpy as _bpy
+        handlers = _bpy.app.handlers.depsgraph_update_post
+        if _depsgraph_handler in handlers:
+            handlers.remove(_depsgraph_handler)
+        return True, "Scene watcher stopped"
+    except Exception as exc:
+        return False, f"Could not stop scene watcher: {exc}"
+
+
+def is_scene_watcher_running() -> bool:
+    """Return True when the depsgraph scene watcher is active."""
+    return _scene_watcher_active
+
+
+# ── Blender register / unregister ─────────────────────────────────────────────
+
+def register() -> None:
+    """Called by the add-on register().  Auto-starts the server if preferred."""
+    global _reconnect_attempts
+    _reconnect_attempts = 0
+
+    try:
+        pytorch_path = _load_pytorch_path_from_prefs()
+        if pytorch_path:
+            print(f"[Mossy Link] PyTorch path loaded on add-on register: {pytorch_path}")
+
+        from . import preferences as _prefs_mod
+        prefs = _prefs_mod.get_preferences()
+        if prefs and getattr(prefs, "autostart", False):
+            ok, msg = start_server()
+            print(f"[Mossy Link] {msg}")
+    except Exception as exc:
+        print(f"[Mossy Link] register() error: {exc}")
+
+    # Start the health monitor timer (15 s interval, very low overhead)
+    try:
+        import bpy as _bpy
+        if not _bpy.app.timers.is_registered(_health_monitor):
+            _bpy.app.timers.register(_health_monitor, first_interval=5.0)
+            print("[Mossy Link] Health monitor started (15 s interval)")
+    except Exception as exc:
+        print(f"[Mossy Link] Could not start health monitor: {exc}")
+
+    # Start the scene watcher so Mossy can see what the user is doing
+    try:
+        from . import preferences as _prefs_sw
+        prefs = _prefs_sw.get_preferences()
+        # Default on; users can disable via preferences if desired
+        watch = getattr(prefs, "scene_watcher_enabled", True) if prefs else True
+        if watch:
+            ok_w, msg_w = start_scene_watcher()
+            print(f"[Mossy Link] {msg_w}")
+    except Exception as exc:
+        print(f"[Mossy Link] Could not start scene watcher: {exc}")
+
+
+def unregister() -> None:
+    """Called by the add-on unregister().  Stops the server, monitor, and watcher."""
+    stop_scene_watcher()
+    try:
+        import bpy as _bpy
+        if _bpy.app.timers.is_registered(_health_monitor):
+            _bpy.app.timers.unregister(_health_monitor)
+    except Exception:
+        pass
+    try:
+        stop_server()
+    except Exception as exc:
+        print(f"[Mossy Link] unregister() error: {exc}")

@@ -1,0 +1,26 @@
+# blender_manifest.toml — Blender 5 Extension manifest
+#
+# This add-on targets Blender 5.x exclusively.
+# Once the Blender 5 version is complete and tested, builds for
+# earlier Blender versions will be generated separately.
+#
+# Keep version in sync with the "version" tuple in __init__.py.
+
+schema_version = "1.0.0"
+
+id          = "blender_game_tools"
+version     = "5.3.1"
+name        = "Mossy Industries blender addon"
+tagline     = "Professional Fallout 4 modding tools by Mossy Industries"
+maintainer  = "Mossy Industries <support@mossy.industries>"
+type        = "add-on"
+website     = "https://github.com/POINTYTHRUNDRA654/Blender-add-on"
+
+blender_version_min = "5.0.0"
+
+license  = ["SPDX:GPL-3.0-or-later"]
+category = "Import-Export"
+
+[permissions]
+network = "Connect to FREE Mossy desktop app (localhost only - no cloud services, no API keys required)"
+files   = "Read/write Fallout 4 data folders and export mesh files"

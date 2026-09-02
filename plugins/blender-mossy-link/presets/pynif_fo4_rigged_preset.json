@@ -1,0 +1,39 @@
+{
+  "label": "pyNIF Export \u2014 Rigged Armor / Clothing (Fallout 4)",
+  "game": "Fallout4",
+  "version": "20.2.0.7",
+  "user_version": 12,
+  "user_version_2": 83,
+  "nodes": {
+    "root": "BSFadeNode",
+    "enable_skinning": true,
+    "enable_tangents": true,
+    "enable_havok": true
+  },
+  "skeleton": {
+    "export_armature": true,
+    "preserve_bone_names": true,
+    "preserve_hierarchy": true
+  },
+  "geometry": {
+    "triangulate": true,
+    "apply_modifiers": true,
+    "remove_doubles": true,
+    "recalculate_normals": true,
+    "auto_smooth_angle": 30
+  },
+  "skinning": {
+    "export_skin_weights": true,
+    "export_bs_dismember_skin_instance": true,
+    "export_partitions": true,
+    "partition_source": "vertex_groups"
+  },
+  "materials": {
+    "material_type": "BGSM",
+    "use_external_bgsm": true,
+    "texture_format": "DDS"
+  },
+  "collision": {
+    "type": "None"
+  }
+}

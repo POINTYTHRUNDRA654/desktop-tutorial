@@ -1,0 +1,81 @@
+Mossy Fallout 4 Blender Add-on  v5.1.0  — Nexus Mods Bundle
+A Mossy Industries Product
+
+════════════════════════════════════════════════════════════════════════
+
+INSTALLATION — Pick the zip that matches your Blender version:
+
+  • Blender 5.0 or later     →  mossy-fo4-blender-addon-v5.1.0-blender5x.zip
+  • Blender 4.2 – 4.9        →  mossy-fo4-blender-addon-v5.1.0-blender42.zip
+  • Blender 4.0 – 4.1        →  mossy-fo4-blender-addon-v5.1.0-blender4x.zip
+  • Blender 3.6 LTS          →  mossy-fo4-blender-addon-v5.1.0-blender3x.zip
+
+Check your Blender version:  Help → About Blender
+
+Installing:
+  1. Open Blender
+  2. Edit → Preferences → Add-ons → Install
+  3. Select the zip that matches your Blender version
+  4. Enable the add-on (check the box)
+
+════════════════════════════════════════════════════════════════════════
+
+FEATURES
+
+✓ 100% FREE - No subscriptions, no API keys required
+✓ FREE Local AI - Powered by Mossy Industries desktop app
+✓ Professional NIF export (BSTriShape format)
+✓ Automatic mesh preparation & validation
+✓ UCX_ collision generation
+✓ DDS texture conversion
+✓ Havok animation export
+✓ Quest/NPC/item creation helpers
+✓ Multi-engine support (FO4, Unreal, Unity)
+
+════════════════════════════════════════════════════════════════════════
+
+AI FEATURES (Optional - 100% FREE)
+
+For FREE AI-powered scene analysis and assistance:
+
+1. Download Mossy Industries desktop app (free)
+2. In Blender: Press N → Fallout 4 → Settings
+3. Enable "AI Advisor (via Mossy)"
+4. Connect to Mossy (localhost only - no cloud)
+
+All AI runs locally on YOUR machine. No API keys, no cloud services,
+no data transmission. Complete privacy.
+
+════════════════════════════════════════════════════════════════════════
+
+SUPPORT
+
+GitHub: https://github.com/POINTYTHRUNDRA654/Blender-add-on
+Issues: https://github.com/POINTYTHRUNDRA654/Blender-add-on/issues
+
+Mossy Industries - Professional tools for game modders
+
+════════════════════════════════════════════════════════════════════════
+
+CREDITS
+
+Third-party libraries, tools, and projects used by this add-on:
+- PyNifly / Niftools — NIF export support
+- RealESRGAN — texture upscaling (optional)
+- RigNet — auto-rigging utilities (optional)
+- Shape-E / Point-E — model/mesh helpers (optional)
+- NVTT / texconv — texture conversion & DDS tools
+- Havok2FBX / Havok animation/export helpers
+
+CONTRIBUTORS
+
+See CONTRIBUTORS.md for a list of contributors, maintainers, and acknowledgements.
+To be added: open a PR with your name and role (code, docs, testing, assets, etc.).
+
+PATRON SUPPORT
+
+If you'd like to support continued development, consider buying me a coffee:
+- Tundra654 — https://buymeacoffee.com/tundra654
+
+Thank you to everyone who has contributed, tested, and supported this project.
+

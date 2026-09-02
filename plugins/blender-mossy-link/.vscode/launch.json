@@ -1,0 +1,49 @@
+{
+  // VS Code launch configurations for the Fallout 4 Tutorial Helper addon.
+  //
+  // ── How to use ────────────────────────────────────────────────────────────
+  //   1. Open the Run & Debug panel (Ctrl+Shift+D).
+  //   2. Pick a configuration from the dropdown at the top.
+  //   3. Press F5 (or the green ▶ button) to run.
+  //
+  // ── Addon integrity tests ─────────────────────────────────────────────────
+  //   "Run addon integrity tests" runs test_addon_integrity.py directly with
+  //   whatever Python interpreter VS Code is using (no Blender required).
+  //
+  // ── Current Python file ───────────────────────────────────────────────────
+  //   "Debug current file" lets you step through any .py file with breakpoints.
+  //
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Runs the standalone test suite (no Blender needed).
+      // Matches the "Run addon integrity tests" task in tasks.json.
+      "name": "Run addon integrity tests",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/test_addon_integrity.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      // Debug whichever .py file is currently open.
+      "name": "Debug current file",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      // Build all addon variants (calls build_addon.py).
+      // Useful for stepping through the build script to diagnose issues.
+      "name": "Build addon (all variants)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/build_addon.py",
+      "args": ["--outdir", "${workspaceFolder}"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "material_type": "BGSM",
+  "label": "Metal (Rusty FO4 Style)",
+  "diffuse": "",
+  "normal": "",
+  "smoothness": 0.15,
+  "specular": 0.2,
+  "roughness": 0.85,
+  "metallic": 1.0,
+  "enable_rim_lighting": false,
+  "enable_subsurface": false,
+  "enable_glow": false,
+  "enable_environment_mapping": true,
+  "environment_map_scale": 0.15
+}

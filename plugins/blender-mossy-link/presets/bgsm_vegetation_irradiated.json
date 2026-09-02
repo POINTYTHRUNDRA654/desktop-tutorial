@@ -1,0 +1,14 @@
+{
+  "material_type": "BGSM",
+  "label": "Glowing Sea Vegetation (Irradiated Organic)",
+  "diffuse": "",
+  "normal": "",
+  "smoothness": 0.1,
+  "specular": 0.05,
+  "roughness": 0.85,
+  "metallic": 0.0,
+  "enable_glow": true,
+  "glow_color": [0.3, 1.0, 0.3],
+  "glow_strength": 0.2,
+  "enable_environment_mapping": false
+}

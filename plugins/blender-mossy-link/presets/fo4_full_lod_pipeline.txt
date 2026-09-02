@@ -1,0 +1,93 @@
+FO4 Full LOD + Collision Pipeline (Reusable)
+============================================
+
+STEP 1 — Import your high-detail mesh
+  File → Import → OBJ / FBX / GLB
+
+STEP 2 — Run LOD generator script (fo4_lod_generator.py)
+  Creates: Mesh_LOD0, Mesh_LOD1, Mesh_LOD2, Mesh_LOD3
+  Decimation: LOD1=60%, LOD2=30%, LOD3=10%
+
+STEP 3 — Run collision setup script (fo4_collision_from_lod3.py)
+  Converts LOD3 → Mesh_LOD3_COL (materials cleared, triangulated, wire display)
+
+STEP 4 — Clean main mesh (Mesh_LOD0)
+  M → Merge by Distance
+  Ctrl+T → Triangulate
+  Ctrl+A → Apply All Transforms
+  Mesh → Normals → Recalculate Outside
+  Auto Smooth → 30°
+
+STEP 5 — Export with pyNIF
+  Main mesh:       Mesh_LOD0
+  Collision mesh:  Mesh_LOD3_COL (mark as collision-only, exclude from render)
+  Collision type:  bhkConvexShape / MO_SYS_STATIC / Mass=0   (static world objects)
+                   bhkRigidBody  / MO_SYS_DYNAMIC / Mass=5-20 (movable props)
+  Materials:       Already connected — do NOT rename or remove BGSM slots
+  Header:          Version 20.2.0.7 / User Version 12 / User Version 2 83
+  Root Node:       BSFadeNode
+  Enable Tangents: True
+  Enable Havok:    True
+  Enable Skinning: False
+
+STEP 6 — Import into Creation Kit
+  Object Window → Static → New
+  Model tab → Browse → select your NIF
+  Save and test in-game
+
+Your NIF contains:
+  ✓ Main mesh (Mesh_LOD0)
+  ✓ Collision mesh (bhkConvexShape / bhkRigidBody)
+  ✓ All textures intact
+  ✓ All BGSM materials intact
+  ✓ FO4 header values (20.2.0.7 / 12 / 83)
+
+
+Per-Asset Checklist (Reusable — every tree, building, rock, prop)
+==================================================================
+✔ Import high-detail mesh
+✔ Run fo4_lod_generator.py          → LOD0 / LOD1 / LOD2 / LOD3
+✔ Run fo4_collision_from_lod3.py    → LOD3_COL collision mesh
+✔ Clean main mesh (Merge, Triangulate, Apply Transforms, Normals, Auto Smooth 30°)
+✔ Export main NIF with pyNIF        → Mesh_LOD0 + Mesh_LOD3_COL collision
+✔ Export LOD NIFs via fo4_export_lods.py → Tree_LOD0.nif / LOD1 / LOD2
+✔ Generate billboard (trees only)   → fo4_billboard.py → LOD4 far-plane
+✔ Integrate into Creation Kit       → Static → New → Model → NIF
+✔ Integrate into xLODGen            → point worldspace LOD to your custom NIFs
+
+xLODGen Notes:
+  LOD0 = full mesh NIF
+  LOD1 = mid-range NIF
+  LOD2 = far-range NIF
+  Billboard = ultra-far-range plane (LOD4)
+  Generate xLODGen config if needed for custom worldspace mod.
+
+
+Texture Enhancement (Per-Asset)
+================================
+Stage 1 — Upscale:   1K→4K / 2K→8K / 4K→16K  (Real-ESRGAN or Mossy AI)
+Stage 2 — Gen Maps:  Normal / Specular / Roughness / AO (from hi-res source)
+Stage 3 — Downscale: 4K→1K / 8K→2K / 16K→4K  (AAA pipeline technique)
+Stage 4 — DDS BC7:   All maps → BC7 compression
+
+Operator:  fo4.enhance_texture_1k  (runs all 4 stages)
+Script:    fo4_texture_pipeline.py
+
+LOD Texture Sizes:
+  LOD0  → full enhanced (1K enhanced via 4K intermediate)
+  LOD1  → 512px downscale
+  LOD2  → 256px downscale
+  LOD3  → no textures (collision only)
+  Billboard → BaseColor only (alpha-clip)
+
+Per-Asset Texture Checklist:
+✔ Import mesh
+✔ Generate LODs (fo4_lod_generator.py)
+✔ Generate collision (fo4_collision_from_lod3.py)
+✔ Run fo4_texture_pipeline.py  → upscale + maps + DDS
+✔ Assign enhanced DDS to LOD0/1/2 nodes
+✔ Export main NIF (pyNIF — LOD0 + LOD3_COL collision)
+✔ Export LOD NIFs (fo4_export_lods.py)
+✔ Generate billboard (fo4_billboard.py — trees only)
+✔ Integrate into Creation Kit
+✔ Integrate into xLODGen

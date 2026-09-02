@@ -1,0 +1,78 @@
+name: Build Add-on Zips
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  # Rebuild on every push to any branch when source files change.
+  # This means fresh zips are available as artifacts after every push —
+  # not only when code lands on main.
+  push:
+    paths:
+      - "**.py"
+      - "blender_manifest.toml"
+      - "build_addon.py"
+      - ".github/workflows/build.yml"
+    # Also trigger on version tags so the release step below attaches zips
+    tags:
+      - "v*"
+
+  # Also build on pull requests so reviewers can download and test zips
+  # directly from the PR's Checks / Actions tab.
+  pull_request:
+    paths:
+      - "**.py"
+      - "blender_manifest.toml"
+      - "build_addon.py"
+      - ".github/workflows/build.yml"
+
+  # Also allow a manual trigger from the Actions tab
+  workflow_dispatch:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Permissions
+# ─────────────────────────────────────────────────────────────────────────────
+permissions:
+  contents: write   # needed to create/update GitHub Releases
+
+jobs:
+  build:
+    name: Build all Blender version zips
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Check out the repo ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Run the build script ────────────────────────────────────────────
+      - name: Build zips (all Blender variants)
+        run: python3 build_addon.py --outdir dist
+
+      # ── 3. Upload as workflow artifacts (download from the Actions tab) ────
+      - name: Upload variant zips as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mossy-fo4-blender-addon-zips
+          path: dist/mossy-fo4-blender-addon-v*-blender*.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload Nexus bundle as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mossy-fo4-blender-addon-nexus-bundle
+          path: dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      # ── 4. On a version tag push: create / update a GitHub Release ─────────
+      #       Testers can then download directly from the Releases page.
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mossy-fo4-blender-addon-v*-blender*.zip
+            dist/mossy-fo4-blender-addon-v*-nexus-bundle.zip
+          generate_release_notes: true

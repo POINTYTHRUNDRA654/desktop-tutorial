@@ -1,0 +1,182 @@
+{
+  // VS Code tasks for the Fallout 4 Tutorial Helper addon.
+  //
+  // ── Session workflow tasks (Terminal → Run Task) ──────────────────────────
+  //   "Start Session Sync"   – pull latest from GitHub before you start work
+  //   "End Session Sync"     – commit, fetch, rebase, push (same as end_session.bat)
+  //   "Setup git hooks"      – runs automatically on every folder open (no manual step needed)
+  //
+  // ── Build tasks (Ctrl+Shift+B) ────────────────────────────────────────────
+  //   "Build addon (all variants)"  – builds all four Blender-version zips
+  //   Individual variant tasks also available.
+  //
+  // ── Test task ─────────────────────────────────────────────────────────────
+  //   "Run addon integrity tests"  – runs test_addon_integrity.py
+  //
+  "version": "2.0.0",
+  "tasks": [
+
+    // ── Session workflow ─────────────────────────────────────────────────────
+    {
+      // Run at the START of every work session.
+      // Stashes any local changes, pulls latest from GitHub, then restores.
+      // Equivalent to: start_session.bat
+      //
+      // NOTE: AI/Copilot fixes are submitted as Pull Requests (PRs) on GitHub.
+      // They do NOT land on main automatically.  You must:
+      //   1. Merge the PR at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls
+      //   2. THEN run this task to pull the merged code
+      //   3. Rebuild the zip (Ctrl+Shift+B) and reinstall in Blender
+      "label": "Start Session Sync",
+      "type": "shell",
+      "command": "${workspaceFolder}/start_session.bat",
+      "windows": {
+        "command": "${workspaceFolder}/start_session.bat"
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop && echo '' && echo 'IMPORTANT: AI/Copilot fixes are PRs — merge them at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls BEFORE running this task, then rebuild the zip (Ctrl+Shift+B).'"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git stash push -m 'vscode-start-session' && git pull --rebase origin main && git stash pop && echo '' && echo 'IMPORTANT: AI/Copilot fixes are PRs — merge them at https://github.com/POINTYTHRUNDRA654/Blender-add-on./pulls BEFORE running this task, then rebuild the zip (Ctrl+Shift+B).'"]
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      // Run at the END of every work session.
+      // Runs the same safety checks as end_session.bat:
+      //   1. Blocks large model files from being committed (via .githooks/pre-commit on Linux/macOS)
+      //   2. Commits all changes
+      //   3. Fetches latest from GitHub
+      //   4. Rebases your commits on top (keeps history linear)
+      //   5. Pushes to GitHub
+      // Equivalent to: end_session.bat
+      "label": "End Session Sync",
+      "type": "shell",
+      "command": "${workspaceFolder}/end_session.bat",
+      "windows": {
+        "command": "${workspaceFolder}/end_session.bat"
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git add . && git commit -m 'session: save work' && git fetch origin main && git rebase origin/main && git push origin HEAD"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "cd '${workspaceFolder}' && git add . && git commit -m 'session: save work' && git fetch origin main && git rebase origin/main && git push origin HEAD"]
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true
+      },
+      "problemMatcher": []
+    },
+    {
+      // Activates .githooks/pre-commit so VS Code's built-in Git commit button
+      // also blocks large model files.  runOn:folderOpen means this runs
+      // automatically every time you open the workspace — no manual step needed
+      // on any machine or after any fresh clone.  The command is idempotent.
+      "label": "Setup git hooks",
+      "type": "shell",
+      "command": "git",
+      "args": ["config", "core.hooksPath", ".githooks"],
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "group": "none",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Build tasks ───────────────────────────────────────────────────────────
+    {
+      "label": "Build addon (all variants)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--outdir", "${workspaceFolder}"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender3x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender3x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender4x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender4x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender42)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender42", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build addon (blender5x)",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/build_addon.py", "--version", "blender5x", "--outdir", "${workspaceFolder}"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+
+    // ── Test task ─────────────────────────────────────────────────────────────
+    {
+      "label": "Run addon integrity tests",
+      "type": "shell",
+      "command": "python",
+      "args": ["${workspaceFolder}/test_addon_integrity.py"],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

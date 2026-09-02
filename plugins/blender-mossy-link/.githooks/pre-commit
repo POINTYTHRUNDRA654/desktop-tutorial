@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit
+#
+# Blocks commits that contain large AI/LLM model files.
+# These files can be gigabytes each and must never be committed to Git.
+# The Mossy AI LLM is an external HTTP service — no model file belongs here.
+#
+# This hook runs automatically before every commit, no matter which tool you
+# use: VS Code, GitHub Desktop, command-line git, etc.
+#
+# To activate it in your local clone, run once:
+#   git config core.hooksPath .githooks
+#
+# The "Setup git hooks" task in VS Code (.vscode/tasks.json) does this for you.
+
+# Extensions that indicate large model files.
+# NOTE: This list is intentionally duplicated in end_session.bat (the Windows
+# batch equivalent).  If you add a new extension here, add it there too.
+LARGE_EXTENSIONS="gguf ggml ggmf llamafile pt pth ckpt safetensors onnx bin \
+  npz npy pkl pickle h5 hdf5 pb tflite"
+
+# Build a single grep pattern matching any of the above extensions
+PATTERN=$(echo "$LARGE_EXTENSIONS" | tr ' ' '\n' | sed 's/^/\\./' | paste -sd '|')
+
+# Check files staged for this commit
+STAGED=$(git diff --cached --name-only --diff-filter=AM 2>/dev/null)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+FOUND=$(echo "$STAGED" | grep -iE "($PATTERN)$" || true)
+
+if [ -n "$FOUND" ]; then
+  echo ""
+  echo "  ✗ COMMIT BLOCKED — large AI/LLM model file(s) staged:"
+  echo ""
+  while IFS= read -r f; do
+    SIZE=$(git cat-file -s ":$f" 2>/dev/null || echo "?")
+    echo "      $f  ($SIZE bytes)"
+  done <<< "$FOUND"
+  echo ""
+  echo "  These files must NOT be committed — they can be gigabytes in size."
+  echo "  The Mossy AI LLM is an external service; no model file lives in this repo."
+  echo ""
+  echo "  To un-stage without deleting the file, run:"
+  echo ""
+  while IFS= read -r f; do
+    echo "      git rm --cached \"$f\""
+  done <<< "$FOUND"
+  echo ""
+  echo "  If the file extension is not yet in .gitignore, add it there too."
+  echo ""
+  exit 1
+fi
+
+exit 0

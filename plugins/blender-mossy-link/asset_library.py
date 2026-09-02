@@ -1,0 +1,874 @@
+"""Asset Library Browser for the Fallout 4 add-on.
+
+Provides a searchable, filterable panel that lets the user point to a folder
+(or a .blend library file) containing all their game assets - meshes, textures,
+and materials.  Separate paths can be configured for each asset type so that
+organised project layouts are fully supported.
+
+Scanning builds a flat list of every importable file found under each path.
+Items are shown in a UIList and can be appended / linked into the scene with
+a single click.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import bpy
+from bpy.props import (
+    BoolProperty,
+    CollectionProperty,
+    EnumProperty,
+    IntProperty,
+    StringProperty,
+)
+from bpy.types import Operator, PropertyGroup, UIList
+
+try:
+    from . import notification_system as _notification_system
+except ImportError:
+    _notification_system = None
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if _notification_system:
+        _notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+_MESH_EXTS: frozenset[str] = frozenset({
+    '.fbx', '.obj', '.nif', '.gltf', '.glb', '.dae', '.ply', '.stl',
+})
+_TEXTURE_EXTS: frozenset[str] = frozenset({
+    '.dds', '.png', '.tga', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif', '.exr',
+})
+_MATERIAL_EXTS: frozenset[str] = frozenset({
+    '.blend',
+})
+_ALL_EXTS: frozenset[str] = _MESH_EXTS | _TEXTURE_EXTS | _MATERIAL_EXTS
+
+# Categories inferred from semantic path keywords - kept as a module-level
+# constant so neither _populate_asset_list nor the scan operator recreate it.
+_SEMANTIC_MESH_CATEGORIES: frozenset[str] = frozenset({
+    'Characters', 'Creatures', 'Weapons', 'Armor', 'Vegetation',
+    'Architecture', 'Vehicles', 'Props', 'Furniture', 'Clutter',
+    'Effects', 'Landscape', 'Interiors', 'Settlements',
+})
+
+# FO4 folder-path based category detection.
+# Uses the actual FO4 data folder structure (meshes/actors/, meshes/weapons/, etc.)
+# Checked in order; first match wins.  Path segments are lowercased before matching.
+_FO4_PATH_CATEGORIES: list[tuple[str, list[str]]] = [
+    ("Characters",   ["actors/character", "actors/human", "actors/people",
+                      "character/character", "npc", "humanfemale", "humanmale"]),
+    ("Creatures",    ["actors/creature", "actors/animal", "actors/monster",
+                      "deathclaw", "mirelurk", "radscorpion", "supermutant",
+                      "synth", "ghoul", "radroach", "bloatfly", "brahmin",
+                      "molerat", "yao guai", "robot", "sentry", "protectron",
+                      "assaultron", "eyebot", "robobrain", "fogcrawler"]),
+    ("Weapons",      ["weapons/", "weapon/", "guns/", "melee/",
+                      "pistol", "rifle", "shotgun", "launcher", "explosive"]),
+    ("Armor",        ["armor/", "armour/", "clothes/", "clothing/",
+                      "powerarmor", "power_armor", "outfit", "wearable"]),
+    ("Vegetation",   ["vegetation/", "trees/", "plants/", "foliage/",
+                      "shrubs/", "grass/", "nature/", "flora/"]),
+    ("Architecture", ["architecture/", "buildings/", "structure/", "ruins/",
+                      "vault/", "bunker/", "settlement/setdressing",
+                      "walls/", "floors/", "ceilings/", "doors/", "windows/"]),
+    ("Furniture",    ["furniture/", "seating/", "workbench", "crafting/",
+                      "beds/", "chairs/", "tables/", "desk", "shelv"]),
+    ("Vehicles",     ["vehicles/", "vehicle/", "cars/", "trucks/",
+                      "vertibird", "blimp", "boat", "bus", "helicopter"]),
+    ("Settlements",  ["settlement/", "workshop/", "scrapable/", "buildinsets/",
+                      "snappable/", "placeable/"]),
+    ("Effects",      ["effects/", "fx/", "magic/", "impact/", "projectile/"]),
+    ("Landscape",    ["landscape/", "terrain/", "rocks/", "cliffs/",
+                      "water/", "ground/"]),
+    ("Interiors",    ["interiors/", "interior/", "rooms/", "hallways/",
+                      "corridors/", "vaultpieces/"]),
+    ("Clutter",      ["clutter/", "misc/", "junk/", "debris/",
+                      "garbage/", "rubble/", "scrap/"]),
+    ("Props",        ["props/", "prop/", "statics/", "static/",
+                      "decorations/", "deco/", "signs/", "lights/"]),
+]
+
+# Legacy filename keyword fallback (used when path matching fails)
+_CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
+    ("Characters",  ["humanfemale", "humanmale", "skeleton_female", "skeleton_male"]),
+    ("Creatures",   ["deathclaw", "mirelurk", "radscorpion", "supermutant",
+                     "ghoul", "radroach", "bloatfly", "brahmin", "molerat"]),
+    ("Weapons",     ["weapon", "gun", "rifle", "pistol", "sword", "blade",
+                     "melee", "explosive", "launcher", "knife", "axe"]),
+    ("Armor",       ["armor", "armour", "outfit", "powerarmor", "helmet"]),
+    ("Vegetation",  ["tree", "plant", "bush", "shrub", "grass", "leaf",
+                     "flower", "weed", "vine"]),
+    ("Architecture",["wall", "floor", "ceiling", "door", "window",
+                     "ruin", "vault", "bridge"]),
+    ("Furniture",   ["furniture", "table", "chair", "bed", "shelf",
+                     "workbench", "desk"]),
+    ("Vehicles",    ["vertibird", "car", "truck", "bus", "tank", "boat"]),
+    ("Props",       ["barrel", "crate", "cabinet", "lamp", "sign", "light"]),
+    ("Clutter",     ["clutter", "junk", "debris", "scrap", "rubble"]),
+]
+
+_CATEGORY_ITEMS: list[tuple[str, str, str]] = [
+    ('ALL',          "All",          "Show every asset"),
+    ('Meshes',       "Meshes",       "3D mesh files (NIF, FBX, OBJ …)"),
+    ('Textures',     "Textures",     "Image / texture files (DDS, PNG, TGA …)"),
+    ('Materials',    "Materials",    "Blender material libraries (.blend)"),
+    ('Characters',   "Characters",   "Human / NPC models"),
+    ('Creatures',    "Creatures",    "Creature and animal models"),
+    ('Weapons',      "Weapons",      "Weapon models"),
+    ('Armor',        "Armor",        "Armor and clothing"),
+    ('Vegetation',   "Vegetation",   "Trees, plants, foliage"),
+    ('Architecture', "Architecture", "Buildings and structures"),
+    ('Furniture',    "Furniture",    "Furniture and workbenches"),
+    ('Vehicles',     "Vehicles",     "Vehicle models"),
+    ('Settlements',  "Settlements",  "Settlement / workshop pieces"),
+    ('Effects',      "Effects",      "FX and particle meshes"),
+    ('Landscape',    "Landscape",    "Terrain, rocks, water"),
+    ('Interiors',    "Interiors",    "Interior room pieces"),
+    ('Clutter',      "Clutter",      "Junk, debris, misc clutter"),
+    ('Props',        "Props",        "Static props and decorations"),
+    ('Other',        "Other",        "Uncategorised assets"),
+]
+
+def get_category_icon(category: str) -> str:
+    """Return the Blender icon name for a given asset category."""
+    return _CATEGORY_ICONS.get(category, 'DOT')
+
+# Icons shown per category in the list
+_CATEGORY_ICONS: dict[str, str] = {
+    'Meshes':       'MESH_DATA',
+    'Textures':     'IMAGE_DATA',
+    'Materials':    'MATERIAL',
+    'Characters':   'ARMATURE_DATA',
+    'Weapons':      'GP_MULTIFRAME_EDITING',
+    'Vegetation':   'OUTLINER_OB_CURVES',
+    'Architecture': 'HOME',
+    'Vehicles':     'AUTO',
+    'Props':        'OBJECT_DATA',
+    'Other':        'DOT',
+}
+
+
+def _detect_category(filepath: str, ext: str) -> str:
+    """Return the most likely category for an asset given its path and extension.
+
+    Uses the actual FO4 folder structure first (most accurate), then falls back
+    to filename keyword matching, then file-type defaults.
+    """
+    if ext in _TEXTURE_EXTS:
+        return 'Textures'
+    if ext in _MATERIAL_EXTS:
+        return 'Materials'
+
+    lower = filepath.replace("\\", "/").lower()
+
+    # 1. FO4 path-structure match (most accurate for game assets)
+    for category, path_fragments in _FO4_PATH_CATEGORIES:
+        for frag in path_fragments:
+            if frag in lower:
+                return category
+
+    # 2. Filename keyword fallback
+    for category, keywords in _CATEGORY_KEYWORDS:
+        for kw in keywords:
+            if kw in lower:
+                return category
+
+    return 'Meshes'
+
+
+def _scan_folder(folder: str, allowed_exts: frozenset[str]) -> list[dict]:
+    """Recursively collect importable files under *folder*."""
+    results: list[dict] = []
+    try:
+        root = Path(folder)
+        if not root.is_dir():
+            return results
+        for p in sorted(root.rglob("*")):
+            if not p.is_file():
+                continue
+            ext = p.suffix.lower()
+            if ext not in allowed_exts:
+                continue
+            results.append({
+                "name":     p.stem,
+                "filepath": str(p),
+                "category": _detect_category(str(p), ext),
+                "filetype": ext.lstrip('.').upper(),
+            })
+    except Exception as exc:
+        print(f"[Asset Library] scan_folder({folder}): {exc}")
+    return results
+
+
+def _scan_blend(blend_path: str) -> list[dict]:
+    """List every Object datablock inside a .blend without loading any data."""
+    results: list[dict] = []
+    try:
+        with bpy.data.libraries.load(blend_path, link=False) as (src, _):
+            for name in sorted(src.objects):
+                results.append({
+                    "name":     name,
+                    "filepath": blend_path,
+                    "category": _detect_category(name, '.blend'),
+                    "filetype": "BLEND",
+                })
+    except Exception as exc:
+        print(f"[Asset Library] scan_blend({blend_path}): {exc}")
+    return results
+
+
+def _expand_blend_items(entries: list[dict], category: str | None = None) -> list[dict]:
+    """Replace .blend file entries with their contained objects."""
+    expanded: list[dict] = []
+    for d in entries:
+        if d.get("filetype") == "BLEND":
+            blend_items = _scan_blend(d["filepath"])
+            for bi in blend_items:
+                if category:
+                    bi["category"] = category
+                expanded.append(bi)
+        else:
+            expanded.append(d)
+    return expanded
+
+
+# ---------------------------------------------------------------------------
+# Scan helpers (usable outside operator context)
+# ---------------------------------------------------------------------------
+
+def _populate_asset_list(scene) -> int:
+    """Rebuild the asset list for *scene* from its configured paths.
+
+    Returns the number of unique assets found.  The existing list is cleared
+    and rebuilt from scratch, so the result is always fresh.  This is pure
+    Python - no operator context required - making it safe to call from
+    app-handlers and other non-operator contexts.
+    """
+    combined_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_path', '').strip()
+    )
+    mesh_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_mesh_path', '').strip()
+    )
+    tex_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_tex_path', '').strip()
+    )
+    mat_path = bpy.path.abspath(
+        getattr(scene, 'fo4_asset_lib_mat_path', '').strip()
+    )
+
+    if not any([combined_path, mesh_path, tex_path, mat_path]):
+        return 0
+
+    all_items: list[dict] = []
+
+    if combined_path and Path(combined_path).exists():
+        p = Path(combined_path)
+        if p.suffix.lower() == '.blend':
+            all_items.extend(_scan_blend(combined_path))
+        elif p.is_dir():
+            found = _scan_folder(combined_path, _ALL_EXTS)
+            all_items.extend(_expand_blend_items(found, category="Materials"))
+
+    if mesh_path and Path(mesh_path).is_dir():
+        found = _scan_folder(mesh_path, _MESH_EXTS)
+        for d in found:
+            if d['category'] not in _SEMANTIC_MESH_CATEGORIES:
+                d['category'] = 'Meshes'
+        all_items.extend(found)
+
+    if tex_path and Path(tex_path).is_dir():
+        found = _scan_folder(tex_path, _TEXTURE_EXTS)
+        for d in found:
+            d['category'] = 'Textures'
+        all_items.extend(found)
+
+    if mat_path and Path(mat_path).is_dir():
+        found = _scan_folder(mat_path, _MATERIAL_EXTS)
+        expanded = _expand_blend_items(found, category="Materials")
+        for d in expanded:
+            d["category"] = "Materials"
+        all_items.extend(expanded)
+
+    # Deduplicate by filepath + name
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict] = []
+    for d in all_items:
+        key = (d['filepath'], d['name'])
+        if key not in seen:
+            seen.add(key)
+            unique.append(d)
+
+    lib = scene.fo4_asset_lib_items
+    lib.clear()
+    for d in unique:
+        item = lib.add()
+        item.name     = d['name']
+        item.filepath = d['filepath']
+        item.category = d['category']
+        item.filetype = d['filetype']
+
+    scene.fo4_asset_lib_active = 0
+    return len(unique)
+
+
+def auto_scan_for_scene(scene) -> None:
+    """Auto-scan assets for *scene* when paths are configured but the list is empty.
+
+    Called from the ``load_post`` handler so assets are immediately available
+    after Blender starts or a project is opened — without the user having to
+    click "Scan Asset Library" again.
+
+    The scan is skipped when the list already contains items so that a scene
+    whose asset list was saved inside the ``.blend`` file is never clobbered.
+    """
+    # Guard: Scene properties are registered in Phase 2 — skip until then.
+    if not hasattr(scene, 'fo4_asset_lib_items'):
+        return
+    try:
+        if len(scene.fo4_asset_lib_items) > 0:
+            return  # Already populated - nothing to do
+        count = _populate_asset_list(scene)
+        if count:
+            print(
+                f"[Asset Library] Auto-scan: found {count} asset(s) "
+                f"for scene '{scene.name}'"
+            )
+    except Exception as exc:
+        print(f"[Asset Library] auto_scan_for_scene failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Property group - one row in the asset list
+# ---------------------------------------------------------------------------
+
+class FO4_AssetLibraryItem(PropertyGroup):
+    """One entry in the scanned asset library."""
+    # 'name' is inherited from PropertyGroup and is the display label
+    filepath: StringProperty(name="File Path",  default="", subtype='FILE_PATH')
+    category: StringProperty(name="Category",   default="Other")
+    filetype: StringProperty(name="File Type",  default="")
+
+
+# ---------------------------------------------------------------------------
+# UIList - scrollable list with live search + category filtering
+# ---------------------------------------------------------------------------
+
+class FO4_UL_AssetLibrary(UIList):
+    """Scrollable, filterable list of scanned game assets."""
+
+    def draw_item(self, _ctx, layout, _data, item,
+                  _icon, _active_data, _active_propname, _index):
+        icon = _CATEGORY_ICONS.get(item.category, 'DOT')
+        row = layout.row(align=True)
+        row.label(text=item.name, icon=icon)
+        sub = row.row()
+        sub.alignment = 'RIGHT'
+        sub.scale_x = 0.6
+        sub.label(text=item.filetype)
+
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        scene = context.scene
+        search      = getattr(scene, 'fo4_asset_lib_search',   '').lower()
+        path_filter = getattr(scene, 'fo4_asset_lib_path_filter', '').lower().replace("\\", "/")
+        cat_filter  = getattr(scene, 'fo4_asset_lib_category', 'ALL')
+
+        flt_flags: list[int] = []
+        for item in items:
+            visible = True
+            # Name / type search
+            if search and (
+                search not in item.name.lower()
+                and search not in item.category.lower()
+                and search not in item.filetype.lower()
+            ):
+                visible = False
+            # Category filter
+            if cat_filter != 'ALL' and item.category != cat_filter:
+                visible = False
+            # Path filter — narrows by folder path substring
+            if path_filter and path_filter not in item.filepath.replace("\\", "/").lower():
+                visible = False
+            flt_flags.append(self.bitflag_filter_item if visible else 0)
+
+        return flt_flags, []
+
+
+# ---------------------------------------------------------------------------
+# Operators
+# ---------------------------------------------------------------------------
+
+class FO4_OT_SetAssetLibPath(Operator):
+    """Choose a folder or .blend file that contains all your game assets"""
+    bl_idname  = "fo4.set_asset_lib_path"
+    bl_label   = "Set Asset Library Path"
+    bl_description = (
+        "Choose the folder (or .blend file) that holds all your assets. "
+        "After setting the path the library is scanned automatically."
+    )
+
+    # Only used for the 'all' slot (file or folder picker)
+    slot: StringProperty(default='all', options={'SKIP_SAVE'})
+
+    filepath:  StringProperty(subtype='FILE_PATH')
+    directory: StringProperty(subtype='DIR_PATH')
+    filter_glob: StringProperty(
+        default="*.blend;*.fbx;*.obj;*.nif;*.dds;*.png;*.tga",
+        options={'HIDDEN'},
+    )
+    use_filter_folder: BoolProperty(default=True)
+
+    def execute(self, context):
+        path = (self.filepath or self.directory).rstrip("/\\")
+
+        if not path:
+            self.report({'ERROR'}, "No path selected")
+            return {'CANCELLED'}
+
+        setattr(context.scene, 'fo4_asset_lib_path', path)
+
+        # Persist to addon preferences so the path survives restarts/reinstalls
+        try:
+            from . import preferences as _prefs_mod
+            prefs = _prefs_mod.get_preferences()
+            if prefs is not None:
+                prefs.fo4_assets_path = path
+                _prefs_mod.save_prefs_deferred()
+                _prefs_mod.save_api_keys()
+        except Exception:
+            pass
+
+        # Auto-scan immediately
+        bpy.ops.fo4.scan_asset_library()
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_SetAssetFolderPath(Operator):
+    """Choose a folder for a specific asset type (meshes, textures, or materials)"""
+    bl_idname  = "fo4.set_asset_folder_path"
+    bl_label   = "Select Asset Folder"
+    bl_description = (
+        "Navigate to the folder that contains your assets and click "
+        "'Accept' - the entire folder (including sub-folders) will be scanned."
+    )
+
+    # Which slot to fill: 'meshes', 'textures', or 'materials'
+    slot: StringProperty(default='meshes', options={'SKIP_SAVE'})
+
+    # Defining only 'directory' (no 'filepath') tells Blender to open the
+    # file browser in folder-selection mode so the user picks a whole folder
+    # rather than an individual file.
+    directory: StringProperty(subtype='DIR_PATH')
+
+    def execute(self, context):
+        path = self.directory.rstrip("/\\")
+
+        if not path:
+            self.report({'ERROR'}, "No folder selected")
+            return {'CANCELLED'}
+
+        prop_map = {
+            'meshes':    'fo4_asset_lib_mesh_path',
+            'textures':  'fo4_asset_lib_tex_path',
+            'materials': 'fo4_asset_lib_mat_path',
+        }
+        prop = prop_map.get(self.slot, 'fo4_asset_lib_mesh_path')
+        setattr(context.scene, prop, path)
+
+        # Persist to addon preferences so the path survives restarts/reinstalls
+        pref_map = {
+            'meshes':    'fo4_assets_mesh_path',
+            'textures':  'fo4_assets_tex_path',
+            'materials': 'fo4_assets_mat_path',
+        }
+        pref_field = pref_map.get(self.slot)
+        if pref_field:
+            try:
+                from . import preferences as _prefs_mod
+                prefs = _prefs_mod.get_preferences()
+                if prefs is not None:
+                    setattr(prefs, pref_field, path)
+                    _prefs_mod.save_prefs_deferred()
+                    _prefs_mod.save_api_keys()
+            except Exception:
+                pass
+
+        # Auto-scan immediately
+        bpy.ops.fo4.scan_asset_library()
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ScanAssetLibrary(Operator):
+    """Scan all configured paths and rebuild the asset list"""
+    bl_idname  = "fo4.scan_asset_library"
+    bl_label   = "Scan Asset Library"
+    bl_description = (
+        "Scan the configured mesh, texture, and material paths and rebuild "
+        "the browsable asset list"
+    )
+
+    def execute(self, context):
+        scene = context.scene
+
+        # Guard: warn early if no paths have been set at all
+        has_path = any([
+            getattr(scene, 'fo4_asset_lib_path',      '').strip(),
+            getattr(scene, 'fo4_asset_lib_mesh_path', '').strip(),
+            getattr(scene, 'fo4_asset_lib_tex_path',  '').strip(),
+            getattr(scene, 'fo4_asset_lib_mat_path',  '').strip(),
+        ])
+        if not has_path:
+            self.report(
+                {'WARNING'},
+                "No asset paths configured - use 'Set Path' to choose a folder",
+            )
+            return {'CANCELLED'}
+
+        count = _populate_asset_list(scene)
+        msg = f"Found {count} asset{'s' if count != 1 else ''}"
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+
+class FO4_OT_ImportLibraryAsset(Operator):
+    """Append the selected asset into the current scene"""
+    bl_idname  = "fo4.import_library_asset"
+    bl_label   = "Import Selected"
+    bl_description = (
+        "Import (append) the highlighted asset into the current Blender scene"
+    )
+    bl_options = {'REGISTER', 'UNDO'}
+
+    use_link: BoolProperty(
+        name="Link instead of Append",
+        description="Link the asset from the library rather than making a local copy",
+        default=False,
+    )
+
+    def execute(self, context):
+        scene = context.scene
+        lib   = scene.fo4_asset_lib_items
+        idx   = scene.fo4_asset_lib_active
+
+        if not lib or idx < 0 or idx >= len(lib):
+            self.report({'WARNING'}, "No asset selected - click one in the list first")
+            return {'CANCELLED'}
+
+        item     = lib[idx]
+        filepath = bpy.path.abspath(item.filepath)
+        name     = item.name
+        filetype = item.filetype
+
+        try:
+            if filetype == 'BLEND':
+                op = bpy.ops.wm.link if self.use_link else bpy.ops.wm.append
+                op(
+                    filepath=os.path.join(filepath, "Object", name),
+                    directory=os.path.join(filepath, "Object") + os.sep,
+                    filename=name,
+                )
+                verb = "Linked" if self.use_link else "Appended"
+                self.report({'INFO'}, f"{verb} '{name}' from blend library")
+
+            elif filetype == 'FBX':
+                bpy.ops.import_scene.fbx(filepath=filepath)
+                self.report({'INFO'}, f"Imported FBX: {name}")
+
+            elif filetype == 'OBJ':
+                if hasattr(bpy.ops.wm, 'obj_import'):
+                    bpy.ops.wm.obj_import(filepath=filepath)
+                else:
+                    bpy.ops.import_scene.obj(filepath=filepath)
+                self.report({'INFO'}, f"Imported OBJ: {name}")
+
+            elif filetype == 'NIF':
+                if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
+                    bpy.ops.import_scene.pynifly(filepath=filepath)
+                    # Scale imported objects from FO4 game units to Blender metres (÷70)
+                    # and tag each for the ×70 round-trip on export.
+                    _fo4_scale = 1.0 / 69.99125
+                    _scalable = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE'}
+                    _imported = [o for o in context.selected_objects if o.type in _scalable]
+                    bpy.ops.object.select_all(action='DESELECT')
+                    for _obj in _imported:
+                        context.view_layer.objects.active = _obj
+                        _obj.select_set(True)
+                        _obj.scale = (_fo4_scale, _fo4_scale, _fo4_scale)
+                        try:
+                            bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+                        except Exception:
+                            _obj.scale = (1.0, 1.0, 1.0)
+                        _obj["fo4_unit_scale"] = 69.99125
+                        _obj.select_set(False)
+                    self.report({'INFO'}, f"Imported NIF: {name}")
+                else:
+                    self.report(
+                        {'ERROR'},
+                        "NIF import requires PyNifly — install it via the Setup & Status tab",
+                    )
+                    return {'CANCELLED'}
+
+            elif filetype in ('GLTF', 'GLB'):
+                bpy.ops.import_scene.gltf(filepath=filepath)
+                self.report({'INFO'}, f"Imported glTF: {name}")
+
+            elif filetype == 'DAE':
+                bpy.ops.wm.collada_import(filepath=filepath)
+                self.report({'INFO'}, f"Imported Collada: {name}")
+
+            elif filetype in (
+                'DDS', 'PNG', 'TGA', 'JPG', 'JPEG', 'BMP', 'TIFF', 'TIF', 'EXR',
+            ):
+                bpy.data.images.load(filepath, check_existing=True)
+                self.report({'INFO'}, f"Loaded texture: {name}")
+
+            else:
+                self.report(
+                    {'WARNING'},
+                    f"'{filetype}' format is not directly importable - "
+                    "try opening it via File → Import",
+                )
+                return {'CANCELLED'}
+
+            _notify(f"Imported '{name}'", 'INFO')
+            return {'FINISHED'}
+
+        except (OSError, RuntimeError, TypeError, AttributeError) as exc:
+            print(f"[Asset Library] Import failed for '{name}' ({filepath}): {exc}")
+            self.report({'ERROR'}, f"Import failed: {exc}")
+            return {'CANCELLED'}
+
+
+class FO4_OT_ClearAssetLibrary(Operator):
+    """Clear the scanned asset list without deleting any files"""
+    bl_idname  = "fo4.clear_asset_library"
+    bl_label   = "Clear List"
+    bl_description = "Remove all entries from the asset list (no files are deleted)"
+
+    def execute(self, context):
+        context.scene.fo4_asset_lib_items.clear()
+        context.scene.fo4_asset_lib_active = 0
+        self.report({'INFO'}, "Asset library list cleared")
+        return {'FINISHED'}
+
+
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
+
+_CLASSES = [
+    FO4_AssetLibraryItem,
+    FO4_UL_AssetLibrary,
+    FO4_OT_SetAssetLibPath,
+    FO4_OT_SetAssetFolderPath,
+    FO4_OT_ScanAssetLibrary,
+    FO4_OT_ImportLibraryAsset,
+    FO4_OT_ClearAssetLibrary,
+]
+
+def _config_path() -> str:
+    """Return the absolute path to the asset-library JSON config file.
+
+    Stored in Blender's user config directory (via bpy.utils.user_resource)
+    so it survives add-on reinstalls and is independent of which .blend file
+    is currently open.
+    """
+    config_dir = bpy.utils.user_resource('CONFIG')
+    os.makedirs(config_dir, exist_ok=True)
+    return os.path.join(config_dir, "asset_lib_config.json")
+
+
+_CONFIG_KEYS = (
+    "fo4_asset_lib_path",
+    "fo4_asset_lib_mesh_path",
+    "fo4_asset_lib_tex_path",
+    "fo4_asset_lib_mat_path",
+)
+
+
+def save_asset_paths(scene) -> None:
+    """Persist the four asset-library path scene properties to disk.
+
+    Writes a tiny JSON file next to the addon so the values survive opening
+    a new .blend file or restarting Blender.
+    """
+    data = {key: getattr(scene, key, "") for key in _CONFIG_KEYS}
+    try:
+        with open(_config_path(), "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+    except Exception as exc:
+        print(f"[Asset Library] Could not save config: {exc}")
+
+
+def load_asset_paths(scene) -> None:
+    """Restore asset-library path scene properties from the JSON config file.
+
+    Only populates a scene property when it is currently empty, so a
+    project-specific path already saved inside a .blend file is never
+    clobbered.
+    """
+    # Scene properties are registered in Phase 2 (~3 s after startup).
+    # This handler can fire before that — skip silently; it will run again
+    # once the .blend is fully loaded with properties in place.
+    if not hasattr(scene, 'fo4_asset_lib_path'):
+        return
+
+    cfg = _config_path()
+    if not os.path.isfile(cfg):
+        return
+    try:
+        with open(cfg, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as exc:
+        print(f"[Asset Library] Could not load config: {exc}")
+        return
+
+    for key in _CONFIG_KEYS:
+        saved = data.get(key, "").strip()
+        current = getattr(scene, key, "").strip()
+        if saved and not current:
+            try:
+                setattr(scene, key, saved)
+            except Exception as exc:
+                print(f"[Asset Library] Could not restore {key}: {exc}")
+
+
+def _invalidate_game_asset_cache(self, context):  # noqa: ARG001
+    """Called whenever an asset-path property changes.
+
+    Clears the FO4GameAssets._game_dir cache so the next Smart Preset or
+    asset-library scan picks up the new path immediately - no Blender restart
+    needed.
+
+    Also performs reverse-sync: when the user sets the meshes sub-folder
+    (fo4_asset_lib_mesh_path) and it looks like a standard FO4 'meshes/'
+    sub-directory, we infer the Data root and populate fo4_assets_path so
+    that all other panels immediately reflect the same location.
+    """
+    try:
+        from . import fo4_game_assets
+        fo4_game_assets.FO4GameAssets.invalidate_cache()
+    except Exception:
+        pass
+
+    # Reverse-sync: mesh sub-path → Data root → fo4_assets_path
+    try:
+        from pathlib import Path as _P
+        mesh_path = getattr(self, 'fo4_asset_lib_mesh_path', '').strip()
+        if mesh_path:
+            p = _P(mesh_path)
+            if p.is_dir() and p.name.lower() == 'meshes':
+                parent = p.parent
+                if parent.is_dir():
+                    current = getattr(self, 'fo4_assets_path', '').strip()
+                    if not current:
+                        # Set the root path; its own update callback will
+                        # populate the other sub-paths (tex, mat).
+                        self.fo4_assets_path = str(parent)
+                        # Fall through so save_asset_paths() is called below.
+    except Exception:
+        pass
+
+    # Persist the changed path so it survives scene switches and restarts.
+    save_asset_paths(self)
+
+
+_SCENE_PROPS: list[tuple[str, object]] = [
+    # ── Paths ────────────────────────────────────────────────────────────────
+    ("fo4_asset_lib_path", StringProperty(
+        name="All Assets Path",
+        description=(
+            "Folder or .blend file that contains all your assets. "
+            "Supports FBX, OBJ, NIF, glTF, DDS, PNG, TGA and .blend libraries"
+        ),
+        default="",
+        subtype='FILE_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_mesh_path", StringProperty(
+        name="Meshes Path",
+        description="Dedicated folder for mesh files (FBX, OBJ, NIF, glTF …)",
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_tex_path", StringProperty(
+        name="Textures Path",
+        description="Dedicated folder for texture files (DDS, PNG, TGA, EXR …)",
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    ("fo4_asset_lib_mat_path", StringProperty(
+        name="Materials Path",
+        description=(
+            "Dedicated folder for material libraries (.blend files whose "
+            "objects will be listed for import)"
+        ),
+        default="",
+        subtype='DIR_PATH',
+        update=_invalidate_game_asset_cache,
+    )),
+    # ── List state ───────────────────────────────────────────────────────────
+    ("fo4_asset_lib_items", CollectionProperty(type=FO4_AssetLibraryItem)),
+    ("fo4_asset_lib_active", IntProperty(name="Active Asset", default=0, min=0)),
+    # ── Filters ──────────────────────────────────────────────────────────────
+    ("fo4_asset_lib_search", StringProperty(
+        name="Search",
+        description="Filter by name, category, or file type",
+        default="",
+    )),
+    ("fo4_asset_lib_category", EnumProperty(
+        name="Category",
+        items=_CATEGORY_ITEMS,
+        default='ALL',
+    )),
+    # ── Path/folder filter ───────────────────────────────────────────────────
+    ("fo4_asset_lib_path_filter", StringProperty(
+        name="Folder Filter",
+        description=(
+            "Narrow results by folder path — type part of the path to show only "
+            "assets under that subfolder (e.g. 'weapons/gun' or 'actors/character')"
+        ),
+        default="",
+    )),
+]
+
+
+def register() -> None:
+    for cls in _CLASSES:
+        bpy.utils.register_class(cls)
+    for name, prop in _SCENE_PROPS:
+        setattr(bpy.types.Scene, name, prop)
+
+
+def unregister() -> None:
+    for name, _ in reversed(_SCENE_PROPS):
+        if hasattr(bpy.types.Scene, name):
+            try:
+                delattr(bpy.types.Scene, name)
+            except Exception:
+                pass
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass

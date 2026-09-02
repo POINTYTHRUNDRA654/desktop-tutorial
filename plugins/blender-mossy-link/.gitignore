@@ -1,0 +1,138 @@
+# External tools directories (cloned separately, contain nested git repos)
+# Large binaries (ffmpeg, nvtt, texconv, etc.) must NOT be committed to Git.
+# Use Git LFS (see .gitattributes) if any binary absolutely must live in the repo.
+# Download instructions: tools/README.md
+tools/*
+!tools/README.md
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+# Addon *.zip releases are built by CI and uploaded as workflow artifacts.
+# They are NOT committed to the repo – exclude them here so they stay clean.
+*.zip
+dist/
+build/
+build_temp/
+
+# VS Code
+# Share project-level settings and recommended extensions so everyone on the
+# team gets the same Git-LFS-aware configuration automatically.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Blender temp files
+*.blend1
+*.blend2
+
+# ── AI model weight files ───────────────────────────────────────────────────
+# These can be GIGABYTES in size and must never be committed to Git.
+# Re-download them from their original sources when needed.
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.bin
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pb
+*.tflite
+
+# ── LLM / GGUF model files ──────────────────────────────────────────────────
+# Local large-language-model files (Nemotron, Llama, Mistral, etc.) used by
+# Mossy AI and similar tools are typically 2–8 GB each.  They must NEVER be
+# committed to Git — the Mossy AI LLM is an external service that the add-on
+# connects to via HTTP; no model file should live inside this repo.
+*.gguf
+*.ggml
+*.ggmf
+*.llamafile
+
+# Common model/weights directory names that may hold large binaries
+models/
+weights/
+checkpoints/
+loras/
+embeddings/
+vae/
+controlnet/
+
+# ── Large media / asset files ───────────────────────────────────────────────
+# Textures, videos, and audio should be kept outside the Git repo.
+# Store them on a network drive, cloud storage, or Git LFS instead.
+# (If you intentionally need a specific image in the repo, use: git add -f file.png)
+*.tga
+*.tif
+*.tiff
+*.dds
+*.exr
+*.hdr
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.ogg
+
+# ── Blender project files ───────────────────────────────────────────────────
+# .blend files can grow large; keep them out of the source repo.
+# To include a specific blend file intentionally, use: git add -f example.blend
+*.blend
+
+# ── Temporary / log files ───────────────────────────────────────────────────
+*.log
+*.tmp
+*.temp
+*.bak
+
+# ── Python packaging / virtualenv artefacts ─────────────────────────────────
+*.egg-info/
+*.dist-info/
+*.egg
+site-packages/
+pip-wheel-metadata/
+
+# ── Windows Explorer artefacts ───────────────────────────────────────────────
+# In addition to Thumbs.db / desktop.ini already listed above.
+ehthumbs.db
+ehthumbs_vista.db
+$RECYCLE.BIN/
+
+# ── Blender Extension cache / temp files ────────────────────────────────────
+# Blender may write these when processing an Extension from the source folder.
+bl_ext.local/
+__bl_ext_repo__/
+.blender_ext/
+
+# ── Test artefacts ───────────────────────────────────────────────────────────
+test_extract/
+test_output/
+.pytest_cache/
+*.pytest_cache
+htmlcov/
+.coverage
+
+# ── Claude Code local tool config ───────────────────────────────────────────
+# Local permission settings / machine-specific paths, not project source.
+.claude/

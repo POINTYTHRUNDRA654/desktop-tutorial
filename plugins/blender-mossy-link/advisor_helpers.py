@@ -1,0 +1,768 @@
+"""
+Advisor helpers: scene checks and optional LLM-backed suggestions (opt-in).
+The assistant stays rules-first and offline by default. LLM calls are opt-in via preferences.
+"""
+
+import bpy
+import json
+import os
+import urllib.request
+import urllib.error
+import contextlib
+from mathutils import Matrix
+
+try:
+    from . import mesh_helpers
+except Exception:
+    mesh_helpers = None
+try:
+    from . import texture_helpers
+except Exception:
+    texture_helpers = None
+try:
+    from . import preferences
+except Exception:
+    preferences = None
+try:
+    from . import export_helpers
+except Exception:
+    export_helpers = None
+try:
+    from . import notification_system
+except Exception:
+    notification_system = None
+try:
+    from . import knowledge_helpers
+except Exception:
+    knowledge_helpers = None
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if notification_system:
+        notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
+class AdvisorHelpers:
+    """Scene analysis and optional LLM suggestion helper."""
+
+    _last_signature = None
+    _timer_registered = False
+
+    @staticmethod
+    def _is_identity_matrix(mat: Matrix, tol: float = 1e-4) -> bool:
+        return all(abs(mat[i][j] - (1.0 if i == j else 0.0)) < tol for i in range(3) for j in range(3))
+
+    @staticmethod
+    def analyze_scene(context, use_llm: bool = False):
+        selected = [obj for obj in context.selected_objects if obj.type in {'MESH', 'ARMATURE'}]
+        report = {
+            "objects_checked": len(selected),
+            "issues": [],
+            "suggestions": [],
+            "llm": None,
+        }
+
+        if not selected:
+            report["issues"].append("No mesh or armature selected. Select assets to analyze.")
+            return report
+
+        for obj in selected:
+            if obj.type == 'MESH':
+                AdvisorHelpers._analyze_mesh(obj, report)
+            elif obj.type == 'ARMATURE':
+                AdvisorHelpers._analyze_armature(obj, report)
+
+        # Export readiness quick check (uses existing helpers)
+        if export_helpers and selected:
+            export_ok, export_issues = export_helpers.ExportHelpers.validate_before_export(selected[0])
+        else:
+            export_ok, export_issues = True, []
+        if not export_ok and export_issues:
+            for issue in export_issues:
+                report["issues"].append(f"Export validation: {issue}")
+
+        if use_llm:
+            # Use Mossy for FREE, LOCAL AI assistance (no API keys, no cloud)
+            ai_resp = AdvisorHelpers.query_mossy(report)
+            if ai_resp:
+                report["llm"] = ai_resp
+            else:
+                report["llm"] = "Mossy not available. Start Mossy desktop app for FREE AI assistance."
+
+        # Derive suggestions from findings
+        AdvisorHelpers._derive_suggestions(report)
+        return report
+
+    @staticmethod
+    def _analyze_mesh(obj, report):
+        # Transforms
+        scale = obj.scale
+        if any(abs(s - 1.0) > 1e-3 for s in scale):
+            report["issues"].append(f"{obj.name}: Scale not applied ({scale[0]:.2f},{scale[1]:.2f},{scale[2]:.2f}) → Apply transforms.")
+        rot = obj.rotation_euler
+        if any(abs(r) > 1e-3 for r in rot):
+            report["issues"].append(f"{obj.name}: Rotation not applied ({rot[0]:.2f},{rot[1]:.2f},{rot[2]:.2f}) → Apply transforms.")
+
+        # Mesh validation via existing helper
+        ok, mesh_issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+        if not ok:
+            for issue in mesh_issues:
+                report["issues"].append(f"{obj.name}: {issue}")
+
+        # Texture validation
+        if obj.data.materials:
+            tex_ok, tex_issues = texture_helpers.TextureHelpers.validate_textures(obj)
+            if not tex_ok:
+                for issue in tex_issues:
+                    report["issues"].append(f"{obj.name}: {issue}")
+
+        # Shading / auto-smooth
+        # `use_auto_smooth` was removed in Blender 4.1 (shading by angle is
+        # now the default).  Only check the attribute when it actually exists
+        # so we don't crash on modern Blender versions.
+        if hasattr(obj.data, 'use_auto_smooth') and not obj.data.use_auto_smooth:
+            report["issues"].append(f"{obj.name}: Auto Smooth disabled → enable for tangents/normals.")
+
+    @staticmethod
+    def _analyze_armature(obj, report):
+        if not obj.animation_data:
+            report["issues"].append(f"{obj.name}: No animation_data set (ok for static rigs).")
+
+    @staticmethod
+    def _derive_suggestions(report):
+        # Simple mapping from issues to suggested actions
+        for issue in report["issues"]:
+            if "Scale not applied" in issue or "Rotation not applied" in issue:
+                report["suggestions"].append("Apply transforms on selected meshes.")
+            if "Auto Smooth disabled" in issue:
+                report["suggestions"].append("Enable Auto Smooth and shade smooth.")
+            if "textures" in issue.lower():
+                report["suggestions"].append("Convert textures to DDS (BC1/BC3/BC5) and relink.")
+            if "non-manifold" in issue.lower():
+                report["suggestions"].append("Fix non-manifold geometry before export.")
+            if "Export validation" in issue:
+                report["suggestions"].append("Run Validate Before Export and fix blockers.")
+
+    @staticmethod
+    def query_mossy(meta_report, custom_question: str = None):
+        """Send the advisor report to Mossy's HTTP AI endpoint and return its response.
+
+        This calls Mossy's local HTTP server directly - no API key needed,
+        no data leaves your machine. Mossy must be running on the desktop
+        and ``use_mossy_as_ai`` must be enabled in the add-on preferences.
+        The function returns ``None`` silently when either condition is not
+        met, so callers can treat "no answer" uniformly.
+
+        Pass *custom_question* to ask Mossy something specific (the Advisor
+        panel's free-text box) instead of the default export-readiness
+        review -- the scene report is still attached as context either way.
+        """
+        prefs = preferences.get_preferences()
+        if not prefs or not getattr(prefs, 'use_mossy_as_ai', False):
+            return None
+
+        # Build the context we send to Mossy (summary strings only - no mesh
+        # or texture binaries ever leave Blender).
+        kb_snippets = []
+        if getattr(prefs, "knowledge_base_enabled", False):
+            # Score the knowledge base against the actual issues found (not just
+            # "load whichever files sort first") so the snippets that reach Mossy
+            # are the ones relevant to what's actually wrong with this scene.
+            kb_query = " ".join(meta_report.get("issues", [])[:20])
+            kb_snippets = knowledge_helpers.load_snippets(max_files=5, max_chars=2500, query=kb_query)
+
+        context_data = {
+            "issues":          meta_report.get("issues",      [])[:20],
+            "suggestions":     meta_report.get("suggestions", [])[:10],
+            "objects_checked": meta_report.get("objects_checked", 0),
+            "kb":              kb_snippets[:4],
+        }
+        query = custom_question.strip() if custom_question and custom_question.strip() else (
+            "I'm working on Fallout 4 mod assets in Blender. "
+            "Please review these export-readiness issues and give me clear, "
+            "prioritised fixes as a beginner-friendly step-by-step list."
+        )
+
+        try:
+            from . import mossy_link as _ml
+            response = _ml.ask_mossy(query, context_data=context_data, timeout=10)
+            # ask_mossy() returns None on any connection/parse failure, so
+            # returning it directly lets analyze_scene() fall through to the
+            # remote LLM endpoint without any further checks.
+            return response  # str with content, or None
+        except Exception:
+            return None
+
+    @staticmethod
+    def get_setup_guidance_from_mossy():
+        """Ask Mossy for help with addon setup (for first-time users)."""
+        query = (
+            "I just installed the Fallout 4 Blender add-on and I'm a first-time user. "
+            "Can you explain what I need to do to set everything up? "
+            "Please give me a clear, step-by-step guide covering:\n"
+            "1. Python dependencies\n"
+            "2. Niftools installation\n"
+            "3. Any other important setup steps\n"
+            "4. How to verify everything is working\n"
+            "Make it beginner-friendly and explain WHY each step matters."
+        )
+
+        context_data = {
+            "blender_version": ".".join(str(v) for v in bpy.app.version),
+            "addon_name": "Fallout 4 Mod Creation Add-on",
+            "query_type": "first_time_setup"
+        }
+
+        try:
+            from . import mossy_link as _ml
+            response = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+            return response  # str with content, or None
+        except Exception as e:
+            return f"Could not connect to Mossy: {e}\nMake sure Mossy is running and server is started."
+
+    @staticmethod
+    def apply_quick_fix(context, action: str):
+        objs = [obj for obj in context.selected_objects if obj.type == 'MESH']
+        if not objs:
+            return False, "No mesh objects selected"
+
+        if bpy.ops.object.mode_set.poll():
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+
+        if action == 'APPLY_TRANSFORMS':
+            for obj in objs:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            return True, "Transforms applied to selected meshes"
+
+        if action == 'SHADE_SMOOTH_AUTOSMOOTH':
+            for obj in objs:
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+                # Apply shade-smooth first (works on all Blender versions).
+                bpy.ops.object.shade_smooth()
+                # Blender ≤4.0: enable use_auto_smooth and set angle to 180°
+                # so ALL faces are smooth-shaded and tangents export cleanly.
+                # Blender 4.1+: use_auto_smooth was removed; shade_smooth_by_angle
+                # is the equivalent.  We try both paths gracefully.
+                if hasattr(obj.data, 'use_auto_smooth'):
+                    try:
+                        obj.data.use_auto_smooth = True
+                        obj.data.auto_smooth_angle = 3.14159265358979  # 180 °
+                    except AttributeError:
+                        pass
+                else:
+                    # Blender 4.1+: shade_smooth_by_angle with 180° keeps all
+                    # faces smooth-shaded, matching the Blender ≤4.0 behaviour.
+                    try:
+                        bpy.ops.object.shade_smooth_by_angle(angle=3.14159265358979)
+                    except Exception:
+                        pass  # operator not available in all contexts; skip
+            return True, "Shade Smooth + Auto Smooth applied to selected meshes"
+
+        if action == 'REMOVE_DOUBLES':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.remove_doubles(threshold=0.0001)
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Removed duplicate vertices"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'DELETE_LOOSE':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.delete_loose()
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Deleted loose geometry"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'MAKE_MANIFOLD':
+            # Multi-pass manifold repair:
+            # 1. Merge by distance — fixes T-junctions and doubled verts (main cause)
+            # 2. Fill holes (up to 8-sided) — closes open boundary loops
+            # 3. Delete degenerate faces — removes zero-area triangles left behind
+            # 4. Delete loose — cleans up any orphaned verts/edges
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+
+                # Pass 1 — merge near-coincident vertices
+                try:
+                    bpy.ops.mesh.merge_vertices(type='DISTANCE', threshold=0.0001)
+                except Exception:
+                    try:
+                        bpy.ops.mesh.remove_doubles(threshold=0.0001)
+                    except Exception:
+                        pass
+
+                # Pass 2 — fill open boundary loops (holes)
+                bpy.ops.mesh.select_all(action='DESELECT')
+                bpy.ops.mesh.select_non_manifold(
+                    extend=False, use_wire=False, use_boundary=True,
+                    use_multi_face=False, use_non_contiguous=False, use_verts=False,
+                )
+                try:
+                    bpy.ops.mesh.fill_holes(sides=8)
+                except Exception:
+                    try:
+                        bpy.ops.mesh.fill()
+                    except Exception:
+                        pass
+
+                # Pass 3 — remove degenerate (zero-area) faces
+                bpy.ops.mesh.select_all(action='SELECT')
+                try:
+                    bpy.ops.mesh.dissolve_degenerate(threshold=0.0001)
+                except Exception:
+                    pass
+
+                # Pass 4 — delete any remaining loose geometry
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.delete_loose()
+
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Non-manifold repair complete (merge + fill holes + dissolve degenerate)"
+            except Exception as e:
+                try:
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                except Exception:
+                    pass
+                return False, str(e)
+
+        if action == 'SETUP_FO4_MATERIAL':
+            # Create a proper FO4 material with Diffuse/Normal/Specular nodes
+            # on every selected mesh that lacks one.
+            from . import texture_helpers as _th
+            fixed = 0
+            for obj in objs:
+                if not obj.data.materials or not obj.data.materials[0].use_nodes:
+                    _th.TextureHelpers.setup_fo4_material(obj)
+                    fixed += 1
+                else:
+                    mat   = obj.data.materials[0]
+                    nodes = mat.node_tree.nodes
+                    # Check for PyNifly import format: Image Texture → BSDF Base Color.
+                    # These materials are valid for export even without named "Diffuse" nodes.
+                    has_pynifly_diffuse = any(
+                        n.type == 'BSDF_PRINCIPLED'
+                        and n.inputs.get('Base Color')
+                        and n.inputs['Base Color'].links
+                        and n.inputs['Base Color'].links[0].from_node.type == 'TEX_IMAGE'
+                        for n in nodes
+                    )
+                    if has_pynifly_diffuse:
+                        continue  # textures already connected — don't replace the material
+                    missing = [n for n in ("Diffuse", "Normal", "Specular")
+                               if not nodes.get(n)]
+                    if missing:
+                        _th.TextureHelpers.setup_fo4_material(obj)
+                        fixed += 1
+            if fixed:
+                return True, f"Set up FO4 material with texture nodes on {fixed} object(s)"
+            return True, "FO4 material nodes already present"
+
+        if action == 'VEGETATION_WIND_SETUP':
+            from . import animation_helpers as _ah
+            from . import export_helpers as _eh
+            fixed = 0
+            for obj in objs:
+                # Auto-detect: only apply if object looks like vegetation OR has no armature
+                obj_class = _eh.ExportHelpers.detect_fo4_object_class(obj)
+                if obj_class in ('VEGETATION', 'STATIC'):
+                    ok, _ = _ah.AnimationHelpers.apply_vegetation_wind(obj)
+                    if ok:
+                        fixed += 1
+            if fixed:
+                return True, f"Vegetation wind vertex groups applied to {fixed} object(s)"
+            return True, "No vegetation objects found to set up"
+
+        if action == 'TRIANGULATE':
+            try:
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+                bpy.ops.object.mode_set(mode='OBJECT')
+                return True, "Triangulated mesh"
+            except Exception as e:
+                return False, str(e)
+
+        if action == 'VALIDATE_EXPORT':
+            if not export_helpers:
+                return False, "export_helpers module not available"
+            success, issues = export_helpers.ExportHelpers.validate_before_export(objs[0])
+            if success:
+                return True, "Validation passed"
+            return False, "; ".join(issues)
+
+        return False, f"Unknown action: {action}"
+
+    @staticmethod
+    def _signature_from_report(report: dict) -> str:
+        issues = report.get("issues", [])
+        suggestions = report.get("suggestions", [])
+        key = "|".join(sorted(issues + suggestions))
+        return str(hash(key))
+
+    @staticmethod
+    def auto_monitor_tick():
+        prefs = preferences.get_preferences()
+        if not prefs or not prefs.advisor_auto_monitor_enabled:
+            AdvisorHelpers._timer_registered = False
+            return None
+
+        interval = max(5.0, float(prefs.advisor_auto_monitor_interval))
+
+        context = bpy.context
+        if context is None:
+            return interval
+
+        selected = [obj for obj in context.selected_objects if obj.type in {'MESH', 'ARMATURE'}]
+        if not selected:
+            return interval
+
+        # NEVER use the LLM during background polling. It blocks the main thread
+        # and freezes the Blender UI for seconds every tick.
+        report = AdvisorHelpers.analyze_scene(context, use_llm=False)
+        sig = AdvisorHelpers._signature_from_report(report)
+        if sig != AdvisorHelpers._last_signature:
+            AdvisorHelpers._last_signature = sig
+            if report.get("issues"):
+                msg = f"Advisor: {len(report['issues'])} issues detected."
+                _notify(msg, 'WARNING')
+            else:
+                _notify("Advisor: no issues detected.", 'INFO')
+
+        return interval
+
+    @staticmethod
+    def start_auto_monitor():
+        if AdvisorHelpers._timer_registered:
+            return
+        if bpy.app.timers.is_registered(AdvisorHelpers.auto_monitor_tick):
+            return
+        bpy.app.timers.register(AdvisorHelpers.auto_monitor_tick, persistent=True)
+        AdvisorHelpers._timer_registered = True
+
+    @staticmethod
+    def stop_auto_monitor():
+        AdvisorHelpers._timer_registered = False
+        if bpy.app.timers.is_registered(AdvisorHelpers.auto_monitor_tick):
+            try:
+                bpy.app.timers.unregister(AdvisorHelpers.auto_monitor_tick)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # UV + Texture Analysis  (used by FO4_OT_AskMossyForUVAdvice)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def analyze_uv_texture(obj) -> dict:
+        """Analyse the UV map and texture setup of *obj* for FO4 compatibility.
+
+        Returns a structured dict suitable for display or for sending to Mossy
+        as context data.  Never raises - errors are captured into the ``issues``
+        list so the caller always gets a usable result.
+
+        Fields returned
+        ---------------
+        object_name : str
+        mesh_stats  : dict  – vertex/polygon/triangle counts
+        uv_status   : dict  – has_uv_map, uv_layer_count, uv_layer_names
+        material_status : dict  – has_material, uses_nodes, per-slot texture info
+        issues      : list[str]  – actionable problems found
+        suggestions : list[str]  – how to fix them
+        """
+        result = {
+            "object_name": obj.name if obj else "unknown",
+            "mesh_stats": {},
+            "uv_status": {},
+            "material_status": {},
+            "issues": [],
+            "suggestions": [],
+        }
+
+        if not obj or obj.type != 'MESH':
+            result["issues"].append("Not a mesh object.")
+            return result
+
+        mesh = obj.data
+
+        # --- Mesh stats -------------------------------------------------------
+        tri_estimate = sum(max(1, len(p.vertices) - 2) for p in mesh.polygons)
+        result["mesh_stats"] = {
+            "vertices": len(mesh.vertices),
+            "polygons": len(mesh.polygons),
+            "estimated_triangles": tri_estimate,
+        }
+        if tri_estimate > 65535:
+            result["issues"].append(
+                f"Triangle count ({tri_estimate:,}) exceeds FO4 BSTriShape limit of 65,535."
+            )
+            result["suggestions"].append(
+                "Use 'Split at Poly Limit' or 'Smart Decimate' to reduce polygon count."
+            )
+
+        # --- UV status --------------------------------------------------------
+        uv_layers = mesh.uv_layers
+        result["uv_status"] = {
+            "has_uv_map": bool(uv_layers),
+            "uv_layer_count": len(uv_layers),
+            "uv_layer_names": [l.name for l in uv_layers],
+        }
+        if not uv_layers:
+            result["issues"].append(
+                "No UV map found. PyNifly requires UV coordinates on every exported mesh."
+            )
+            result["suggestions"].append(
+                "Click 'Setup UV + Texture' to auto-unwrap and bind a texture in one step."
+            )
+
+        # --- Scale check ------------------------------------------------------
+        if any(abs(s - 1.0) > 1e-5 for s in obj.scale):
+            result["issues"].append(
+                f"Object scale is not applied ({obj.scale[0]:.3f}, "
+                f"{obj.scale[1]:.3f}, {obj.scale[2]:.3f}). "
+                "Unapplied scale distorts geometry in FO4."
+            )
+            result["suggestions"].append("Press Ctrl+A → Apply Scale before export.")
+
+        # --- Material + texture status ----------------------------------------
+        if not obj.data.materials or obj.data.materials[0] is None:
+            result["material_status"]["has_material"] = False
+            result["issues"].append(
+                "No material assigned. FO4 meshes need a BGSM-compatible material with textures."
+            )
+            result["suggestions"].append(
+                "Click 'Setup FO4 Materials' to create the full PBR node tree, "
+                "then use 'Install Diffuse/Normal/Specular' to bind textures."
+            )
+            return result
+
+        mat = obj.data.materials[0]
+        result["material_status"]["has_material"] = True
+        result["material_status"]["name"] = mat.name
+        result["material_status"]["uses_nodes"] = mat.use_nodes
+
+        if not mat.use_nodes:
+            result["issues"].append(
+                f"Material '{mat.name}' does not use nodes. "
+                "PyNifly requires a node-based material for texture export."
+            )
+            result["suggestions"].append(
+                "Click 'Setup FO4 Materials' to rebuild the material node tree."
+            )
+            return result
+
+        nodes = mat.node_tree.nodes
+
+        # Per-slot texture analysis.
+        # node_name  = the Blender node name used to look up the node
+        #              (must match what setup_fo4_material creates).
+        # display    = human-readable slot label used in messages.
+        # tex_type   = internal enum for texture install helpers.
+        # dds_fmt    = DDS compression hint shown to the user.
+        # required   = whether an absent / empty node is an error.
+        # is_colour  = True for sRGB slots; False for Non-Color/data slots.
+        #
+        # The diffuse node was renamed from "Diffuse" to "Base" so that its
+        # label matches TEX_SLOTS.BASE = "Base" in niftools consts.py.
+        # The niftools exporter uses a CONTAINS check on the node label, so
+        # the label must contain the exact TEX_SLOTS string.  "Diffuse" is not
+        # in that set and causes "Do not know how to export texture node …".
+        # Node-name aliases: texture_helpers.setup_fo4_material (the addon's
+        # own material builder) always names the diffuse node "Diffuse", not
+        # "Base" -- looking up only "Base" here (the old code) never found
+        # it, so this advisor permanently reported the diffuse texture as
+        # missing on every correctly set-up FO4 material. Check both names,
+        # matching the alias-set pattern already used correctly elsewhere
+        # (fo4_scene_diagnostics.py's UV/texture check).
+        _SLOTS = {
+            "Diffuse":  (("Diffuse", "Base"), "DIFFUSE",  "Diffuse / albedo",
+                         "BC1 (DXT1) or BC3 if alpha needed",  True,  True),
+            "Normal":   (("Normal",), "NORMAL",   "Normal map",
+                         "BC5 (ATI2) two-channel tangent-space", True,  False),
+            "Specular": (("Specular", "Spec"), "SPECULAR", "Specular",
+                         "BC1 (DXT1)",                          False, False),
+            "Glow":     (("Glow",), "GLOW",   "Glow / emissive",
+                         "BC1 (DXT1)",                          False, False),
+        }
+        texture_status = {}
+        for node_name, (aliases, tex_type, display, dds_fmt, required, is_colour) in _SLOTS.items():
+            node = None
+            for alias in aliases:
+                node = nodes.get(alias)
+                if node is not None:
+                    break
+            if node is None:
+                texture_status[node_name] = {"node_present": False}
+                if required:
+                    result["issues"].append(
+                        f"'{display}' texture node (named '{node_name}') is missing "
+                        f"from material '{mat.name}'. "
+                        "Click 'Setup FO4 Materials' to rebuild the node tree."
+                    )
+                continue
+
+            img = node.image
+            slot_info = {
+                "node_present": True,
+                "image_loaded": bool(img),
+                "image_name": img.name if img else None,
+            }
+
+            if img:
+                fp = bpy.path.abspath(img.filepath) if img.filepath else ""
+                ext = os.path.splitext(fp)[1].lower() if fp else ""
+                slot_info["is_dds"] = (ext == ".dds")
+                slot_info["filepath"] = fp
+                slot_info["colorspace"] = getattr(
+                    getattr(img, "colorspace_settings", None), "name", None
+                )
+
+                # DDS format check
+                if fp and ext != ".dds":
+                    result["issues"].append(
+                        f"{display} texture '{os.path.basename(fp)}' is not DDS. "
+                        f"FO4 requires DDS format in-game. Convert to {dds_fmt}."
+                    )
+                    result["suggestions"].append(
+                        f"Use 'Convert to DDS' ({dds_fmt}) on the {display} texture."
+                    )
+
+                # Colorspace check
+                cs = slot_info["colorspace"]
+                if cs:
+                    if is_colour and cs not in ("sRGB", "Linear Rec.709"):
+                        result["issues"].append(
+                            f"{display} colorspace is '{cs}' - should be 'sRGB' "
+                            "for correct colour in FO4."
+                        )
+                    elif not is_colour and cs not in ("Non-Color", "Raw"):
+                        result["issues"].append(
+                            f"{display} colorspace is '{cs}' - must be 'Non-Color' "
+                            "to prevent gamma corruption of the texture data."
+                        )
+            else:
+                if required:
+                    result["issues"].append(
+                        f"{display} texture node exists but no image is loaded. "
+                        f"Use 'Install {display}' to bind a texture."
+                    )
+                    result["suggestions"].append(
+                        f"Click 'Install {display.capitalize()}' in the Texture Helpers panel."
+                    )
+
+            texture_status[node_name] = slot_info
+
+        result["material_status"]["textures"] = texture_status
+
+        # Summary suggestion when everything looks good
+        if not result["issues"]:
+            result["suggestions"].append(
+                "Everything looks good! Click 'Export Mesh (.nif)' to export."
+            )
+
+        return result
+
+    @staticmethod
+    def ask_mossy_uv_texture(obj, extra_question: str = "") -> "str | None":
+        """Query Mossy's AI for UV + texture setup advice for *obj*.
+
+        Builds a structured context report from :meth:`analyze_uv_texture`
+        and POSTs it to Mossy's HTTP ``/ask`` endpoint.
+
+        Returns Mossy's response string, or ``None`` if Mossy is not
+        reachable (caller should fall back to the built-in analysis).
+        """
+        try:
+            from . import mossy_link as _ml
+        except Exception:
+            return None
+
+        analysis = AdvisorHelpers.analyze_uv_texture(obj)
+
+        query = (
+            "I am setting up a Fallout 4 mod mesh in Blender and need help with "
+            "UV mapping and textures for NIF export. "
+            "Review the analysis below and give me clear, numbered, "
+            "beginner-friendly steps to fix any issues and get this ready for export."
+        )
+        if extra_question:
+            query += f" Specifically: {extra_question}"
+
+        return _ml.ask_mossy(query, context_data=analysis, timeout=15)
+
+    @staticmethod
+    def mossy_auto_fix_mesh(obj) -> dict:
+        """Send a mesh validation report to Mossy and apply the suggested fixes.
+
+        Mossy analyses the issues and responds with a JSON array of action
+        strings (same set used by :meth:`apply_quick_fix`).  No API key is
+        required - Mossy runs locally on the user's desktop.
+
+        Returns a dict with keys ``success`` (bool), ``message`` (str on
+        failure), and ``actions`` (list[str] on success).
+        """
+        from . import mesh_helpers
+        try:
+            from . import mossy_link as _ml
+        except Exception:
+            return {"success": False, "message": "Mossy Link module not available."}
+
+        ok, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
+        if ok:
+            return {"success": True, "message": "Mesh is already valid.", "actions": []}
+
+        query = (
+            "You are an expert AI fixing Blender meshes for Fallout 4 NIF export. "
+            "The following issues were found during validation of mesh '"
+            f"{obj.name}':\n{json.dumps(issues, indent=2)}\n\n"
+            "Respond ONLY with a valid JSON array of action strings to fix these issues. "
+            "Allowed actions: ['REMOVE_DOUBLES', 'DELETE_LOOSE', 'MAKE_MANIFOLD', "
+            "'APPLY_TRANSFORMS', 'TRIANGULATE', 'SHADE_SMOOTH_AUTOSMOOTH', "
+            "'SETUP_FO4_MATERIAL', 'VEGETATION_WIND_SETUP']. "
+            "Use VEGETATION_WIND_SETUP when the mesh is a plant, tree, shrub, or foliage "
+            "that needs wind vertex groups instead of an armature. "
+            "Example response: [\"APPLY_TRANSFORMS\", \"DELETE_LOOSE\"]"
+        )
+        context_data = {"issues": issues, "mesh": obj.name}
+
+        response = _ml.ask_mossy(query, context_data=context_data, timeout=15)
+        if not response:
+            return {"success": False, "message": "Mossy is not reachable. Make sure Mossy is running."}
+
+        # Strip markdown fences if present
+        text = response.strip()
+        if text.startswith("```json"):
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif text.startswith("```"):
+            text = text.split("```")[1].split("```")[0].strip()
+
+        try:
+            actions = json.loads(text)
+        except json.JSONDecodeError:
+            return {"success": False, "message": f"Mossy returned unexpected format: {text[:200]}"}
+
+        if not isinstance(actions, list):
+            return {"success": False, "message": "Mossy returned invalid format (expected a list)."}
+
+        return {"success": True, "actions": actions}
+
+
+def register():
+    pass
+
+
+def unregister():
+    pass

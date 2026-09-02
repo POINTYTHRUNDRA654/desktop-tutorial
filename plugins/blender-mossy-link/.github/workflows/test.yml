@@ -1,0 +1,37 @@
+name: Addon Integrity Tests
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  # Run on every push to any branch so VS Code / local pushes get immediate
+  # feedback without waiting for the full build-and-zip workflow.
+  push:
+    paths:
+      - "**.py"
+      - ".github/workflows/test.yml"
+
+  # Run on every pull request targeting any branch.
+  pull_request:
+    paths:
+      - "**.py"
+      - ".github/workflows/test.yml"
+
+  # Allow a manual trigger from the Actions tab.
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Integrity tests (no Blender needed)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── 1. Check out (shallow clone is fine – we only need source files) ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Run the standalone integrity test suite ────────────────────────
+      - name: Run addon integrity tests
+        run: python3 test_addon_integrity.py

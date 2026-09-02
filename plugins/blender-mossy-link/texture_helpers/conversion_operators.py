@@ -1,0 +1,366 @@
+"""
+Texture conversion operators for Fallout 4 mod creation.
+Moved here from operators.py as part of the texture_helpers sub-package.
+"""
+
+import importlib
+import sys
+
+import bpy
+from bpy.types import Operator
+from bpy.props import StringProperty, EnumProperty
+
+
+def _safe_import(name):
+    try:
+        return importlib.import_module(f".{name}", package=__package__[: __package__.rfind(".")])
+    except Exception as exc:
+        print(f"texture_helpers.conversion_operators: Skipped {name}: {exc}")
+        return None
+
+
+nvtt_helpers = _safe_import("nvtt_helpers")
+notification_system = _safe_import("notification_system")
+
+
+def _notify(msg: str, level: str = 'INFO') -> None:
+    if notification_system:
+        notification_system.FO4_NotificationSystem.notify(msg, level)
+
+
+class FO4_OT_ConvertTextureToDDS(Operator):
+    """Convert a texture to DDS format using NVIDIA Texture Tools"""
+    bl_idname = "fo4.convert_texture_to_dds"
+    bl_label = "Convert Texture to DDS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(
+        name="Texture File",
+        description="Path to the texture file to convert",
+        subtype='FILE_PATH'
+    )
+
+    output_path: StringProperty(
+        name="Output Path",
+        description="Path for the output DDS file (optional)",
+        subtype='FILE_PATH',
+        default=""
+    )
+
+    compression: EnumProperty(
+        name="Compression",
+        description="DDS compression format",
+        items=[
+            ('bc1', "BC1 (DXT1)", "For diffuse textures without alpha"),
+            ('bc3', "BC3 (DXT5)", "For textures with alpha channel"),
+            ('bc5', "BC5 (ATI2)", "For normal maps"),
+        ],
+        default='bc1'
+    )
+
+    quality: EnumProperty(
+        name="Quality",
+        description="Compression quality",
+        items=[
+            ('fastest', "Fastest", "Fastest compression"),
+            ('normal', "Normal", "Normal quality"),
+            ('production', "Production", "Production quality"),
+            ('highest', "Highest", "Highest quality (slowest)"),
+        ],
+        default='production'
+    )
+
+    converter: EnumProperty(
+        name="Converter",
+        description="Select converter binary",
+        items=[
+            ('auto', "Auto (prefer NVTT)", "Use nvcompress if available, else texconv"),
+            ('nvtt', "NVTT (nvcompress)", "Use NVIDIA Texture Tools"),
+            ('texconv', "texconv (DirectXTex)", "Use Microsoft texconv"),
+        ],
+        default='auto'
+    )
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        if not self.filepath:
+            self.report({'ERROR'}, "No texture file selected")
+            return {'CANCELLED'}
+
+        output = self.output_path or None
+        success, message = nvtt_helpers.NVTTHelpers.convert_to_dds(
+            self.filepath,
+            output,
+            self.compression,
+            self.quality,
+            preferred_tool=self.converter
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            _notify(
+                "Texture converted to DDS successfully", 'INFO'
+            )
+        else:
+            self.report({'ERROR'}, message)
+            _notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_ConvertObjectTexturesToDDS(Operator):
+    """Convert all textures from selected object to DDS format"""
+    bl_idname = "fo4.convert_object_textures_to_dds"
+    bl_label = "Convert Object Textures to DDS"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    output_dir: StringProperty(
+        name="Output Directory",
+        description="Directory to save converted DDS files",
+        subtype='DIR_PATH'
+    )
+
+    converter: EnumProperty(
+        name="Converter",
+        description="Select converter binary",
+        items=[
+            ('auto', "Auto (prefer NVTT)", "Use nvcompress if available, else texconv"),
+            ('nvtt', "NVTT (nvcompress)", "Use NVIDIA Texture Tools"),
+            ('texconv', "texconv (DirectXTex)", "Use Microsoft texconv"),
+        ],
+        default='auto'
+    )
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        obj = context.active_object
+        if not obj:
+            self.report({'ERROR'}, "No object selected")
+            return {'CANCELLED'}
+
+        if not self.output_dir:
+            self.report({'ERROR'}, "No output directory selected")
+            return {'CANCELLED'}
+
+        success, message, converted_files = nvtt_helpers.NVTTHelpers.convert_object_textures(
+            obj,
+            self.output_dir,
+            preferred_tool=self.converter
+        )
+
+        if success:
+            self.report({'INFO'}, message)
+            _notify(message, 'INFO')
+
+            print("\n" + "="*70)
+            print("TEXTURE CONVERSION RESULTS")
+            print("="*70)
+            print(f"Object: {obj.name}")
+            print(f"Converted files:")
+            for filepath in converted_files:
+                print(f"  - {filepath}")
+            print("="*70 + "\n")
+        else:
+            self.report({'ERROR'}, message)
+            _notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_BatchConvertTextures(Operator):
+    """Convert every selected object's textures to DDS format, one object at a time"""
+    bl_idname = "fo4.batch_convert_textures"
+    bl_label = "Batch Convert Textures"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    output_dir: StringProperty(
+        name="Output Directory",
+        description="Directory to save converted DDS files",
+        subtype='DIR_PATH'
+    )
+
+    converter: EnumProperty(
+        name="Converter",
+        description="Select converter binary",
+        items=[
+            ('auto', "Auto (prefer NVTT)", "Use nvcompress if available, else texconv"),
+            ('nvtt', "NVTT (nvcompress)", "Use NVIDIA Texture Tools"),
+            ('texconv', "texconv (DirectXTex)", "Use Microsoft texconv"),
+        ],
+        default='auto'
+    )
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        objects = [o for o in context.selected_objects if o.type == 'MESH']
+        if not objects:
+            self.report({'ERROR'}, "No mesh objects selected")
+            return {'CANCELLED'}
+        if not self.output_dir:
+            self.report({'ERROR'}, "No output directory selected")
+            return {'CANCELLED'}
+
+        out = bpy.path.abspath(self.output_dir)
+        success_count, fail_count = 0, 0
+        for obj in objects:
+            ok, message, _files = nvtt_helpers.NVTTHelpers.convert_object_textures(
+                obj, out, preferred_tool=self.converter)
+            if ok:
+                success_count += 1
+            else:
+                fail_count += 1
+                print(f"[Batch Convert Textures] {obj.name}: {message}")
+
+        self.report({'INFO'},
+            f"Batch texture conversion: {success_count} OK, {fail_count} failed → {out}")
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+
+class FO4_OT_TestDDSConverters(Operator):
+    """Self-test nvcompress/texconv by converting a tiny PNG to DDS"""
+    bl_idname = "fo4.test_dds_converters"
+    bl_label = "Self-Test DDS Converters"
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        tool, tool_path, msg = nvtt_helpers.NVTTHelpers._find_converter("auto")
+        if not tool:
+            self.report({'ERROR'}, msg)
+            _notify(msg, 'ERROR')
+            return {'CANCELLED'}
+
+        import tempfile
+        import os
+
+        # Minimal 2x2 TGA (uncompressed RGB) — TGA is supported by both
+        # nvcompress and texconv; avoids the PNG-to-TGA pre-conversion step.
+        # TGA header: 18 bytes, then 4 pixels x 3 bytes BGR each.
+        import struct as _struct
+        tga_header = _struct.pack(
+            '<BBBHHBHHHHBB',
+            0,   # id_length
+            0,   # color_map_type
+            2,   # image_type: uncompressed RGB
+            0, 0, 0,  # color_map spec (ignored)
+            0, 0,     # x/y origin
+            2, 2,     # width, height
+            24,  # pixel depth
+            0,   # image descriptor
+        )
+        tga_pixels = bytes([
+            255,   0, 255,   # magenta  (BGR)
+              0, 255, 255,   # cyan
+              0, 255, 255,   # cyan
+            255,   0, 255,   # magenta
+        ])
+        tga_bytes = tga_header + tga_pixels
+
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "test.tga")
+            dst = os.path.join(tmp, "test.dds")
+            with open(src, "wb") as f:
+                f.write(tga_bytes)
+
+            success, message = nvtt_helpers.NVTTHelpers.convert_to_dds(
+                src,
+                dst,
+                compression_format='bc1',
+                preferred_tool=tool,
+            )
+
+            if success and os.path.exists(dst):
+                size_kb = os.path.getsize(dst) / 1024
+                detail = f"DDS wrote {size_kb:.1f} KB via {tool_path}"
+                self.report({'INFO'}, detail)
+                _notify(detail, 'INFO')
+                return {'FINISHED'}
+
+            self.report({'ERROR'}, message)
+            _notify(message, 'ERROR')
+            return {'CANCELLED'}
+
+
+class FO4_OT_CheckNVTTInstallation(Operator):
+    """Check if NVIDIA Texture Tools is installed"""
+    bl_idname = "fo4.check_nvtt_installation"
+    bl_label = "Check NVTT Installation"
+
+    def execute(self, context):
+        if not nvtt_helpers:
+            self.report({'ERROR'}, "nvtt_helpers module failed to load")
+            return {'CANCELLED'}
+        success, message = nvtt_helpers.NVTTHelpers.check_nvtt_installation()
+        tex_success, tex_message = nvtt_helpers.NVTTHelpers.check_texconv_installation()
+
+        if success:
+            self.report({'INFO'}, message)
+            print("\n" + "="*70)
+            print("NVIDIA TEXTURE TOOLS STATUS")
+            print("="*70)
+            print("✅ NVIDIA Texture Tools is installed and ready!")
+            print(message)
+            print("\nYou can now convert textures to DDS format for Fallout 4.")
+            print("="*70 + "\n")
+        else:
+            self.report({'WARNING'}, "NVIDIA Texture Tools not found")
+            print("\n" + "="*70)
+            print("NVIDIA TEXTURE TOOLS INSTALLATION")
+            print("="*70)
+            print(message)
+            print("\nFor detailed instructions, see NVIDIA_RESOURCES.md")
+            print("="*70 + "\n")
+
+        if tex_success:
+            print("texconv detected:")
+            print(tex_message)
+        else:
+            print(tex_message)
+
+        return {'FINISHED'}
+
+
+_CLASSES = (
+    FO4_OT_ConvertTextureToDDS,
+    FO4_OT_ConvertObjectTexturesToDDS,
+    FO4_OT_BatchConvertTextures,
+    FO4_OT_TestDDSConverters,
+    FO4_OT_CheckNVTTInstallation,
+)
+
+
+def register():
+    for cls in _CLASSES:
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as exc:
+            print(f"texture_helpers.conversion_operators: Could not register {cls.__name__}: {exc}")
+
+
+def unregister():
+    for cls in reversed(_CLASSES):
+        try:
+            bpy.utils.unregister_class(cls)
+        except Exception:
+            pass
