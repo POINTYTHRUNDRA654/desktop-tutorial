@@ -3253,6 +3253,23 @@ function setupIpcHandlers() {
       setDetectedPrograms(programs);
       console.log(`[Program Detection] Cached ${programs.length} detected programs`);
 
+      // Auto-seed comfyuiPath from this scan if the user hasn't configured one
+      // yet -- ComfyUI (portable or the official Desktop app, see
+      // detectComfyUiInstall() below) is now findable by this same scan, so a
+      // user shouldn't also have to manually browse to the folder that was
+      // just found automatically. Never overwrites an existing configured path.
+      try {
+        const existingComfyPath = String(loadSettings()?.comfyuiPath || '').trim();
+        if (!existingComfyPath) {
+          const foundComfy = programs.find((p) => p.name === 'ComfyUI' && p.path);
+          if (foundComfy) {
+            const root = path.dirname(foundComfy.path);
+            saveSettings({ ...loadSettings(), comfyuiPath: root });
+            console.log(`[Program Detection] Auto-configured comfyuiPath from scan: ${root}`);
+          }
+        }
+      } catch { /* best-effort -- never block the scan result on this */ }
+
       return programs;
     } catch (error) {
       console.error('Error detecting programs:', error);

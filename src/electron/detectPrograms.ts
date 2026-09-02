@@ -880,18 +880,29 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
       displayName: 'Upscayl',
       name: 'Upscayl'
     },
-    // ComfyUI (AI image generation — detected via run script)
+    // ComfyUI -- ships as either the "portable" ZIP release (detected via its
+    // run_nvidia_gpu.bat launcher script) or the official ComfyUI Desktop app
+    // (detected via ComfyUI.exe -- it installs to AppData\Local\Programs\ComfyUI
+    // by default, same as any other per-user Desktop app, e.g. VS Code, Discord).
+    // Only checking for run_nvidia_gpu.bat meant a real, working ComfyUI Desktop
+    // install (like Billy's) was invisible to this scan entirely.
     {
       templates: [
         'ComfyUI\\run_nvidia_gpu.bat',
         'ComfyUI\\ComfyUI_windows_portable\\run_nvidia_gpu.bat',
         'AI\\ComfyUI\\run_nvidia_gpu.bat',
         'Stable Diffusion\\ComfyUI\\run_nvidia_gpu.bat',
+        'ComfyUI\\ComfyUI.exe',
+        'AI\\ComfyUI\\ComfyUI.exe',
+        'Stable Diffusion\\ComfyUI\\ComfyUI.exe',
+        'Program Files\\ComfyUI\\ComfyUI.exe',
       ],
       specialPaths: [
         path.join(os.homedir(), 'ComfyUI\\run_nvidia_gpu.bat'),
         path.join(os.homedir(), 'Desktop\\ComfyUI\\run_nvidia_gpu.bat'),
         path.join(os.homedir(), 'AI\\ComfyUI\\run_nvidia_gpu.bat'),
+        path.join(os.homedir(), 'AppData\\Local\\Programs\\ComfyUI\\ComfyUI.exe'),
+        path.join(os.homedir(), 'AppData\\Roaming\\ComfyUI\\ComfyUI.exe'),
       ],
       displayName: 'ComfyUI',
       name: 'ComfyUI'
