@@ -66,6 +66,12 @@ const COMFYUI_TOOLS: Array<{
     id: 'inpaint-cropstitch', name: 'Inpaint Crop & Stitch', description: 'Faster, higher-quality masked inpainting',
     owner: 'lquesada', repo: 'ComfyUI-Inpaint-CropAndStitch', checkClassType: 'InpaintCropImproved',
   },
+  {
+    id: 'triposr', name: 'Image to 3D (TripoSR)', description: 'Free, local single-image-to-mesh reconstruction (MIT-licensed) -- Post-Processing Pipeline',
+    owner: 'flowtyone', repo: 'ComfyUI-Flowty-TripoSR', checkClassType: 'TripoSRModelLoader',
+    modelDownloads: [{ url: 'https://huggingface.co/stabilityai/TripoSR/resolve/main/model.ckpt', subfolder: 'checkpoints', filename: 'TripoSR_model.ckpt' }],
+    details: 'Outputs a vertex-colored .obj -- a fast base-mesh/concept tool, not a UV-textured game-ready asset. ~6GB VRAM.',
+  },
 ];
 
 export const AITextureToolsSetupWizard: React.FC<AITextureToolsSetupWizardProps> = ({ onComplete = () => {}, onSkip = () => {}, embedded = false }) => {

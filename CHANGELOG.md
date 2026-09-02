@@ -2,6 +2,14 @@
 
 ## [5.6.0] — 2026-08-05
 
+### Security Fix — Desktop Bridge Authentication (2026-08-14)
+
+**Fixed (Critical): Desktop Bridge's local HTTP server had no authentication on any endpoint.** Any web page open in your browser while Mossy was running could talk to the Bridge directly with no credential — including, through an unsandboxed `type: "shell"` handler, running arbitrary commands on your machine via Node's `child_process.exec()`. Beyond shell execution, the same lack of authentication also exposed screen capture, clipboard access, file access, and hardware information. This didn't require doing anything wrong beyond having Mossy open in the background while browsing. We have no evidence this was ever exploited, but the bar to attempt it was low enough to disclose plainly rather than fix quietly — full public writeup at [GHSA-j6pr-83hv-46q5](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/security/advisories/GHSA-j6pr-83hv-46q5).
+
+**Removed: the unsandboxed shell-execution handler**, entirely — not sandboxed, not gated, deleted. Every remaining Desktop Bridge endpoint now requires a private `X-Mossy-Token` header, generated locally on first run and never transmitted anywhere, checked with a timing-safe comparison before any route executes; a missing or wrong token is rejected outright. `/health` stays open with no token required (matches every other liveness-check exemption in this app).
+
+**Fixed: the companion Blender add-on's own token check was fail-open**, accepting connections with no password if you hadn't yet set one in Blender's Add-on preferences — the default state on a fresh install. Changed to fail-closed: no token set means no connection accepted, full stop.
+
 ### Brain B — AI Tutoring, New Optional Component
 
 - New one-click-install AI tutoring feature: ask Mossy anything about FO4 modding and get an answer grounded in real, cited Creation Kit/F4SE/Papyrus documentation, with the question diagnosed before answering and a check-question afterward when Mossy's actually teaching a concept (not just answering a lookup)
@@ -169,6 +177,24 @@ Anything recognized that isn't already a known pattern is proposed for review ra
 ### Glowing Sea Texture Pipeline — GPU-Detection Health Check (2026-08-24)
 
 **Fixed: `enhance.py`'s ComfyUI health check couldn't have caught the CPU-only-torch bug that already happened once.** `check_comfyui()` called ComfyUI's `/system_stats` endpoint but only checked `r.ok`, discarding the response body — the exact `devices[].type` field that would have flagged a CPU-only torch install was already being fetched and thrown away. It now parses that field and fails loudly, with a specific message, if no GPU-class device is reported, instead of silently letting the pipeline proceed (and run 20+ minutes slower) on CPU. Verified both directions for real: against an actual GPU-backed ComfyUI instance (real RTX 2070 SUPER reported, passes silently) and against 7 simulated `/system_stats` payloads via a local mock server driving the real unmodified function (CPU-only, empty devices, mixed CPU+GPU, HTTP 500, malformed JSON, connection refused — each producing the correct pass/fail and a distinct, actionable message rather than one generic "not reachable" string for every failure mode). This was evaluated against adopting SwarmUI first — SwarmUI's own backend-status model turned out to have no device dimension either (confirmed against its real source), so it wouldn't have closed this gap automatically; this direct fix does, at a fraction of the integration cost. See project memory for the full SwarmUI comparison.
+
+### Texture Enhancer — Gemini / "Nano Banana" Cloud Backend (2026-09-02)
+
+**New: AI Detail Synthesis can now call Google's Gemini image models directly** ("Nano Banana"/Nano Banana 2), as a cloud alternative to the existing local ComfyUI backend, for texture restyle quality that matches what Krea/AI Studio produce. Requires your own Gemini API key (get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)), stored using the same encrypted-secret pattern as every other provider key in this app. The original ComfyUI backend is unchanged and still selectable — this is an added option, not a replacement.
+- Output is force-resized back to the source texture's exact original resolution afterward, so it still maps onto the existing mesh UVs even though Gemini itself doesn't guarantee returning the same pixel dimensions it was given.
+
+### AI Detail Synthesis — Automatic Background Removal (2026-09-02)
+
+**New: "Remove background after generation" toggle**, running after either AI Detail Synthesis backend (Gemini or ComfyUI). Reuses the existing ComfyUI-RMBG integration (BEN2/InSPyReNet/BEN, same permissively-licensed models the standalone Background Remover panel already uses) so a texture restyle can come out with a true transparent-alpha cutout in one pass instead of a separate manual step afterward.
+
+### AI Detail Synthesis — One-Click SDXL Checkpoint + Tile ControlNet Download (2026-09-02)
+
+**New: one-click model downloads for the local ComfyUI backend.** Previously, choosing the ComfyUI backend with no checkpoint installed was a dead end ("No checkpoints found") with no way forward from inside the app. Now offers a one-click download of RealVisXL V5.0 (OpenRAIL++, ~6.9GB) as a starter photoreal checkpoint, generalizing the existing model-download machinery already used by AI Image Studio's model library.
+- **New: "Lock UV layout with ControlNet Tile" toggle**, with its own one-click download for a Tile ControlNet model (Apache-2.0, ~2.5GB) purpose-built for "keep the same structure, change the surface" workflows — gives real enforcement of a texture restyle's layout staying fixed during generation, beyond what a low denoise value alone provides. Routes through core ComfyUI's own ControlNetLoader/ControlNetApplyAdvanced nodes, so it works without any extra custom node installed.
+
+### AI Post-Processing Pipeline — Image to 3D (2026-09-02)
+
+**New: "Image to 3D" tab**, free and fully local — single-image-to-mesh reconstruction via stabilityai/TripoSR (MIT-licensed), installed the same one-click way as this pipeline's other tools. Chosen over higher-quality options (Hunyuan3D, TRELLIS) specifically because it runs on a much wider range of GPUs (~6GB VRAM vs. their 16-29GB requirements). Automatically uses an uploaded image's alpha channel as a subject-isolation mask when present, so an already-background-removed cutout reconstructs more cleanly than one still on a background. Output is a vertex-colored `.obj` mesh, not a UV-textured PBR material — positioned honestly in the UI as a fast base-mesh/concept tool rather than a drop-in game-ready asset.
 
 ## [5.5.0] — 2026-07-28
 
