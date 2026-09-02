@@ -29,7 +29,7 @@
     "lorekeeper": "Хранитель лора",
     "tools": "Инструменты",
     "cosmosWorkflow": "FO4 Automation Studio",
-    "modBuilder": "FO4 Mod Builder Hub",
+    "modBuilder": "Хаб Конструктора Модов",
     "devtools": "Инструменты разработки",
     "templateGenerator": "Генератор шаблонов",
     "scriptAnalyzer": "Анализатор скриптов",
@@ -40,7 +40,7 @@
     "exportSettingsHelper": "Помощник экспорта",
     "animationValidator": "Проверка анимаций",
     "precombineChecker": "Проверка precombine",
-    "assetAnalysis": "FO4 Asset Analysis Hub",
+    "assetAnalysis": "Хаб Анализа Ассетов",
     "auditor": "Аудитор",
     "securityScanner": "Сканер безопасности",
     "miningDashboard": "Панель майнинга",
@@ -49,9 +49,9 @@
     "systemMonitor": "Монитор системы",
     "orchestrator": "FO4 Automation Orchestrator",
     "workflowRunner": "FO4 Automation Runner",
-    "runtimeHub": "FO4 Runtime Hub",
-    "externalTools": "FO4 External Integrations Hub",
-    "pluginTools": "FO4 Plugin & Load Order Hub",
+    "runtimeHub": "Хаб Времени Выполнения",
+    "externalTools": "Хаб Внешних Интеграций",
+    "pluginTools": "Хаб Плагинов и Порядка Загрузки",
     "holodeck": "Холодек",
     "vault": "Хранилище",
     "ba2Manager": "Менеджер BA2",
@@ -76,7 +76,11 @@
     "voiceSettings": "Голос",
     "languageSettings": "Язык",
     "diagnosticTools": "Диагностика",
-    "supportMossy": "Поддержать Mossy"
+    "supportMossy": "Поддержать Mossy",
+    "ckTools": "Хаб Creation Kit",
+    "guidesHub": "Хаб Руководств",
+    "knowledgeHub": "Хаб Знаний",
+    "texturesMaterials": "Текстуры и Материалы"
   },
   "settings": {
     "language": {
@@ -204,7 +208,11 @@
         "patreonDesc": "Ежемесячное членство и эксклюзивные обновления",
         "coffeeDesc": "Единоразовые чаевые, любая сумма",
         "thankYou": "Спасибо за использование Mossy.Space. Ваша поддержка значит всё."
-      }
+      },
+      "flow4b": "Опционально: включить Brain B, локальный RAG-репетитор Mossy (требуется GPU NVIDIA)",
+      "flow4c": "Опционально: включить осознание экрана для живой коррекции в Blender",
+      "flow4d": "Опционально: включить AnythingLLM для семантического поиска в Memory Vault / Хабе Знаний",
+      "flow8": "Проверить, может ли Mossy подключаться к поисковым провайдерам и выходить в сеть"
     }
   },
   "onboarding": {

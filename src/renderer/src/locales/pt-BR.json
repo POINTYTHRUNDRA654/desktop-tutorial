@@ -71,7 +71,16 @@
     "voiceSettings": "Configurações de Voz",
     "languageSettings": "Configurações de Idioma",
     "diagnosticTools": "Ferramentas de Diagnóstico",
-    "supportMossy": "Apoiar Mossy"
+    "supportMossy": "Apoiar Mossy",
+    "assetAnalysis": "Central de Análise de Ativos",
+    "ckTools": "Central do Creation Kit",
+    "externalTools": "Central de Integrações Externas",
+    "guidesHub": "Central de Guias",
+    "knowledgeHub": "Central de Conhecimento",
+    "modBuilder": "Central do Construtor de Mods",
+    "pluginTools": "Central de Plugins e Ordem de Carregamento",
+    "runtimeHub": "Central de Runtime",
+    "texturesMaterials": "Texturas e Materiais"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "Assinatura mensal e atualizações exclusivas",
         "coffeeDesc": "Gorjeta única, qualquer valor",
         "thankYou": "Obrigado por usar o Mossy.Space. Seu apoio significa tudo."
-      }
+      },
+      "flow4b": "Opcional: ativar o Brain B, o tutor RAG local do Mossy (requer GPU NVIDIA)",
+      "flow4c": "Opcional: ativar Percepção de Tela para correção ao vivo no Blender",
+      "flow4d": "Opcional: ativar o AnythingLLM para busca semântica no Memory Vault / Central de Conhecimento",
+      "flow8": "Verificar se o Mossy consegue acessar os provedores de busca e ficar online"
     }
   },
   "onboarding": {

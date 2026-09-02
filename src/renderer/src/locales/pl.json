@@ -71,7 +71,16 @@
     "voiceSettings": "Ustawienia Głosu",
     "languageSettings": "Ustawienia Języka",
     "diagnosticTools": "Narzędzia Diagnostyczne",
-    "supportMossy": "Wesprzyj Mossy"
+    "supportMossy": "Wesprzyj Mossy",
+    "assetAnalysis": "Centrum Analizy Zasobów",
+    "ckTools": "Centrum Creation Kit",
+    "externalTools": "Centrum Integracji Zewnętrznych",
+    "guidesHub": "Centrum Poradników",
+    "knowledgeHub": "Centrum Wiedzy",
+    "modBuilder": "Centrum Kreatora Modów",
+    "pluginTools": "Centrum Wtyczek i Kolejności Wczytywania",
+    "runtimeHub": "Centrum Środowiska Uruchomieniowego",
+    "texturesMaterials": "Tekstury i Materiały"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "Miesięczne członkostwo i ekskluzywne aktualizacje",
         "coffeeDesc": "Jednorazowy napiwek, dowolna kwota",
         "thankYou": "Dziękujemy za korzystanie z Mossy.Space. Twoje wsparcie znaczy wszystko."
-      }
+      },
+      "flow4b": "Opcjonalnie: włącz Brain B, lokalnego korepetytora RAG Mossy (wymaga GPU NVIDIA)",
+      "flow4c": "Opcjonalnie: włącz Świadomość Ekranu do korekcji na żywo w Blenderze",
+      "flow4d": "Opcjonalnie: włącz AnythingLLM do wyszukiwania semantycznego w Memory Vault / Centrum Wiedzy",
+      "flow8": "Sprawdź, czy Mossy może połączyć się z dostawcami wyszukiwania i przejść online"
     }
   },
   "onboarding": {

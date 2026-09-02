@@ -71,7 +71,16 @@
     "voiceSettings": "Ses Ayarları",
     "languageSettings": "Dil Ayarları",
     "diagnosticTools": "Tanı Araçları",
-    "supportMossy": "Mossy'yi Destekle"
+    "supportMossy": "Mossy'yi Destekle",
+    "assetAnalysis": "Varlık Analizi Merkezi",
+    "ckTools": "Creation Kit Merkezi",
+    "externalTools": "Harici Entegrasyonlar Merkezi",
+    "guidesHub": "Rehberler Merkezi",
+    "knowledgeHub": "Bilgi Merkezi",
+    "modBuilder": "Mod Oluşturucu Merkezi",
+    "pluginTools": "Eklenti ve Yükleme Sırası Merkezi",
+    "runtimeHub": "Çalışma Zamanı Merkezi",
+    "texturesMaterials": "Dokular ve Malzemeler"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "Aylık üyelik ve özel güncellemeler",
         "coffeeDesc": "Tek seferlik bahşiş, herhangi bir miktar",
         "thankYou": "Mossy.Space'i kullandığınız için teşekkür ederiz. Desteğiniz her şey demek."
-      }
+      },
+      "flow4b": "İsteğe bağlı: Mossy'nin yerel RAG öğreticisi Brain B'yi etkinleştir (NVIDIA GPU gerekir)",
+      "flow4c": "İsteğe bağlı: Blender'da canlı düzeltme için Ekran Farkındalığını etkinleştir",
+      "flow4d": "İsteğe bağlı: Memory Vault / Bilgi Merkezi anlamsal araması için AnythingLLM'i etkinleştir",
+      "flow8": "Mossy'nin arama sağlayıcılarına ulaşıp çevrimiçi olabildiğini doğrula"
     }
   },
   "onboarding": {

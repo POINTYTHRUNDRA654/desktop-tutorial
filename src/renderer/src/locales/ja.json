@@ -71,7 +71,16 @@
     "voiceSettings": "音声設定",
     "languageSettings": "言語設定",
     "diagnosticTools": "診断ツール",
-    "supportMossy": "Mossy をサポート"
+    "supportMossy": "Mossy をサポート",
+    "assetAnalysis": "アセット分析ハブ",
+    "ckTools": "クリエーションキット・ハブ",
+    "externalTools": "外部連携ハブ",
+    "guidesHub": "ガイドハブ",
+    "knowledgeHub": "ナレッジハブ",
+    "modBuilder": "MODビルダーハブ",
+    "pluginTools": "プラグイン・ロード順ハブ",
+    "runtimeHub": "ランタイムハブ",
+    "texturesMaterials": "テクスチャとマテリアル"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "月額メンバーシップと限定アップデート",
         "coffeeDesc": "一回限りのチップ、金額は自由",
         "thankYou": "Mossy.Spaceをご利用いただきありがとうございます。あなたのサポートがすべてです。"
-      }
+      },
+      "flow4b": "任意: Brain B（Mossyのローカル RAG チューター）を有効化（NVIDIA GPUが必要）",
+      "flow4c": "任意: Blenderのライブ補正用にスクリーン認識を有効化",
+      "flow4d": "任意: Memory Vault / ナレッジハブのセマンティック検索用にAnythingLLMを有効化",
+      "flow8": "Mossyが検索プロバイダーに接続してオンラインになれるか確認"
     }
   },
   "onboarding": {

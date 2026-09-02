@@ -71,7 +71,16 @@
     "voiceSettings": "음성 설정",
     "languageSettings": "언어 설정",
     "diagnosticTools": "진단 도구",
-    "supportMossy": "Mossy 지원"
+    "supportMossy": "Mossy 지원",
+    "assetAnalysis": "에셋 분석 허브",
+    "ckTools": "Creation Kit 허브",
+    "externalTools": "외부 통합 허브",
+    "guidesHub": "가이드 허브",
+    "knowledgeHub": "지식 허브",
+    "modBuilder": "모드 빌더 허브",
+    "pluginTools": "플러그인 및 로드 순서 허브",
+    "runtimeHub": "런타임 허브",
+    "texturesMaterials": "텍스처 및 재질"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "월간 멤버십 및 독점 업데이트",
         "coffeeDesc": "일회성 팁, 금액 자유",
         "thankYou": "Mossy.Space를 사용해 주셔서 감사합니다. 여러분의 지원이 모든 것을 의미합니다."
-      }
+      },
+      "flow4b": "선택 사항: Mossy의 로컬 RAG 튜터인 Brain B 활성화(NVIDIA GPU 필요)",
+      "flow4c": "선택 사항: Blender 실시간 보정을 위한 화면 인식 활성화",
+      "flow4d": "선택 사항: Memory Vault / 지식 허브 시맨틱 검색을 위한 AnythingLLM 활성화",
+      "flow8": "Mossy가 검색 제공업체에 연결하여 온라인 상태가 될 수 있는지 확인"
     }
   },
   "onboarding": {

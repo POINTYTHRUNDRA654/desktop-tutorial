@@ -71,7 +71,16 @@
     "voiceSettings": "语音设置",
     "languageSettings": "语言",
     "diagnosticTools": "诊断工具",
-    "supportMossy": "支持 Mossy"
+    "supportMossy": "支持 Mossy",
+    "assetAnalysis": "资源分析中心",
+    "ckTools": "Creation Kit 中心",
+    "externalTools": "外部集成中心",
+    "guidesHub": "指南中心",
+    "knowledgeHub": "知识中心",
+    "modBuilder": "模组构建中心",
+    "pluginTools": "插件与加载顺序中心",
+    "runtimeHub": "运行时中心",
+    "texturesMaterials": "材质与纹理"
   },
   "settings": {
     "language": {
@@ -199,7 +208,11 @@
         "patreonDesc": "月度会员和独家更新",
         "coffeeDesc": "一次性打赏，任意金额",
         "thankYou": "感谢您使用 Mossy.Space。您的支持意味着一切。"
-      }
+      },
+      "flow4b": "可选：启用 Brain B（Mossy 的本地 RAG 导师，需要 NVIDIA GPU）",
+      "flow4c": "可选：启用屏幕感知以在 Blender 中进行实时校正",
+      "flow4d": "可选：启用 AnythingLLM 以支持 Memory Vault / 知识中心的语义搜索",
+      "flow8": "验证 Mossy 能否连接搜索提供商并联网"
     }
   },
   "onboarding": {
