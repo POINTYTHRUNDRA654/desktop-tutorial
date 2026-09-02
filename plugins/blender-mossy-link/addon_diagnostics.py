@@ -101,6 +101,20 @@ _TRACKED_MODULES = [
     "mossy_link",
 ]
 
+# These are deliberately left as None at startup (see __init__.py: "loaded on
+# demand in AI panel") and populated later -- either by the Phase 2 timer's
+# auto-reimport pass (~3s after startup) or the first time the AI panel
+# actually needs them. Being None right after a fresh launch is the correct,
+# expected state, not a failure -- flagging it as "FAILED TO IMPORT" (as this
+# report used to) is a false alarm that reproduces identically on every
+# restart regardless of whether anything is actually broken. Must be kept in
+# sync with __init__.py's _AI_HELPER_NAMES list.
+_LAZY_AI_MODULES = {
+    "hunyuan3d_helpers", "hymotion_helpers", "zoedepth_helpers",
+    "realesrgan_helpers", "rignet_helpers", "instantngp_helpers",
+    "imageto3d_helpers",
+}
+
 # These operators MUST always be registered for the Setup & Status panel and
 # the main welcome panel to work correctly.  Any failure here is critical.
 _CRITICAL_OPERATORS = [
@@ -256,6 +270,9 @@ def collect_diagnostics():
         mod = getattr(init, name, _SENTINEL)
         if mod is _SENTINEL:
             results.append(("WARN", "Module", f"{name}: not tracked in __init__"))
+        elif mod is None and name in _LAZY_AI_MODULES:
+            results.append(("INFO", "Module",
+                            f"{name}: not loaded yet (lazy-loaded on demand / after startup — normal)"))
         elif mod is None:
             results.append(("FAIL", "Module", f"{name}: FAILED TO IMPORT - its features will be missing"))
             failed_mods.append(name)
