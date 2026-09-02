@@ -1661,7 +1661,7 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken' | 'inklingApiKey';
+type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken' | 'inklingApiKey' | 'geminiApiKey';
 const secretEncKey = (k: SecretField) => `${k}Enc` as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -1723,7 +1723,7 @@ const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: b
   const next = { ...settings };
   let migrated = false;
 
-  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey'];
+  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey'];
   for (const field of fields) {
     const encKey = secretEncKey(field);
     const plain = String(next?.[field] || '').trim();
@@ -2002,6 +2002,12 @@ const loadSettings = (): any => {
     groqApiKey: '',
     groqApiKeyEnc: '',
 
+    // Google Gemini API key -- used by the AI Detail Synthesis stage's
+    // "Gemini / Nano Banana" backend in Texture Enhancer (cloud image editing,
+    // as an alternative to local ComfyUI). Never used for anything else.
+    geminiApiKey: '',
+    geminiApiKeyEnc: '',
+
     // Inkling (Thinking Machines) — OpenAI-compatible API
     inklingApiKey: '',
     inklingApiKeyEnc: '',
@@ -2028,7 +2034,8 @@ const loadSettings = (): any => {
     seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
     seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
     seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
-    seedSecretFromEnv(defaults, 'githubToken', 'GITHUB_TOKEN');
+    seedSecretFromEnv(defaults, 'githubToken', 'GITHUB_TOKEN') ||
+    seedSecretFromEnv(defaults, 'geminiApiKey', 'GEMINI_API_KEY');
   if (seeded) {
     try {
       fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
@@ -2053,6 +2060,8 @@ const redactSettingsForRenderer = (settings: any): any => {
   if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
   if (clone.inklingApiKey) clone.inklingApiKey = '';
   if (clone.inklingApiKeyEnc) clone.inklingApiKeyEnc = '';
+  if (clone.geminiApiKey) clone.geminiApiKey = '';
+  if (clone.geminiApiKeyEnc) clone.geminiApiKeyEnc = '';
   if (clone.githubToken) clone.githubToken = '';
   if (clone.githubTokenEnc) clone.githubTokenEnc = '';
   if (clone.privacySettings) {
@@ -3802,7 +3811,7 @@ function setupIpcHandlers() {
     // be able to directly inject pre-computed encrypted values — all secret fields
     // must go through encryptSecretForStorage() in this process.
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey'];
+    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey'];
     for (const field of fields) {
       delete sanitizedInput[secretEncKey(field)];
     }
@@ -22996,6 +23005,122 @@ Rules:
     return outputPath;
   }
 
+  // ── Gemini ("Nano Banana") image editing -- cloud alternative to the local
+  // ComfyUI backend for the AI Detail Synthesis stage. Billy specifically
+  // wants Texture Enhancer's batch restyle to be able to match the quality he
+  // was getting from "Nano Banana" in Krea (Google's Gemini image model) for
+  // his Glowing Sea asset collection -- a local SD/SDXL checkpoint through
+  // ComfyUI won't reliably match that, since it's a different model family
+  // entirely. This calls the real Gemini API directly instead of trying to
+  // approximate it locally.
+  //
+  // Model choice: Google's current lineup (confirmed 2026-09-02) is
+  // gemini-2.5-flash-image ("Nano Banana", the original), gemini-3.1-flash-image
+  // ("Nano Banana 2" -- current recommended default, production-scale),
+  // gemini-3.1-flash-lite-image ("Nano Banana 2 Lite" -- cheaper/faster, 1K
+  // cap), and gemini-3-pro-image ("Nano Banana Pro" -- highest quality, up to
+  // 4K). All support image+text-in, image-out editing via generateContent.
+  const GEMINI_IMAGE_ASPECT_RATIOS: [string, number][] = [
+    ['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['16:9', 16 / 9], ['9:16', 9 / 16],
+    ['3:2', 3 / 2], ['2:3', 2 / 3], ['4:5', 4 / 5], ['5:4', 5 / 4], ['21:9', 21 / 9],
+    ['4:1', 4], ['1:4', 0.25], ['8:1', 8], ['1:8', 0.125],
+  ];
+  function nearestGeminiAspectRatio(width: number, height: number): string {
+    const target = Math.log(width / height);
+    let best = '1:1';
+    let bestDiff = Infinity;
+    for (const [label, ratio] of GEMINI_IMAGE_ASPECT_RATIOS) {
+      const diff = Math.abs(Math.log(ratio) - target);
+      if (diff < bestDiff) { bestDiff = diff; best = label; }
+    }
+    return best;
+  }
+  function nearestGeminiImageSize(width: number, height: number): string {
+    const maxDim = Math.max(width, height);
+    if (maxDim <= 600) return '512';
+    if (maxDim <= 1536) return '1K';
+    if (maxDim <= 3000) return '2K';
+    return '4K';
+  }
+
+  async function geminiEditImage(inputPath: string, prompt: string, apiKey: string, model?: string): Promise<{ success: boolean; imageData?: string; error?: string }> {
+    try {
+      if (!apiKey) return { success: false, error: 'No Gemini API key configured.' };
+      const buf = fs.readFileSync(inputPath);
+      const meta = await sharp(buf).metadata();
+      const origWidth = meta.width || 0;
+      const origHeight = meta.height || 0;
+      const ext = path.extname(inputPath).toLowerCase().replace('.', '') || 'png';
+      const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+      const modelId = model || 'gemini-3.1-flash-image';
+
+      const body: Record<string, unknown> = {
+        contents: [{
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mimeType, data: buf.toString('base64') } },
+          ],
+        }],
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          ...(origWidth && origHeight ? {
+            responseFormat: {
+              image: {
+                aspectRatio: nearestGeminiAspectRatio(origWidth, origHeight),
+                imageSize: nearestGeminiImageSize(origWidth, origHeight),
+              },
+            },
+          } : {}),
+        },
+      };
+
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(modelId)}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(180000),
+        }
+      );
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        return { success: false, error: `Gemini API error ${resp.status}: ${errText.slice(0, 400)}` };
+      }
+      const json = await resp.json() as any;
+      const parts: any[] = json?.candidates?.[0]?.content?.parts || [];
+      const imgPart = parts.find((p) => p?.inline_data?.data || p?.inlineData?.data);
+      if (!imgPart) {
+        const textPart = parts.find((p) => typeof p?.text === 'string' && p.text.trim());
+        const finishReason = json?.candidates?.[0]?.finishReason;
+        return {
+          success: false,
+          error: textPart?.text
+            ? `Gemini didn't return an image: ${textPart.text.slice(0, 300)}`
+            : `Gemini returned no image data${finishReason ? ` (finishReason: ${finishReason})` : ''}.`,
+        };
+      }
+      const inline = imgPart.inline_data || imgPart.inlineData;
+      const outBuf = Buffer.from(inline.data, 'base64');
+
+      // Nano Banana doesn't guarantee it returns the exact same pixel
+      // dimensions as the input even with aspectRatio/imageSize hints -- force
+      // it back to the source's exact width/height so the result still maps
+      // onto the mesh's existing UVs. Can't undo the model reinterpreting
+      // internal proportions, but guarantees the output is the right size to
+      // drop straight into the existing texture slot.
+      let finalBuf = outBuf;
+      if (origWidth && origHeight) {
+        finalBuf = await sharp(outBuf).resize(origWidth, origHeight, { fit: 'fill' }).png().toBuffer();
+      } else {
+        finalBuf = await sharp(outBuf).png().toBuffer();
+      }
+      return { success: true, imageData: `data:image/png;base64,${finalBuf.toString('base64')}` };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
+
   // Reliability sweep (2026-09-02): this only ever asked a LIVE ComfyUI instance
   // "do you have this node?" over HTTP -- if ComfyUI simply isn't running at the
   // moment the AI Texture Tools wizard checks (which is common; it doesn't auto-
@@ -31838,7 +31963,34 @@ end.
       // derives from that enriched result instead of the flatter original.
       let workingInputPath = inputPath;
       if (pipeline?.aiDetail?.enabled) {
-        if (!pipeline.aiDetail.model) {
+        const surfaceKey = params.surface || 'auto';
+        const positivePrompt = String(pipeline.aiDetail.promptOverride || '').trim()
+          || MATERIAL_DETAIL_PROMPTS[surfaceKey] || MATERIAL_DETAIL_PROMPTS.auto;
+
+        if (pipeline.aiDetail.backend === 'gemini') {
+          // Cloud path via Google's Gemini ("Nano Banana") image models --
+          // see geminiEditImage() above for why this exists alongside the
+          // ComfyUI path: local SD/SDXL checkpoints don't match this model
+          // family's output, and Billy specifically wants that quality for
+          // his Glowing Sea batch restyle.
+          try {
+            const settingsNow = loadSettings();
+            const apiKey = getSecretValue(settingsNow, 'geminiApiKey', 'GEMINI_API_KEY');
+            if (!apiKey) {
+              errors.push('AI detail synthesis (Gemini): no Gemini API key configured in this stage — skipped, continuing with original texture.');
+            } else {
+              const geminiResult = await geminiEditImage(inputPath, positivePrompt, apiKey, pipeline.aiDetail.geminiModel);
+              if (geminiResult.success && geminiResult.imageData) {
+                workingInputPath = saveComfyuiResult(inputPath, 'ai_detailed', geminiResult.imageData);
+                outputs.aiDetailSource = workingInputPath;
+              } else {
+                errors.push(`AI detail synthesis (Gemini): ${geminiResult.error || 'generation failed'} — continuing with original texture.`);
+              }
+            }
+          } catch (err: any) {
+            errors.push(`AI detail synthesis (Gemini): ${err?.message || err} — continuing with original texture.`);
+          }
+        } else if (!pipeline.aiDetail.model) {
           errors.push('AI detail synthesis: no ComfyUI checkpoint selected — skipped, continuing with original texture.');
         } else {
           try {
@@ -31846,9 +31998,6 @@ end.
             if (!uploadResult.success || !uploadResult.name) {
               errors.push(`AI detail synthesis: ${uploadResult.error || 'upload to ComfyUI failed'} — continuing with original texture.`);
             } else {
-              const surfaceKey = params.surface || 'auto';
-              const positivePrompt = String(pipeline.aiDetail.promptOverride || '').trim()
-                || MATERIAL_DETAIL_PROMPTS[surfaceKey] || MATERIAL_DETAIL_PROMPTS.auto;
               const workflow = buildComfyImg2ImgWorkflow({
                 model: pipeline.aiDetail.model,
                 positive: positivePrompt,
