@@ -22505,14 +22505,29 @@ Rules:
   // support both:
   //  - "portable": the ZIP release -- <root>/ComfyUI/main.py, <root>/python_embeded,
   //    <root>/run_nvidia_gpu.bat.
-  //  - "desktop": the official ComfyUI Desktop app (what Billy actually has) --
-  //    <root>/ComfyUI.exe is just the Electron shell; the real backend lives
-  //    nested at <root>/resources/ComfyUI, there's no run_nvidia_gpu.bat, and
-  //    the Desktop app manages its own Python env via `uv` rather than a
-  //    bundled python_embeded folder. Detect which one `comfyuiPath` (or the
-  //    hardcoded fallback) actually points at instead of assuming portable.
+  //  - "desktop": the original standalone ComfyUI Desktop app -- <root>/ComfyUI.exe
+  //    is just the Electron shell; the real backend lives nested at
+  //    <root>/resources/ComfyUI, there's no run_nvidia_gpu.bat, and it manages
+  //    its own Python env via `uv` rather than a bundled python_embeded folder.
+  //  - "launcher-managed": the newer "Comfy Desktop" app (comfy.org's rebrand --
+  //    a separate install from the original Desktop app above, confirmed live:
+  //    it installs its own launcher exe and lets you create/manage multiple
+  //    named "instances"). Each instance the user creates gets its own folder
+  //    (what `comfyuiPath` should point at) shaped as <root>/ComfyUI/main.py +
+  //    <root>/standalone-env/python.exe -- confirmed live by actually creating
+  //    an instance and reading its real on-disk layout and its own log file.
+  //    There's no per-instance launcher exe or script to spawn: the parent
+  //    Comfy Desktop app starts/stops each instance's backend process itself,
+  //    so there's no reliable way to replicate that from here (its log shows
+  //    the real launch passes extra --extra-model-paths-style arguments for
+  //    cross-instance shared models that we can't safely guess) -- the user
+  //    has to start it from the Comfy Desktop app itself; everything else
+  //    (installing custom nodes, checking tool status over HTTP once it's
+  //    running) works the same as the other two layouts once pointed at it.
+  // Detect which one `comfyuiPath` (or the hardcoded fallback) actually points
+  // at instead of assuming portable.
   type ComfyUiInstall = {
-    layout: 'portable' | 'desktop' | 'unknown';
+    layout: 'portable' | 'desktop' | 'launcher-managed' | 'unknown';
     /** Install root -- the folder the user would point a file picker at. */
     root: string;
     /** Folder containing main.py, custom_nodes/, models/ -- always use this
@@ -22540,13 +22555,31 @@ Rules:
       const installRoot = path.resolve(root, '..', '..');
       return buildDesktopComfyInstall(installRoot, root);
     }
-    // Portable release: <root>/ComfyUI/main.py + <root>/python_embeded.
+    // Both the portable release and a "Comfy Desktop" launcher-managed instance
+    // nest their backend at <root>/ComfyUI/main.py -- tell them apart by which
+    // Python env sits next to it (standalone-env is launcher-managed-specific,
+    // python_embeded is portable-specific).
     if (fs.existsSync(path.join(root, 'ComfyUI', 'main.py'))) {
+      const backendDir = path.join(root, 'ComfyUI');
+      const standaloneEnvPython = path.join(root, 'standalone-env', 'python.exe');
+      if (fs.existsSync(standaloneEnvPython)) {
+        return {
+          layout: 'launcher-managed',
+          root,
+          backendDir,
+          pythonExe: standaloneEnvPython,
+          // No launcher script or per-instance exe exists for this layout --
+          // see the long comment above. comfyuiRestartAndWait gives a tailored
+          // "start it from Comfy Desktop" error for launch === null + layout
+          // 'launcher-managed' instead of the portable/desktop messages.
+          launch: null,
+        };
+      }
       const launcherPath = path.join(root, 'run_nvidia_gpu.bat');
       return {
         layout: 'portable',
         root,
-        backendDir: path.join(root, 'ComfyUI'),
+        backendDir,
         pythonExe: fs.existsSync(path.join(root, 'python_embeded', 'python.exe'))
           ? path.join(root, 'python_embeded', 'python.exe') : null,
         launch: fs.existsSync(launcherPath) ? { exe: launcherPath, args: [], cwd: root, isBatch: true } : null,
@@ -23534,6 +23567,12 @@ Rules:
           return {
             success: false,
             error: `run_nvidia_gpu.bat not found in ${install.root}. If you use a different launcher (run_cpu.bat, a custom venv, etc.), start ComfyUI yourself and just click the refresh button here afterward.`,
+          };
+        }
+        if (install.layout === 'launcher-managed') {
+          return {
+            success: false,
+            error: `${install.root} is managed by the Comfy Desktop app, which starts and stops it itself -- Mossy can't launch it directly. Open Comfy Desktop, start this instance from its dashboard, then click refresh here.`,
           };
         }
         return {
