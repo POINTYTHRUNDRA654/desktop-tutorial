@@ -291,7 +291,10 @@ def collect_diagnostics():
     # directly via bpy.types.Panel.__subclasses__() (not hasattr(bpy.types,
     # ...), which can misreport on Blender 5.x -- see RECURRING BUG #1 in
     # ui_panels.py) so this reflects Blender's actual class registry.
-    _panel_ids = {c.bl_idname for c in bpy.types.Panel.__subclasses__()}
+    _panel_ids = {
+        getattr(c, "bl_idname", None) for c in bpy.types.Panel.__subclasses__()
+    }
+    _panel_ids.discard(None)  # some built-in Blender panel classes have no bl_idname
     for _label, _idname in (
         ("Vegetation & Landscaping panel", "FO4_PT_vegetation_panel"),
         ("Advanced Realism Lab panel", "FO4_PT_advanced_realism_panel"),
