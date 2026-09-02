@@ -3911,7 +3911,7 @@ class FO4_OT_SetupLeafCard(Operator):
         try:
             from . import animation_helpers as _ah
             ok, msg = _ah.AnimationHelpers.generate_wind_weights(
-                obj, group_name="Wind", axis=self.wind_axis, invert=False
+                obj, group_name="Wind", axis=self.wind_axis  # invert: auto-detect (hanging leaf cards work too)
             )
             steps.append("Wind weights: " + ("applied ✓" if ok else msg))
         except Exception as exc:

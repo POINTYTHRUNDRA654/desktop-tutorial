@@ -698,7 +698,15 @@ class AnimationHelpers:
                 f"will not line up with the mesh"
             )
 
-        # --- origin at the base (min-Z), not the centre ----------------
+        # --- origin at the anchor end, not the centre -------------------
+        # A ground-growing plant should be anchored at its base (min-Z); a
+        # hanging one (moss/vines off a branch) is anchored at its
+        # attachment point instead, normally the top (max-Z). Which one this
+        # is gets guessed from which end the origin currently sits closest
+        # to -- see generate_wind_weights()'s docstring for the same
+        # convention. Only flag it if the origin isn't clearly near either
+        # end, since that's the case that actually breaks wind (swings about
+        # the middle) regardless of which growth direction was intended.
         me = mesh_obj.data
         if me.vertices:
             world_z = [(mesh_obj.matrix_world @ v.co).z for v in me.vertices]
@@ -707,12 +715,18 @@ class AnimationHelpers:
             origin_z = mesh_obj.matrix_world.translation.z
             info['height'] = height
             info['origin_above_base'] = origin_z - min_z
-            if height > 1e-4 and (origin_z - min_z) > 0.15 * height:
-                pct = (origin_z - min_z) / height * 100.0
-                issues.append(
-                    f"Origin sits {pct:.0f}% up the mesh, not at the base — "
-                    f"the plant will swing about its middle"
-                )
+            if height > 1e-4:
+                origin_frac = (origin_z - min_z) / height
+                hanging_guess = origin_frac > 0.6
+                info['wind_growth_guess'] = 'HANGING' if hanging_guess else 'GROUND'
+                dist_from_anchor_end = (1.0 - origin_frac) if hanging_guess else origin_frac
+                if dist_from_anchor_end > 0.15:
+                    pct = origin_frac * 100.0
+                    issues.append(
+                        f"Origin sits {pct:.0f}% up the mesh — not clearly at "
+                        f"the base (ground-growing) or the top (hanging) — "
+                        f"the plant will swing about its middle either way"
+                    )
 
         # --- unwelded seams: near-duplicate vertices with no connecting edge ---
         # Joining new geometry (e.g. a Solidify-thickened plane) onto an
@@ -818,8 +832,11 @@ class AnimationHelpers:
         the non-destructive geometric fixes that eliminate the breathing bug:
 
         1. Applies rotation and scale (never location, so the mesh stays put).
-        2. Moves the object origin to the bottom-centre (base) of the mesh so
-           the wind bone pivots at the roots.
+        2. Moves the object origin to the mesh's anchor end so the wind bone
+           pivots there — the base (bottom-centre) for a ground-growing plant,
+           or the top-centre (attachment point) for something hanging off a
+           branch. Which one is guessed from where the origin already sits
+           before this runs (see scan_wind_readiness).
 
         Armature-modifier conflicts and a uniform Wind group are *reported* but
         never auto-deleted — those may be intentional, so they are left for the
@@ -864,56 +881,91 @@ class AnimationHelpers:
                 except Exception:
                     pass
 
-        # --- move origin to base (bottom-centre) -----------------------
+        # --- move origin to the anchor end (base or top) ----------------
         me = mesh_obj.data
         if me.vertices:
             xs = [v.co.x for v in me.vertices]
             ys = [v.co.y for v in me.vertices]
             zs = [v.co.z for v in me.vertices]
-            # Bottom-centre in local space (after transforms are applied).
+            min_z, max_z = min(zs), max(zs)
+            local_height = max_z - min_z
+            # Use the CURRENT origin (before we move it) to guess whether
+            # this is meant to grow up from a planted base or hang from an
+            # attachment point above it -- same convention as
+            # scan_wind_readiness/generate_wind_weights. Local Z=0 is the
+            # object's own origin, so its position within [min_z, max_z]
+            # tells us which end it was already closest to.
+            if local_height > 1e-6:
+                origin_local_frac = (0.0 - min_z) / local_height
+            else:
+                origin_local_frac = 0.0
+            hanging = origin_local_frac > 0.6
+            anchor_z = max_z if hanging else min_z
             target = Vector((
                 (min(xs) + max(xs)) * 0.5,
                 (min(ys) + max(ys)) * 0.5,
-                min(zs),
+                anchor_z,
             ))
             if target.length > 1e-5:
                 for v in me.vertices:
                     v.co -= target
                 me.update()
                 mesh_obj.location += mesh_obj.matrix_world.to_3x3() @ target
-                actions.append("Moved origin to base of mesh")
+                actions.append(
+                    "Moved origin to top (attachment point) of mesh — detected as hanging"
+                    if hanging else
+                    "Moved origin to base of mesh"
+                )
 
         ready2, remaining, _ = AnimationHelpers.scan_wind_readiness(mesh_obj)
         return ready2, actions, remaining
 
     @staticmethod
-    def generate_wind_weights(mesh_obj, group_name="Wind", axis='Z', invert=False,
+    def generate_wind_weights(mesh_obj, group_name="Wind", axis='Z', invert=None,
                               base_anchor=0.15):
         """Generate a wind‑weight vertex group with an anchored (solid) base.
 
         The algorithm computes a falloff along the specified local axis
-        (default Z, bottom-to-top).  The bottom ``base_anchor`` fraction of the
-        plant's height is held fully anchored (near-zero weight) so the base
-        stays planted in the ground and does not sway.  Above that anchor zone
-        the weight ramps from 0 at the anchor line to 1.0 at the tip using a
-        smoothstep ease-in, so the bend builds gradually up the plant instead of
-        the whole mesh thrashing uniformly.  The result is stored in a vertex
-        group named ``group_name`` (created or replaced).  The ``invert`` flag
-        swaps the falloff direction (tip becomes the anchored end).
+        (default Z, bottom-to-top).  The anchored ``base_anchor`` fraction of
+        the plant is held fully anchored (near-zero weight) so it does not
+        sway.  Past that anchor zone the weight ramps from 0 at the anchor
+        line to 1.0 at the free end using a smoothstep ease-in, so the bend
+        builds gradually instead of the whole mesh thrashing uniformly.  The
+        result is stored in a vertex group named ``group_name`` (created or
+        replaced).
 
         This is intended for FO4 vegetation assets where the game uses a single
         weight channel to drive procedural wind/bending (often referred to as
         "vortex weight" in the community).  Plants can then be animated with a
         simple modifier or bone that deforms according to the weight.
 
+        **Which end is anchored — ``invert``:**
+        A plant rooted in the ground (a tree, a mushroom, grass) should stay
+        planted at its *lowest* point along ``axis`` and sway more toward the
+        top. Something hanging off a branch (moss, vines, a dangling growth)
+        is the opposite: it's anchored at its *attachment point* — normally
+        the top, where it meets the branch — and swings more toward its free
+        (bottom) end. Passing ``invert=None`` (the default) auto-detects
+        which case this is by comparing the object's own origin to its
+        world-space bounding extent along ``axis``: modeled assets almost
+        always place the origin at the logical anchor point, so an origin
+        sitting near the *high* end of the mesh means "hanging" (anchor the
+        top, sway the bottom = ``invert=True``); an origin near the *low* end
+        (or anywhere not clearly at the top) means "growing up" (anchor the
+        bottom, sway the top = ``invert=False``, the historical default).
+        Pass an explicit ``True``/``False`` to override the auto-detection
+        for an asset whose origin isn't placed at the anchor point.
+
         **Parameters:**
         - ``mesh_obj`` (bpy.types.Object): mesh to tag
         - ``group_name`` (str): name of the vertex group to create/update
         - ``axis`` (str): local axis to use for falloff ('X','Y','Z')
-        - ``invert`` (bool): if True, highest coordinate becomes the anchored end
-        - ``base_anchor`` (float): fraction (0.0-1.0) of the plant height, measured
-          from the base, that stays solid/unmoving.  Default 0.15 keeps the
-          bottom 15% planted.  Set to 0.0 for the old pure-gradient behaviour.
+        - ``invert`` (bool or None): ``None`` = auto-detect ground-growing vs.
+          hanging from the object's origin (see above). ``True``/``False``
+          forces the highest/lowest coordinate to be the anchored end.
+        - ``base_anchor`` (float): fraction (0.0-1.0) of the plant's length, measured
+          from the anchored end, that stays solid/unmoving.  Default 0.15 keeps the
+          anchored 15% planted.  Set to 0.0 for the old pure-gradient behaviour.
 
         **Returns:** ``(success: bool, message: str)``
         """
@@ -945,6 +997,30 @@ class AnimationHelpers:
         maxv = max(values) if values else 0.0
         diff = maxv - minv
 
+        detected_note = ""
+        if invert is None:
+            origin_val = mesh_obj.matrix_world.translation[idx]
+            if diff > 1e-6:
+                # Where does the object's own origin sit relative to its
+                # world-space extent along this axis? Modelers place the
+                # origin at the logical anchor point -- near the top means
+                # this hangs from something above it (moss/vines off a
+                # branch); near the bottom (or ambiguous/centered) means it
+                # grows up from a planted base, the far more common case.
+                origin_frac = (origin_val - minv) / diff
+                if origin_frac > 0.6:
+                    invert = True
+                    detected_note = " [auto: hanging, anchored at top]"
+                else:
+                    invert = False
+                    detected_note = " [auto: ground-growing, anchored at base]"
+            else:
+                invert = False
+        elif invert:
+            detected_note = " [forced: anchored at top]"
+        else:
+            detected_note = " [forced: anchored at base]"
+
         if abs(diff) < 1e-6:
             # degenerate case: all verts together, give them full weight
             for i in range(len(mesh.vertices)):
@@ -974,7 +1050,7 @@ class AnimationHelpers:
 
         return True, (
             f"Wind weights ('{group_name}') generated "
-            f"(base {int(base_anchor * 100)}% anchored)"
+            f"(anchor {int(base_anchor * 100)}%){detected_note}"
         )
 
     @staticmethod

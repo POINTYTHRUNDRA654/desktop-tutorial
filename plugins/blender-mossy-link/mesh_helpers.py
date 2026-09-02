@@ -1043,7 +1043,7 @@ class MeshHelpers:
             # rather than a flat 1.0 that would make the whole plant thrash.
             from . import animation_helpers as _ah
             success, wind_msg = _ah.AnimationHelpers.generate_wind_weights(
-                obj, group_name="Wind", axis='Z', invert=False
+                obj, group_name="Wind", axis='Z'  # invert: auto-detect ground-growing vs. hanging
             )
             if success:
                 msg = (

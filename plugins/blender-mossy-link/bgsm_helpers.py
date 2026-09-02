@@ -277,7 +277,7 @@ SF2_SOFT_LIGHTING = 1 << 26
 SF2_RIM_LIGHTING = 1 << 27
 SF2_BACK_LIGHTING2 = 1 << 28
 SF2_SNOW = 1 << 29
-SF2_TREE_AIM = 1 << 30
+SF2_TREE_ANIM = 1 << 30  # BSLightingShaderProperty SLSF2_Tree_Anim -- drives wind sway from vertex-alpha
 
 
 # ---------------------------------------------------------------------------
@@ -1404,6 +1404,50 @@ def _bgsm_output_path(obj, output_dir: str, mat_name: str) -> str:
     return os.path.join(output_dir, safe_name + ".bgsm")
 
 
+def _object_has_wind_rig(obj) -> bool:
+    """True if *obj* actually carries wind sway data.
+
+    Our wind pipeline (see animation_helpers.AnimationHelpers) writes two
+    things onto a wind-rigged mesh: a "Wind" vertex group (the gradient),
+    and, once baked, a "VERTEX_ALPHA" (or "Col") color attribute PyNifly
+    reads on export. Either one existing is a reliable signal this object
+    is meant to sway in-game -- used below to make sure the exported BGSM
+    actually tells the FO4 engine to read that data (see
+    _apply_wind_shader_flags).
+    """
+    mesh = getattr(obj, "data", None)
+    if mesh is None:
+        return False
+    if "Wind" in obj.vertex_groups:
+        return True
+    for name in ("VERTEX_ALPHA", "Col"):
+        if mesh.color_attributes.get(name) is not None:
+            return True
+    return False
+
+
+def _apply_wind_shader_flags(data: BGSMData) -> None:
+    """OR in the shader flags FO4 needs to animate wind from vertex alpha.
+
+    Our Blender-side wind rig (generate_wind_weights / apply_wind_vertex_colors)
+    writes a correct per-vertex sway gradient into the mesh's vertex-alpha
+    data, but that data is inert in-game unless the material also carries:
+
+    - SLSF1_Vertex_Alpha  -- tells the shader to read the vertex alpha
+      channel at all (otherwise it's ignored).
+    - SLSF2_Tree_Anim      -- tells the engine to actually bend the mesh
+      per-vertex using that alpha as the wind-sway amount.
+
+    Every real vanilla FO4 vegetation BGSM has both bits set. Materials
+    re-exported from an existing FO4 asset (``fo4_bgsm_path`` present)
+    already inherit them from the source file, so this is a no-op there --
+    it only matters for materials built fresh in Blender, where nothing
+    else in this module ever sets these two bits.
+    """
+    data.shader_flags1 |= SF1_VERTEX_ALPHA
+    data.shader_flags2 |= SF2_TREE_ANIM
+
+
 def export_bgsm_for_object(
     obj,
     output_dir: str,
@@ -1427,6 +1471,8 @@ def export_bgsm_for_object(
 
     os.makedirs(output_dir, exist_ok=True)
 
+    wants_wind = _object_has_wind_rig(obj)
+
     slots = obj.data.materials if all_slots else [obj.active_material]
     results = []
     for mat in slots:
@@ -1435,6 +1481,8 @@ def export_bgsm_for_object(
             continue
         try:
             bgsm_data = blender_mat_to_bgsm(mat)
+            if wants_wind:
+                _apply_wind_shader_flags(bgsm_data)
             out_path = _bgsm_output_path(obj, output_dir, mat.name)
             raw = write_bgsm(bgsm_data)
             with open(out_path, "wb") as fh:

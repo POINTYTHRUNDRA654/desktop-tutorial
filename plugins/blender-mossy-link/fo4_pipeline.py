@@ -718,9 +718,12 @@ class FO4_OT_PipelineFlora(Operator):
         # Wind weights
         try:
             from . import animation_helpers
-            ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(
-                obj, wind_strength=self.wind_strength
-            )
+            # generate_wind_weights() has no "wind_strength" parameter -- that
+            # was a bug: it always raised TypeError, silently caught below,
+            # so this pipeline never actually generated wind weights before.
+            # invert=None auto-detects ground-growing vs. hanging from the
+            # object's origin placement.
+            ok, msg = animation_helpers.AnimationHelpers.generate_wind_weights(obj)
             steps.append(f"Wind weights: {msg}")
         except Exception as e:
             warnings.append(
