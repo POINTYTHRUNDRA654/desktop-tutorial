@@ -23485,6 +23485,111 @@ Rules:
     }
   });
 
+  // ── Image-to-3D (flowtyone/ComfyUI-Flowty-TripoSR, GPL-3.0 wrapper) ─────────
+  // Model itself is stabilityai/TripoSR (MIT, license verified directly against
+  // its HF model card) -- picked over the higher-quality Hunyuan3D/TRELLIS.2
+  // options specifically because it's the one that actually runs on Billy's
+  // GPU tier (~6GB VRAM vs. their 16-24GB+ requirements). Same "user's own
+  // separately-installed ComfyUI, called over HTTP" pattern as every other
+  // tool in this file -- MOSSY.SPACE never bundles/links any of this code.
+  // Trade-off to be upfront about: TripoSR bakes vertex colors onto the mesh
+  // rather than a proper UV-mapped PBR texture, so it's a fast base-mesh/
+  // concept tool, not a drop-in-ready game asset generator.
+  function buildTripoSRWorkflow(p: { uploadedImage: string; model: string; resolution?: number; threshold?: number }): Record<string, unknown> {
+    return {
+      '1': { class_type: 'LoadImage', inputs: { image: p.uploadedImage } },
+      '2': { class_type: 'TripoSRModelLoader', inputs: { model: p.model, chunk_size: 8192 } },
+      '3': {
+        class_type: 'TripoSRSampler',
+        inputs: {
+          model: ['2', 0],
+          reference_image: ['1', 0],
+          // LoadImage's 2nd output is the alpha-derived mask for whatever was
+          // uploaded -- if that's one of the transparent cutouts the Texture
+          // Enhancer's new "Remove background after generation" step (or the
+          // standalone Background Remover) produces, this isolates the subject
+          // for a much cleaner reconstruction; for a plain opaque photo it's
+          // just an all-ones mask, i.e. no isolation, same as omitting it.
+          reference_mask: ['1', 1],
+          geometry_resolution: p.resolution ?? 256,
+          threshold: p.threshold ?? 25.0,
+        },
+      },
+      '4': { class_type: 'TripoSRViewer', inputs: { mesh: ['3', 0] } },
+    };
+  }
+
+  /** TripoSRViewer is an OUTPUT_NODE that writes a "mesh" list (not "images") of
+   *  {filename, subfolder, type} into the history entry, and the .obj file itself
+   *  has to be pulled from ComfyUI's own /view endpoint as raw bytes rather than
+   *  a base64 data URL -- different enough from comfyuiRunWorkflow()'s image-only
+   *  polling that it isn't worth trying to force through the same function. */
+  async function comfyuiRunMeshWorkflow(workflow: Record<string, unknown>): Promise<{ success: boolean; meshBuffer?: Buffer; filename?: string; error?: string }> {
+    const queueResp = await fetch(`${COMFYUI_BASE}/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: workflow }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!queueResp.ok) {
+      const err = await queueResp.text().catch(() => '');
+      return { success: false, error: `ComfyUI error ${queueResp.status}: ${err.slice(0, 200)}` };
+    }
+    const { prompt_id } = await queueResp.json() as { prompt_id: string };
+
+    const deadline = Date.now() + 4 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise<void>(r => setTimeout(r, 2000));
+      try {
+        const histResp = await fetch(`${COMFYUI_BASE}/history/${prompt_id}`, { signal: AbortSignal.timeout(5000) });
+        if (!histResp.ok) continue;
+        const history = await histResp.json() as Record<string, any>;
+        const job = history[prompt_id];
+        if (!job?.outputs) continue;
+        if (job.error) return { success: false, error: `ComfyUI: ${JSON.stringify(job.error).slice(0, 200)}` };
+        for (const nodeOut of Object.values(job.outputs) as any[]) {
+          const meshList = (nodeOut as any).mesh as Array<{ filename: string; subfolder: string; type: string }> | undefined;
+          if (meshList?.length) {
+            const mesh = meshList[0];
+            const qs = new URLSearchParams({ filename: mesh.filename, subfolder: mesh.subfolder ?? '', type: mesh.type });
+            const meshResp = await fetch(`${COMFYUI_BASE}/view?${qs}`, { signal: AbortSignal.timeout(30000) });
+            if (!meshResp.ok) return { success: false, error: "Failed to fetch generated mesh from ComfyUI." };
+            const buf = Buffer.from(await meshResp.arrayBuffer());
+            return { success: true, meshBuffer: buf, filename: mesh.filename };
+          }
+        }
+      } catch { /* transient poll error -- keep waiting */ }
+    }
+    return { success: false, error: 'Mesh generation timed out after 4 minutes.' };
+  }
+
+  registerHandler('post-process:comfyui-image-to-3d', async (_event, params: {
+    imagePath: string; model: string; resolution?: number; threshold?: number;
+  }) => {
+    try {
+      if (!fs.existsSync(params.imagePath)) return { success: false, error: 'file_not_found' };
+      if (!params.model) return { success: false, error: 'no_model', message: 'No TripoSR checkpoint selected.' };
+      const uploaded = await comfyuiUploadImage(params.imagePath);
+      if (!uploaded.success) return { success: false, error: 'comfyui_upload_failed', message: uploaded.error };
+
+      const workflow = buildTripoSRWorkflow({
+        uploadedImage: uploaded.name!, model: params.model,
+        resolution: params.resolution, threshold: params.threshold,
+      });
+      const result = await comfyuiRunMeshWorkflow(workflow);
+      if (!result.success || !result.meshBuffer) return { success: false, error: 'comfyui_workflow_failed', message: result.error };
+
+      const dir = path.dirname(params.imagePath);
+      const base = path.basename(params.imagePath, path.extname(params.imagePath));
+      const outputPath = path.join(dir, `${base}_3d.obj`);
+      fs.writeFileSync(outputPath, result.meshBuffer);
+
+      return { success: true, outputPath };
+    } catch (err: any) {
+      return { success: false, error: 'comfyui_error', message: err.message || String(err) };
+    }
+  });
+
   // ── Auto-install ComfyUI custom nodes + their model files ──────────────────
   // Mirrors the app's existing precedent for auto-downloading GitHub-hosted tools
   // during setup (download-koboldcpp pulls a release binary straight from GitHub

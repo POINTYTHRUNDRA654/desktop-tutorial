@@ -19,9 +19,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Layers, Smile, Sun, Maximize2, ExternalLink, Loader2, CheckCircle2, XCircle, Download } from 'lucide-react';
+import { Layers, Smile, Sun, Maximize2, ExternalLink, Loader2, CheckCircle2, XCircle, Download, Box } from 'lucide-react';
 
-type PPMode = 'layerfx' | 'facedetail' | 'relight' | 'upscale';
+type PPMode = 'layerfx' | 'facedetail' | 'relight' | 'upscale' | 'image3d';
 type Checkpoint = { name: string; sizeMB: number };
 type ModelDownload = { url: string; subfolder: string; filename: string };
 
@@ -136,6 +136,7 @@ const PostProcessingPipeline: React.FC = () => {
           ['facedetail', 'Face Detailer', Smile],
           ['relight', 'Relight', Sun],
           ['upscale', 'Upscale', Maximize2],
+          ['image3d', 'Image to 3D', Box],
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
@@ -151,6 +152,7 @@ const PostProcessingPipeline: React.FC = () => {
       {mode === 'facedetail' && <FaceDetailerPanel />}
       {mode === 'relight' && <RelightPanel />}
       {mode === 'upscale' && <UpscalePanel />}
+      {mode === 'image3d' && <Image3DPanel />}
     </div>
   );
 };
@@ -438,6 +440,79 @@ const UpscalePanel: React.FC = () => {
       >
         {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
         {processing ? 'Processing…' : 'Upscale'}
+      </button>
+      {outputPath && <div className="text-green-400 text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {outputPath}</div>}
+    </div>
+  );
+};
+
+// -- Image to 3D (flowtyone/ComfyUI-Flowty-TripoSR) --------------------------
+const Image3DPanel: React.FC = () => {
+  const [available, recheck] = useToolAvailable('TripoSRModelLoader');
+  const checkpoints = useCheckpoints();
+  const [imagePath, setImagePath] = useState('');
+  const [model, setModel] = useState('');
+  const [resolution, setResolution] = useState(256);
+  const [processing, setProcessing] = useState(false);
+  const [outputPath, setOutputPath] = useState('');
+
+  // TripoSR's own model dropdown pulls from the same shared checkpoints/
+  // folder as every SDXL checkpoint (that's how the upstream node works) --
+  // default to whichever entry actually looks like the TripoSR download
+  // rather than making Billy hunt for it in a list of SDXL files.
+  useEffect(() => {
+    if (model || checkpoints.length === 0) return;
+    const guess = checkpoints.find(c => /triposr/i.test(c.name));
+    if (guess) setModel(guess.name);
+  }, [checkpoints, model]);
+
+  const pickImage = async () => {
+    const r = await getBridge()?.bgRemover?.pickImages();
+    if (r?.success && r.paths?.[0]) setImagePath(r.paths[0]);
+  };
+
+  const run = async () => {
+    if (!imagePath || !model) { toast.error('Pick an image and the TripoSR checkpoint first.'); return; }
+    setProcessing(true);
+    setOutputPath('');
+    try {
+      const r = await getBridge()?.invoke?.('post-process:comfyui-image-to-3d', { imagePath, model, resolution });
+      if (r?.success) { setOutputPath(r.outputPath); toast.success('3D mesh generated.'); }
+      else toast.error(r?.message || r?.error || 'Failed.');
+    } catch (e) { toast.error(`Error: ${e}`); }
+    finally { setProcessing(false); }
+  };
+
+  return (
+    <div className="bg-gray-800 rounded-lg p-4 space-y-3">
+      <ToolStatus
+        label="ComfyUI-Flowty-TripoSR" available={available} onInstalled={recheck}
+        owner="flowtyone" repo="ComfyUI-Flowty-TripoSR" checkClassType="TripoSRModelLoader"
+        modelDownloads={[{ url: 'https://huggingface.co/stabilityai/TripoSR/resolve/main/model.ckpt', subfolder: 'checkpoints', filename: 'TripoSR_model.ckpt' }]}
+      />
+      <p className="text-gray-400 text-xs">
+        stabilityai/TripoSR (MIT) -- fast single-image-to-mesh reconstruction, free and fully local.
+        Bakes vertex colors onto the geometry rather than a proper UV-textured material, so treat this as a quick base
+        mesh / concept-proofing tool rather than a drop-in game-ready asset. Works best on an already-background-removed
+        (transparent) image -- e.g. run it through Background Remover or Texture Enhancer's "Remove background after
+        generation" step first, since the isolated subject reconstructs much more cleanly than one still on a background.
+      </p>
+      <button onClick={pickImage} className="w-full bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded text-sm truncate">
+        {imagePath ? imagePath.split(/[\\/]/).pop() : 'Choose image (transparent cutout recommended)…'}
+      </button>
+      <select value={model} onChange={e => setModel(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm">
+        <option value="">Select TripoSR checkpoint…</option>
+        {checkpoints.map(c => <option key={c.name} value={c.name}>{c.name} ({c.sizeMB} MB)</option>)}
+      </select>
+      <label className="text-xs text-gray-400">Mesh resolution: {resolution} (higher = more geometric detail, slower)</label>
+      <input type="range" min={128} max={512} step={32} value={resolution} onChange={e => setResolution(Number(e.target.value))} className="w-full" />
+      <button
+        onClick={run}
+        disabled={processing || !available}
+        className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-4 py-2 rounded text-sm flex items-center gap-2"
+      >
+        {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+        {processing ? 'Reconstructing…' : 'Generate 3D Mesh (.obj)'}
       </button>
       {outputPath && <div className="text-green-400 text-xs flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> {outputPath}</div>}
     </div>
