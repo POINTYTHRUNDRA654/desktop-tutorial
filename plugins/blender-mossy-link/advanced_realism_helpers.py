@@ -751,27 +751,39 @@ class FO4_OT_ApplySurfaceBreakup(Operator):
                     rough = base_rough + self.roughness_variation * offset
                     rough_input.default_value = min(0.98, max(0.06, rough))
 
-                base_input = principled.inputs.get("Base Color")
-                if base_input and not base_input.is_linked:
-                    _ensure_material_prop(
-                        mat,
-                        "surface_breakup",
-                        "base_color",
-                        list(base_input.default_value),
-                    )
-                    c = list(
-                        _get_material_prop(
-                            mat,
-                            "surface_breakup",
-                            "base_color",
-                            list(base_input.default_value),
-                        )
-                    )
+                # This used to only touch Base Color when it had NO texture
+                # linked to it (base_input.is_linked False) -- but almost
+                # every real imported mesh already has a diffuse texture
+                # wired into Base Color (that's the whole point of
+                # importing with materials intact), so this branch never
+                # ran on any material anyone would actually use it on. The
+                # tool silently did nothing visible for the overwhelming
+                # majority of real assets while reporting success. Fixed to
+                # match how ApplyContactRealism/ApplyEdgeRealismToolkit in
+                # this same file already handle this correctly: insert a
+                # tagged Mix node between whatever already feeds Base Color
+                # (a texture or a flat value) and the BSDF, instead of only
+                # writing a flat default_value.
+                if mat.use_nodes and mat.node_tree and self.hue_variation > 0.0:
+                    nt = mat.node_tree
                     jitter = self.hue_variation * offset
-                    c[0] = min(1.0, max(0.0, c[0] + jitter))
-                    c[1] = min(1.0, max(0.0, c[1] + jitter * 0.6))
-                    c[2] = min(1.0, max(0.0, c[2] - jitter * 0.4))
-                    base_input.default_value = c
+                    tint = (
+                        max(-1.0, min(1.0, jitter)),
+                        max(-1.0, min(1.0, jitter * 0.6)),
+                        max(-1.0, min(1.0, -jitter * 0.4)),
+                        1.0,
+                    )
+                    mix = _ensure_tagged_node(
+                        nt,
+                        "surface_breakup.hue_mix",
+                        "ShaderNodeMixRGB",
+                        (principled.location.x - 160, principled.location.y - 260),
+                    )
+                    mix.blend_type = "ADD"
+                    mix.inputs[0].default_value = 1.0
+                    _ensure_mix_base_input(nt, principled, mix, (0.5, 0.5, 0.5, 1.0))
+                    _connect_or_set(mix.inputs[2], tint)
+                    _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
 
                 if mat.use_nodes and mat.node_tree:
                     for node in mat.node_tree.nodes:
