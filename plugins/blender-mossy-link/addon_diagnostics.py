@@ -12,6 +12,7 @@ Adds two operators that appear in the Setup & Status panel:
         2.  Install location / dual-install detection
         3.  Duplicate sys.modules entries
         4.  Python module import status (all tracked modules)
+        4b. Vegetation / Advanced Realism panel registration
         5.  Critical operator registration
         6.  Addon preferences accessibility
         7.  Python version
@@ -99,6 +100,8 @@ _TRACKED_MODULES = [
     "imageto3d_helpers",
     "umodel_helpers",
     "mossy_link",
+    "content_panels",
+    "advanced_realism_helpers",
 ]
 
 # These are deliberately left as None at startup (see __init__.py: "loaded on
@@ -282,6 +285,24 @@ def collect_diagnostics():
     if failed_mods:
         results.append(("WARN", "Module",
                         f"{len(failed_mods)} module(s) failed - click 'Auto-Fix Issues' to retry"))
+
+    # ── 4b. Vegetation / Advanced Realism panel registration ──────────────────
+    # These two panels were reported missing from the N-panel; checked here
+    # directly via bpy.types.Panel.__subclasses__() (not hasattr(bpy.types,
+    # ...), which can misreport on Blender 5.x -- see RECURRING BUG #1 in
+    # ui_panels.py) so this reflects Blender's actual class registry.
+    _panel_ids = {c.bl_idname for c in bpy.types.Panel.__subclasses__()}
+    for _label, _idname in (
+        ("Vegetation & Landscaping panel", "FO4_PT_vegetation_panel"),
+        ("Advanced Realism Lab panel", "FO4_PT_advanced_realism_panel"),
+        ("Mesh Helpers panel (Vegetation's parent)", "FO4_PT_mesh_panel"),
+        ("Main FO4 panel (Advanced Realism's parent)", "FO4_PT_main_panel"),
+    ):
+        if _idname in _panel_ids:
+            results.append(("OK", "Panel", f"{_label} ({_idname}): registered ✓"))
+        else:
+            results.append(("FAIL", "Panel",
+                            f"{_label} ({_idname}): NOT REGISTERED - will not appear in the N-panel"))
 
     # ── 5. Critical operator registration ────────────────────────────────────
     missing_ops = []
