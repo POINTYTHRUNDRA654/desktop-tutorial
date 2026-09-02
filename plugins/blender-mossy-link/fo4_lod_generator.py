@@ -613,17 +613,18 @@ class FO4_OT_GenerateLODs(Operator):
         default=512, min=64, max=2048,
     )
     collision_from_lod3: BoolProperty(
-        name="Auto-Build Collision from LOD3 (fallback)",
+        name="Auto-Build Base-Mesh Collision from LOD3 (fallback)",
         description=(
-            "Only used when the source mesh has no collision yet. If you've "
-            "already made real collision with Generate Collision / Custom "
-            "Collision (Exact Mesh), this is ignored and that collision is "
-            "reused for every LOD instead -- there should be one place to "
-            "make collision, not a second one hidden in the LOD generator. "
-            "Enable this only as a convenience fallback for a mesh you "
-            "haven't set up collision for yet: builds a UCX_ convex hull "
-            "from the LOD3 mesh (~4% polys, already the right density for "
-            "physics) instead of decimating the original again."
+            "LOD meshes never get collision attached -- they are visual-only, "
+            "the game always uses the base mesh's own collision for physics. "
+            "This option only affects the BASE mesh (the source object "
+            "itself): if it has no real collision yet, builds a UCX_ convex "
+            "hull for it from the already-simplified LOD3 shape (~4% polys, "
+            "the right density for physics) instead of decimating the "
+            "original again -- ready for whenever you separately export the "
+            "base mesh. If the base mesh already has real collision (made "
+            "via Generate Collision / Custom Collision Exact Mesh), this is "
+            "ignored entirely."
         ),
         default=False,
     )
@@ -731,9 +732,16 @@ class FO4_OT_GenerateLODs(Operator):
         layout.separator()
 
         # ── Collision ─────────────────────────────────────────────────────────
-        # Show collision UI for all mesh types.
-        # For vegetation, show an info note explaining ground-cover vs trees.
+        # LOD meshes are a pure visual distance substitute -- the game never
+        # uses their geometry for physics, so nothing here attaches
+        # collision to any LOD level. This only concerns the BASE mesh
+        # (*obj* itself): if it doesn't have real collision yet, this can
+        # build one from LOD3's already-simplified shape as a convenience,
+        # ready for whenever you separately export the base mesh.
         box = layout.box()
+        box.label(text="Collision is a base-mesh thing, not a LOD thing:", icon='INFO')
+        box.label(text="LOD meshes are visual-only — the base mesh's own", icon='DOT')
+        box.label(text="collision is what the game actually uses.", icon='DOT')
         if src in _VEGETATION_CLASSES:
             box.label(
                 text=f"{src}: trees/large shrubs need collision; ground-cover (GRASS) does not.",
@@ -743,12 +751,12 @@ class FO4_OT_GenerateLODs(Operator):
         if self.collision_from_lod3:
             if src in _VEGETATION_CLASSES:
                 box.label(
-                    text="UCX_ hull will be built — disable if this is thin ground-cover.",
+                    text="Base-mesh UCX_ hull will be built — disable if this is thin ground-cover.",
                     icon='CHECKMARK',
                 )
             else:
                 box.label(
-                    text="UCX_ collision built from LOD3 — no extra decimation step.",
+                    text="Base-mesh UCX_ collision built from LOD3 — no extra decimation step.",
                     icon='CHECKMARK',
                 )
 
@@ -851,37 +859,26 @@ class FO4_OT_GenerateLODs(Operator):
                     self.report({'WARNING'}, f"LOD generation failed for {obj.name} {lod_key}: {e}")
 
             # ── Collision ────────────────────────────────────────────────────────
-            # There is exactly one place in this add-on meant for making
-            # collision: Generate Collision / Custom Collision (Exact Mesh)
-            # (MeshHelpers.add_collision_mesh / add_custom_collision). This
-            # used to be a second, independent collision-creation path that
-            # silently built its own UCX_ hull from LOD3 by default -- worth
-            # noting even though it was already broken as a hider of real
-            # collision: it parented that hull to *obj* (the untouched
-            # LOD0 source), but this operator never exports *obj* itself,
-            # only the LOD1/2/3 copies -- and export_mesh_to_nif() only
-            # looks for collision among the *exported object's own*
-            # children. So every LOD NIF this operator has ever produced
-            # was exported with NO collision at all, regardless of this
-            # setting.
+            # Billy's correction (confirmed correct): LOD meshes are a pure
+            # rendering substitute the engine shows at a distance -- they
+            # are never the collidable object in-game. The real, currently-
+            # loaded Reference (the base/LOD0 mesh, exported separately via
+            # Generate + Export NIF / Export Mesh + Collision) is what
+            # actually carries collision; the game swaps back to it, full
+            # collision included, once the player is close enough that the
+            # LOD substitute would no longer be shown. Attaching collision
+            # to LOD1-4 NIFs is therefore pointless -- wasted geometry the
+            # game never uses for physics -- so this operator no longer
+            # attaches collision to any LOD level it exports, full stop.
             #
-            # Rules (unchanged): GRASS/MUSHROOM ground-cover and
-            # CHARACTER/CREATURE/SKINNED/ARMOR meshes never get a static
-            # UCX_ hull (ground-cover collision is CK-authored; skinned
-            # collision lives in the ragdoll rig). Everything else prefers
-            # whatever real collision the user already built on *obj* via
-            # the one true collision tool, reused as-is; only when *obj*
-            # has none does the old LOD3-hull auto-build kick in, and only
-            # if explicitly opted into via "Auto-Build Collision from LOD3".
-            # fo4_collision_type is a real RNA EnumProperty set via attribute
-            # assignment -- obj.get() only sees custom ID properties and always
-            # silently returned "DEFAULT" here, so GRASS/MUSHROOM objects never
-            # actually got their collision skipped as intended.
+            # The "Auto-Build Collision from LOD3" option below is not
+            # about the LOD NIFs at all -- it's a convenience for building a
+            # base-mesh UCX_ (parented to *obj*, the actual base object)
+            # from an already-simplified LOD3 shape when *obj* doesn't have
+            # real collision yet, so the base mesh's own separate export
+            # later has something to pick up. It never touches LOD1-4.
             coll_type = getattr(obj, "fo4_collision_type", "DEFAULT")
             is_ground_cover = coll_type in _NO_COLLISION_MESH_TYPES
-
-            collision_template = None  # the single collision object/mesh to
-                                        # copy onto every exported LOD level
 
             if is_ground_cover:
                 steps.append(
@@ -894,17 +891,19 @@ class FO4_OT_GenerateLODs(Operator):
                     "collision is part of the armature/ragdoll rig"
                 )
             else:
+                existing_base_collision = None
                 try:
                     from . import export_helpers
-                    collision_template = export_helpers.ExportHelpers._find_collision_mesh(obj)
+                    existing_base_collision = export_helpers.ExportHelpers._find_collision_mesh(obj)
                 except Exception:
-                    collision_template = None
+                    pass
 
-                if collision_template is not None:
+                if existing_base_collision is not None:
                     steps.append(
-                        f"✓ {obj.name}: reusing existing collision "
-                        f"'{collision_template.name}' for every LOD export "
-                        "(made once via Generate Collision / Custom Collision)"
+                        f"✓ {obj.name}: base mesh already has collision "
+                        f"'{existing_base_collision.name}' — used when you export the "
+                        "base mesh itself (Generate + Export NIF / Export Mesh + "
+                        "Collision), not attached to any LOD level"
                     )
                 elif self.collision_from_lod3 and self.generate_lod3:
                     lod3_obj = next(
@@ -912,7 +911,7 @@ class FO4_OT_GenerateLODs(Operator):
                     )
                     if lod3_obj:
                         try:
-                            ucx_name = f"UCX_{obj.name}_fromLOD3"
+                            ucx_name = f"UCX_{obj.name}"
                             existing_ucx = bpy.data.objects.get(ucx_name)
                             if existing_ucx:
                                 bpy.data.objects.remove(existing_ucx, do_unlink=True)
@@ -942,20 +941,25 @@ class FO4_OT_GenerateLODs(Operator):
                             ucx_mesh.update()
                             bm.free()
 
+                            # Parented to *obj* -- the base mesh -- not to any
+                            # LOD copy. pynCollisionTarget is what
+                            # export_helpers actually reads to find it when
+                            # *obj* itself is later exported.
                             ucx_obj["fo4_collision"]        = True
                             ucx_obj["fo4_collision_source"] = "LOD3"
                             ucx_obj["fo4_lod_source"]       = obj.name
                             ucx_obj.display_type            = 'WIRE'
                             ucx_obj.hide_render             = True
                             ucx_obj.parent                  = obj
+                            ucx_obj.matrix_parent_inverse    = obj.matrix_world.inverted()
+                            obj["pynCollisionTarget"]        = ucx_obj.name
 
                             n_verts = len(ucx_mesh.vertices)
                             steps.append(
-                                f"✓ UCX_{obj.name}: convex hull built from LOD3 "
-                                f"({n_verts} vertices) — no existing collision found, "
-                                "used the LOD3-hull fallback"
+                                f"✓ UCX_{obj.name}: base-mesh collision built from LOD3's "
+                                f"shape ({n_verts} vertices) — ready for when you export "
+                                f"{obj.name} itself; not attached to any LOD level"
                             )
-                            collision_template = ucx_obj
                         except Exception as e:
                             self.report({'WARNING'}, f"Collision from LOD3 failed for {obj.name}: {e}")
                     else:
@@ -964,41 +968,9 @@ class FO4_OT_GenerateLODs(Operator):
                 else:
                     steps.append(
                         f"○ {obj.name} [{src_class}]: no collision made yet — "
-                        "use Generate Collision / Custom Collision (Exact Mesh) first "
-                        "if this mesh needs physics collision in-game"
+                        "use Generate Collision / Custom Collision (Exact Mesh) on the "
+                        "base mesh if it needs physics collision in-game"
                     )
-
-            # Copy the chosen collision (reused or freshly built) onto every
-            # LOD level that will actually be exported, parented to that
-            # LOD object specifically -- export_mesh_to_nif()'s collision
-            # lookup only checks the exported object's own children, so a
-            # collision parented only to *obj* (never itself exported here)
-            # was never found by any previous version of this operator.
-            if collision_template is not None:
-                for lod_obj in lod_objects:
-                    try:
-                        lod_ucx_name = f"UCX_{lod_obj.name}"
-                        existing = bpy.data.objects.get(lod_ucx_name)
-                        if existing:
-                            bpy.data.objects.remove(existing, do_unlink=True)
-                        lod_ucx_mesh = collision_template.data.copy()
-                        lod_ucx_obj  = collision_template.copy()
-                        lod_ucx_obj.data = lod_ucx_mesh
-                        lod_ucx_obj.name = lod_ucx_name
-                        lod_ucx_mesh.name = lod_ucx_name
-                        bpy.context.collection.objects.link(lod_ucx_obj)
-                        lod_ucx_obj["fo4_collision"] = True
-                        lod_ucx_obj["pynRigidBody"] = collision_template.get(
-                            "pynRigidBody", "bhkPhysicsSystem")
-                        lod_ucx_obj["pynCollisionShapeType"] = collision_template.get(
-                            "pynCollisionShapeType", "polytope")
-                        lod_ucx_obj.display_type = 'WIRE'
-                        lod_ucx_obj.hide_render = True
-                        lod_ucx_obj.parent = lod_obj
-                        lod_ucx_obj.matrix_parent_inverse = lod_obj.matrix_world.inverted()
-                        lod_obj["pynCollisionTarget"] = lod_ucx_obj.name
-                    except Exception as e:
-                        self.report({'WARNING'}, f"Could not attach collision to {lod_obj.name}: {e}")
 
             # ── Export NIFs ───────────────────────────────────────────────────────
             # Skinned meshes are excluded: the Decimate modifier strips the skin
