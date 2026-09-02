@@ -22708,6 +22708,30 @@ Rules:
     return { success: false, error: 'Generation timed out after 4 minutes.' };
   }
 
+  // Runs an arbitrary pre-built ComfyUI workflow and returns the finished
+  // image as a data URI. Added so ComfyUIExtension.tsx can stop hitting
+  // ComfyUI directly from the renderer (see textures:comfyui-status below for
+  // why that breaks against newer ComfyUI versions) for its own custom
+  // per-workflow-template generation, instead of only the fixed txt2img/
+  // img2img workflows the other comfyui-* handlers already build server-side.
+  registerHandler('textures:comfyui-run-workflow', async (_event, params: { workflow: Record<string, unknown> }) => {
+    try {
+      return await comfyuiRunWorkflow(params.workflow);
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Unknown error running ComfyUI workflow.' };
+    }
+  });
+
+  // Reliability note (2026-09-02): newer ComfyUI versions run an origin-check
+  // middleware (see server.py's origin_only_middleware) that 403s any request
+  // carrying a `Sec-Fetch-Site: cross-site` header, or a mismatched Host vs
+  // Origin -- both of which a fetch() made directly from the Electron
+  // *renderer* (Chromium) sends automatically, since the renderer's own page
+  // origin isn't http://127.0.0.1:8188. Confirmed live: this main-process
+  // handler's fetch (plain Node/undici, no Sec-Fetch-* or Origin header) works
+  // fine against the same ComfyUI instance where a renderer-side fetch to the
+  // same URL got 403'd. Every ComfyUI HTTP call MUST go through a handler like
+  // this one -- never fetch(COMFY_BASE + ...) directly from a .tsx file.
   registerHandler('textures:comfyui-status', async () => {
     try {
       const resp = await fetch(`${COMFYUI_BASE}/system_stats`, { signal: AbortSignal.timeout(3000) });

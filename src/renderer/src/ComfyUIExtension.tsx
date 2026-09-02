@@ -116,19 +116,30 @@ const DEFAULT_MODELS = ['sd_xl_base_1.0.safetensors', 'v1-5-pruned.ckpt', 'anyth
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
+// NOTE (2026-09-02): these used to fetch(COMFY_BASE + ...) directly from the
+// renderer. Newer ComfyUI versions run an origin-check middleware that 403s
+// any request carrying a `Sec-Fetch-Site: cross-site` header or a mismatched
+// Host/Origin -- both of which Chromium's fetch() sends automatically from a
+// renderer whose page origin isn't http://127.0.0.1:8188. Confirmed live:
+// this exact backend showed "online" via AI Image Studio (which routes
+// through IPC / main-process fetch, no Sec-Fetch-* headers) while this panel
+// showed "not responding" with the DevTools console full of 403s, for the
+// SAME running ComfyUI instance. Fix: go through the main process, same as
+// every other ComfyUI HTTP call in the app -- never fetch(COMFY_BASE + ...)
+// directly from a .tsx file.
 async function pingComfyUI(): Promise<boolean> {
   try {
-    const res = await fetch(`${COMFY_BASE}/system_stats`, { signal: AbortSignal.timeout(1800) }).catch(() => null);
-    return res?.ok === true;
+    const bridge: any = (window as any).electron?.api;
+    const res = await bridge?.invoke?.('textures:comfyui-status').catch(() => null);
+    return res?.online === true;
   } catch { return false; }
 }
 
 async function fetchCheckpointModels(): Promise<string[]> {
   try {
-    const res = await fetch(`${COMFY_BASE}/object_info/CheckpointLoaderSimple`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-    if (!res?.ok) return [];
-    const data = await res.json() as Record<string, any>;
-    const models: string[] = data?.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
+    const bridge: any = (window as any).electron?.api;
+    const res = await bridge?.invoke?.('textures:comfyui-models').catch(() => null);
+    const models = res?.models;
     return Array.isArray(models) ? models : [];
   } catch { return []; }
 }
@@ -242,30 +253,26 @@ export const ComfyUIExtension: React.FC = () => {
     setPrompt('');
 
     try {
-      const health = await fetch(`${COMFY_BASE}/system_stats`, { signal: AbortSignal.timeout(2000) }).catch(() => null);
-      if (health?.ok) {
+      const bridge: any = (window as any).electron?.api;
+      const alive = await pingComfyUI();
+      if (alive && bridge?.invoke) {
         setQueue((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'generating', progress: 10 } : j));
-        const res = await fetch(`${COMFY_BASE}/prompt`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: buildWorkflowPayload(wf, prompt, negText, selectedModel) }),
-        });
-        if (!res.ok) throw new Error(`ComfyUI API error ${res.status}`);
-        const { prompt_id } = await res.json() as { prompt_id: string };
-
-        for (let i = 0; i < 90; i++) {
-          await new Promise<void>((r) => setTimeout(r, 2000));
-          const hist = await fetch(`${COMFY_BASE}/history/${prompt_id}`).then((r) => r.json()).catch(() => null);
-          setQueue((prev) => prev.map((j) => j.id === jobId ? { ...j, progress: Math.min(90, 10 + i * 2) } : j));
-          if (!hist?.[prompt_id]) continue;
-          const imgNode = Object.values(hist[prompt_id]?.outputs ?? {}).find((o: any) => Array.isArray(o?.images) && o.images.length > 0) as any;
-          if (imgNode) {
-            const img = imgNode.images[0];
-            const imageUrl = `${COMFY_BASE}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder ?? '')}&type=${img.type ?? 'output'}`;
-            setQueue((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'complete', progress: 100, imageUrl } : j));
-            return;
-          }
+        // Runs entirely in the main process (submit + poll /history + fetch the
+        // finished image and return it as a data: URI) -- see the note on
+        // pingComfyUI above for why this can't be done with a renderer fetch().
+        const progressTimer = setInterval(() => {
+          setQueue((prev) => prev.map((j) => j.id === jobId && j.progress < 85 ? { ...j, progress: j.progress + 5 } : j));
+        }, 2000);
+        try {
+          const result = await bridge.invoke('textures:comfyui-run-workflow', {
+            workflow: buildWorkflowPayload(wf, prompt, negText, selectedModel),
+          });
+          if (!result?.success || !result.imageData) throw new Error(result?.error || 'ComfyUI generation failed');
+          setQueue((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'complete', progress: 100, imageUrl: result.imageData } : j));
+          return;
+        } finally {
+          clearInterval(progressTimer);
         }
-        throw new Error('Timed out');
       }
     } catch (err) { console.warn('[ComfyUI] Real generation failed, simulating:', err); }
 
