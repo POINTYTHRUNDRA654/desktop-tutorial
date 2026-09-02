@@ -66,6 +66,43 @@ def _set_enum_if_possible(owner, key: str, value: str) -> None:
         pass
 
 
+def _set_look_if_possible(owner, key: str, substrings) -> bool:
+    """Set a color-management 'look' style enum by fuzzy name match.
+
+    Blender's Look enum values differ across color-management configs
+    (e.g. legacy Filmic uses bare names like "Medium High Contrast",
+    while AgX-based configs (Blender 4.0+/5.x default) prefix them,
+    e.g. "AgX - Medium High Contrast"). Hardcoding one exact string
+    silently no-ops on the other config via setattr's try/except, so
+    match by substring against whatever enum items are actually
+    available on this owner's RNA and use the real identifier.
+    Returns True if a matching enum item was set.
+    """
+    if not hasattr(owner, key):
+        return False
+    if isinstance(substrings, str):
+        substrings = [substrings]
+    needles = [s.lower() for s in substrings]
+    try:
+        prop = owner.bl_rna.properties[key]
+        items = list(getattr(prop, "enum_items", []))
+    except Exception:
+        items = []
+    for item in items:
+        name = (getattr(item, "name", "") or "").lower()
+        ident = (getattr(item, "identifier", "") or "").lower()
+        if all(n in name or n in ident for n in needles):
+            try:
+                setattr(owner, key, item.identifier)
+                return True
+            except Exception:
+                continue
+    # Fall back to trying the literal joined string in case the enum
+    # items couldn't be introspected but the exact value still works.
+    _set_enum_if_possible(owner, key, " ".join(substrings))
+    return False
+
+
 def _ensure_world_background(scene, color, strength):
     if not scene.world:
         scene.world = bpy.data.worlds.new("FO4_AdvancedPreview_World")
@@ -370,7 +407,7 @@ class FO4_OT_ApplyGameLookPreview(Operator):
                 else "BLENDER_EEVEE"
             )
 
-        _set_enum_if_possible(scene.view_settings, "look", "Medium High Contrast")
+        _set_look_if_possible(scene.view_settings, "look", ("Medium High Contrast",))
         scene.view_settings.gamma = 1.0
 
         if self.preset == "WASTELAND_DAY":
@@ -424,7 +461,7 @@ class FO4_OT_ResetGameLookPreview(Operator):
         scene = context.scene
         scene.view_settings.exposure = 0.0
         scene.view_settings.gamma = 1.0
-        _set_enum_if_possible(scene.view_settings, "look", "None")
+        _set_enum_if_possible(scene.view_settings, "look", "None")  # "None" identifier is stable across configs
         context.scene.fo4_advanced_preview_status = "Preview reset"
         self.report({"INFO"}, "Game-Look Preview reset")
         return {"FINISHED"}
@@ -481,11 +518,10 @@ class FO4_OT_EnableReferenceMatchMode(Operator):
             target_luma = 0.30 if scene.fo4_reference_kind == "GAME_CAPTURE" else 0.38
             exposure = math.log2(max(0.01, target_luma) / max(0.01, avg_luma))
             scene.view_settings.exposure = max(-3.0, min(3.0, exposure))
-            _set_enum_if_possible(
-                scene.view_settings,
-                "look",
-                "Medium High Contrast" if scene.fo4_reference_kind == "GAME_CAPTURE" else "None",
-            )
+            if scene.fo4_reference_kind == "GAME_CAPTURE":
+                _set_look_if_possible(scene.view_settings, "look", ("Medium High Contrast",))
+            else:
+                _set_enum_if_possible(scene.view_settings, "look", "None")
 
         side_by_side = "enabled" if image_editor_count > 0 else "partial (open an Image Editor for side-by-side)"
         scene.fo4_reference_status = f"Reference match {side_by_side}: {image.name}"
@@ -600,12 +636,20 @@ class FO4_OT_RunMaterialIntelligence(Operator):
 
                     principled = _find_principled_bsdf(mat)
                     if principled:
-                        roughness = float(principled.inputs["Roughness"].default_value)
-                        metallic = float(principled.inputs["Metallic"].default_value)
-                        principled.inputs["Roughness"].default_value = min(0.92, max(0.2, roughness))
-                        principled.inputs["Metallic"].default_value = min(
-                            0.9 if metal_hint else 0.2, max(0.0, metallic)
-                        )
+                        rough_in = principled.inputs["Roughness"]
+                        metal_in = principled.inputs["Metallic"]
+                        # A texture (e.g. a specular/roughness map) already
+                        # driving this socket makes default_value inert —
+                        # writing it silently does nothing in-viewport and
+                        # nothing on export, so only clamp when unlinked.
+                        if not rough_in.is_linked:
+                            roughness = float(rough_in.default_value)
+                            rough_in.default_value = min(0.92, max(0.2, roughness))
+                        if not metal_in.is_linked:
+                            metallic = float(metal_in.default_value)
+                            metal_in.default_value = min(
+                                0.9 if metal_hint else 0.2, max(0.0, metallic)
+                            )
                         if has_glow:
                             emission_color = (
                                 principled.inputs.get("Emission Color")
@@ -1183,7 +1227,13 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                 principled = _find_principled_bsdf(mat)
                 if principled:
                     rough = principled.inputs.get("Roughness")
-                    if rough and (rough.default_value < 0.05 or rough.default_value > 0.95):
+                    # A texture-driven Roughness makes default_value inert
+                    # (Blender ignores it once the socket is linked) and not
+                    # meaningful to read for a score, so only judge/auto-fix
+                    # a flat (unlinked) roughness value here.
+                    if rough and not rough.is_linked and (
+                        rough.default_value < 0.05 or rough.default_value > 0.95
+                    ):
                         issues["roughness"] += 1
                         if self.auto_fix:
                             rough.default_value = min(0.9, max(0.12, rough.default_value))
