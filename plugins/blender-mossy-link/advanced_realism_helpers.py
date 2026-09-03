@@ -939,6 +939,7 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
             ("PAINTED_METAL", "Painted Metal", "Paint chip style edge wear"),
             ("CONCRETE", "Concrete", "Dust/chalk edge lift"),
             ("WOOD", "Wood", "Dry/faded edge highlights"),
+            ("ORGANIC", "Organic / Vegetation", "Dirt and moss grime settled into creases -- for plants, fungus, bark"),
         ],
         default="METAL",
     )
@@ -956,7 +957,24 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
             "PAINTED_METAL": (0.62, 0.60, 0.58, 1.0),
             "CONCRETE": (0.72, 0.71, 0.67, 1.0),
             "WOOD": (0.58, 0.47, 0.34, 1.0),
+            "ORGANIC": (0.10, 0.11, 0.06, 1.0),
         }
+        # METAL/PAINTED_METAL/CONCRETE/WOOD are all "wear reveals a
+        # different material at raised, convex edges" -- correct for
+        # hard-surface props, but wrong physically for anything organic:
+        # dirt and moss settle INTO creases and crevices, not onto high
+        # points, and a rounded, curvy mesh (a mushroom cap, a leaf, bark)
+        # has much less of the sharp convex geometry that makes Pointiness
+        # read as "mostly low" the way it does on a hard-surface prop --
+        # so the same pointiness-driven mix reads as "mostly high" across
+        # nearly the whole surface instead of just the edges, and the tint
+        # colors everything instead of accenting a rim. Confirmed by report:
+        # applying WOOD to a mushroom turned the whole thing brown, not
+        # just its edges. ORGANIC below both uses a color appropriate for
+        # grime rather than material wear, and drives the mix from the
+        # inverse of Pointiness (crevices/cavities) instead of Pointiness
+        # itself (convex points), with its influence capped so it accents
+        # rather than replaces the base color.
 
         mats_seen = set()
         modified = 0
@@ -1003,8 +1021,52 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
                 mix.inputs[2].default_value = preset_colors[self.preset]
 
                 _ensure_mix_base_input(nt, principled, mix, (0.7, 0.7, 0.7, 1.0))
-                _replace_input_link(nt, ramp.inputs[0], geom.outputs["Pointiness"])
-                _replace_input_link(nt, mix.inputs[0], ramp.outputs[0])
+
+                if self.preset == "ORGANIC":
+                    # Grime settles into crevices, not onto raised points --
+                    # invert Pointiness (1 - x) so the ramp responds to
+                    # cavities instead of convex edges.
+                    invert = _ensure_tagged_node(
+                        nt,
+                        "edge_realism.invert",
+                        "ShaderNodeMath",
+                        (principled.location.x - 600, principled.location.y - 340),
+                    )
+                    invert.operation = 'SUBTRACT'
+                    invert.inputs[0].default_value = 1.0
+                    invert.use_clamp = True
+                    _replace_input_link(nt, invert.inputs[1], geom.outputs["Pointiness"])
+                    _replace_input_link(nt, ramp.inputs[0], invert.outputs[0])
+
+                    # Cap how much the tint can replace the base color -- this
+                    # should read as grime accenting the surface, not a flat
+                    # repaint. Without this cap, a curvy/rounded organic mesh
+                    # (little sharp convex geometry) reads as "mostly cavity"
+                    # almost everywhere, and the tint would wash out nearly
+                    # the whole mesh exactly like the un-inverted version did.
+                    cap = _ensure_tagged_node(
+                        nt,
+                        "edge_realism.cap",
+                        "ShaderNodeMath",
+                        (principled.location.x - 260, principled.location.y - 220),
+                    )
+                    cap.operation = 'MULTIPLY'
+                    cap.inputs[1].default_value = 0.45
+                    cap.use_clamp = True
+                    _replace_input_link(nt, cap.inputs[0], ramp.outputs[0])
+                    _replace_input_link(nt, mix.inputs[0], cap.outputs[0])
+                else:
+                    # Non-organic presets: remove any leftover ORGANIC nodes
+                    # from a previous run on this material so re-applying a
+                    # hard-surface preset doesn't leave a dead invert/cap
+                    # pair wired into nothing.
+                    for tag in ("edge_realism.invert", "edge_realism.cap"):
+                        stale = _find_tagged_node(nt, tag)
+                        if stale is not None:
+                            nt.nodes.remove(stale)
+                    _replace_input_link(nt, ramp.inputs[0], geom.outputs["Pointiness"])
+                    _replace_input_link(nt, mix.inputs[0], ramp.outputs[0])
+
                 _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
 
                 rough = principled.inputs.get("Roughness")
