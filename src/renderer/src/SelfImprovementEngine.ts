@@ -325,11 +325,41 @@ export class SelfImprovementEngine {
    */
   implementImprovement(opportunityId: string) {
     const opportunity = this.opportunities.find(o => o.id === opportunityId);
-    if (opportunity) {
-      opportunity.implemented = true;
-      opportunity.implementedAt = new Date().toISOString();
-      this.savePersistedData();
-    }
+    if (!opportunity) return;
+
+    opportunity.implemented = true;
+    opportunity.implementedAt = new Date().toISOString();
+    this.savePersistedData();
+
+    // "Implement" used to only flip this local flag -- the suggestion just
+    // vanished from the list with no actual change to Mossy's behavior.
+    // Brain B's /knowledge/add is a real, working endpoint (persists into
+    // the runtime RAG collection that /enrich actually retrieves from on
+    // future queries) that nothing in the app was calling. Push the
+    // opportunity's insight there so "implementing" it genuinely feeds back
+    // into what Mossy knows, instead of just being a checkbox.
+    // Best-effort: Brain B may not be running, and that must never block
+    // marking the opportunity implemented above.
+    void (async () => {
+      try {
+        const brainBBaseUrl = 'http://127.0.0.1:8766';
+        await fetch(`${brainBBaseUrl}/knowledge/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `Self-improvement: ${opportunity.type}`,
+            content: `${opportunity.description}
+
+Action taken: ${opportunity.proposedSolution}`,
+            tags: ['self-improvement', opportunity.type],
+          }),
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch {
+        /* Brain B offline or unreachable -- opportunity is still marked
+           implemented locally above; nothing further to do here. */
+      }
+    })();
   }
 
   /**
