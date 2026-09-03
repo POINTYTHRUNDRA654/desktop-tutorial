@@ -4492,7 +4492,7 @@ export interface ElectronAPI {
     checkAgainstDatabase(hash: string): Promise<ThreatInfo | null>;
   };
 
-  detectPrograms: () => Promise<InstalledProgram[]>;
+  detectPrograms: (force?: boolean) => Promise<InstalledProgram[]>;
   externalToolDetectTools?: () => Promise<InstalledProgram[]>;
   externalToolVerifyTool?: (toolName: string) => Promise<{ success: boolean; error?: string }>;
   externalToolRunXEditScript?: (scriptPath: string, pluginList: string[]) => Promise<any>;
