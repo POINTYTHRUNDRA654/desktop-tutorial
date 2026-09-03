@@ -3623,10 +3623,10 @@ const electronAPI = {
     },
   },
 
-  // SS2 "Reality Check" reference corpus — local-only grading tooling, see main.ts
+  // SS2 "Reality Check" reference corpus — local-only grading tooling, see main.ts.
+  // Nexus-mod-ID-based add() was removed 2026-09-03 (Nexus Mods data must not be used
+  // for AI training/grading) -- addFromFolder is the only way in now.
   referenceCorpus: {
-    add: (modId: string): Promise<any> =>
-      ipcRenderer.invoke('reference-corpus:add', modId),
     addFromFolder: (folderPath: string): Promise<any> =>
       ipcRenderer.invoke('reference-corpus:add-from-folder', folderPath),
     list: (): Promise<any> =>
