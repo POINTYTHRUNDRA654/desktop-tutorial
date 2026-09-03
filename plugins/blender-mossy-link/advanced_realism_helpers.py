@@ -26,6 +26,7 @@ from bpy.props import (
     StringProperty,
 )
 from bpy.types import Operator, Panel
+from bpy_extras.io_utils import ImportHelper
 
 _FO4_REALISM_TAG_KEY = "fo4_realism_tag"
 _DEFAULT_REFERENCE_LUMINANCE = 0.35
@@ -464,6 +465,45 @@ class FO4_OT_ResetGameLookPreview(Operator):
         _set_enum_if_possible(scene.view_settings, "look", "None")  # "None" identifier is stable across configs
         context.scene.fo4_advanced_preview_status = "Preview reset"
         self.report({"INFO"}, "Game-Look Preview reset")
+        return {"FINISHED"}
+
+
+class FO4_OT_BrowseReferenceImage(Operator, ImportHelper):
+    """Load an external photo (real-world reference, not a mesh's own
+    texture) from disk and set it as the Reference Match target image.
+
+    The "Target Image" field above this button is a standard Blender
+    ID-pointer dropdown -- it only lists bpy.data.Image datablocks already
+    loaded in this file, which in practice means whatever textures are
+    already assigned to materials on the meshes in the scene. There's a
+    tiny "Open" folder icon built into that dropdown for browsing a new
+    file, but it's easy to miss in a narrow N-panel column, and the whole
+    point of Reference Match is usually to match against a REAL photo that
+    was never loaded as a mesh texture in the first place. This gives that
+    an explicit, unmissable button.
+    """
+
+    bl_idname = "fo4.browse_reference_image"
+    bl_label = "Browse for Reference Photo..."
+    bl_options = {"REGISTER", "UNDO"}
+
+    filter_glob: StringProperty(
+        default="*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.exr;*.hdr;*.webp",
+        options={"HIDDEN"},
+    )
+
+    def execute(self, context):
+        if not self.filepath:
+            self.report({"ERROR"}, "No file selected")
+            return {"CANCELLED"}
+        try:
+            image = bpy.data.images.load(self.filepath, check_existing=True)
+        except Exception as exc:
+            self.report({"ERROR"}, f"Could not load image: {exc}")
+            return {"CANCELLED"}
+        context.scene.fo4_reference_image = image
+        context.scene.fo4_reference_status = f"Loaded reference photo: {image.name}"
+        self.report({"INFO"}, f"Reference photo loaded: {image.name}")
         return {"FINISHED"}
 
 
@@ -1421,6 +1461,7 @@ class FO4_PT_AdvancedRealismPanel(Panel):
         row.operator("fo4.reset_game_look_preview", text="Reset", icon="LOOP_BACK")
         preview_box.prop(scene, "fo4_reference_kind", text="Reference Type")
         preview_box.prop(scene, "fo4_reference_image", text="Target Image")
+        preview_box.operator("fo4.browse_reference_image", text="Browse for Reference Photo...", icon="FILEBROWSER")
         preview_box.operator("fo4.enable_reference_match_mode", text="Enable Reference Match", icon="IMAGE_REFERENCE")
         if scene.fo4_advanced_preview_status:
             preview_box.label(text=scene.fo4_advanced_preview_status, icon="INFO")
@@ -1490,6 +1531,7 @@ class FO4_PT_AdvancedRealismPanel(Panel):
 classes = (
     FO4_OT_ApplyGameLookPreview,
     FO4_OT_ResetGameLookPreview,
+    FO4_OT_BrowseReferenceImage,
     FO4_OT_EnableReferenceMatchMode,
     FO4_OT_RunScaleValidator,
     FO4_OT_RunMaterialIntelligence,
