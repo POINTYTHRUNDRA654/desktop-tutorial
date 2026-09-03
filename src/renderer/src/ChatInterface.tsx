@@ -2270,6 +2270,42 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                 topic,
             });
         } catch { /* non-critical */ }
+
+        // ── Feed the same rating into Mossy's Self-Improvement Center ────────
+        // This 👍/👎 was previously only written to the local training-dataset
+        // .jsonl above (via trainingDataAddPair) -- it never reached either of
+        // the two systems that actually claim to track/use it:
+        //   1. SelfImprovementEngine, whose "Avg User Rating" tile was
+        //      permanently stuck at 0.0/5 because nothing outside its own
+        //      unit tests ever called recordFeedback().
+        //   2. Brain B's /feedback route (brain_b_slim.py), which has a fully
+        //      working sqlite user_feedback + training_samples pipeline (and
+        //      auto-triggers /reflect on bad ratings) but was never called by
+        //      any client code, so it never received a single real rating.
+        // Both are best-effort and must never block or break the rating UX.
+        try {
+            const { selfImprovementEngine } = await import('./SelfImprovementEngine');
+            selfImprovementEngine.recordFeedback(
+                rating === 'good' ? 5 : 1,
+                editedAnswer || '',
+                { topic, source: 'chat_rate_message' },
+            );
+        } catch { /* non-critical */ }
+
+        try {
+            const brainBBaseUrl = 'http://127.0.0.1:8766';
+            await fetch(`${brainBBaseUrl}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: userMsg.content,
+                    answer: assistantMsg.content,
+                    rating, // 'good' | 'bad' -- matches brain_b_slim.py's /feedback schema exactly
+                    correction: editedAnswer && editedAnswer !== assistantMsg.content ? editedAnswer : '',
+                }),
+                signal: AbortSignal.timeout(3000),
+            });
+        } catch { /* Brain B may not be running -- non-critical, chat rating already saved locally above */ }
     }, [messages]);
 
     const handleStartProject = () => {
