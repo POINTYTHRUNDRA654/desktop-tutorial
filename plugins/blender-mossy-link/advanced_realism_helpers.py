@@ -15,9 +15,12 @@ Implements an advanced realism toolkit:
 from __future__ import annotations
 
 import math
+import os
+from pathlib import Path
 from typing import Iterable
 
 import bpy
+import bpy.utils.previews
 from bpy.props import (
     BoolProperty,
     EnumProperty,
@@ -29,6 +32,97 @@ from bpy.types import Operator, Panel
 from bpy_extras.io_utils import ImportHelper
 
 _FO4_REALISM_TAG_KEY = "fo4_realism_tag"
+
+# ── Reference Photo Library ──────────────────────────────────────────────
+# A bundled/curated folder of real reference photos, browsable as a visual
+# thumbnail grid (bpy.utils.previews) so picking a Reference Match target
+# is "look through them and click the one you want" instead of "leave
+# Blender, dig through file explorer, come back" every single time.
+#
+# Defaults to ~/.blender_fo4_tools/reference_photos -- the same persistent,
+# addon-update-safe location fo4_generation_log.py and fo4_mesh_evolution.py
+# already use, so it survives addon reinstalls/updates. Fully user-
+# repointable (Scene.fo4_reference_library_path) to any folder, e.g. an
+# existing personal reference collection.
+_REF_LIBRARY_README = (
+    "Drop real reference photos here (jpg/png/etc).\n"
+    "They will show up as a browsable thumbnail grid in the\n"
+    "Advanced Realism Lab > Game-Look + Reference Match panel.\n"
+    "Subfolders are fine -- everything under this folder is scanned.\n"
+)
+
+_ref_preview_collections = {}
+
+
+def _default_reference_library_path() -> str:
+    return str(Path(os.path.expanduser("~")) / ".blender_fo4_tools" / "reference_photos")
+
+
+def _ensure_reference_library_folder(path: str) -> None:
+    try:
+        p = Path(path)
+        p.mkdir(parents=True, exist_ok=True)
+        readme = p / "README.txt"
+        if not readme.exists():
+            readme.write_text(_REF_LIBRARY_README, encoding="utf-8")
+    except Exception:
+        pass
+
+
+_REF_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
+
+
+def _iter_reference_library_images(path: str):
+    root = Path(path)
+    if not root.is_dir():
+        return
+    for p in sorted(root.rglob("*")):
+        if p.is_file() and p.suffix.lower() in _REF_IMAGE_EXTS:
+            yield p
+
+
+def _reference_library_enum_items(self, context):
+    """Dynamic enum callback: (identifier, label, description, icon_id, index)
+    for every image in the reference library folder, generating a thumbnail
+    preview for each via bpy.utils.previews."""
+    pcoll = _ref_preview_collections.get("main")
+    if pcoll is None:
+        return [("NONE", "No library loaded", "", 0, 0)]
+
+    scene = context.scene if context else None
+    lib_path = (
+        scene.fo4_reference_library_path
+        if scene and getattr(scene, "fo4_reference_library_path", "")
+        else _default_reference_library_path()
+    )
+
+    items = []
+    for idx, img_path in enumerate(_iter_reference_library_images(lib_path)):
+        key = str(img_path)
+        if key not in pcoll:
+            try:
+                pcoll.load(key, key, "IMAGE")
+            except Exception:
+                continue
+        icon_id = pcoll[key].icon_id
+        items.append((key, img_path.stem, str(img_path), icon_id, idx))
+
+    if not items:
+        items = [("NONE", "(empty -- drop photos in the library folder)", "", 0, 0)]
+    return items
+
+
+def _on_reference_library_pick(self, context):
+    picked = context.scene.fo4_reference_library_pick
+    if not picked or picked == "NONE":
+        return
+    try:
+        image = bpy.data.images.load(picked, check_existing=True)
+    except Exception as exc:
+        context.scene.fo4_reference_status = f"Could not load library photo: {exc}"
+        return
+    context.scene.fo4_reference_image = image
+    context.scene.fo4_reference_status = f"Loaded from library: {image.name}"
 _DEFAULT_REFERENCE_LUMINANCE = 0.35
 _TEXTURE_REPETITION_THRESHOLD = 6
 
@@ -504,6 +598,30 @@ class FO4_OT_BrowseReferenceImage(Operator, ImportHelper):
         context.scene.fo4_reference_image = image
         context.scene.fo4_reference_status = f"Loaded reference photo: {image.name}"
         self.report({"INFO"}, f"Reference photo loaded: {image.name}")
+        return {"FINISHED"}
+
+
+class FO4_OT_OpenReferenceLibraryFolder(Operator):
+    """Open the reference photo library folder in the system file browser"""
+
+    bl_idname = "fo4.open_reference_library_folder"
+    bl_label = "Open Reference Photo Folder"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        scene = context.scene
+        lib_path = (
+            scene.fo4_reference_library_path
+            if getattr(scene, "fo4_reference_library_path", "")
+            else _default_reference_library_path()
+        )
+        _ensure_reference_library_folder(lib_path)
+        try:
+            bpy.ops.wm.path_open(filepath=lib_path)
+        except Exception as exc:
+            self.report({"WARNING"}, f"Could not open folder automatically ({exc}). Path: {lib_path}")
+            return {"CANCELLED"}
+        self.report({"INFO"}, f"Reference photo folder: {lib_path}")
         return {"FINISHED"}
 
 
@@ -1461,6 +1579,16 @@ class FO4_PT_AdvancedRealismPanel(Panel):
         row.operator("fo4.reset_game_look_preview", text="Reset", icon="LOOP_BACK")
         preview_box.prop(scene, "fo4_reference_kind", text="Reference Type")
         preview_box.prop(scene, "fo4_reference_image", text="Target Image")
+
+        lib_col = preview_box.column(align=True)
+        lib_col.label(text="Reference Photo Library:", icon="ASSET_MANAGER")
+        lib_col.template_icon_view(
+            scene, "fo4_reference_library_pick", show_labels=True, scale=5.0, scale_popup=6.0,
+        )
+        lib_row = lib_col.row(align=True)
+        lib_row.prop(scene, "fo4_reference_library_path", text="")
+        lib_row.operator("fo4.open_reference_library_folder", text="", icon="FILE_FOLDER")
+
         preview_box.operator("fo4.browse_reference_image", text="Browse for Reference Photo...", icon="FILEBROWSER")
         preview_box.operator("fo4.enable_reference_match_mode", text="Enable Reference Match", icon="IMAGE_REFERENCE")
         if scene.fo4_advanced_preview_status:
@@ -1532,6 +1660,7 @@ classes = (
     FO4_OT_ApplyGameLookPreview,
     FO4_OT_ResetGameLookPreview,
     FO4_OT_BrowseReferenceImage,
+    FO4_OT_OpenReferenceLibraryFolder,
     FO4_OT_EnableReferenceMatchMode,
     FO4_OT_RunScaleValidator,
     FO4_OT_RunMaterialIntelligence,
@@ -1568,6 +1697,21 @@ def register():
         name="Reference Image",
         type=bpy.types.Image,
     )
+    bpy.types.Scene.fo4_reference_library_path = StringProperty(
+        name="Reference Photo Library",
+        description="Folder of real reference photos, browsable as a thumbnail grid above",
+        subtype="DIR_PATH",
+        default=_default_reference_library_path(),
+    )
+    bpy.types.Scene.fo4_reference_library_pick = EnumProperty(
+        name="Reference Photo Library",
+        description="Click a thumbnail to use that photo as the Reference Match target",
+        items=_reference_library_enum_items,
+        update=_on_reference_library_pick,
+    )
+    if "main" not in _ref_preview_collections:
+        _ref_preview_collections["main"] = bpy.utils.previews.new()
+    _ensure_reference_library_folder(_default_reference_library_path())
     bpy.types.Scene.fo4_scale_asset_class = EnumProperty(
         name="Asset Class",
         items=[
@@ -1642,6 +1786,8 @@ def unregister():
         "fo4_reference_status",
         "fo4_reference_kind",
         "fo4_reference_image",
+        "fo4_reference_library_path",
+        "fo4_reference_library_pick",
         "fo4_scale_asset_class",
         "fo4_scale_status",
         "fo4_material_intel_status",
@@ -1656,3 +1802,10 @@ def unregister():
     ):
         if hasattr(bpy.types.Scene, p):
             delattr(bpy.types.Scene, p)
+
+    for pcoll in _ref_preview_collections.values():
+        try:
+            bpy.utils.previews.remove(pcoll)
+        except Exception:
+            pass
+    _ref_preview_collections.clear()
