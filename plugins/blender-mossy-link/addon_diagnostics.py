@@ -844,6 +844,42 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
         else:
             failed.append("setup_operators: module not available")
 
+        # ── Step 2b: re-register missing FO4 panels, capturing the real error ──
+        # Billy's Vegetation & Landscaping panel was reported NOT REGISTERED
+        # even though its module (content_panels) loaded fine -- the class
+        # itself is failing bpy.utils.register_class() for some reason not
+        # yet known. That failure normally only prints once, at startup, to
+        # a console position nobody can reliably find after the fact. Do the
+        # same register attempt live, right here, so the actual exception
+        # lands directly in this report instead.
+        _panel_ids = {
+            getattr(c, "bl_idname", None) for c in bpy.types.Panel.__subclasses__()
+        }
+        _panel_ids.discard(None)
+        for _mod_name, _cls_name, _idname in (
+            ("ui_panels", "FO4_PT_MeshPanel", "FO4_PT_mesh_panel"),
+            ("content_panels", "FO4_PT_VegetationPanel", "FO4_PT_vegetation_panel"),
+            ("advanced_realism_helpers", "FO4_PT_AdvancedRealismPanel", "FO4_PT_advanced_realism_panel"),
+        ):
+            if _idname in _panel_ids:
+                continue
+            _mod = getattr(init, _mod_name, None) if init else None
+            _cls = getattr(_mod, _cls_name, None) if _mod else None
+            if _cls is None:
+                failed.append(f"{_cls_name}: class not found on {_mod_name} (module missing or renamed)")
+                continue
+            try:
+                existing = getattr(bpy.types, _cls_name, None)
+                if existing is not None:
+                    try:
+                        bpy.utils.unregister_class(existing)
+                    except Exception:
+                        pass
+                bpy.utils.register_class(_cls)
+                fixed.append(f"re-registered {_cls_name}")
+            except Exception as exc:
+                failed.append(f"re-register {_cls_name}: {exc}")
+
         # ── Step 3: retry failed module imports ───────────────────────────────
         if init:
             for name in _TRACKED_MODULES:
