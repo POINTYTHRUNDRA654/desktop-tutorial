@@ -59,8 +59,6 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
 
   // SS2 "Reality Check" grading state — local-only feature, see loadGradingEngine() above.
   const [referenceMods, setReferenceMods] = useState<LocalReferenceModSummary[]>([]);
-  const [newReferenceModId, setNewReferenceModId] = useState('');
-  const [addingReferenceMod, setAddingReferenceMod] = useState(false);
   const [newReferenceFolder, setNewReferenceFolder] = useState('');
   const [addingReferenceFolder, setAddingReferenceFolder] = useState(false);
   const [gradingScriptId, setGradingScriptId] = useState<string | null>(null);
@@ -102,33 +100,6 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
     const latestByScript: Record<string, LocalGradeRecord> = {};
     for (const record of history) latestByScript[record.scriptId] = record; // append-order history — last wins = latest grade
     setGradeResults(latestByScript);
-  };
-
-  const handleAddReferenceMod = async () => {
-    if (!newReferenceModId.trim()) {
-      toast.error('Enter a Nexus mod ID first.');
-      return;
-    }
-    setAddingReferenceMod(true);
-    try {
-      const engine = await loadGradingEngine();
-      if (!engine) {
-        toast.error('Reality Check grading engine is not available in this build.');
-        return;
-      }
-      const result = await engine.addReferenceMod(newReferenceModId.trim());
-      if (result?.success) {
-        toast.success(`Added "${result.modName || newReferenceModId}" — ${result.buildingPlanCount || 0} plot(s), ${result.cityPlanCount || 0} city plan(s) mined.`);
-        setNewReferenceModId('');
-        await loadReferenceMods();
-      } else {
-        toast.error(`Failed to add reference mod: ${result?.error || 'unknown error'}`);
-      }
-    } catch (error) {
-      toast.error(`Error adding reference mod: ${error}`);
-    } finally {
-      setAddingReferenceMod(false);
-    }
   };
 
   const handleRemoveReferenceMod = async (modId: string) => {
@@ -830,34 +801,21 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
             </div>
           )}
 
-          {/* SS2 "Reality Check" Reference Library — local-only feature */}
+          {/* SS2 "Reality Check" Reference Library — local-only feature. Nexus-mod-ID-based
+              downloading was removed 2026-09-03 (Nexus Mods data must not be used for AI
+              training/grading) -- mining an already-installed local folder is now the only way
+              to add ground truth here; Mossy performs no download of its own for this. */}
           <div className="bg-gray-700/50 rounded-lg p-4 mt-4">
             <h4 className="text-md font-medium text-white mb-2 flex items-center gap-2">
               <Library className="w-4 h-4 text-purple-400" />
               Reality Check Reference Library
             </h4>
             <p className="text-gray-400 text-xs mb-3">
-              Add a real, downloaded Sim Settlements 2 Building Plan or City Plan addon mod (by Nexus mod ID) as
-              ground truth. Mossy's generated plot/city-plan design docs get graded against the actual parsed
-              records from these mods — local-only, requires Nexus authentication in the Mod Browser.
+              Mine a Sim Settlements 2 Building Plan or City Plan addon mod you already have installed as ground
+              truth. Mossy's generated plot/city-plan design docs get graded against the actual parsed records
+              from these mods. Point it at an already-installed local mod folder (e.g. an MO2 mod folder) below —
+              Mossy doesn't download anything for this itself.
             </p>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newReferenceModId}
-                onChange={(e) => setNewReferenceModId(e.target.value)}
-                placeholder="Nexus mod ID (e.g. 12345)"
-                className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white text-sm"
-              />
-              <button
-                onClick={handleAddReferenceMod}
-                disabled={addingReferenceMod || !newReferenceModId.trim()}
-                className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-2 rounded text-sm whitespace-nowrap"
-              >
-                {addingReferenceMod ? 'Adding…' : 'Add as Reference'}
-              </button>
-            </div>
-            <div className="text-gray-400 text-xs mb-1">Or mine an already-installed local mod folder (e.g. an MO2 mod folder) — no download needed:</div>
             <div className="flex gap-2 mb-3">
               <input
                 type="text"

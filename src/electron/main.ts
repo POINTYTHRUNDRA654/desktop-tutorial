@@ -14027,40 +14027,16 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // SS2 "Reality Check" reference corpus IPC handlers — local-only grading tooling.
-  // Downloads/parses/caches real Sim Settlements 2 addon mods (via modBrowserEngine
-  // above) so GradingEngine can grade Mossy's generated ss2-plot/city-plan design
-  // docs against actually-parsed real Creation Kit records. See
+  // Mines real Sim Settlements 2 addon mods the user already has installed locally
+  // so GradingEngine can grade Mossy's generated ss2-plot/city-plan design docs
+  // against actually-parsed real Creation Kit records. See
   // src/mining/reference-corpus/ (gitignored — never pushed to the public repo).
-  registerHandler('reference-corpus:add', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const { addReferenceMod } = require('../mining/reference-corpus/reference-corpus-manager');
-      const result = await addReferenceMod(modId);
-      auditLogger.log({
-        operation: 'reference-corpus',
-        tool: 'reference-corpus',
-        action: 'add',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result
-      });
-      return { success: true, ...result };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] reference-corpus:add error:', errMsg);
-      auditLogger.log({
-        operation: 'reference-corpus',
-        tool: 'reference-corpus',
-        action: 'add',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
+  //
+  // A Nexus-mod-ID-based 'reference-corpus:add' handler used to live here, downloading
+  // the mod via modBrowserEngine before mining it. Removed 2026-09-03: Nexus Mods data
+  // must not be used for AI training/grading, and this corpus feeds both GradingEngine
+  // and the Unsloth fine-tune dataset builder. add-from-folder below is local-only —
+  // Mossy performs no network fetch of its own for this feature anymore.
   registerHandler('reference-corpus:add-from-folder', async (_event, folderPath: string) => {
     const startTime = Date.now();
     try {
