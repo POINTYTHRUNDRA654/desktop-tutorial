@@ -3688,8 +3688,8 @@ class FO4_OT_SetupLeafCard(Operator):
 
     @staticmethod
     def _find_existing_diffuse_image(obj):
-        """Return the bpy.data.images.Image already wired into obj's first
-        material's diffuse/base-color texture node, if any.
+        """Return the bpy.data.images.Image that best represents obj's
+        existing diffuse/base-color texture, if any.
 
         Imported NIFs already arrive with their real material and texture
         assigned -- this used to be ignored entirely (texture_path only ever
@@ -3697,28 +3697,83 @@ class FO4_OT_SetupLeafCard(Operator):
         property), so setting up a leaf card on a normally-imported mesh
         started from a BLANK texture every time, even though the correct one
         was sitting right there on the mesh already.
+
+        Broadened (2026-09-03): the original version only matched nodes
+        literally named/labelled "diffuse" or "base color", and only found a
+        BSDF-linked texture if it was wired DIRECTLY into Base Color with no
+        nodes in between. Real imported materials often name the node after
+        the source file ("MyLeaf_d", "leaf01_albedo", etc.) and/or route the
+        texture through a Mix/Gamma/Group node before Base Color, so that
+        narrow check frequently found nothing and left the picker blank even
+        though a perfectly good texture was sitting right on the mesh.
         """
         if not obj or not obj.data.materials:
             return None
-        mat = obj.data.materials[0]
-        if not mat or not mat.use_nodes or not mat.node_tree:
-            return None
-        for node in mat.node_tree.nodes:
-            if node.type != 'TEX_IMAGE' or not node.image:
-                continue
-            name_low = (node.name or "").lower()
-            label_low = (node.label or "").lower()
-            if "diffuse" in name_low or "diffuse" in label_low or "base color" in label_low:
-                return node.image
-        # No node clearly labelled diffuse -- fall back to whatever's wired
-        # into the BSDF's Base Color input, if the material has one.
-        bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
-        if bsdf:
-            base_color = bsdf.inputs.get('Base Color')
-            if base_color and base_color.is_linked:
-                src = base_color.links[0].from_node
+
+        _AVOID = ("normal", "nrm", "_n.", "spec", "gloss", "rough", " ao",
+                  "occlusion", "glow", "emissive", "emit", "height",
+                  "displace", "opacity_mask", "alpha_mask", "mask")
+        _PREFER = ("diffuse", "basecolor", "base color", "albedo", "_d.", "color")
+
+        def _score(node):
+            text = f"{(node.name or '').lower()} {(node.label or '').lower()}"
+            if any(k in text for k in _AVOID):
+                return -1
+            if any(k in text for k in _PREFER):
+                return 2
+            return 0
+
+        def _walk_back_for_tex(socket, depth=0, seen=None):
+            """Follow a Base Color input backward through pass-through nodes
+            (Mix, Gamma, Hue/Sat, reroute, group, ...) looking for the first
+            Image Texture node feeding it, up to a few hops."""
+            if seen is None:
+                seen = set()
+            if depth > 4 or not socket.is_linked:
+                return None
+            for link in socket.links:
+                src = link.from_node
+                if src in seen:
+                    continue
+                seen.add(src)
                 if src.type == 'TEX_IMAGE' and src.image:
                     return src.image
+                for inp in getattr(src, "inputs", []):
+                    found = _walk_back_for_tex(inp, depth + 1, seen)
+                    if found:
+                        return found
+            return None
+
+        best, best_score = None, -1
+        for mat in obj.data.materials:
+            if not mat or not mat.use_nodes or not mat.node_tree:
+                continue
+            for node in mat.node_tree.nodes:
+                if node.type != 'TEX_IMAGE' or not node.image:
+                    continue
+                score = _score(node)
+                if score > best_score:
+                    best, best_score = node.image, score
+            bsdf = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if bsdf:
+                base_color = bsdf.inputs.get('Base Color')
+                if base_color:
+                    img = _walk_back_for_tex(base_color)
+                    if img is not None and best_score < 3:
+                        best, best_score = img, 3
+        if best is not None:
+            return best
+
+        # Last resort: ANY image texture node with a real image assigned,
+        # anywhere on the object's materials -- still better than forcing
+        # the user to browse for a file that's already on the mesh. Skips
+        # anything that scored -1 above (normal/spec/etc maps).
+        for mat in obj.data.materials:
+            if not mat or not mat.use_nodes or not mat.node_tree:
+                continue
+            for node in mat.node_tree.nodes:
+                if node.type == 'TEX_IMAGE' and node.image and _score(node) >= 0:
+                    return node.image
         return None
 
     def invoke(self, context, event):
@@ -3827,15 +3882,18 @@ class FO4_OT_SetupLeafCard(Operator):
                     out.location = (500, 0)
                 links.new(bsdf.outputs['BSDF'], out.inputs['Surface'])
 
+            # Find the node that actually carries the existing diffuse image
+            # (not just one named "diffuse") -- same broadened search used to
+            # pre-fill the dialog, so what gets reused here matches what the
+            # user saw pre-filled, instead of a narrower name-only check that
+            # could miss it and silently create a duplicate node/image.
+            existing_img_for_reuse = self._find_existing_diffuse_image(obj)
             tex_node = None
-            for node in nodes:
-                if node.type != 'TEX_IMAGE' or not node.image:
-                    continue
-                name_low = (node.name or "").lower()
-                label_low = (node.label or "").lower()
-                if "diffuse" in name_low or "diffuse" in label_low or "base color" in label_low:
-                    tex_node = node
-                    break
+            if existing_img_for_reuse is not None:
+                tex_node = next(
+                    (n for n in nodes if n.type == 'TEX_IMAGE' and n.image == existing_img_for_reuse),
+                    None,
+                )
 
             if tex_node is None and self.texture_path and _os.path.exists(self.texture_path):
                 # No diffuse node existed on the original material (or the
