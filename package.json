@@ -18,7 +18,10 @@
     "tar": "^7.5.10",
     "basic-ftp": "^5.2.0",
     "@tootallnate/once": "^3.0.1",
-    "minimatch": "^10.2.3"
+    "minimatch": "^10.2.3",
+    "@electron/asar": {
+      "minimatch": "^3.0.4"
+    }
   },
   "scripts": {
     "install:hooks": "sh scripts/setup-git-hooks.sh",

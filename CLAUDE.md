@@ -67,7 +67,7 @@ Note: `AutomationManager.tsx` is a separate platform at `/tools/automation` ("FO
 
 ### Deploying changes to the running app
 
-**`deploy-full.cjs` is retired — do not recreate it.** It extracted the *current*
+**`deploy-full.cjs` (and its undocumented `deploy-full.mjs` sibling, found and retired 2026-09-03 -- same design, just never deleted the first time) are retired -- do not recreate either.** They extracted the *current*
 `app.asar`, overlaid new `dist`/`dist-electron`, and repacked in place. That's
 broken by construction against this build config: `electron-builder` stamps an
 asar-integrity hash into `Mossy NVIDIA.exe` itself at package time, so any
@@ -124,7 +124,7 @@ print(len(d), 'bytes,', d.count(b'\x00'), 'nulls,', d.count(b'\n'), 'lines')
 
 **The pre-build check** (`scripts/precheck-renderer.mjs`) now catches null bytes and aborts the build before Vite compiles corrupt files.
 
-**The Vite build requires Windows:** `npm run build` uses Rollup native binaries compiled for Windows. It cannot run in the Linux bash sandbox. After editing source files in the sandbox, the user must run `npm run build && node deploy-full.cjs` on Windows.
+**The Vite build requires Windows:** `npm run build` uses Rollup native binaries compiled for Windows. It cannot run in the Linux bash sandbox. After editing source files in the sandbox, the user must run the full `electron-builder` deploy documented above (steps 3-7 under "Deploying changes to the running app") on Windows -- never `deploy-full.cjs`/`.mjs`, both retired.
 
 ## Standards
 
