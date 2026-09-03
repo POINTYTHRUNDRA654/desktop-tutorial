@@ -32,6 +32,17 @@ const ELECTRON_SRC = join(ROOT, 'src', 'electron');
 
 const CURLY_QUOTES = /[‘’“”]/g;
 
+// Files that legitimately contain literal curly-quote characters as data --
+// e.g. the TTS sanitizer's own "detect and strip curly quotes" regex/tests --
+// rather than as an accidental smart-quote typo that would break esbuild.
+// Every hit in these files was checked by hand and confirmed to sit inside a
+// properly-delimited string or regex literal (so esbuild parses it fine);
+// keep this list short and specific rather than loosening the check itself.
+const CURLY_QUOTE_ALLOWLIST = new Set([
+  join('renderer', 'src', 'utils', 'sanitizeForSpeech.ts'),
+  join('renderer', 'src', 'utils', 'sanitizeForSpeech.test.ts'),
+]);
+
 function* walkTs(dir) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -90,6 +101,10 @@ console.log('\n► precheck-renderer: scanning for curly/smart quotes…');
 let curlyErrors = 0;
 
 for (const filePath of walkTs(RENDERER_SRC)) {
+  const relToSrc = relative(join(ROOT, 'src'), filePath);
+  if (CURLY_QUOTE_ALLOWLIST.has(relToSrc)) {
+    continue;
+  }
   const hits = findCurlyQuotes(filePath);
   if (hits.length > 0) {
     const rel = relative(ROOT, filePath);
