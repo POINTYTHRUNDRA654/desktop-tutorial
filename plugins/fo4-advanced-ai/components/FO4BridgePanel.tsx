@@ -156,7 +156,9 @@ const FO4BridgePanel: React.FC = () => {
     try {
       const data = await bridgeFetch('/log?n=100');
       setLogLines(data.lines || []);
-    } catch {}
+    } catch {
+      // Transient poll failure (bridge briefly offline) -- next poll retries.
+    }
   }, [bridgeOnline]);
 
   const fetchNPCs = useCallback(async () => {
@@ -164,7 +166,9 @@ const FO4BridgePanel: React.FC = () => {
     try {
       const data = await bridgeFetch('/memory/npcs');
       setNpcs(data.npcs || []);
-    } catch {}
+    } catch {
+      // Transient poll failure (bridge briefly offline) -- next poll retries.
+    }
   }, [bridgeOnline]);
 
   const fetchNPCDetail = useCallback(async (npcId: string) => {
@@ -173,7 +177,9 @@ const FO4BridgePanel: React.FC = () => {
       setSelectedNPC(data);
       setSelectedNPCId(npcId);
       setActiveTab('npc');
-    } catch {}
+    } catch {
+      // Fetch failed -- leave the previous selection/detail state untouched.
+    }
   }, []);
 
   const connect = useCallback(async () => {
