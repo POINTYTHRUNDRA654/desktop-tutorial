@@ -133,6 +133,10 @@ export class ModBrowserEngine {
           headers: {
             apikey: this.nexusApiKey as string,
             accept: 'application/json',
+            // Nexus Mods AUP requires registered apps to identify themselves via these two
+            // headers on every request (see https://help.nexusmods.com/article/114-api-acceptable-use-policy).
+            'Application-Name': 'Mossy',
+            'Application-Version': '5.6.0',
             'user-agent': 'Mossy/ModBrowser',
           },
         },
