@@ -4549,7 +4549,7 @@ class FO4_OT_ExportCKAssetBundle(Operator):
         return safe.strip("._") or "Asset"
 
     @staticmethod
-    def _collect_material_texture_paths(mat) -> list[str]:
+    def _collect_material_texture_paths(mat, output_dir=None) -> list[str]:
         if mat is None or not getattr(mat, "use_nodes", False) or not mat.node_tree:
             return []
         # Substring match (case-insensitive), not exact match: this addon's
@@ -4572,9 +4572,21 @@ class FO4_OT_ExportCKAssetBundle(Operator):
             img = getattr(node, "image", None)
             if not img:
                 continue
-            p = getattr(img, "filepath", "") or ""
+            # Packed/embedded images (e.g. glTF import with "Pack Images",
+            # Blender's default) have no filepath -- fall back to unpacking
+            # a temp copy so they aren't silently dropped here too.
+            p = None
+            if nvtt_helpers:
+                if output_dir is None:
+                    import tempfile as _tempfile
+                    output_dir = _tempfile.mkdtemp(prefix="fo4_ck_tex_")
+                p = nvtt_helpers.NVTTHelpers._resolve_image_source_path(img, output_dir)
+            elif getattr(img, "filepath", ""):
+                candidate = bpy.path.abspath(img.filepath)
+                if _os.path.exists(candidate):
+                    p = candidate
             if p:
-                paths.append(bpy.path.abspath(p))
+                paths.append(p)
         return paths
 
     def execute(self, context):
@@ -4626,7 +4638,7 @@ class FO4_OT_ExportCKAssetBundle(Operator):
 
             if self.copy_textures and obj.data.materials:
                 for mat in obj.data.materials:
-                    for src in self._collect_material_texture_paths(mat):
+                    for src in self._collect_material_texture_paths(mat, output_dir=tex_dir):
                         src_norm = _os.path.normcase(_os.path.normpath(src))
                         if src_norm in copied_src:
                             continue

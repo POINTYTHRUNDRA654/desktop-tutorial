@@ -1553,8 +1553,14 @@ def export_textures_for_object(
             if node.type != 'TEX_IMAGE' or not node.image:
                 continue
             img = node.image
+            src_path = ""
             try:
-                src_path = bpy.path.abspath(img.filepath) if img.filepath else ""
+                if _nvtt:
+                    src_path = _nvtt.NVTTHelpers._resolve_image_source_path(img, output_dir) or ""
+                elif img.filepath:
+                    candidate = bpy.path.abspath(img.filepath)
+                    if os.path.isfile(candidate):
+                        src_path = candidate
             except Exception:
                 src_path = ""
             if not src_path or not os.path.isfile(src_path):
