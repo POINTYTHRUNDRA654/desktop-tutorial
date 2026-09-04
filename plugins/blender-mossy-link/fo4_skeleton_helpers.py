@@ -59,11 +59,20 @@ class SkeletonAlignmentWizard:
         if not hasattr(bpy.ops.import_scene, 'pynifly'):
             return False, "Skeleton import requires PyNifly — install it via the Setup & Status tab", None
         try:
-            bpy.ops.import_scene.pynifly(filepath=skeleton_nif_path)
+            _before = set(bpy.context.scene.objects)
+            _result = bpy.ops.import_scene.pynifly(filepath=skeleton_nif_path)
+            _new = [o for o in bpy.context.scene.objects if o not in _before]
+            if 'CANCELLED' in _result or not _new:
+                return False, (
+                    f"PyNifly did not import the skeleton (result={_result!r})"
+                ), None
             # Scale from FO4 game units to Blender metres (÷70) and tag for export.
+            # Uses the real before/after diff above, not bpy.context.selected_objects
+            # -- a stale selection left over from before this call could otherwise
+            # get mis-scaled/renamed "FO4_Skeleton" if the import silently no-op'd.
             _fo4_scale = 1.0 / 69.99125
             _scalable = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE'}
-            _imported = [o for o in bpy.context.selected_objects if o.type in _scalable]
+            _imported = [o for o in _new if o.type in _scalable]
             bpy.ops.object.select_all(action='DESELECT')
             for _obj in _imported:
                 bpy.context.view_layer.objects.active = _obj

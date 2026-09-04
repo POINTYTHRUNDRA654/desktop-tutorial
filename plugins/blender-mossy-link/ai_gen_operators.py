@@ -956,9 +956,10 @@ class FO4_OT_GenerateMotionAuto(Operator):
         else:
             self.report({'WARNING'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
-        
+            return {'CANCELLED'}
+
         return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
@@ -1510,7 +1511,8 @@ class FO4_OT_OptimizeGET3DMesh(Operator):
         else:
             self.report({'WARNING'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
-        
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
 
@@ -1990,7 +1992,8 @@ class FO4_OT_OptimizeNERFMesh(Operator):
         else:
             self.report({'WARNING'}, message)
             notification_system.FO4_NotificationSystem.notify(message, 'WARNING')
-        
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
 

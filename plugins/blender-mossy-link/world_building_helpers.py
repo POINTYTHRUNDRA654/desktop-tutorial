@@ -163,18 +163,29 @@ class WorkshopHelpers:
         # Create snap point empties
         snap_points = []
         
-        # Top snap point
-        bpy.ops.object.empty_add(type='CUBE', radius=0.1, location=(0, 0, obj.dimensions.z))
+        # Top snap point. empty_add's location is a WORLD-space coordinate,
+        # not relative to obj -- (0, 0, obj.dimensions.z) previously placed
+        # this at world origin + height regardless of where obj actually is,
+        # instead of at obj's own position + height. Anchor it off
+        # obj.location so it lands on top of the actual object.
+        bpy.ops.object.empty_add(type='CUBE', radius=0.1,
+            location=(obj.location.x, obj.location.y, obj.location.z + obj.dimensions.z))
         snap_top = bpy.context.active_object
         snap_top.name = f"{obj.name}_Snap_Top"
+        # Direct .parent assignment doesn't set matrix_parent_inverse the way
+        # Ctrl+P does -- without it the snap point jumps away from the
+        # position just set above as soon as obj has any non-identity
+        # rotation/scale.
         snap_top.parent = obj
+        snap_top.matrix_parent_inverse = obj.matrix_world.inverted()
         snap_points.append(snap_top)
-        
+
         # Bottom snap point
-        bpy.ops.object.empty_add(type='CUBE', radius=0.1, location=(0, 0, 0))
+        bpy.ops.object.empty_add(type='CUBE', radius=0.1, location=obj.location)
         snap_bottom = bpy.context.active_object
         snap_bottom.name = f"{obj.name}_Snap_Bottom"
         snap_bottom.parent = obj
+        snap_bottom.matrix_parent_inverse = obj.matrix_world.inverted()
         snap_points.append(snap_bottom)
         
         return snap_points

@@ -140,10 +140,16 @@ The root panel. Always visible at the top of the tab.
   decimated to *simplify* the shape). Use this instead of Generate
   Collision Mesh whenever the mesh has an opening that must stay passable
   — heavier at runtime than a convex hull, so keep the source mesh's poly
-  count reasonable. If the exact copy would exceed FO4's real 255-vertex
-  Havok collision limit (confirmed via a real export crash), it's
-  automatically decimated down just enough to fit — still far better at
-  preserving real openings than falling back to a sealed hull.
+  count reasonable. If the exact copy would exceed FO4's real Havok
+  collision limits — 255 vertices AND 255 triangles, two separate
+  constraints (confirmed via real export crashes) — it's automatically
+  decimated down just enough to fit both, still far better at preserving
+  real openings than falling back to a sealed hull. Doorway/window/cutout
+  boundaries are specifically protected from that decimation pass (a plain
+  ratio-based decimate has no idea a thin frame around an opening matters,
+  and will strip it first) — verified directly on a real cut-doorway mesh:
+  the opening's edge loop survived exactly intact even while the rest of
+  the collision mesh was cut by more than half.
 - Collision type dropdown: STATIC (immovable), DYNAMIC (can be picked up)
 - All collision objects (both buttons above) render as a see-through
   wireframe overlay in the viewport, never as a solid/textured mesh —
@@ -475,11 +481,24 @@ unchanged single-object tools — see their own labels in-panel.
   Pauldron L/R, Gauntlet L/R, Boot, Full Body, Cape, Robe, Skirt, …); tags
   the selected mesh(es) with that type's real biped slot(s) — see table below.
 - **Auto-Weight Armor** — Blender's built-in automatic weights: select the
-  mesh(es) plus an armature (armature active), then run this.
-- **Mirror Weights** — Blender's built-in vertex group mirror, left/right.
+  mesh(es) plus an armature (armature active), then run this. Recomputes
+  any existing vertex group whose name matches a real bone in the target
+  armature, so on a mesh that's already correctly skinned (e.g. imported
+  already-weighted from Daz/Marvelous Designer/G3) it can degrade real
+  weight data. If any selected mesh already has weight data, a confirmation
+  dialog names which piece(s) are at risk before proceeding — click through
+  it, or select only unweighted meshes to skip the prompt entirely.
+- **Mirror Weights** — Blender's built-in vertex group mirror, left/right,
+  mirroring every vertex group on the mesh (not just whichever one happens
+  to be active).
 - **Export All Selected Pieces (.nif each)** — exports every selected armor
   piece to its own correctly-named NIF (vanilla FO4 armor is always separate
-  NIFs per piece, not one merged file).
+  NIFs per piece, not one merged file). Object names are sanitized for
+  filesystem-illegal characters before becoming filenames — PyNifly's own
+  "ShapeName:Index" naming (e.g. "Body:0", common on ordinary vanilla FO4
+  armor) contains a colon, which NTFS reads as an Alternate Data Stream
+  separator; unsanitized, the export would silently succeed while writing
+  the real NIF into a hidden stream on an empty, invisible file.
 
 **Biped slot reference** (this addon's own `ARMOR_TYPE_CONFIG` mapping,
 used by Assign Biped Slot and the ESP Generator's ARMO/ARMA records):

@@ -6,6 +6,7 @@ Consolidates various image-to-3D solutions for Fallout 4 modding
 import bpy
 import importlib.util
 import os
+import sys
 from .path_utils import candidate_paths, find_first
 import subprocess
 import shutil
@@ -168,49 +169,108 @@ class ImageTo3DHelpers:
             return False, install_msg
     
     @staticmethod
-    def convert_image_to_3d_triposr(image_path, output_path=None):
+    def convert_image_to_3d_triposr(image_path, output_path=None, timeout=300):
         """
-        Convert single image to 3D using TripoSR
-        
+        Convert a single image to 3D using a local TripoSR installation by
+        actually running its CLI (``run.py``) as a subprocess.
+
+        This used to ALWAYS return success=False, with a wall of manual
+        "run this yourself in a terminal" instructions as the message, and
+        never invoked anything -- confirmed by grepping this whole module:
+        no subprocess call anywhere referenced TripoSR. FO4_OT_ImageToMeshFO4
+        (the "Image -> FO4 Mesh" operator) advertises "via Mossy AI or local
+        TripoSR" as a working automatic fallback, and is_triposr_available()
+        does a real install check to gate whether this path is even offered
+        -- but clicking the button with Mossy offline and TripoSR correctly
+        detected as installed just printed instructions and cancelled. This
+        runs the exact command those instructions always told the user to
+        run by hand, via Blender's own bundled Python interpreter
+        (sys.executable), so it actually produces a mesh instead of asking
+        the user to leave Blender and do it themselves.
+
         Args:
             image_path: Path to input image
-            output_path: Path for output mesh (optional)
-        
-        Returns: (bool success, str message, str output_file)
+            output_path: Path for output mesh (optional; defaults to a fresh
+                temp file so repeated runs never collide or get confused
+                with a stale file left over from a previous, unrelated run)
+            timeout: seconds to wait for TripoSR to finish. TripoSR's own
+                docs claim ~5s on GPU, but a first run also downloads model
+                weights and a CPU-only run is much slower -- default 5 min.
+
+        Returns: (bool success, str message, str output_file_or_None)
         """
         triposr_path = ImageTo3DHelpers.find_triposr_path()
-        
+
         if not triposr_path:
             return False, "TripoSR not installed", None
-        
+
         if not os.path.exists(image_path):
             return False, f"Image not found: {image_path}", None
-        
-        # Determine output path
+
+        run_script = os.path.join(triposr_path, "run.py")
+        if not os.path.isfile(run_script):
+            return False, (
+                f"TripoSR install at {triposr_path} is missing run.py -- "
+                f"reinstall or check the path in TripoSR settings."
+            ), None
+
+        # Determine output path -- a fresh temp file/dir by default rather
+        # than a bare relative filename, which used to land wherever the
+        # CLI's cwd happened to be with no guarantee it was writable or
+        # collision-free across repeated runs.
         if output_path is None:
+            import tempfile as _tempfile
+            _out_dir = _tempfile.mkdtemp(prefix="fo4_triposr_")
             base_name = os.path.splitext(os.path.basename(image_path))[0]
-            output_path = f"{base_name}_triposr.obj"
-        
-        # Instructions for running TripoSR
-        msg = (
-            "To convert image to 3D with TripoSR:\n\n"
-            f"1. Navigate to: {triposr_path}\n"
-            "2. Run TripoSR:\n"
-            f"   python run.py {image_path} --output {output_path}\n\n"
-            "   OR for batch processing:\n"
-            f"   python run.py {os.path.dirname(image_path)}/ --output ./output/\n\n"
-            "3. Import generated mesh:\n"
-            "   - Use 'Import' operator in Blender\n"
-            "   - Or use File → Import → Wavefront (.obj)\n\n"
-            "TIPS:\n"
-            "- Best results with clear, well-lit object photos\n"
-            "- White/neutral background recommended\n"
-            "- Object should fill most of frame\n"
-            "- Inference takes ~5 seconds on GPU\n"
-            "- Output includes texture map\n"
-        )
-        
-        return False, msg, None
+            output_path = os.path.join(_out_dir, f"{base_name}_triposr.obj")
+        output_path = os.path.abspath(output_path)
+        try:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        except OSError:
+            pass
+
+        cmd = [
+            sys.executable, "run.py",
+            os.path.abspath(image_path),
+            "--output", output_path,
+        ]
+        try:
+            result = subprocess.run(
+                cmd, cwd=triposr_path,
+                capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return False, (
+                f"TripoSR timed out after {timeout}s -- pass a larger "
+                f"timeout, or check that CUDA is actually being used "
+                f"(CPU-only inference is much slower)."
+            ), None
+        except Exception as exc:
+            return False, f"Failed to launch TripoSR: {exc}", None
+
+        if result.returncode != 0:
+            tail = "\n".join(
+                (result.stderr or result.stdout or "").strip().splitlines()[-15:]
+            ) or "(no output captured)"
+            return False, f"TripoSR exited with code {result.returncode}:\n{tail}", None
+
+        if not os.path.isfile(output_path):
+            # Some TripoSR forks/versions treat --output as a directory and
+            # write a fixed mesh.obj inside it rather than honoring it as an
+            # exact file path. Check that convention before treating a
+            # returncode of 0 with no file at the expected path as success.
+            alt_dir = output_path if os.path.isdir(output_path) else os.path.dirname(output_path)
+            alt = os.path.join(alt_dir, "mesh.obj")
+            if os.path.isfile(alt):
+                output_path = alt
+            else:
+                tail = "\n".join((result.stdout or "").strip().splitlines()[-10:])
+                return False, (
+                    f"TripoSR reported success (exit 0) but no output mesh "
+                    f"was found at {output_path}. Output tail:\n{tail}"
+                ), None
+
+        return True, f"TripoSR generated mesh: {os.path.basename(output_path)}", output_path
     
     @staticmethod
     def find_triposr_texture_gen_path():
@@ -1981,18 +2041,25 @@ def generate_and_import(image_path):
     temp_obj = tempfile.mktemp(suffix='.obj')
     mesh.export(temp_obj)
     
-    # Import to Blender
+    # Import to Blender. bpy.ops calls don't raise when the operator
+    # declines to run -- they return {'CANCELLED'}, never an exception --
+    # so always check the result and use a before/after object diff rather
+    # than assuming success or trusting the current selection.
+    before = set(bpy.context.scene.objects)
     if hasattr(bpy.ops.wm, 'obj_import'):
-        bpy.ops.wm.obj_import(filepath=temp_obj)
+        result = bpy.ops.wm.obj_import(filepath=temp_obj)
     else:
-        bpy.ops.import_scene.obj(filepath=temp_obj)
-    
+        result = bpy.ops.import_scene.obj(filepath=temp_obj)
+    new_objs = [o for o in bpy.context.scene.objects if o not in before]
+    if 'CANCELLED' in set(result or ()) or not new_objs:
+        raise RuntimeError(f"OBJ import did not add anything (result={result!r})")
+
     # Get imported object
-    obj = bpy.context.selected_objects[0]
-    
+    obj = new_objs[0]
+
     # Optimize for FO4
     optimize_for_fo4(obj)
-    
+
     return obj
 
 def optimize_for_fo4(obj):
@@ -2038,12 +2105,19 @@ def batch_import_from_folder(folder_path):
         obj_path = os.path.join(folder_path, obj_name)
         mesh.export(obj_path)
         
-        # Import to Blender
+        # Import to Blender. bpy.ops calls don't raise when the operator
+        # declines to run -- always check the result, it comes back as
+        # {'CANCELLED'} rather than an exception when the import is declined.
+        before = set(bpy.context.scene.objects)
         if hasattr(bpy.ops.wm, 'obj_import'):
-            bpy.ops.wm.obj_import(filepath=obj_path)
+            result = bpy.ops.wm.obj_import(filepath=obj_path)
         else:
-            bpy.ops.import_scene.obj(filepath=obj_path)
-        
+            result = bpy.ops.import_scene.obj(filepath=obj_path)
+        new_objs = [o for o in bpy.context.scene.objects if o not in before]
+        if 'CANCELLED' in set(result or ()) or not new_objs:
+            print(f"Import failed for {obj_name} (result={result!r})")
+            continue
+
         print(f"Imported: {obj_name}")
 
 # Usage
@@ -2072,10 +2146,17 @@ class CustomTripoSRPipeline:
         temp_path = tempfile.mktemp(suffix='.obj')
         mesh.export(temp_path)
         
-        # Import to Blender
-        bpy.ops.import_scene.obj(filepath=temp_path)
-        obj = bpy.context.selected_objects[0]
-        
+        # Import to Blender. bpy.ops calls don't raise when the operator
+        # declines to run -- always check the result and use a before/after
+        # object diff rather than the current selection, which can still
+        # hold a leftover object from before this call.
+        before = set(bpy.context.scene.objects)
+        result = bpy.ops.import_scene.obj(filepath=temp_path)
+        new_objs = [o for o in bpy.context.scene.objects if o not in before]
+        if 'CANCELLED' in set(result or ()) or not new_objs:
+            raise RuntimeError(f"OBJ import did not add anything (result={result!r})")
+        obj = new_objs[0]
+
         # Analyze quality
         bpy.ops.fo4.analyze_mesh_quality()
         
@@ -2848,16 +2929,23 @@ def generate_asset_from_text(prompt):
     temp_obj = tempfile.mktemp(suffix='.obj')
     mesh.export(temp_obj)
     
-    # Import to Blender
+    # Import to Blender. bpy.ops calls don't raise when the operator
+    # declines to run -- always check the result and use a before/after
+    # object diff rather than the current selection, which can still hold a
+    # leftover object from before this call.
+    before = set(bpy.context.scene.objects)
     if hasattr(bpy.ops.wm, 'obj_import'):
-        bpy.ops.wm.obj_import(filepath=temp_obj)
+        result = bpy.ops.wm.obj_import(filepath=temp_obj)
     else:
-        bpy.ops.import_scene.obj(filepath=temp_obj)
-    obj = bpy.context.selected_objects[0]
-    
+        result = bpy.ops.import_scene.obj(filepath=temp_obj)
+    new_objs = [o for o in bpy.context.scene.objects if o not in before]
+    if 'CANCELLED' in set(result or ()) or not new_objs:
+        raise RuntimeError(f"OBJ import did not add anything (result={result!r})")
+    obj = new_objs[0]
+
     # Optimize
     bpy.ops.fo4.optimize_mesh()
-    
+
     return obj
 
 # Use in operator

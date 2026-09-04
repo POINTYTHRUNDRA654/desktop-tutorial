@@ -163,41 +163,11 @@ def fix_flipped_uv_islands(obj) -> Tuple[int, int]:
 
     # Simple island detection directly on original (may have quads/ngons):
     # compute signed area per face, then flood-fill.
-    #
-    # IMPORTANT: this flood-fill must only cross an edge when the two faces
-    # are actually continuous IN UV SPACE across it, not merely connected in
-    # 3D mesh topology. A Blender UV "seam" does not split the underlying
-    # mesh edge -- the faces on either side of a seam are still edge-
-    # adjacent in bmesh -- so walking purely by mesh-edge adjacency merges
-    # every UV island that happens to still be mesh-connected into a single
-    # blob. Vegetation/foliage UVs routinely rely on seams to lay out (and
-    # often deliberately mirror, to save texture space) multiple separate
-    # leaf/branch islands on a single connected mesh; merging them here and
-    # then majority-voting the whole blob as "flipped" mirrored perfectly
-    # fine, intentionally-mirrored islands right along with any genuinely
-    # flipped ones -- confirmed as the cause of a real report: textures no
-    # longer lining up in Blender immediately after export, because this
-    # function silently mirrored islands that were never actually wrong.
-    # Treat any edge whose UV coordinates differ between the two faces as an
-    # island boundary, exactly like a real mesh boundary edge.
-    def _uv_continuous_across(edge, face_a, face_b):
-        for v in edge.verts:
-            loop_a = next((lp for lp in face_a.loops if lp.vert == v), None)
-            loop_b = next((lp for lp in face_b.loops if lp.vert == v), None)
-            if loop_a is None or loop_b is None:
-                return False
-            uv_a = loop_a[bm2_uv].uv
-            uv_b = loop_b[bm2_uv].uv
-            if (uv_a - uv_b).length > 1e-5:
-                return False
-        return True
-
     face_area2    = {}
     for f in bm2.faces:
         area = _face_uv_signed_area(f, bm2_uv)
         face_area2[f.index] = area
 
-    face_by_idx2 = {f.index: f for f in bm2.faces}
     edge_to_faces2: dict[int, List[int]] = {}
     for f in bm2.faces:
         for e in f.edges:
@@ -205,6 +175,7 @@ def fix_flipped_uv_islands(obj) -> Tuple[int, int]:
 
     face_visited2: dict[int, int] = {}
     islands2: List[List[int]]     = []
+    face_by_idx2 = {f.index: f for f in bm2.faces}
     iid = 0
     for start_f in bm2.faces:
         if start_f.index in face_visited2:
@@ -217,12 +188,9 @@ def fix_flipped_uv_islands(obj) -> Tuple[int, int]:
                 continue
             face_visited2[fi] = iid
             members.append(fi)
-            cur_face = face_by_idx2[fi]
-            for e in cur_face.edges:
+            for e in face_by_idx2[fi].edges:
                 for nfi in edge_to_faces2.get(e.index, []):
-                    if nfi in face_visited2:
-                        continue
-                    if _uv_continuous_across(e, cur_face, face_by_idx2[nfi]):
+                    if nfi not in face_visited2:
                         stack.append(nfi)
         islands2.append(members)
         iid += 1

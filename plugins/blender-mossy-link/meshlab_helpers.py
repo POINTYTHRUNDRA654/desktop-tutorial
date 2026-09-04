@@ -64,8 +64,13 @@ def _require_pymeshlab():
 def _obj_export(filepath: str) -> bool:
     """Export selected objects to OBJ.  Returns False on failure."""
     try:
+        # bpy.ops calls don't raise when the operator declines to run (no
+        # valid selection, wrong context, etc.) -- they return
+        # {'CANCELLED'}, never an exception. This used to return True
+        # unconditionally as long as the call itself didn't throw. Check
+        # the result and confirm the file actually landed on disk.
         if hasattr(bpy.ops.wm, "obj_export"):
-            bpy.ops.wm.obj_export(
+            _result = bpy.ops.wm.obj_export(
                 filepath=filepath,
                 export_selected_objects=True,
                 apply_modifiers=True,
@@ -75,7 +80,7 @@ def _obj_export(filepath: str) -> bool:
                 export_triangulated_mesh=True,
             )
         else:
-            bpy.ops.export_scene.obj(
+            _result = bpy.ops.export_scene.obj(
                 filepath=filepath,
                 use_selection=True,
                 use_mesh_modifiers=True,
@@ -84,6 +89,9 @@ def _obj_export(filepath: str) -> bool:
                 use_materials=False,
                 use_triangles=True,
             )
+        if 'CANCELLED' in set(_result or ()) or not os.path.isfile(filepath):
+            print(f"[MeshLab] OBJ export did not complete (result={_result!r})")
+            return False
         return True
     except Exception as exc:
         print(f"[MeshLab] OBJ export failed: {exc}")

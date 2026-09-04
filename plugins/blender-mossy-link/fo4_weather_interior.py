@@ -46,7 +46,11 @@ def add_weather_particles(weather_type: str = "RAIN",
     s.object_align_factor[2] = preset["velocity"][2]
     s.particle_size    = preset["size"]
     s.size_random      = 0.3
-    s.render_type      = 'SPHERE'
+    # Blender has no 'SPHERE' render_type -- valid values are
+    # NONE/HALO/LINE/PATH/OBJECT/COLLECTION; HALO is the correct built-in
+    # point-sprite type. Same bug was already fixed for the glow/spore
+    # particle system in fo4_glow_effects.py; this call site was missed.
+    s.render_type      = 'HALO'
     s.physics_type     = 'NEWTON'
     s.drag_factor      = 0.1
     s.effector_weights.gravity = 0.8 if weather_type in ("RAIN","HEAVY_RAIN","SNOW","BLIZZARD") else 0.1

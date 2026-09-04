@@ -385,13 +385,22 @@ class WorkflowTemplate:
                 if len(parts) == 2:
                     module = getattr(bpy.ops, parts[0])
                     operator = getattr(module, parts[1])
-                    
+
                     if params:
-                        operator(**params)
+                        result = operator(**params)
                     else:
-                        operator()
-                    
-                    success_count += 1
+                        result = operator()
+
+                    # bpy.ops calls don't raise when an operator's execute()
+                    # returns {'CANCELLED'} -- only a poll() failure raises.
+                    # This step used to count toward success_count either way,
+                    # so a step that silently no-op'd (e.g. batch export with
+                    # no directory) was reported as having succeeded. Only
+                    # count it if the operator actually finished.
+                    if result is not None and 'FINISHED' not in result:
+                        print(f"Template step {operator_id} did not finish: {result}")
+                    else:
+                        success_count += 1
             except Exception as e:
                 print(f"Error in template step {operator_id}: {e}")
         

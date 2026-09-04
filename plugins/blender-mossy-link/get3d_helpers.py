@@ -192,18 +192,26 @@ class GET3DHelpers:
             # Blender 4.0 in favor of wm.obj_import -- unconditionally
             # calling the old name here raised AttributeError on every
             # currently-supported Blender version this add-on targets.
+            #
+            # bpy.ops calls don't raise when the operator declines to run
+            # (bad file, wrong context) -- they return {'CANCELLED'}, never
+            # an exception. This used to read bpy.context.selected_objects
+            # afterward, which is also unsafe on its own: if a declined
+            # import left the scene selection untouched, whatever the user
+            # already had selected before this call gets reported back as
+            # "the imported mesh". Use a real before/after object diff.
+            _before = set(bpy.context.scene.objects)
             if hasattr(bpy.ops.wm, "obj_import"):
-                bpy.ops.wm.obj_import(filepath=obj_path)
+                _result = bpy.ops.wm.obj_import(filepath=obj_path)
             else:
-                bpy.ops.import_scene.obj(filepath=obj_path)
-            
-            # Get imported object
-            imported_obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None
-            
-            if imported_obj:
-                return True, f"Imported mesh: {imported_obj.name}", imported_obj
-            else:
-                return False, "Failed to import mesh", None
+                _result = bpy.ops.import_scene.obj(filepath=obj_path)
+            _new = [o for o in bpy.context.scene.objects if o not in _before]
+
+            if 'CANCELLED' in set(_result or ()) or not _new:
+                return False, f"Failed to import mesh (result={_result!r})", None
+
+            imported_obj = _new[0]
+            return True, f"Imported mesh: {imported_obj.name}", imported_obj
         
         except Exception as e:
             return False, f"Import failed: {str(e)}", None

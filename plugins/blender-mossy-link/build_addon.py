@@ -50,6 +50,7 @@ EXCLUDE = {
     "*.zip", "*.pyc", "__pycache__",
     "README.md", "GIT_RECOVERY_GUIDE.md", "BUTTON_PATTERN_GUIDE.md",
     "DEVELOPMENT_NOTES.md", "RELEASE_GUIDE.md", "MIGRATION_v5.1.0.md",
+    "CLAUDE.md",
     "COMPLETION_REPORT.md", "BLENDER_EXTENSION_SUBMISSION.md",
     "fix_git_remote.bat", "resolve_conflicts.bat",
     ".DS_Store", "Thumbs.db",

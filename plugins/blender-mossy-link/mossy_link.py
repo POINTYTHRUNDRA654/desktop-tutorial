@@ -241,7 +241,59 @@ _FO4_SYSTEM_CONTEXT = (
     "  used to tear adjacent faces apart on any non-flat ground (ramps, stairs, cave floors).\n"
     "  Generate NavMesh from Selected also now skips collision (UCX_) objects, the SS2 Plot\n"
     "  Builder boundary-guide box/arrow, and hidden objects automatically\n"
-    "- PyMeshLab not installed: Mesh Tools panel → Install PyMeshLab button\n\n"
+    "- PyMeshLab not installed: Mesh Tools panel → Install PyMeshLab button\n"
+    "- Mossy sent an 'operator' command and got back status \"ok\" even though nothing\n"
+    "  visibly changed in Blender: fixed -- the handler used to report \"ok\" for any bpy.ops\n"
+    "  call that didn't raise an exception, even when the operator itself returned CANCELLED\n"
+    "  (no valid selection, wrong active object, etc. -- Blender does this silently, no\n"
+    "  exception). It now reports status \"cancelled\" with the real reason whenever the\n"
+    "  operator didn't return FINISHED, so a no-op is never reported as success\n"
+    "- Smart Presets / Import Asset (NIF) / Import FO4 Skeleton report 'Imported...'\n"
+    "  but nothing actually appeared, or the wrong object got rescaled/renamed: fixed --\n"
+    "  three separate PyNifly-import call sites (mesh_helpers.import_game_nif, Import\n"
+    "  Asset's NIF branch, fo4_skeleton_helpers.import_fo4_skeleton) used to trust\n"
+    "  context.selected_objects as \"what was just imported\" with no before/after check,\n"
+    "  so a silently-declined import could report success and, in the worst case, rescale\n"
+    "  an unrelated pre-selected object instead. All three now diff the scene before/after\n"
+    "  the import call and require real new objects before claiming success\n"
+    "- A texture in the mod folder got replaced by a smaller/blurrier one after\n"
+    "  Export or Install Texture: fixed -- both texture-copy paths\n"
+    "  (install_texture's Data-folder copy, and Export's Meshes->Textures mirror)\n"
+    "  used to overwrite any existing destination file unconditionally with\n"
+    "  whatever was currently loaded in Blender, with no check for what was\n"
+    "  already there. They now read the real DDS header and refuse to replace an\n"
+    "  existing texture with a lower-resolution one, reporting it instead of\n"
+    "  silently doing it -- confirmed against a real incident where a 2K texture\n"
+    "  got overwritten by a 512 one during a normal load + collision + export pass\n"
+    "- Custom Collision (Exact Mesh) blocks a doorway/window that should be walkable,\n"
+    "  even though the visual mesh clearly has the opening: fixed -- on any mesh needing\n"
+    "  decimation to fit the 255-vert/255-tri Havok limit, the decimate pass used to have\n"
+    "  no concept of \"this edge loop matters\" and would strip thin boundary detail\n"
+    "  (doorway/window frames) first, same failure class as the earlier LOD loose-vertex\n"
+    "  bug. Now protects open-boundary vertices from collapse via a vertex group so real\n"
+    "  openings survive decimation intact; drops protection automatically if it stalls\n"
+    "  progress on a heavily fragmented mesh (e.g. foliage built from thousands of\n"
+    "  disconnected leaf/bark islands), and falls back to a convex hull as a last resort\n"
+    "  if decimation still can't reach the hard 255-vert/255-tri limit any other way --\n"
+    "  a real crash was reproduced and fixed on exactly this kind of asset\n"
+    "- Mirror Weights (Armor & Clothing panel) errors 'keyword \"mirror_topology\"\n"
+    "  unrecognized': fixed -- the real Blender 5.x operator parameter is\n"
+    "  use_topology, and all_groups=True is now also set so it actually mirrors\n"
+    "  every vertex group on the mesh, not just whichever one happens to be active\n"
+    "- Export All Selected Pieces reports success but the .nif is nowhere to be found:\n"
+    "  fixed -- object names with a colon (PyNifly's own \"ShapeName:Index\" naming,\n"
+    "  e.g. \"Body:0\", common on ordinary vanilla FO4 armor) were used unsanitized\n"
+    "  as filenames; NTFS reads a colon as the Alternate Data Stream separator, so\n"
+    "  the real NIF silently landed in a hidden stream on an empty, invisible file.\n"
+    "  Confirmed on a real vanilla FO4 armor export. All export paths that build a\n"
+    "  filename from an object name now sanitize it first\n"
+    "- Auto-Weight Armor silently destroyed real weight data on an already-skinned\n"
+    "  mesh: fixed -- Blender's ARMATURE_AUTO only recomputes vertex groups whose\n"
+    "  name matches a real bone in the target armature, so a mesh already correctly\n"
+    "  skinned (e.g. from Daz/Marvelous Designer/G3) can silently lose real weight\n"
+    "  data on those exact groups. Now shows a confirmation dialog naming which\n"
+    "  mesh(es) already have weight data before proceeding, since Undo doesn't help\n"
+    "  once a user has walked away and come back\n\n"
 
     "EXTERNAL TOOL DEFAULT PATHS:\n"
     "- NVTT: D:\\blender_tools\\nvtt\\nvidia-texture-tools-2.1.2-win\\bin\\nvcompress.exe\n"
@@ -633,9 +685,28 @@ def _execute_command_on_main_thread(cmd: dict, bpy) -> dict:
 
         try:
             result = op_func(**params)
-            return {"status": "ok", "result": str(result)}
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
+        # bpy.ops calls don't raise when an operator declines to run -- a
+        # failed poll(), no valid selection, or the documented view3d-context
+        # quirk (see nif_roundtrip.py / export_helpers.py comments) all come
+        # back as {'CANCELLED'} or even an empty set(), never an exception.
+        # Reporting "ok" for those would tell Mossy the action completed when
+        # nothing was actually changed, so check the real return value.
+        result_set = set(result) if result else set()
+        if "FINISHED" in result_set:
+            return {"status": "ok", "result": str(result)}
+        return {
+            "status": "cancelled",
+            "message": (
+                f"Operator {op_id} did not finish (result={result!r}). "
+                f"Blender declined to run it -- likely a context or "
+                f"precondition issue (no valid selection, wrong active "
+                f"object, etc.), not an error. Nothing was changed."
+            ),
+            "result": str(result),
+        }
 
     if cmd_type == "get_context":
         return {"status": "success", "context": _build_scene_context(bpy)}
@@ -736,7 +807,16 @@ def start_server() -> tuple:
     try:
         import bpy
         if not bpy.app.timers.is_registered(_process_command_queue):
-            bpy.app.timers.register(_process_command_queue, first_interval=0.1)
+            # persistent=True -- bpy.app.timers.register() defaults to
+            # non-persistent, and Blender clears every non-persistent timer
+            # on file load (New/Open/Open Recent). Without this, the TCP
+            # server thread keeps accepting connections and queuing commands
+            # after any file load in the same session, but nothing is left
+            # running on the main thread to drain that queue -- every
+            # subsequent Mossy command silently times out. See
+            # advisor_helpers.py's start_auto_monitor() for the same fix
+            # applied to its own timer.
+            bpy.app.timers.register(_process_command_queue, first_interval=0.1, persistent=True)
     except Exception:
         pass
 
@@ -1752,7 +1832,11 @@ def register() -> None:
     try:
         import bpy as _bpy
         if not _bpy.app.timers.is_registered(_health_monitor):
-            _bpy.app.timers.register(_health_monitor, first_interval=5.0)
+            # persistent=True for the same reason as _process_command_queue's
+            # registration above -- otherwise this stops running after any
+            # file load and the auto-reconnect/online-status sync silently
+            # goes stale while the UI keeps showing the last cached status.
+            _bpy.app.timers.register(_health_monitor, first_interval=5.0, persistent=True)
             print("[Mossy Link] Health monitor started (15 s interval)")
     except Exception as exc:
         print(f"[Mossy Link] Could not start health monitor: {exc}")

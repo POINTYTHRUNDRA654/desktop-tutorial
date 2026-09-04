@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Mossy Industries blender addon",
     "author": "Mossy Industries",
-    "version": (5, 3, 1),
+    "version": (5, 3, 3),
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -239,6 +239,9 @@ fo4_lod_generator = _try_import("fo4_lod_generator")
 # UV validation and repair tools (flipped-island detection, pre-export fix)
 fo4_uv_tools = _try_import("fo4_uv_tools")
 
+# Interactive click-driven UV seam authoring (branch ring-seam / split-seam tools)
+fo4_seam_tools = _try_import("fo4_seam_tools")
+
 # Shared canonical bone-name constants (no operators, no register() needed)
 fo4_bone_names = _try_import("fo4_bone_names")
 
@@ -312,6 +315,7 @@ _PHASE1_MODULES = list(filter(_filter, [
     fo4_pipeline,
     fo4_lod_generator,
     fo4_uv_tools,
+    fo4_seam_tools,
     fo4_advanced_materials,
     fo4_material_browser,
     fo4_plane_thickener,
@@ -584,57 +588,11 @@ def register():
 
         return None  # don't reschedule
 
-    # ── Phase 2b: self-heal pass, 3 s after Phase 2 ──────────────────────────
-    # Occasionally, on a fresh install (cold disk cache, antivirus scanning the
-    # just-extracted zip, etc.) a Phase 2 panel whose bl_parent_id points at a
-    # Phase 1 panel (e.g. FO4_PT_VegetationPanel -> FO4_PT_mesh_panel) fails to
-    # register with a "parent ... not found" error even though the parent class
-    # itself registers fine moments later. Symptom seen in the field: Vegetation
-    # & Landscaping (and potentially its content_panels.py siblings) missing
-    # from the N-panel after a clean install, then present again after simply
-    # restarting Blender — i.e. a one-shot startup race, not a code defect.
-    # Rather than requiring the user to notice and click "Auto-Fix Issues"
-    # manually, re-check every Phase 2 module's `classes` tuple against what's
-    # actually registered and silently retry any stragglers.
-    def _phase2_selfheal():
-        try:
-            _registered = {
-                getattr(c, "bl_idname", None)
-                for c in bpy.types.Panel.__subclasses__()
-            }
-            _registered.discard(None)
-            _healed = []
-            for _mod in _PHASE2_MODULES:
-                _mod_classes = getattr(_mod, "classes", None)
-                if not _mod_classes:
-                    continue
-                _missing = [
-                    c for c in _mod_classes
-                    if getattr(c, "bl_idname", c.__name__) not in _registered
-                ]
-                if not _missing:
-                    continue
-                try:
-                    _mod.register()  # module register() is already self-healing per-class
-                    _name = getattr(_mod, "__name__", str(_mod))
-                    _healed.append(f"{_name} ({len(_missing)} class(es))")
-                except Exception as _e:
-                    _name = getattr(_mod, "__name__", str(_mod))
-                    print(f"⚠ Phase 2b self-heal {_name}: {_e}")
-            if _healed:
-                print(f"  Phase 2b self-heal: re-registered {', '.join(_healed)}")
-        except Exception as _e:
-            print(f"⚠ Phase 2b self-heal check failed: {_e}")
-        return None  # don't reschedule
-
     try:
         if not bpy.app.timers.is_registered(_register_phase2):
             bpy.app.timers.register(_register_phase2, first_interval=3.0)
-        if not bpy.app.timers.is_registered(_phase2_selfheal):
-            bpy.app.timers.register(_phase2_selfheal, first_interval=6.0)
     except Exception:
         _register_phase2()  # fallback: run immediately if timers unavailable
-        _phase2_selfheal()
 
     # ── Steps 3-5: deferred startup tasks (tool discovery, downloads, etc.) ──────
     try:

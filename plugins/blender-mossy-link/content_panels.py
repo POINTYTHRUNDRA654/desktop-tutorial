@@ -129,51 +129,31 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         row.operator("fo4.optimize_vegetation_fps", text="Optimize for FPS", icon='TIME')
 
         # LOD generation
-        # Consolidated onto fo4.generate_lods -- the same operator used by
-        # the Mesh Helpers and FO4: LOD + Collision Pipeline panels, not a
-        # fourth separate implementation. It already covers this panel's
-        # old "Generate LOD + Collision" button (LOD1-3 + billboard +
-        # export in one dialog) and reuses whatever real collision was
-        # already made via Generate Collision / Custom Collision instead of
-        # building its own.
+        # This box used to duplicate fo4.generate_lods with its own separate
+        # (and less complete) generator/export chain -- fo4.generate_lod_and_
+        # collision doesn't actually export any NIFs despite its name, and
+        # fo4.export_lod_chain_as_nif used the wrong file-naming convention.
+        # LOD generation now lives in exactly one place: Setup → FO4: LOD +
+        # Collision Pipeline (fo4.generate_lods), which handles LOD1-3, the
+        # billboard, UCX_ collision, and correctly-named/placed NIF export
+        # together in one step, for any mesh type including vegetation.
         box = layout.box()
-        box.label(text="LOD System", icon='OUTLINER_OB_MESH')
+        box.label(text="LOD + Collision", icon='OUTLINER_OB_MESH')
         sub = box.column(align=True)
         sub.scale_y = 0.75
-        sub.label(text="Real FO4 convention: 2 reduced-mesh levels, then a", icon='INFO')
-        sub.label(text="baked cross-billboard for the farthest level", icon='INFO')
+        sub.label(text="Generated in Setup → FO4: LOD + Collision", icon='INFO')
+        sub.label(text="Pipeline — handles LOD1–3, billboard, collision,", icon='INFO')
+        sub.label(text="and NIF export together in one step.", icon='INFO')
+        sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
         box.separator()
         has_mesh = bool(obj and obj.type == 'MESH')
-        row = box.row()
-        row.enabled = has_mesh
-        row.scale_y = 1.3
-        row.operator("fo4.generate_lods",
-                     text="Generate LOD Chain (LOD1-4 + Export)", icon='OUTLINER_OB_MESH')
-
-        legacy = box.box()
-        legacy.scale_y = 0.85
-        legacy.label(text="Manual alternative (import your own LOD meshes):", icon='DOT')
-        row3 = legacy.row()
-        row3.enabled = has_mesh
-        row3.operator("fo4.import_glb_as_lod", text="Import GLB / GLTF as LOD", icon='IMPORT')
-
-        # Collision for vegetation
-        box = layout.box()
-        box.label(text="Collision (for trees / large bushes)", icon='MESH_ICOSPHERE')
-        sub = box.column(align=True)
-        sub.scale_y = 0.75
-        sub.label(text="VEGETATION type = simplified convex hull footprint", icon='INFO')
-        sub.label(text="GRASS / MUSHROOM = no collision (thin foliage)", icon='INFO')
-        sub.label(text="'Generate LOD + Collision' above already includes this", icon='INFO')
-        box.separator()
         if has_mesh:
             box.prop(obj, "fo4_collision_type", text="Type")
         row = box.row()
         row.operator("fo4.set_collision_type", text="Change Type", icon='PRESET')
         row = box.row()
-        can_collide = has_mesh and getattr(obj, 'fo4_collision_type', 'DEFAULT') not in ('NONE', 'GRASS', 'MUSHROOM')
-        row.enabled = bool(can_collide)
-        row.operator("fo4.generate_collision_mesh", text="Generate Collision Mesh (manual)", icon='MESH_DATA')
+        row.enabled = has_mesh
+        row.operator("fo4.import_glb_as_lod", text="Import GLB / GLTF as LOD", icon='IMPORT')
 
         # Wind animation
         box = layout.box()
@@ -258,10 +238,10 @@ class FO4_PT_VegetationPanel(_FO4SubPanel):
         tips_box.label(text="1. Create vegetation preset")
         tips_box.label(text="2. Set collision type: VEGETATION or TREE → has collision")
         tips_box.label(text="   GRASS / MUSHROOM → no collision (thin foliage)")
-        tips_box.label(text="3. Generate LOD + Collision (one click)")
+        tips_box.label(text="3. Setup → FO4: LOD + Collision Pipeline →")
+        tips_box.label(text="   Generate LOD0–LOD3 (also exports NIFs)")
         tips_box.label(text="4. Setup vegetation material (Alpha Clip)")
-        tips_box.label(text="5. Export LOD Chain as NIF → meshes/ folder")
-        tips_box.label(text="6. Open in Creation Kit as Static/Grass record")
+        tips_box.label(text="5. Open in Creation Kit as Static/Grass record")
         tips_box.operator(
             "fo4.show_foliage_lod_checklist",
             text="Open LOD + Export Checklist",
@@ -357,6 +337,36 @@ class FO4_PT_NPCPanel(_FO4SubPanel):
         box = layout.box()
         box.label(text="Create Creature", icon='MOD_ARMATURE')
         box.operator("fo4.create_creature", text="Create Creature", icon='ADD')
+        box.label(text="(imports an existing vanilla FO4 creature NIF)")
+
+        # Procedural creature rig / animation pipeline (fo4_creature_rig.py,
+        # fo4_creature_animation.py, fo4_animation_export.py). These
+        # operators existed and were registered but had no panel entry
+        # anywhere -- discoverable only via Blender's F3 operator search --
+        # so the feature was effectively unreachable for a normal user.
+        box = layout.box()
+        box.label(text="Build Custom Rig (Procedural)", icon='BONE_DATA')
+        col = box.column(align=True)
+        col.operator("fo4.build_carnivorous_plant_rig", text="Carnivorous Plant Skeleton")
+        col.operator("fo4.build_tentacle_rig", text="Tentacle Skeleton")
+        col.operator("fo4.build_quadruped_rig", text="Quadruped Skeleton")
+        col.operator("fo4.build_flora_rig", text="Flora Skeleton (Preview Only)")
+        box.separator()
+        box.operator("fo4.auto_rig_organic_mesh", text="Auto-Rig Selected Mesh", icon='OUTLINER_OB_ARMATURE')
+
+        box = layout.box()
+        box.label(text="Animate Rig", icon='ANIM')
+        col = box.column(align=True)
+        col.operator("fo4.setup_snap_animation", text="Setup Snap Animation Keyframes")
+        col.operator("fo4.generate_animation", text="Generate Animation from Description")
+        col.operator("fo4.full_anim_pipeline", text="Full Auto-Rig + Animate Pipeline")
+
+        box = layout.box()
+        box.label(text="Export to FO4", icon='EXPORT')
+        col = box.column(align=True)
+        col.operator("fo4.export_creature_animation", text="Export Creature Animation → HKX")
+        col.operator("fo4.export_plant_animation_set", text="Export All Plant Animations → HKX")
+        box.label(text="Requires ck-cmd (see Setup panel) for FBX → HKX conversion")
 
         # Tips
         tips_box = layout.box()

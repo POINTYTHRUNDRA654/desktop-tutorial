@@ -60,8 +60,25 @@ class DesktopTutorialClient:
         return False, "Mossy not reachable — make sure Mossy is running"
     
     @staticmethod
-    def connect():
-        """Connect to desktop tutorial server"""
+    def connect(context=None):
+        """Connect to desktop tutorial server.
+
+        Reads the user-configurable Scene.fo4_desktop_server_host/port
+        properties when a *context* is supplied and puts that host:port
+        first in test_connection()'s candidate list -- previously these
+        scene properties were registered and shown in the UI but never
+        actually read anywhere, so changing them had zero effect and every
+        connect attempt only ever probed localhost:21337/8080.
+        """
+        if context is not None:
+            scene = getattr(context, "scene", None)
+            host = getattr(scene, "fo4_desktop_server_host", "") if scene else ""
+            port = getattr(scene, "fo4_desktop_server_port", 0) if scene else 0
+            if host and port:
+                DesktopTutorialClient.set_server_url(host, port)
+                if port not in DesktopTutorialClient._CANDIDATE_PORTS:
+                    DesktopTutorialClient._CANDIDATE_PORTS = (port,) + DesktopTutorialClient._CANDIDATE_PORTS
+
         success, message = DesktopTutorialClient.test_connection()
         
         if success:

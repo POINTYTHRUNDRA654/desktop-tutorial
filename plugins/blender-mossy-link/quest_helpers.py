@@ -173,29 +173,77 @@ class QuestHelpers:
             return False, f"Failed to export: {str(e)}"
     
     @staticmethod
-    def generate_papyrus_script(quest_id, quest_name):
-        """Generate basic Papyrus script for quest"""
+    def generate_papyrus_script(quest_id, quest_name, stages=None):
+        """Generate a Papyrus script for the quest.
+
+        *stages*: optional iterable of objects/dicts with stage_index,
+        log_entry, complete_quest, fail_quest (matches FO4_QuestStage /
+        the scene.fo4_quest_stages collection). Every stage actually
+        authored in the Quest panel is emitted as its own OnStageSet
+        branch -- previously this always emitted a fixed, hardcoded
+        stage-10/stage-100 skeleton no matter what stages the user had
+        actually added, so anything beyond two stages (or different
+        stage numbers) silently never made it into the generated script.
+        """
+        first_stage = 10
+        if stages:
+            indices = [getattr(s, "stage_index", None) if not isinstance(s, dict)
+                       else s.get("stage_index") for s in stages]
+            indices = [i for i in indices if i is not None]
+            if indices:
+                first_stage = min(indices)
+
         script = f'''Scriptname {quest_id}Script extends Quest
 
 ; Quest: {quest_name}
 
 Event OnStoryScript(Keyword akKeyword, Location akLocation, ObjectReference akRef1, ObjectReference akRef2, int aiValue1, int aiValue2)
     ; Quest start logic here
-    SetStage(10)
+    SetStage({first_stage})
 EndEvent
 
 Event OnStageSet(int auiStageID, int auiItemID)
     ; Handle stage changes
-    if auiStageID == 10
-        ; Stage 10 logic
-        Debug.Notification("Quest started: {quest_name}")
-    elseif auiStageID == 100
-        ; Quest completion
-        Debug.Notification("Quest completed: {quest_name}")
-        CompleteQuest()
-    endif
-EndEvent
 '''
+        if stages:
+            for i, s in enumerate(stages):
+                idx = getattr(s, "stage_index", None) if not isinstance(s, dict) else s.get("stage_index")
+                log_entry = (getattr(s, "log_entry", "") if not isinstance(s, dict) else s.get("log_entry", "")) or ""
+                complete_quest = getattr(s, "complete_quest", False) if not isinstance(s, dict) else s.get("complete_quest", False)
+                fail_quest = getattr(s, "fail_quest", False) if not isinstance(s, dict) else s.get("fail_quest", False)
+                if idx is None:
+                    continue
+                keyword = "if" if i == 0 else "elseif"
+                script += f'    {keyword} auiStageID == {idx}\n'
+                log_text = log_entry.replace('"', "'") or f"Stage {idx}"
+                script += f'        Debug.Notification("{log_text}")\n'
+                if complete_quest:
+                    script += '        CompleteQuest()\n'
+                if fail_quest:
+                    # FailAllObjectives() + Stop() -- verified against the
+                    # real Fallout4 CreationKit Quest script reference:
+                    # both are genuine native Quest functions, and
+                    # FailAllObjectives() is the documented call for marking
+                    # a quest failed (Stop() alone only halts tracking, it
+                    # doesn't flag the quest as failed in the journal).
+                    script += '        FailAllObjectives()\n'
+                    script += '        Stop()\n'
+            script += '    endif\n'
+        else:
+            # No stages authored yet -- fall back to the original
+            # placeholder skeleton so the generated file is still valid
+            # Papyrus and gives the modder something to build from.
+            script += (
+                '    if auiStageID == 10\n'
+                '        ; Stage 10 logic\n'
+                f'        Debug.Notification("Quest started: {quest_name}")\n'
+                '    elseif auiStageID == 100\n'
+                '        ; Quest completion\n'
+                f'        Debug.Notification("Quest completed: {quest_name}")\n'
+                '        CompleteQuest()\n'
+                '    endif\n'
+            )
+        script += 'EndEvent\n'
         return script
 
 def register():

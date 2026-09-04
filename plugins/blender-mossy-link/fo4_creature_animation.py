@@ -41,6 +41,15 @@ import os
 import subprocess
 from typing import List, Tuple, Optional
 
+# FO4 game units per metre (Havok scale). Must match
+# export_helpers._FO4_UNIT_SCALE_INV / operators._FO4_UNIT_SCALE_INV, and the
+# inverse of this module's own auto_place_bones scale convention. Creature
+# rigs built via this module's auto-rigging (and fo4_creature_rig.py's
+# builders) sit at Blender-metre scale -- the FBX handed to ck-cmd must be
+# scaled back up by this factor or it comes out ~70x smaller than the real
+# FO4 skeleton ck-cmd binds it against.
+_FO4_UNIT_SCALE_INV = 69.99125
+
 
 # ---------------------------------------------------------------------------
 # Mesh shape analysis
@@ -227,7 +236,14 @@ def auto_place_bones(obj, shape_info: dict,
     obj.select_set(True)
     arm_obj.select_set(True)
     bpy.context.view_layer.objects.active = arm_obj
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    _parent_result = bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    if 'FINISHED' not in _parent_result:
+        # bpy.ops only raises on poll() failure, never on a normal cancelled
+        # execute() -- so a failed heat-weight solve must be checked
+        # explicitly or this silently returns an unskinned armature that
+        # looks successful to the caller.
+        print(f"[FO4 Anim] parent_set(ARMATURE_AUTO) did not finish for "
+              f"'{obj.name}' ({_parent_result}) -- mesh was NOT skinned to the new rig")
 
     # Place armature at same location as mesh
     arm_obj.location = (0, 0, 0)
@@ -571,7 +587,11 @@ def export_animations_hkx(arm_obj, actions: List[bpy.types.Action],
 
         # Export to FBX
         try:
-            bpy.ops.export_scene.fbx(
+            # bpy.ops calls don't raise when the operator declines to run --
+            # they return {'CANCELLED'}, never an exception. Check the
+            # result and confirm the file actually landed on disk before
+            # handing it to ck-cmd below.
+            _fbx_result = bpy.ops.export_scene.fbx(
                 filepath=fbx_path,
                 use_selection=True,
                 bake_anim=True,
@@ -579,7 +599,12 @@ def export_animations_hkx(arm_obj, actions: List[bpy.types.Action],
                 bake_anim_step=1.0,
                 bake_anim_simplify_factor=0.0,
                 add_leaf_bones=False,
+                apply_unit_scale=True,
+                global_scale=_FO4_UNIT_SCALE_INV,
             )
+            if 'CANCELLED' in set(_fbx_result or ()) or not os.path.isfile(fbx_path):
+                results.append((False, f"FBX export did not complete (result={_fbx_result!r})"))
+                continue
         except Exception as exc:
             results.append((False, f"FBX export failed: {exc}"))
             continue

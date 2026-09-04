@@ -310,18 +310,26 @@ class InstantNGPHelpers:
             # (replaced by wm.obj_import) -- calling the old name
             # unconditionally raised AttributeError on every
             # currently-supported Blender version this add-on targets.
+            #
+            # bpy.ops calls don't raise when the operator declines to run --
+            # they return {'CANCELLED'}, never an exception. Reading
+            # bpy.context.selected_objects afterward (as this used to) is
+            # also unsafe on its own: a declined import that left the scene
+            # selection untouched would report whatever was already
+            # selected as "the imported mesh". Use a real before/after
+            # object diff instead.
+            _before = set(bpy.context.scene.objects)
             if hasattr(bpy.ops.wm, "obj_import"):
-                bpy.ops.wm.obj_import(filepath=obj_path)
+                _result = bpy.ops.wm.obj_import(filepath=obj_path)
             else:
-                bpy.ops.import_scene.obj(filepath=obj_path)
-            
-            # Get imported object
-            imported_obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None
-            
-            if imported_obj:
-                return True, f"Imported Instant-NGP mesh: {imported_obj.name}", imported_obj
-            else:
-                return False, "Failed to import mesh", None
+                _result = bpy.ops.import_scene.obj(filepath=obj_path)
+            _new = [o for o in bpy.context.scene.objects if o not in _before]
+
+            if 'CANCELLED' in set(_result or ()) or not _new:
+                return False, f"Failed to import mesh (result={_result!r})", None
+
+            imported_obj = _new[0]
+            return True, f"Imported Instant-NGP mesh: {imported_obj.name}", imported_obj
         
         except Exception as e:
             return False, f"Import failed: {str(e)}", None
@@ -343,9 +351,14 @@ class InstantNGPHelpers:
         # Apply aggressive decimation
         from . import mesh_helpers
         
-        # Check current poly count
-        poly_count = len(obj.data.polygons)
-        
+        # Check the real post-triangulation triangle count, not the raw face
+        # count -- len(obj.data.polygons) under-reports for quad/ngon-heavy
+        # NeRF reconstruction meshes, which can let an over-limit mesh slip
+        # past this check entirely (same bug class fixed in
+        # FO4_OT_DecimateToFO4 / smart_decimate elsewhere in this addon).
+        obj.data.calc_loop_triangles()
+        poly_count = len(obj.data.loop_triangles)
+
         if poly_count > 65535:
             # Need to decimate
             decimate_ratio = 65535 / poly_count
@@ -368,7 +381,8 @@ class InstantNGPHelpers:
         success, issues = mesh_helpers.MeshHelpers.validate_mesh(obj)
         
         if success:
-            return True, f"NeRF mesh optimized for Fallout 4 (poly count: {len(obj.data.polygons)})"
+            obj.data.calc_loop_triangles()
+            return True, f"NeRF mesh optimized for Fallout 4 (tri count: {len(obj.data.loop_triangles)})"
         else:
             return False, f"Optimization complete but validation found issues: {', '.join(issues)}"
     

@@ -15,12 +15,9 @@ Implements an advanced realism toolkit:
 from __future__ import annotations
 
 import math
-import os
-from pathlib import Path
 from typing import Iterable
 
 import bpy
-import bpy.utils.previews
 from bpy.props import (
     BoolProperty,
     EnumProperty,
@@ -29,100 +26,8 @@ from bpy.props import (
     StringProperty,
 )
 from bpy.types import Operator, Panel
-from bpy_extras.io_utils import ImportHelper
 
 _FO4_REALISM_TAG_KEY = "fo4_realism_tag"
-
-# ── Reference Photo Library ──────────────────────────────────────────────
-# A bundled/curated folder of real reference photos, browsable as a visual
-# thumbnail grid (bpy.utils.previews) so picking a Reference Match target
-# is "look through them and click the one you want" instead of "leave
-# Blender, dig through file explorer, come back" every single time.
-#
-# Defaults to ~/.blender_fo4_tools/reference_photos -- the same persistent,
-# addon-update-safe location fo4_generation_log.py and fo4_mesh_evolution.py
-# already use, so it survives addon reinstalls/updates. Fully user-
-# repointable (Scene.fo4_reference_library_path) to any folder, e.g. an
-# existing personal reference collection.
-_REF_LIBRARY_README = (
-    "Drop real reference photos here (jpg/png/etc).\n"
-    "They will show up as a browsable thumbnail grid in the\n"
-    "Advanced Realism Lab > Game-Look + Reference Match panel.\n"
-    "Subfolders are fine -- everything under this folder is scanned.\n"
-)
-
-_ref_preview_collections = {}
-
-
-def _default_reference_library_path() -> str:
-    return str(Path(os.path.expanduser("~")) / ".blender_fo4_tools" / "reference_photos")
-
-
-def _ensure_reference_library_folder(path: str) -> None:
-    try:
-        p = Path(path)
-        p.mkdir(parents=True, exist_ok=True)
-        readme = p / "README.txt"
-        if not readme.exists():
-            readme.write_text(_REF_LIBRARY_README, encoding="utf-8")
-    except Exception:
-        pass
-
-
-_REF_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
-
-
-def _iter_reference_library_images(path: str):
-    root = Path(path)
-    if not root.is_dir():
-        return
-    for p in sorted(root.rglob("*")):
-        if p.is_file() and p.suffix.lower() in _REF_IMAGE_EXTS:
-            yield p
-
-
-def _reference_library_enum_items(self, context):
-    """Dynamic enum callback: (identifier, label, description, icon_id, index)
-    for every image in the reference library folder, generating a thumbnail
-    preview for each via bpy.utils.previews."""
-    pcoll = _ref_preview_collections.get("main")
-    if pcoll is None:
-        return [("NONE", "No library loaded", "", 0, 0)]
-
-    scene = context.scene if context else None
-    lib_path = (
-        scene.fo4_reference_library_path
-        if scene and getattr(scene, "fo4_reference_library_path", "")
-        else _default_reference_library_path()
-    )
-
-    items = []
-    for idx, img_path in enumerate(_iter_reference_library_images(lib_path)):
-        key = str(img_path)
-        if key not in pcoll:
-            try:
-                pcoll.load(key, key, "IMAGE")
-            except Exception:
-                continue
-        icon_id = pcoll[key].icon_id
-        items.append((key, img_path.stem, str(img_path), icon_id, idx))
-
-    if not items:
-        items = [("NONE", "(empty -- drop photos in the library folder)", "", 0, 0)]
-    return items
-
-
-def _on_reference_library_pick(self, context):
-    picked = context.scene.fo4_reference_library_pick
-    if not picked or picked == "NONE":
-        return
-    try:
-        image = bpy.data.images.load(picked, check_existing=True)
-    except Exception as exc:
-        context.scene.fo4_reference_status = f"Could not load library photo: {exc}"
-        return
-    context.scene.fo4_reference_image = image
-    context.scene.fo4_reference_status = f"Loaded from library: {image.name}"
 _DEFAULT_REFERENCE_LUMINANCE = 0.35
 _TEXTURE_REPETITION_THRESHOLD = 6
 
@@ -159,43 +64,6 @@ def _set_enum_if_possible(owner, key: str, value: str) -> None:
         setattr(owner, key, value)
     except Exception:
         pass
-
-
-def _set_look_if_possible(owner, key: str, substrings) -> bool:
-    """Set a color-management 'look' style enum by fuzzy name match.
-
-    Blender's Look enum values differ across color-management configs
-    (e.g. legacy Filmic uses bare names like "Medium High Contrast",
-    while AgX-based configs (Blender 4.0+/5.x default) prefix them,
-    e.g. "AgX - Medium High Contrast"). Hardcoding one exact string
-    silently no-ops on the other config via setattr's try/except, so
-    match by substring against whatever enum items are actually
-    available on this owner's RNA and use the real identifier.
-    Returns True if a matching enum item was set.
-    """
-    if not hasattr(owner, key):
-        return False
-    if isinstance(substrings, str):
-        substrings = [substrings]
-    needles = [s.lower() for s in substrings]
-    try:
-        prop = owner.bl_rna.properties[key]
-        items = list(getattr(prop, "enum_items", []))
-    except Exception:
-        items = []
-    for item in items:
-        name = (getattr(item, "name", "") or "").lower()
-        ident = (getattr(item, "identifier", "") or "").lower()
-        if all(n in name or n in ident for n in needles):
-            try:
-                setattr(owner, key, item.identifier)
-                return True
-            except Exception:
-                continue
-    # Fall back to trying the literal joined string in case the enum
-    # items couldn't be introspected but the exact value still works.
-    _set_enum_if_possible(owner, key, " ".join(substrings))
-    return False
 
 
 def _ensure_world_background(scene, color, strength):
@@ -502,7 +370,7 @@ class FO4_OT_ApplyGameLookPreview(Operator):
                 else "BLENDER_EEVEE"
             )
 
-        _set_look_if_possible(scene.view_settings, "look", ("Medium High Contrast",))
+        _set_enum_if_possible(scene.view_settings, "look", "Medium High Contrast")
         scene.view_settings.gamma = 1.0
 
         if self.preset == "WASTELAND_DAY":
@@ -556,72 +424,9 @@ class FO4_OT_ResetGameLookPreview(Operator):
         scene = context.scene
         scene.view_settings.exposure = 0.0
         scene.view_settings.gamma = 1.0
-        _set_enum_if_possible(scene.view_settings, "look", "None")  # "None" identifier is stable across configs
+        _set_enum_if_possible(scene.view_settings, "look", "None")
         context.scene.fo4_advanced_preview_status = "Preview reset"
         self.report({"INFO"}, "Game-Look Preview reset")
-        return {"FINISHED"}
-
-
-class FO4_OT_BrowseReferenceImage(Operator, ImportHelper):
-    """Load an external photo (real-world reference, not a mesh's own
-    texture) from disk and set it as the Reference Match target image.
-
-    The "Target Image" field above this button is a standard Blender
-    ID-pointer dropdown -- it only lists bpy.data.Image datablocks already
-    loaded in this file, which in practice means whatever textures are
-    already assigned to materials on the meshes in the scene. There's a
-    tiny "Open" folder icon built into that dropdown for browsing a new
-    file, but it's easy to miss in a narrow N-panel column, and the whole
-    point of Reference Match is usually to match against a REAL photo that
-    was never loaded as a mesh texture in the first place. This gives that
-    an explicit, unmissable button.
-    """
-
-    bl_idname = "fo4.browse_reference_image"
-    bl_label = "Browse for Reference Photo..."
-    bl_options = {"REGISTER", "UNDO"}
-
-    filter_glob: StringProperty(
-        default="*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.exr;*.hdr;*.webp",
-        options={"HIDDEN"},
-    )
-
-    def execute(self, context):
-        if not self.filepath:
-            self.report({"ERROR"}, "No file selected")
-            return {"CANCELLED"}
-        try:
-            image = bpy.data.images.load(self.filepath, check_existing=True)
-        except Exception as exc:
-            self.report({"ERROR"}, f"Could not load image: {exc}")
-            return {"CANCELLED"}
-        context.scene.fo4_reference_image = image
-        context.scene.fo4_reference_status = f"Loaded reference photo: {image.name}"
-        self.report({"INFO"}, f"Reference photo loaded: {image.name}")
-        return {"FINISHED"}
-
-
-class FO4_OT_OpenReferenceLibraryFolder(Operator):
-    """Open the reference photo library folder in the system file browser"""
-
-    bl_idname = "fo4.open_reference_library_folder"
-    bl_label = "Open Reference Photo Folder"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context):
-        scene = context.scene
-        lib_path = (
-            scene.fo4_reference_library_path
-            if getattr(scene, "fo4_reference_library_path", "")
-            else _default_reference_library_path()
-        )
-        _ensure_reference_library_folder(lib_path)
-        try:
-            bpy.ops.wm.path_open(filepath=lib_path)
-        except Exception as exc:
-            self.report({"WARNING"}, f"Could not open folder automatically ({exc}). Path: {lib_path}")
-            return {"CANCELLED"}
-        self.report({"INFO"}, f"Reference photo folder: {lib_path}")
         return {"FINISHED"}
 
 
@@ -676,10 +481,11 @@ class FO4_OT_EnableReferenceMatchMode(Operator):
             target_luma = 0.30 if scene.fo4_reference_kind == "GAME_CAPTURE" else 0.38
             exposure = math.log2(max(0.01, target_luma) / max(0.01, avg_luma))
             scene.view_settings.exposure = max(-3.0, min(3.0, exposure))
-            if scene.fo4_reference_kind == "GAME_CAPTURE":
-                _set_look_if_possible(scene.view_settings, "look", ("Medium High Contrast",))
-            else:
-                _set_enum_if_possible(scene.view_settings, "look", "None")
+            _set_enum_if_possible(
+                scene.view_settings,
+                "look",
+                "Medium High Contrast" if scene.fo4_reference_kind == "GAME_CAPTURE" else "None",
+            )
 
         side_by_side = "enabled" if image_editor_count > 0 else "partial (open an Image Editor for side-by-side)"
         scene.fo4_reference_status = f"Reference match {side_by_side}: {image.name}"
@@ -794,20 +600,12 @@ class FO4_OT_RunMaterialIntelligence(Operator):
 
                     principled = _find_principled_bsdf(mat)
                     if principled:
-                        rough_in = principled.inputs["Roughness"]
-                        metal_in = principled.inputs["Metallic"]
-                        # A texture (e.g. a specular/roughness map) already
-                        # driving this socket makes default_value inert —
-                        # writing it silently does nothing in-viewport and
-                        # nothing on export, so only clamp when unlinked.
-                        if not rough_in.is_linked:
-                            roughness = float(rough_in.default_value)
-                            rough_in.default_value = min(0.92, max(0.2, roughness))
-                        if not metal_in.is_linked:
-                            metallic = float(metal_in.default_value)
-                            metal_in.default_value = min(
-                                0.9 if metal_hint else 0.2, max(0.0, metallic)
-                            )
+                        roughness = float(principled.inputs["Roughness"].default_value)
+                        metallic = float(principled.inputs["Metallic"].default_value)
+                        principled.inputs["Roughness"].default_value = min(0.92, max(0.2, roughness))
+                        principled.inputs["Metallic"].default_value = min(
+                            0.9 if metal_hint else 0.2, max(0.0, metallic)
+                        )
                         if has_glow:
                             emission_color = (
                                 principled.inputs.get("Emission Color")
@@ -953,39 +751,27 @@ class FO4_OT_ApplySurfaceBreakup(Operator):
                     rough = base_rough + self.roughness_variation * offset
                     rough_input.default_value = min(0.98, max(0.06, rough))
 
-                # This used to only touch Base Color when it had NO texture
-                # linked to it (base_input.is_linked False) -- but almost
-                # every real imported mesh already has a diffuse texture
-                # wired into Base Color (that's the whole point of
-                # importing with materials intact), so this branch never
-                # ran on any material anyone would actually use it on. The
-                # tool silently did nothing visible for the overwhelming
-                # majority of real assets while reporting success. Fixed to
-                # match how ApplyContactRealism/ApplyEdgeRealismToolkit in
-                # this same file already handle this correctly: insert a
-                # tagged Mix node between whatever already feeds Base Color
-                # (a texture or a flat value) and the BSDF, instead of only
-                # writing a flat default_value.
-                if mat.use_nodes and mat.node_tree and self.hue_variation > 0.0:
-                    nt = mat.node_tree
+                base_input = principled.inputs.get("Base Color")
+                if base_input and not base_input.is_linked:
+                    _ensure_material_prop(
+                        mat,
+                        "surface_breakup",
+                        "base_color",
+                        list(base_input.default_value),
+                    )
+                    c = list(
+                        _get_material_prop(
+                            mat,
+                            "surface_breakup",
+                            "base_color",
+                            list(base_input.default_value),
+                        )
+                    )
                     jitter = self.hue_variation * offset
-                    tint = (
-                        max(-1.0, min(1.0, jitter)),
-                        max(-1.0, min(1.0, jitter * 0.6)),
-                        max(-1.0, min(1.0, -jitter * 0.4)),
-                        1.0,
-                    )
-                    mix = _ensure_tagged_node(
-                        nt,
-                        "surface_breakup.hue_mix",
-                        "ShaderNodeMixRGB",
-                        (principled.location.x - 160, principled.location.y - 260),
-                    )
-                    mix.blend_type = "ADD"
-                    mix.inputs[0].default_value = 1.0
-                    _ensure_mix_base_input(nt, principled, mix, (0.5, 0.5, 0.5, 1.0))
-                    _connect_or_set(mix.inputs[2], tint)
-                    _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
+                    c[0] = min(1.0, max(0.0, c[0] + jitter))
+                    c[1] = min(1.0, max(0.0, c[1] + jitter * 0.6))
+                    c[2] = min(1.0, max(0.0, c[2] - jitter * 0.4))
+                    base_input.default_value = c
 
                 if mat.use_nodes and mat.node_tree:
                     for node in mat.node_tree.nodes:
@@ -1097,7 +883,6 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
             ("PAINTED_METAL", "Painted Metal", "Paint chip style edge wear"),
             ("CONCRETE", "Concrete", "Dust/chalk edge lift"),
             ("WOOD", "Wood", "Dry/faded edge highlights"),
-            ("ORGANIC", "Organic / Vegetation", "Dirt and moss grime settled into creases -- for plants, fungus, bark"),
         ],
         default="METAL",
     )
@@ -1115,24 +900,7 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
             "PAINTED_METAL": (0.62, 0.60, 0.58, 1.0),
             "CONCRETE": (0.72, 0.71, 0.67, 1.0),
             "WOOD": (0.58, 0.47, 0.34, 1.0),
-            "ORGANIC": (0.10, 0.11, 0.06, 1.0),
         }
-        # METAL/PAINTED_METAL/CONCRETE/WOOD are all "wear reveals a
-        # different material at raised, convex edges" -- correct for
-        # hard-surface props, but wrong physically for anything organic:
-        # dirt and moss settle INTO creases and crevices, not onto high
-        # points, and a rounded, curvy mesh (a mushroom cap, a leaf, bark)
-        # has much less of the sharp convex geometry that makes Pointiness
-        # read as "mostly low" the way it does on a hard-surface prop --
-        # so the same pointiness-driven mix reads as "mostly high" across
-        # nearly the whole surface instead of just the edges, and the tint
-        # colors everything instead of accenting a rim. Confirmed by report:
-        # applying WOOD to a mushroom turned the whole thing brown, not
-        # just its edges. ORGANIC below both uses a color appropriate for
-        # grime rather than material wear, and drives the mix from the
-        # inverse of Pointiness (crevices/cavities) instead of Pointiness
-        # itself (convex points), with its influence capped so it accents
-        # rather than replaces the base color.
 
         mats_seen = set()
         modified = 0
@@ -1179,52 +947,8 @@ class FO4_OT_ApplyEdgeRealismToolkit(Operator):
                 mix.inputs[2].default_value = preset_colors[self.preset]
 
                 _ensure_mix_base_input(nt, principled, mix, (0.7, 0.7, 0.7, 1.0))
-
-                if self.preset == "ORGANIC":
-                    # Grime settles into crevices, not onto raised points --
-                    # invert Pointiness (1 - x) so the ramp responds to
-                    # cavities instead of convex edges.
-                    invert = _ensure_tagged_node(
-                        nt,
-                        "edge_realism.invert",
-                        "ShaderNodeMath",
-                        (principled.location.x - 600, principled.location.y - 340),
-                    )
-                    invert.operation = 'SUBTRACT'
-                    invert.inputs[0].default_value = 1.0
-                    invert.use_clamp = True
-                    _replace_input_link(nt, invert.inputs[1], geom.outputs["Pointiness"])
-                    _replace_input_link(nt, ramp.inputs[0], invert.outputs[0])
-
-                    # Cap how much the tint can replace the base color -- this
-                    # should read as grime accenting the surface, not a flat
-                    # repaint. Without this cap, a curvy/rounded organic mesh
-                    # (little sharp convex geometry) reads as "mostly cavity"
-                    # almost everywhere, and the tint would wash out nearly
-                    # the whole mesh exactly like the un-inverted version did.
-                    cap = _ensure_tagged_node(
-                        nt,
-                        "edge_realism.cap",
-                        "ShaderNodeMath",
-                        (principled.location.x - 260, principled.location.y - 220),
-                    )
-                    cap.operation = 'MULTIPLY'
-                    cap.inputs[1].default_value = 0.45
-                    cap.use_clamp = True
-                    _replace_input_link(nt, cap.inputs[0], ramp.outputs[0])
-                    _replace_input_link(nt, mix.inputs[0], cap.outputs[0])
-                else:
-                    # Non-organic presets: remove any leftover ORGANIC nodes
-                    # from a previous run on this material so re-applying a
-                    # hard-surface preset doesn't leave a dead invert/cap
-                    # pair wired into nothing.
-                    for tag in ("edge_realism.invert", "edge_realism.cap"):
-                        stale = _find_tagged_node(nt, tag)
-                        if stale is not None:
-                            nt.nodes.remove(stale)
-                    _replace_input_link(nt, ramp.inputs[0], geom.outputs["Pointiness"])
-                    _replace_input_link(nt, mix.inputs[0], ramp.outputs[0])
-
+                _replace_input_link(nt, ramp.inputs[0], geom.outputs["Pointiness"])
+                _replace_input_link(nt, mix.inputs[0], ramp.outputs[0])
                 _replace_input_link(nt, principled.inputs["Base Color"], mix.outputs[0])
 
                 rough = principled.inputs.get("Roughness")
@@ -1447,13 +1171,7 @@ class FO4_OT_RunRealismQAScorecard(Operator):
                 principled = _find_principled_bsdf(mat)
                 if principled:
                     rough = principled.inputs.get("Roughness")
-                    # A texture-driven Roughness makes default_value inert
-                    # (Blender ignores it once the socket is linked) and not
-                    # meaningful to read for a score, so only judge/auto-fix
-                    # a flat (unlinked) roughness value here.
-                    if rough and not rough.is_linked and (
-                        rough.default_value < 0.05 or rough.default_value > 0.95
-                    ):
+                    if rough and (rough.default_value < 0.05 or rough.default_value > 0.95):
                         issues["roughness"] += 1
                         if self.auto_fix:
                             rough.default_value = min(0.9, max(0.12, rough.default_value))
@@ -1579,17 +1297,6 @@ class FO4_PT_AdvancedRealismPanel(Panel):
         row.operator("fo4.reset_game_look_preview", text="Reset", icon="LOOP_BACK")
         preview_box.prop(scene, "fo4_reference_kind", text="Reference Type")
         preview_box.prop(scene, "fo4_reference_image", text="Target Image")
-
-        lib_col = preview_box.column(align=True)
-        lib_col.label(text="Reference Photo Library:", icon="ASSET_MANAGER")
-        lib_col.template_icon_view(
-            scene, "fo4_reference_library_pick", show_labels=True, scale=5.0, scale_popup=6.0,
-        )
-        lib_row = lib_col.row(align=True)
-        lib_row.prop(scene, "fo4_reference_library_path", text="")
-        lib_row.operator("fo4.open_reference_library_folder", text="", icon="FILE_FOLDER")
-
-        preview_box.operator("fo4.browse_reference_image", text="Browse for Reference Photo...", icon="FILEBROWSER")
         preview_box.operator("fo4.enable_reference_match_mode", text="Enable Reference Match", icon="IMAGE_REFERENCE")
         if scene.fo4_advanced_preview_status:
             preview_box.label(text=scene.fo4_advanced_preview_status, icon="INFO")
@@ -1659,8 +1366,6 @@ class FO4_PT_AdvancedRealismPanel(Panel):
 classes = (
     FO4_OT_ApplyGameLookPreview,
     FO4_OT_ResetGameLookPreview,
-    FO4_OT_BrowseReferenceImage,
-    FO4_OT_OpenReferenceLibraryFolder,
     FO4_OT_EnableReferenceMatchMode,
     FO4_OT_RunScaleValidator,
     FO4_OT_RunMaterialIntelligence,
@@ -1697,21 +1402,6 @@ def register():
         name="Reference Image",
         type=bpy.types.Image,
     )
-    bpy.types.Scene.fo4_reference_library_path = StringProperty(
-        name="Reference Photo Library",
-        description="Folder of real reference photos, browsable as a thumbnail grid above",
-        subtype="DIR_PATH",
-        default=_default_reference_library_path(),
-    )
-    bpy.types.Scene.fo4_reference_library_pick = EnumProperty(
-        name="Reference Photo Library",
-        description="Click a thumbnail to use that photo as the Reference Match target",
-        items=_reference_library_enum_items,
-        update=_on_reference_library_pick,
-    )
-    if "main" not in _ref_preview_collections:
-        _ref_preview_collections["main"] = bpy.utils.previews.new()
-    _ensure_reference_library_folder(_default_reference_library_path())
     bpy.types.Scene.fo4_scale_asset_class = EnumProperty(
         name="Asset Class",
         items=[
@@ -1786,8 +1476,6 @@ def unregister():
         "fo4_reference_status",
         "fo4_reference_kind",
         "fo4_reference_image",
-        "fo4_reference_library_path",
-        "fo4_reference_library_pick",
         "fo4_scale_asset_class",
         "fo4_scale_status",
         "fo4_material_intel_status",
@@ -1802,10 +1490,3 @@ def unregister():
     ):
         if hasattr(bpy.types.Scene, p):
             delattr(bpy.types.Scene, p)
-
-    for pcoll in _ref_preview_collections.values():
-        try:
-            bpy.utils.previews.remove(pcoll)
-        except Exception:
-            pass
-    _ref_preview_collections.clear()

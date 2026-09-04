@@ -464,7 +464,24 @@ def _run_armor_setup(obj, context) -> Tuple[bool, str]:
     try:
         context.view_layer.objects.active = obj
         obj.select_set(True)
-        bpy.ops.fo4.auto_setup_armor("EXEC_DEFAULT")
+        # bpy.ops calls don't raise when the operator declines to run --
+        # FO4_OT_AutoSetupArmor returns {'CANCELLED'} (not an exception)
+        # when the mesh already has weight data and confirm_replace wasn't
+        # passed (which this EXEC_DEFAULT call never does), or when no
+        # skeleton could be found/built. This used to ignore the return
+        # value entirely and always report success, so a batch import of a
+        # pre-skinned outfit (e.g. from Outfit Studio) had every piece the
+        # guard refused to re-weight silently marked "done" -- the export
+        # step downstream then shipped those pieces with whatever weights
+        # they happened to arrive with, with no warning anywhere.
+        _result = bpy.ops.fo4.auto_setup_armor("EXEC_DEFAULT")
+        if 'CANCELLED' in set(_result or ()):
+            return False, (
+                f"Armor setup for '{obj.name}' was cancelled -- likely "
+                f"already has weight data (re-run with Confirm Replace) or "
+                f"no FO4 skeleton could be found/built. Export will use "
+                f"whatever weights it already had."
+            )
         return True, f"Armor/skinned setup done for '{obj.name}'" + pynifly_warn
     except Exception as exc:
         return False, f"Armor setup failed for '{obj.name}': {exc}"

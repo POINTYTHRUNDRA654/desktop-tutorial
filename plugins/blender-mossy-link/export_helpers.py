@@ -564,6 +564,16 @@ class ExportHelpers:
         Performs (in order):
           1. Apply pending scale and rotation transforms – unapplied transforms
              are the single most common cause of distorted geometry in-game.
+             This step is ALWAYS performed regardless of the "Apply Transforms"
+             setting in the Export panel; leaving scale unapplied previously
+             caused exports to silently land at the wrong (÷70) in-game size
+             (see the note below), so the checkbox there is display-only for
+             this path and export always applies transforms for safety.
+          1.5. Remove doubles at the "Remove Doubles Threshold" set in the
+             Export panel (mirrors ``mesh_helpers.optimize_mesh``'s own
+             remove-doubles step so the two don't drift apart). Skipped when
+             the threshold is 0. Honors "Preserve UVs" by only merging verts
+             whose UVs also match, so texture seams are never collapsed.
           2. Ensure at least one UV map exists – both exporters require UV
              coordinates on every exported mesh.
           3. Add a temporary ``_FO4_Triangulate`` modifier when the mesh
@@ -627,6 +637,41 @@ class ExportHelpers:
                     obj.matrix_basis = mathutils.Matrix.Translation(loc)
                 except Exception:
                     pass  # continue; validation will surface any remaining issue
+
+        # 1.5. Remove doubles ----------------------------------------------------
+        #    The Export panel's "Remove Doubles Threshold" slider previously had
+        #    no effect on the actual export -- it only ever fed the separate
+        #    "Optimize for FO4" operator family (mesh_helpers.optimize_mesh).
+        #    Read the same addon preferences that operator uses so the two
+        #    stay in sync, and actually run it here.
+        try:
+            from . import preferences as _prefs_mod
+            _prefs = _prefs_mod.get_preferences()
+            _threshold = getattr(_prefs, "optimize_remove_doubles_threshold", 0.0001) if _prefs else 0.0001
+            _preserve_uvs = getattr(_prefs, "optimize_preserve_uvs", True) if _prefs else True
+        except Exception:
+            _threshold, _preserve_uvs = 0.0001, True
+
+        if _threshold and _threshold > 0.0:
+            try:
+                import bmesh as _bmesh_dd
+                _bm = _bmesh_dd.new()
+                _bm.from_mesh(obj.data)
+                _uv_layer = _bm.loops.layers.uv.active
+                _kwargs = {'verts': _bm.verts, 'dist': _threshold}
+                if _preserve_uvs and _uv_layer is not None:
+                    _kwargs['use_uvs'] = True
+                try:
+                    _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
+                except TypeError:
+                    _kwargs.pop('use_uvs', None)
+                    _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
+                _bm.normal_update()
+                _bm.to_mesh(obj.data)
+                _bm.free()
+                obj.data.update()
+            except Exception as _dd_err:
+                print(f"[FO4 Add-on] Remove Doubles skipped for '{obj.name}': {_dd_err}")
 
         # 2. Ensure UV map -------------------------------------------------------
         #    Both Niftools v0.1.1 and PyNifly require at least one UV map.
@@ -785,6 +830,30 @@ class ExportHelpers:
         return None
 
     @staticmethod
+    def _find_collision_meshes(obj):
+        """Return ALL collision objects associated with *obj*, as a list.
+
+        ``fo4.generate_multi_convex_collision`` ("Multi-Piece Convex
+        Collision" / the custom-collision generator) creates several
+        ``UCX_<name>_00``, ``UCX_<name>_01``, ... children, each tagged
+        ``fo4_collision`` -- but :meth:`_find_collision_mesh` (singular)
+        only ever returns the FIRST parented child it finds. Every export
+        call site that built its export selection from that single result
+        (NIF export, scale round-trip, batch export) silently dropped every
+        piece but one, so a multi-piece collision generated in Blender
+        shipped in-game with just one convex hull instead of the whole set
+        -- confirmed as a real bug matching a user report of custom
+        collision "not working correctly". This returns every parented
+        ``fo4_collision`` child, falling back to :meth:`_find_collision_mesh`
+        (single-piece / legacy / native-import cases) when there are none.
+        """
+        pieces = [c for c in obj.children if c.get("fo4_collision")]
+        if pieces:
+            return pieces
+        single = ExportHelpers._find_collision_mesh(obj)
+        return [single] if single is not None else []
+
+    @staticmethod
     def _find_connect_points(obj):
         """Return all connect-point child objects (parent and child kinds)
         anywhere under *obj*, so they survive being included in the export
@@ -879,10 +948,34 @@ class ExportHelpers:
         if not filepath or not str(filepath).strip():
             return False, "Export filepath is empty — choose a destination file first"
 
+        filepath = str(filepath).strip()
+
+        # PyNifly-imported NIFs name multiple NiTriShapes that share a base
+        # name with a ":<index>" suffix (e.g. "GSFungusTreeCluster01:39",
+        # confirmed directly from a real PYNIFLY IMPORT NIF log). When a LOD/
+        # export tool builds a filename straight from such an obj.name (e.g.
+        # "GSFungusTreeCluster01:39_LOD_0.nif"), the colon lands INSIDE the
+        # filename, not just after a drive letter. NTFS treats "name:rest" as
+        # an Alternate Data Stream reference -- Windows silently creates an
+        # empty 0-byte file named only the part before the first colon
+        # ("GSFungusTreeCluster01") with no extension, while the actual NIF
+        # bytes get written into an invisible, useless ADS. Confirmed
+        # directly against a user's mod folder: PyNifly's own export log
+        # showed "to file: ...\GSFungusTreeCluster01:39_LOD_0.nif" and
+        # "completed SUCCESSFULLY", yet the file on disk was an empty,
+        # extensionless "GSFungusTreeCluster01" -- the export silently
+        # "succeeded" into a stream nothing can read.  Sanitize only the
+        # final path component (never the drive letter's own colon, e.g.
+        # "E:\...") by replacing every Windows-reserved character.
+        import re as _re
+        _dirname, _basename = os.path.split(filepath)
+        _sanitized_basename = _re.sub(r'[<>:"/\\|?*]', '_', _basename)
+        if _sanitized_basename != _basename:
+            filepath = os.path.join(_dirname, _sanitized_basename)
+
         # PyNifly writes to exactly the path given, so a filename typed without
         # an extension (e.g. "test") produces an extensionless file that Windows
         # and NifSkope don't recognise as a NIF.  Force a .nif extension.
-        filepath = str(filepath).strip()
         _root, _ext = os.path.splitext(filepath)
         if _ext.lower() == ".fbx":
             pass  # explicit FBX request — leave as-is for the FBX fallback
@@ -965,9 +1058,7 @@ class ExportHelpers:
                     # itself (already resolved above, tag-or-inferred) not on
                     # the collision object's own tag.
                     _scale_targets = [obj]
-                    _coll_early = ExportHelpers._find_collision_mesh(obj)
-                    if _coll_early:
-                        _scale_targets.append(_coll_early)
+                    _scale_targets.extend(ExportHelpers._find_collision_meshes(obj))
 
                     # The skinned armature's bind-pose bones must move in lockstep
                     # with the mesh's own ×70 restoration, or the exported NIF ends
@@ -1051,12 +1142,11 @@ class ExportHelpers:
 
                 # gather objects to export (main mesh + optional collision)
                 selection = [obj]
-                # only include a collision object if the mesh is expected to have one
+                # only include collision object(s) if the mesh is expected to have one --
+                # ALL pieces of a multi-convex collision, not just the first
                 ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                 if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
-                    coll = ExportHelpers._find_collision_mesh(obj)
-                    if coll:
-                        selection.append(coll)
+                    selection.extend(ExportHelpers._find_collision_meshes(obj))
                 # include any weapon-mod/attachment connect points the user
                 # has built under this object -- PyNifly only finds these by
                 # scanning the export-time selection, so they'd be silently
@@ -1148,13 +1238,34 @@ class ExportHelpers:
                                  if p.lower() == 'meshes'),
                                 None
                             )
+                            # NOTE: LOD NIFs are exported by fo4_lod_generator.py
+                            # to a literal ".../Meshes/LOD/<sub>/..." path (see
+                            # its own comment on nif_path), so this plain
+                            # Meshes->Materials mirror naturally carries that
+                            # "LOD" segment through to
+                            # ".../Materials/LOD/<sub>/..." with no special
+                            # casing needed here -- mirroring the same
+                            # Textures\LOD\... convention used for LOD
+                            # textures (see _lod_texture_output_dir in
+                            # fo4_lod_generator.py). Do NOT add an extra "LOD"
+                            # segment here or LOD assets end up double-nested
+                            # (Materials\LOD\LOD\...).
                             if _mesh_idx is not None:
-                                # Mirror: Data\Meshes\sub\path → Data\Materials\sub\path
+                                # Mirror: Meshes\sub\path → Materials\sub\path
                                 _mat_dir = _pl.Path(*_parts[:_mesh_idx]) / "Materials" / _pl.Path(*_parts[_mesh_idx + 1:-1])
                             else:
                                 _mat_dir = _nif_p.parent / "Materials"
+                            # fo4_lod_generator.py tags every LOD/billboard
+                            # copy it creates with fo4_lod_level (LOD1/2/3 or
+                            # BILLBOARD) -- reuse that same signal here so
+                            # the exported BGSM gets the real LOD-specific
+                            # overrides (see blender_mat_to_bgsm's is_lod
+                            # docstring) instead of blindly carrying over
+                            # the full-detail source material's fields.
+                            _is_lod_export = bool(obj.get("fo4_lod_level"))
                             _bgsm_results = _bh_exp.export_bgsm_for_object(
-                                obj, str(_mat_dir), all_slots=False
+                                obj, str(_mat_dir), all_slots=False,
+                                is_lod=_is_lod_export,
                             )
                             _bgsm_ok = [m for ok, m in _bgsm_results if ok]
                             _bgsm_fail = [m for ok, m in _bgsm_results if not ok]
@@ -1503,6 +1614,28 @@ class ExportHelpers:
                 pass
 
     @staticmethod
+    def safe_export_filename(name: str) -> str:
+        """Sanitize an object name for use as a filesystem filename.
+
+        PyNifly's own shape-naming convention embeds a literal colon (e.g.
+        "BaseMaleBody_Fitted:0", "Body:0") -- a real, common case on
+        ordinary vanilla FO4 NIFs, not an edge case. On NTFS a colon in a
+        path is the Alternate Data Stream separator, so an unsanitized
+        f"{name}.nif" silently writes into a hidden ADS on a 0-byte visible
+        file instead of a real, discoverable .nif. Confirmed directly on a
+        real export: PyNifly reported "successfully exported" and the
+        calling code reported "Exported N meshes" while every affected
+        file was an empty 0-byte placeholder with the real NIF data hidden
+        in an invisible alternate stream -- a fabricated-success shape
+        indistinguishable from success unless someone checks with
+        Get-Item -Stream. Replaces every character illegal in a Windows
+        filename with '_'.
+        """
+        illegal = '<>:"/\\|?*'
+        cleaned = "".join('_' if c in illegal else c for c in name).strip()
+        return cleaned or "unnamed"
+
+    @staticmethod
     def _export_output_written(filepath, since_seconds: float = 300.0, after_time: float = None,
                                retry_window: float = 2.0, retry_interval: float = 0.2):
         """Return True when a NIF that looks like this export was written to disk
@@ -1792,9 +1925,7 @@ class ExportHelpers:
                     # object's own tag, or an untagged source's collision
                     # mesh silently gets excluded from the scale round-trip.
                     _scale_targets = [obj]
-                    _coll_early = ExportHelpers._find_collision_mesh(obj)
-                    if _coll_early:
-                        _scale_targets.append(_coll_early)
+                    _scale_targets.extend(ExportHelpers._find_collision_meshes(obj))
 
                     # Move the skinned armature's bind-pose bones in lockstep —
                     # see the matching comment in export_mesh_to_nif for why
@@ -1866,13 +1997,13 @@ class ExportHelpers:
                 added_mods_per_obj[obj.name] = added_mods
                 obj.select_set(True)
 
-                # Include the associated collision mesh so it is embedded in the
-                # same NIF file rather than being left behind.
+                # Include the associated collision mesh(es) so they are embedded
+                # in the same NIF file rather than being left behind -- ALL
+                # pieces of a multi-convex collision, not just the first.
                 ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                 if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
-                    coll = ExportHelpers._find_collision_mesh(obj)
-                    if coll:
-                        coll.select_set(True)
+                    for _coll in ExportHelpers._find_collision_meshes(obj):
+                        _coll.select_set(True)
                 # Include any weapon-mod/attachment connect points built
                 # under this object -- see _find_connect_points for why.
                 for cp in ExportHelpers._find_connect_points(obj):
@@ -1889,9 +2020,8 @@ class ExportHelpers:
                 obj.select_set(True)
                 ctype = getattr(obj, 'fo4_collision_type', 'DEFAULT')
                 if ctype not in ('NONE', 'GRASS', 'MUSHROOM'):
-                    coll = ExportHelpers._find_collision_mesh(obj)
-                    if coll:
-                        coll.select_set(True)
+                    for _coll in ExportHelpers._find_collision_meshes(obj):
+                        _coll.select_set(True)
                 for cp in ExportHelpers._find_connect_points(obj):
                     cp.select_set(True)
 
@@ -1969,13 +2099,30 @@ class ExportHelpers:
             # NIF-conversion step.
             base_path = os.path.splitext(filepath)[0]
             fbx_path = base_path + ".fbx"
-            bpy.ops.export_scene.fbx(
+            # bpy.ops calls don't raise when an operator declines to run --
+            # a failed poll(), no valid selection, bad filepath, etc. all
+            # come back as {'CANCELLED'}, never an exception. This call's
+            # return value used to be discarded entirely, so a declined FBX
+            # export here (the *fallback* path, reached only after NIF
+            # export already failed) still returned True with an "Exported
+            # ... as FBX" message even though nothing was written -- the
+            # same silent-success trap _call_nif_export() above was already
+            # hardened against, just missed on this branch. Check it and
+            # confirm the file actually landed on disk, same as the
+            # documented PyNifly result-code caveat.
+            fbx_result = bpy.ops.export_scene.fbx(
                 filepath=fbx_path,
                 use_selection=True,
                 apply_scale_options='FBX_SCALE_ALL',
                 mesh_smooth_type='FACE',
                 use_mesh_modifiers=True,
             )
+            fbx_result_set = set(fbx_result) if fbx_result else set()
+            if 'CANCELLED' in fbx_result_set or not os.path.isfile(fbx_path):
+                return False, (
+                    f"{fallback_msg} FBX export also did not complete "
+                    f"(result={fbx_result!r}); nothing was written to {fbx_path}."
+                )
             mesh_count = len(meshes)
             return True, f"{fallback_msg} Exported {mesh_count} mesh(es) as FBX: {fbx_path}{multi_obj_note}"
 
@@ -2056,7 +2203,7 @@ class ExportHelpers:
                     results['skipped'].append(obj.name)
                     continue
 
-                mesh_path = os.path.join(mesh_dir, f"{obj.name}.nif")
+                mesh_path = os.path.join(mesh_dir, f"{ExportHelpers.safe_export_filename(obj.name)}.nif")
                 success, message = ExportHelpers.export_mesh_to_nif(obj, mesh_path)
 
                 if success:

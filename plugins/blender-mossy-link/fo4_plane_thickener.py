@@ -97,7 +97,14 @@ def _apply_cross_card(context, obj, card_count: int):
             c.select_set(True)
         obj.select_set(True)
         context.view_layer.objects.active = obj
-        bpy.ops.object.join()
+        _join_result = bpy.ops.object.join()
+        if 'FINISHED' not in _join_result:
+            # bpy.ops only raises on poll() failure, never on a normal
+            # cancelled execute() -- an unchecked CANCELLED here would leave
+            # every duplicate card as a separate stray object in the scene
+            # while copies.clear() below tells the finally block there's
+            # nothing to clean up, permanently orphaning them.
+            raise RuntimeError(f"object.join() did not finish ({_join_result})")
         copies.clear()  # consumed by join; clear so finally block skips cleanup
 
     except Exception:

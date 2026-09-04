@@ -71,6 +71,48 @@ def detect_slot_from_filename(filename: str) -> str:
     return mapping.get(suffix, 'unknown')
 
 
+def read_dds_dimensions(path: str) -> "tuple[int, int] | None":
+    """Read (width, height) straight from a DDS file's header, without
+    loading pixel data. Returns ``None`` if *path* isn't a readable DDS.
+
+    DDS header layout after the 4-byte ``"DDS "`` magic is a fixed,
+    documented part of Microsoft's DirectDraw Surface format: dwSize,
+    dwFlags, dwHeight, dwWidth as little-endian uint32s in that order --
+    not addon-specific, so this is safe to trust for any real DDS file.
+    """
+    try:
+        with open(path, 'rb') as f:
+            header = f.read(20)
+        if len(header) < 20 or header[:4] != b'DDS ':
+            return None
+        import struct as _struct
+        height, width = _struct.unpack('<II', header[12:20])
+        if width <= 0 or height <= 0:
+            return None
+        return (width, height)
+    except Exception:
+        return None
+
+
+def is_texture_size_downgrade(existing_path: str, new_path: str) -> bool:
+    """True if *new_path* is a DDS strictly smaller (either dimension) than
+    the DDS already sitting at *existing_path*.
+
+    Exists to stop a blind file copy from silently replacing a good texture
+    with a lower-resolution one -- confirmed as a real failure mode: a 2K
+    game texture in a user's mod folder got overwritten by a 512 texture
+    during a load + collision + export pass, with no warning, because every
+    copy path here only ever checked whether source and destination were
+    literally the same file, never whether the destination already held
+    something better.
+    """
+    existing_dims = read_dds_dimensions(existing_path)
+    new_dims = read_dds_dimensions(new_path)
+    if not existing_dims or not new_dims:
+        return False
+    return new_dims[0] < existing_dims[0] or new_dims[1] < existing_dims[1]
+
+
 class NVTTHelpers:
     """Helper functions for NVIDIA Texture Tools integration"""
     

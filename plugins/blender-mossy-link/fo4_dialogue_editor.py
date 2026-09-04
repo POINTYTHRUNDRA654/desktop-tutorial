@@ -192,9 +192,29 @@ class FO4_OT_ExportDialogueTree(bpy.types.Operator):
         if not trees:
             self.report({'ERROR'}, "No FO4 Dialogue Tree found — create one first")
             return {'CANCELLED'}
-        ok, msg = export_dialogue_tree_json(trees[0], bpy.path.abspath(self.output_path))
+
+        # Prefer the tree actually open in the Node Editor this operator was
+        # invoked from -- trees[0] (creation order) silently exported the
+        # WRONG tree whenever more than one dialogue tree existed and the
+        # user was editing anything but the first one ever created.
+        target = None
+        space = getattr(context, "space_data", None)
+        if space is not None and getattr(space, "type", None) == 'NODE_EDITOR':
+            edit_tree = getattr(space, "edit_tree", None)
+            if edit_tree is not None and edit_tree.bl_idname == 'FO4DialogueTreeType':
+                target = edit_tree
+        if target is None:
+            target = trees[0]
+            if len(trees) > 1:
+                self.report({'WARNING'},
+                    f"Multiple dialogue trees exist and none is the active Node "
+                    f"Editor tab -- exporting '{target.name}' (first by creation "
+                    f"order). Open the tree you want in the Node Editor first to "
+                    f"export a different one.")
+
+        ok, msg = export_dialogue_tree_json(target, bpy.path.abspath(self.output_path))
         self.report({'INFO'} if ok else {'ERROR'}, msg)
-        return {'FINISHED'}
+        return {'FINISHED'} if ok else {'CANCELLED'}
 
 
 _CLASSES = [

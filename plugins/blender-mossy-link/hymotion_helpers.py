@@ -469,13 +469,23 @@ def import_motion_file(filepath, armature=None):
         ext = os.path.splitext(filepath)[1].lower()
         
         if ext in ['.bvh', '.fbx']:
-            # These can be imported directly to Blender
+            # These can be imported directly to Blender.
+            # bpy.ops calls don't raise when the operator declines to run
+            # (bad file, wrong context) -- they return {'CANCELLED'}, never
+            # an exception. This used to return True unconditionally as
+            # long as the call itself didn't throw. Check the result and
+            # confirm something actually landed in the scene.
+            _before = set(bpy.context.scene.objects)
             if ext == '.bvh':
-                bpy.ops.import_anim.bvh(filepath=filepath)
+                _result = bpy.ops.import_anim.bvh(filepath=filepath)
+            else:
+                _result = bpy.ops.import_scene.fbx(filepath=filepath)
+            _new = [o for o in bpy.context.scene.objects if o not in _before]
+            if 'CANCELLED' in set(_result or ()) or not _new:
+                return False, f"{ext.upper()[1:]} import did not add anything (result={_result!r})"
+            if ext == '.bvh':
                 return True, "BVH motion imported successfully"
-            elif ext == '.fbx':
-                bpy.ops.import_scene.fbx(filepath=filepath)
-                return True, "FBX animation imported successfully"
+            return True, "FBX animation imported successfully"
         else:
             return False, f"Unsupported motion format: {ext}\nSupported: .bvh, .fbx"
             

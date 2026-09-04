@@ -278,9 +278,21 @@ class FO4_OT_DecimateNavMesh(bpy.types.Operator):
         ratio = limit / fcount * 0.95
         dec   = obj.modifiers.new("NAV_Decimate", 'DECIMATE')
         dec.ratio = ratio
-        bpy.ops.object.modifier_apply(modifier=dec.name)
-        self.report({'INFO'},
-            f"Decimated: {fcount} → {len(obj.data.polygons)} triangles")
+        context.view_layer.objects.active = obj
+        _apply_result = bpy.ops.object.modifier_apply(modifier=dec.name)
+        new_count = len(obj.data.polygons)
+        if 'FINISHED' not in _apply_result:
+            self.report({'ERROR'},
+                f"Decimate modifier failed to apply ({_apply_result}) -- navmesh is "
+                f"still at {fcount} triangles, over the {limit} limit")
+            return {'CANCELLED'}
+        if new_count > limit:
+            self.report({'WARNING'},
+                f"Decimated: {fcount} → {new_count} triangles -- still over the {limit} limit, "
+                "run again or simplify the source mesh")
+        else:
+            self.report({'INFO'},
+                f"Decimated: {fcount} → {new_count} triangles")
         return {'FINISHED'}
 
 

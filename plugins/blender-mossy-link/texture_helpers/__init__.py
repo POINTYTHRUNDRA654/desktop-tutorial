@@ -47,7 +47,7 @@ class TextureHelpers:
         return 'DIFFUSE'
 
     @staticmethod
-    def setup_fo4_material(obj):
+    def setup_fo4_material(obj, force=False):
         """Setup a Fallout 4 compatible material for the object.
 
         If the object already carries a material with a *loaded* diffuse texture
@@ -55,22 +55,30 @@ class TextureHelpers:
         game or mod asset), that material is returned unchanged instead of being
         cleared and rebuilt.  This prevents imported textures from being wiped;
         a fresh FO4 node graph is only created for untextured meshes.
+
+        Pass *force=True* to always build a brand-new material regardless of
+        what the object already has -- used by FO4_OT_SetupHDMaterial's
+        "Replace Existing Material" checkbox, which previously had no effect
+        here: it only gated whether this function got called at all, and once
+        called, this early-return always kept the existing textured material
+        anyway, silently ignoring "replace".
         """
         if obj.type != 'MESH':
             return None
 
-        for _slot in obj.material_slots:
-            _m = _slot.material
-            if not (_m and _m.use_nodes):
-                continue
-            for _node in _m.node_tree.nodes:
-                if _node.type == 'BSDF_PRINCIPLED':
-                    _sock = _node.inputs.get('Base Color')
-                    if (_sock and _sock.links
-                            and _sock.links[0].from_node.type == 'TEX_IMAGE'
-                            and _sock.links[0].from_node.image is not None
-                            and _sock.links[0].from_node.image.has_data):
-                        return _m
+        if not force:
+            for _slot in obj.material_slots:
+                _m = _slot.material
+                if not (_m and _m.use_nodes):
+                    continue
+                for _node in _m.node_tree.nodes:
+                    if _node.type == 'BSDF_PRINCIPLED':
+                        _sock = _node.inputs.get('Base Color')
+                        if (_sock and _sock.links
+                                and _sock.links[0].from_node.type == 'TEX_IMAGE'
+                                and _sock.links[0].from_node.image is not None
+                                and _sock.links[0].from_node.image.has_data):
+                            return _m
 
         # Create new material
         mat_name = f"{obj.name}_FO4_Material"
@@ -216,7 +224,21 @@ class TextureHelpers:
         mat.alpha_threshold  = 0.5
         mat.use_backface_culling = False
 
-        # Custom properties read by BGSM export to set shader flags + translucency block
+        # fo4_shader_type/fo4_core_profile are read by blender_mat_to_bgsm()
+        # (bgsm_helpers.py) as shader-flag hints. fo4_translucency (the bare
+        # bool) is also read there and sets SF1_BACK_LIGHTING.
+        #
+        # fo4_translucency_subsurface_r/g/b, _scale, and _mix_albedo below
+        # are NOT read anywhere in the codebase (verified: grepped for every
+        # one of these keys project-wide, only this write site exists).
+        # That's not an oversight to "fix" by wiring them up -- real FO4
+        # BGSM files (format version 2, confirmed across this addon's whole
+        # sampled reference library) have no translucency/subsurface fields
+        # at all to write these into; see blender_mat_to_bgsm's own comment
+        # on this. They're kept here purely as informational metadata on
+        # the material (e.g. visible via Blender's custom-properties panel
+        # for a modder cross-referencing values against a real vanilla
+        # asset) -- do not expect changing them to affect the export.
         mat["fo4_shader_type"]               = "vegetation"
         mat["fo4_core_profile"]              = "foliage"
         mat["fo4_translucency"]              = True
@@ -250,13 +272,60 @@ class TextureHelpers:
         keep = "".join(c if (c.isalnum() or c in "_- ") else "_" for c in name)
         return keep.strip("_ ") or "UnknownAsset"
 
+    # Maps the object's fo4_mesh_type EnumProperty (operators.py, per-object
+    # registration) to the real vanilla FO4 Textures\ subfolder its category
+    # of asset actually lives in. Previously every install unconditionally
+    # went to Textures\Armor\<name> regardless of what kind of asset it was
+    # -- a weapon, a piece of furniture, a wall section, a plant, etc. would
+    # all get filed under Armor, which is wrong and makes texture installs
+    # hard to find/manage in the actual Data folder.
+    #
+    # Verified against the real vanilla Textures\ folder layout (checked
+    # 2026-08-25 via the user's F:\FO4 WORKING FLODER, which mirrors a real
+    # Data folder) rather than guessed -- ARMOR/WEAPON/FURNITURE/ARCHITECTURE/
+    # VEGETATION/FLORA all confirmed as real top-level folders. Two entries
+    # were corrected after that check found they didn't match anything real:
+    # there is no top-level "Clutter" folder (small junk/debris items like
+    # AbraxoClean/AlienToy/Antifreeze actually live under "Props"), and LOD
+    # variants get their own top-level "LOD" folder (see
+    # reference_fo4_working_folder.md), not "Landscape" (which is terrain
+    # textures -- an unrelated category).
+    _MESH_TYPE_TEXTURE_FOLDER = {
+        'ARMOR': "Armor",
+        'SKINNED': "Armor",
+        'WEAPON': "Weapons",
+        'FURNITURE': "Furniture",
+        'ARCHITECTURE': "Architecture",
+        'VEGETATION': "Plants",
+        'FLORA': "Plants",
+        'DEBRIS': "Props",
+        'ANIMATED': "Props",
+        'LOD': "LOD",
+        # AUTO / STATIC / unset -- no reliable category signal, keep the
+        # previous default so existing installs don't change location.
+        'STATIC': "Armor",
+        'AUTO': "Armor",
+    }
+
+    @staticmethod
+    def _texture_category_folder(obj):
+        """Return the FO4 ``Textures\\<Category>`` subfolder name for *obj*,
+        derived from its ``fo4_mesh_type`` classification. Must be read via
+        attribute access -- fo4_mesh_type is a real RNA EnumProperty, not a
+        custom ID property, so ``obj["fo4_mesh_type"]``/``.get()`` would
+        silently miss it.
+        """
+        mesh_type = getattr(obj, "fo4_mesh_type", "AUTO") or "AUTO"
+        return TextureHelpers._MESH_TYPE_TEXTURE_FOLDER.get(mesh_type, "Armor")
+
     @staticmethod
     def _ensure_texture_in_data_folder(obj, texture_path):
-        """Copy *texture_path* into ``Data\\Textures\\Armor\\<asset name>\\``
-        under the user's configured FO4 Data folder, returning the copied
-        file's absolute path -- or the original path unchanged if no Data
-        folder is configured, the source is already inside one, or the copy
-        fails for any reason (never blocks the install over this).
+        """Copy *texture_path* into ``Data\\Textures\\<Category>\\<asset name>\\``
+        under the user's configured FO4 Data folder (the category subfolder
+        is derived from the object's ``fo4_mesh_type``), returning the
+        copied file's absolute path -- or the original path unchanged if no
+        Data folder is configured, the source is already inside one, or the
+        copy fails for any reason (never blocks the install over this).
         """
         try:
             from . import preferences as _prefs_mod
@@ -282,11 +351,32 @@ class TextureHelpers:
             return texture_path  # nothing configured -- best effort, unchanged
 
         asset_name = TextureHelpers._sanitize_folder_name(obj.name)
-        dest_dir = os.path.join(bpy.path.abspath(data_root), "Textures", "Armor", asset_name)
+        category_folder = TextureHelpers._texture_category_folder(obj)
+        dest_dir = os.path.join(bpy.path.abspath(data_root), "Textures", category_folder, asset_name)
         dest_path = os.path.join(dest_dir, os.path.basename(texture_path))
 
         if os.path.normcase(os.path.normpath(dest_path)) == os.path.normcase(norm_src):
             return texture_path  # already the destination
+
+        # Refuse to blindly clobber an existing, higher-resolution texture at
+        # the destination with whatever this call is installing -- confirmed
+        # real incident: a correct 2K texture already sitting in a mod
+        # folder got silently overwritten by a 512 one, because this copy
+        # only ever checked whether source == destination, never what was
+        # already there.
+        if os.path.exists(dest_path):
+            try:
+                from . import nvtt_helpers as _nvtt_mod
+            except ImportError:
+                from .. import nvtt_helpers as _nvtt_mod
+            if _nvtt_mod.is_texture_size_downgrade(dest_path, texture_path):
+                print(
+                    f"[FO4 Add-on] Not installing '{texture_path}' over "
+                    f"'{dest_path}' -- the existing file is higher resolution. "
+                    f"Delete it first if replacing it with a smaller texture "
+                    f"is intentional."
+                )
+                return texture_path  # keep the original, don't touch dest
 
         try:
             os.makedirs(dest_dir, exist_ok=True)

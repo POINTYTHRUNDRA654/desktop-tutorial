@@ -82,6 +82,20 @@ _CLIP_PRESETS = {
 # ck-cmd executable name
 _CKCMD_EXE = "ck-cmd.exe"
 
+# FO4 game units per metre (Havok scale). Must match
+# export_helpers._FO4_UNIT_SCALE_INV / operators._FO4_UNIT_SCALE_INV and
+# fo4_creature_rig._FO4_UNIT_SCALE's inverse. Every creature rig built by
+# fo4_creature_rig.py (the only source feeding this module's export
+# operators) is deliberately constructed at Blender-metre scale -- 1/69.99125
+# of real FO4 unit size, documented in that file -- so the FBX handed to
+# ck-cmd must be scaled back up by this factor before conversion, exactly as
+# export_helpers.py does for meshes and export_scene.pynifly for skinned
+# armatures. This used to export at global_scale=1.0 with no correction,
+# producing an FBX skeleton ~70x smaller than the vanilla FO4 skeleton
+# ck-cmd binds it against (--skeleton), silently breaking the retarget or
+# failing the ck-cmd conversion outright.
+_FO4_UNIT_SCALE_INV = 69.99125
+
 
 def _find_ckcmd() -> "str | None":
     """Find ck-cmd executable from addon preferences or PATH."""
@@ -132,7 +146,14 @@ def _export_fbx_for_hkx(obj, filepath: str,
                 child.select_set(True)
         bpy.context.view_layer.objects.active = obj
 
-        bpy.ops.export_scene.fbx(
+        # bpy.ops calls don't raise when the operator declines to run (bad
+        # context, no valid selection, etc.) -- they come back as
+        # {'CANCELLED'}, never an exception. This used to return True
+        # unconditionally as long as no exception was raised, so a declined
+        # export would still be reported (and fed to ck-cmd) as a
+        # successfully exported FBX. Check the result and confirm the file
+        # actually landed on disk.
+        _fbx_result = bpy.ops.export_scene.fbx(
             filepath=filepath,
             use_selection=True,
             use_armature_deform_only=True,
@@ -146,10 +167,12 @@ def _export_fbx_for_hkx(obj, filepath: str,
             axis_forward='-Z',
             axis_up='Y',
             apply_unit_scale=True,
-            global_scale=1.0,
+            global_scale=_FO4_UNIT_SCALE_INV,
             path_mode='COPY',
             embed_textures=False,
         )
+        if 'CANCELLED' in set(_fbx_result or ()) or not os.path.isfile(filepath):
+            return False, f"FBX export did not complete (result={_fbx_result!r}); nothing was written to {filepath}."
         return True, f"FBX exported: {os.path.basename(filepath)}"
 
     except Exception as e:

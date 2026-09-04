@@ -86,8 +86,12 @@ class ItemHelpers:
         bpy.ops.object.empty_add(type='CIRCLE', radius=0.05, location=weapon.location)
         slot = bpy.context.active_object
         slot.name = f"ModSlot_{slot_type}"
+        # Direct .parent assignment in Python doesn't set matrix_parent_inverse
+        # the way Ctrl+P does -- without it the per-slot-type offsets below
+        # apply in the wrong space whenever weapon has any rotation/scale.
         slot.parent = weapon
-        
+        slot.matrix_parent_inverse = weapon.matrix_world.inverted()
+
         # Position based on slot type
         if slot_type == 'RECEIVER':
             slot.location.z += 0.05
@@ -283,7 +287,11 @@ class ItemHelpers:
         bpy.ops.object.empty_add(type='SPHERE', radius=0.05, location=obj.location)
         marker = bpy.context.active_object
         marker.name = f"{obj.name}_PickupMarker"
+        # Direct .parent assignment doesn't set matrix_parent_inverse the way
+        # Ctrl+P does -- without it the marker jumps off obj.location as soon
+        # as obj has any non-identity transform.
         marker.parent = obj
+        marker.matrix_parent_inverse = obj.matrix_world.inverted()
         return marker
 
 class ClutterHelpers:

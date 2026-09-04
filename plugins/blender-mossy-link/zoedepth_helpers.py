@@ -318,8 +318,15 @@ def create_mesh_from_depth_map(name, depth_map, width, height,
         import numpy as np
         from .image_to_mesh_helpers import create_mesh_from_heightmap
         
-        # Normalize depth map to 0-1 range
-        depth_normalized = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
+        # Normalize depth map to 0-1 range. Guard the flat-depth-map case
+        # (max == min, e.g. a blank/failed depth estimate) -- dividing by
+        # zero here silently produces an all-NaN array, which then builds a
+        # mesh with every vertex at an undefined position.
+        depth_range = depth_map.max() - depth_map.min()
+        if depth_range == 0:
+            depth_normalized = np.zeros_like(depth_map, dtype=np.float64)
+        else:
+            depth_normalized = (depth_map - depth_map.min()) / depth_range
         
         # Use existing heightmap function
         return create_mesh_from_heightmap(

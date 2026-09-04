@@ -763,30 +763,43 @@ def import_mesh_file(filepath, mesh_name="AI_Generated_Mesh"):
     try:
         # Determine file type and import accordingly
         ext = os.path.splitext(filepath)[1].lower()
-        
+
+        # bpy.ops calls don't raise when the operator declines to run (bad
+        # file, wrong context) -- they return {'CANCELLED'}, never an
+        # exception. Reading bpy.context.selected_objects afterward (as
+        # this used to) is also unsafe on its own: if a declined import
+        # left the scene selection untouched, whatever the caller already
+        # had selected gets reported back as "the imported mesh". Use a
+        # real before/after object diff instead.
+        _before = set(bpy.context.scene.objects)
+
         if ext == '.obj':
             # import_scene.obj/import_mesh.stl were removed in Blender 4.0
             # (replaced by wm.obj_import/wm.stl_import) -- calling the old
             # names unconditionally raised AttributeError on every
             # currently-supported Blender version this add-on targets.
             if hasattr(bpy.ops.wm, "obj_import"):
-                bpy.ops.wm.obj_import(filepath=filepath)
+                _result = bpy.ops.wm.obj_import(filepath=filepath)
             else:
-                bpy.ops.import_scene.obj(filepath=filepath)
+                _result = bpy.ops.import_scene.obj(filepath=filepath)
         elif ext in ['.glb', '.gltf']:
-            bpy.ops.import_scene.gltf(filepath=filepath)
+            _result = bpy.ops.import_scene.gltf(filepath=filepath)
         elif ext == '.fbx':
-            bpy.ops.import_scene.fbx(filepath=filepath)
+            _result = bpy.ops.import_scene.fbx(filepath=filepath)
         elif ext == '.stl':
             if hasattr(bpy.ops.wm, "stl_import"):
-                bpy.ops.wm.stl_import(filepath=filepath)
+                _result = bpy.ops.wm.stl_import(filepath=filepath)
             else:
-                bpy.ops.import_mesh.stl(filepath=filepath)
+                _result = bpy.ops.import_mesh.stl(filepath=filepath)
         else:
             return False, f"Unsupported file format: {ext}"
-        
+
+        _new = [o for o in bpy.context.scene.objects if o not in _before]
+        if 'CANCELLED' in set(_result or ()) or not _new:
+            return False, f"Import did not add anything (result={_result!r})"
+
         # Get the imported object
-        obj = bpy.context.selected_objects[0] if bpy.context.selected_objects else None
+        obj = _new[0]
         if obj:
             obj.name = mesh_name
             # Wire any baked/embedded texture onto disk + into the material so the

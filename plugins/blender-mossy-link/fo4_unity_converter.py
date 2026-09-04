@@ -831,11 +831,17 @@ class FO4_OT_ConvertUnityAsset(Operator):
         except Exception as e:
             try:
                 fbx = os.path.splitext(filepath)[0] + "_NEEDS_CAO.fbx"
-                bpy.ops.export_scene.fbx(
+                # bpy.ops calls don't raise when the operator declines to
+                # run -- they return {'CANCELLED'}, never an exception.
+                # Check the result and confirm the file actually landed on
+                # disk before reporting it as exported.
+                _fbx_result = bpy.ops.export_scene.fbx(
                     filepath=fbx, use_selection=True,
                     apply_unit_scale=True,
                     axis_forward='-Z', axis_up='Y',
                 )
+                if 'CANCELLED' in set(_fbx_result or ()) or not os.path.isfile(fbx):
+                    return False, "none", f"FBX fallback export did not complete (result={_fbx_result!r})"
                 return True, "FBX(needs CAO)", f"FBX: {fbx} — convert with CAO"
             except Exception as e2:
                 return False, "none", str(e2)

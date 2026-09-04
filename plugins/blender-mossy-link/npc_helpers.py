@@ -98,7 +98,14 @@ class NPCHelpers:
         bpy.ops.object.empty_add(type='CUBE', radius=0.1, location=obj.location)
         slot = bpy.context.active_object
         slot.name = f"INV_{slot_name}"
+        # Setting .parent directly in Python (unlike Ctrl+P in the UI) does
+        # NOT set matrix_parent_inverse -- without it, this empty jumps away
+        # from the obj.location it was just created at the instant obj has
+        # any non-identity transform (rotation/scale/its own parent chain),
+        # since its final world position becomes
+        # obj.matrix_world @ slot.matrix_basis instead of staying put.
         slot.parent = obj
+        slot.matrix_parent_inverse = obj.matrix_world.inverted()
         return slot
 
 class CreatureHelpers:
@@ -143,7 +150,11 @@ class CreatureHelpers:
         bpy.ops.object.empty_add(type='PLAIN_AXES', radius=0.5, location=obj.location)
         marker = bpy.context.active_object
         marker.name = f"AI_{behavior}"
+        # See add_npc_inventory_slot's comment -- direct .parent assignment
+        # needs matrix_parent_inverse set explicitly or the marker jumps
+        # away from obj.location as soon as obj has a non-identity transform.
         marker.parent = obj
+        marker.matrix_parent_inverse = obj.matrix_world.inverted()
         return marker
 
 def register():

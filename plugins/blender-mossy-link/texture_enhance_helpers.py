@@ -559,6 +559,7 @@ class FO4_OT_EnhanceTexture(bpy.types.Operator):
                 self.report({'INFO'}, f"Specular map: {os.path.basename(result['specular_path'])}")
         else:
             self.report({'ERROR'}, result["message"])
+            return {'CANCELLED'}
         return {'FINISHED'}
 
 

@@ -12,7 +12,6 @@ Adds two operators that appear in the Setup & Status panel:
         2.  Install location / dual-install detection
         3.  Duplicate sys.modules entries
         4.  Python module import status (all tracked modules)
-        4b. Vegetation / Advanced Realism panel registration
         5.  Critical operator registration
         6.  Addon preferences accessibility
         7.  Python version
@@ -100,23 +99,7 @@ _TRACKED_MODULES = [
     "imageto3d_helpers",
     "umodel_helpers",
     "mossy_link",
-    "content_panels",
-    "advanced_realism_helpers",
 ]
-
-# These are deliberately left as None at startup (see __init__.py: "loaded on
-# demand in AI panel") and populated later -- either by the Phase 2 timer's
-# auto-reimport pass (~3s after startup) or the first time the AI panel
-# actually needs them. Being None right after a fresh launch is the correct,
-# expected state, not a failure -- flagging it as "FAILED TO IMPORT" (as this
-# report used to) is a false alarm that reproduces identically on every
-# restart regardless of whether anything is actually broken. Must be kept in
-# sync with __init__.py's _AI_HELPER_NAMES list.
-_LAZY_AI_MODULES = {
-    "hunyuan3d_helpers", "hymotion_helpers", "zoedepth_helpers",
-    "realesrgan_helpers", "rignet_helpers", "instantngp_helpers",
-    "imageto3d_helpers",
-}
 
 # These operators MUST always be registered for the Setup & Status panel and
 # the main welcome panel to work correctly.  Any failure here is critical.
@@ -273,9 +256,6 @@ def collect_diagnostics():
         mod = getattr(init, name, _SENTINEL)
         if mod is _SENTINEL:
             results.append(("WARN", "Module", f"{name}: not tracked in __init__"))
-        elif mod is None and name in _LAZY_AI_MODULES:
-            results.append(("INFO", "Module",
-                            f"{name}: not loaded yet (lazy-loaded on demand / after startup — normal)"))
         elif mod is None:
             results.append(("FAIL", "Module", f"{name}: FAILED TO IMPORT - its features will be missing"))
             failed_mods.append(name)
@@ -285,51 +265,6 @@ def collect_diagnostics():
     if failed_mods:
         results.append(("WARN", "Module",
                         f"{len(failed_mods)} module(s) failed - click 'Auto-Fix Issues' to retry"))
-
-    # ── 4b. Vegetation / Advanced Realism panel registration ──────────────────
-    # These two panels were reported missing from the N-panel; checked here
-    # directly via bpy.types.Panel.__subclasses__() (not hasattr(bpy.types,
-    # ...), which can misreport on Blender 5.x -- see RECURRING BUG #1 in
-    # ui_panels.py) so this reflects Blender's actual class registry.
-    _panel_ids = {
-        getattr(c, "bl_idname", None) for c in bpy.types.Panel.__subclasses__()
-    }
-    _panel_ids.discard(None)  # some built-in Blender panel classes have no bl_idname
-
-    for _label, _idname in (
-        ("Advanced Realism Lab panel", "FO4_PT_advanced_realism_panel"),
-        ("Mesh Helpers panel (Vegetation's parent)", "FO4_PT_mesh_panel"),
-        ("Main FO4 panel (Advanced Realism's parent)", "FO4_PT_main_panel"),
-    ):
-        if _idname in _panel_ids:
-            results.append(("OK", "Panel", f"{_label} ({_idname}): registered ✓"))
-        else:
-            results.append(("FAIL", "Panel",
-                            f"{_label} ({_idname}): NOT REGISTERED - will not appear in the N-panel"))
-
-    # Check EVERY class content_panels.py tries to register (Vegetation,
-    # Quest, NPC, World Building, Item Creation, Automation & Macros,
-    # Post-Processing, Material Browser, Scene Diagnostics, Scale References,
-    # Papyrus Scripts, Mod Packaging) -- not just Vegetation. If the whole
-    # file is affected rather than one panel, this is the check that shows it.
-    _cp = getattr(init, "content_panels", None) if init else None
-    _cp_classes = getattr(_cp, "classes", ()) if _cp else ()
-    if _cp is None:
-        results.append(("FAIL", "Panel", "content_panels module not available for panel check"))
-    elif not _cp_classes:
-        results.append(("WARN", "Panel", "content_panels.classes not found or empty"))
-    else:
-        _cp_missing = [
-            getattr(c, "bl_idname", c.__name__) for c in _cp_classes
-            if getattr(c, "bl_idname", None) not in _panel_ids
-        ]
-        if _cp_missing:
-            results.append(("FAIL", "Panel",
-                            f"content_panels.py: {len(_cp_missing)}/{len(_cp_classes)} panels NOT REGISTERED: "
-                            + ", ".join(_cp_missing)))
-        else:
-            results.append(("OK", "Panel",
-                            f"content_panels.py: all {len(_cp_classes)} panels registered ✓"))
 
     # ── 5. Critical operator registration ────────────────────────────────────
     missing_ops = []
@@ -867,63 +802,6 @@ Re-registers tutorial and setup operators, retries failed module imports, and re
                     failed.append(f"setup_operators: {exc}")
         else:
             failed.append("setup_operators: module not available")
-
-        # ── Step 2b: re-register missing FO4 panels, capturing the real error ──
-        # Billy's Vegetation & Landscaping panel was reported NOT REGISTERED
-        # even though its module (content_panels) loaded fine -- the class
-        # itself is failing bpy.utils.register_class() for some reason not
-        # yet known. That failure normally only prints once, at startup, to
-        # a console position nobody can reliably find after the fact. Do the
-        # same register attempt live, right here, so the actual exception
-        # lands directly in this report instead.
-        _panel_ids = {
-            getattr(c, "bl_idname", None) for c in bpy.types.Panel.__subclasses__()
-        }
-        _panel_ids.discard(None)
-        for _mod_name, _cls_name, _idname in (
-            ("ui_panels", "FO4_PT_MeshPanel", "FO4_PT_mesh_panel"),
-            ("content_panels", "FO4_PT_VegetationPanel", "FO4_PT_vegetation_panel"),
-            ("advanced_realism_helpers", "FO4_PT_AdvancedRealismPanel", "FO4_PT_advanced_realism_panel"),
-        ):
-            if _idname in _panel_ids:
-                continue
-            _mod = getattr(init, _mod_name, None) if init else None
-            _cls = getattr(_mod, _cls_name, None) if _mod else None
-            if _cls is None:
-                failed.append(f"{_cls_name}: class not found on {_mod_name} (module missing or renamed)")
-                continue
-            try:
-                existing = getattr(bpy.types, _cls_name, None)
-                if existing is not None:
-                    try:
-                        bpy.utils.unregister_class(existing)
-                    except Exception:
-                        pass
-                bpy.utils.register_class(_cls)
-                fixed.append(f"re-registered {_cls_name}")
-            except Exception as exc:
-                failed.append(f"re-register {_cls_name}: {exc}")
-
-        # Same live re-register, but for every class content_panels.py owns
-        # (not just Vegetation) -- if the whole file is silently failing,
-        # this sweeps and reports every one of them in a single pass.
-        _cp = getattr(init, "content_panels", None) if init else None
-        for _cls in getattr(_cp, "classes", ()) if _cp else ():
-            _cls_name = _cls.__name__
-            _idname = getattr(_cls, "bl_idname", _cls_name)
-            if _idname in _panel_ids:
-                continue
-            try:
-                existing = getattr(bpy.types, _cls_name, None)
-                if existing is not None:
-                    try:
-                        bpy.utils.unregister_class(existing)
-                    except Exception:
-                        pass
-                bpy.utils.register_class(_cls)
-                fixed.append(f"re-registered {_cls_name}")
-            except Exception as exc:
-                failed.append(f"re-register {_cls_name}: {exc}")
 
         # ── Step 3: retry failed module imports ───────────────────────────────
         if init:

@@ -35,8 +35,16 @@ What this creates
 
 4. Spore particle system
    Blender particle system emitting from the mesh surface with
-   upward drift and gentle turbulence.  Baked to alembic/NIF
-   particles for FO4's particle system.
+   upward drift and gentle turbulence -- Blender VIEWPORT PREVIEW
+   ONLY. There is no baking/conversion step and none of it is
+   exported: Blender's particle-system modifier has no equivalent in
+   the NIF format and PyNifly does not write particle geometry, so
+   this never reaches the exported mesh. An actual in-game particle
+   effect is a separate FO4 concept (an ArtObject record referencing
+   its own NIF, applied at runtime via Papyrus) -- see the generated
+   Papyrus script's SporeArtObject property below, which is the real,
+   supported mechanism for this rather than anything derived from
+   Blender's particle sim.
 
 5. Papyrus script template
    Auto-generates a Papyrus script that:
@@ -469,8 +477,12 @@ def add_sync_light(obj, effect_type: str, color=(0.2,1.0,0.4),
         cz = sum(v.z for v in vs)/len(vs)
         light_obj.location = (cx, cy, cz)
 
-    # Parent to mesh
+    # Parent to mesh. Direct .parent assignment doesn't set
+    # matrix_parent_inverse the way Ctrl+P does -- without it, this light
+    # jumps away from the mesh-center position just computed above as soon
+    # as obj has any non-identity rotation/scale.
     light_obj.parent = obj
+    light_obj.matrix_parent_inverse = obj.matrix_world.inverted()
 
     # Drive energy with same expression as the shader
     expressions = {
@@ -537,6 +549,7 @@ def setup_spore_particles(obj, density=500, lifetime=80,
                                   bpy.data.lattices.new("_tmp"))
     bpy.context.collection.objects.link(field)
     field.parent = obj
+    field.matrix_parent_inverse = obj.matrix_world.inverted()
 
     print(f"[FO4 Glow] Spore particle system: {density} particles, lifetime {lifetime} frames")
     return ps
@@ -636,14 +649,29 @@ PAPYRUS_SPORE_TEMPLATE = '''\
 ;
 ; Attach to the base object form (STAT/ACTI/FLOR) in the Creation Kit.
 ; Fill in:
-;   SporeSpellFormID  - FormID of the SPEL that applies the effect
-;   DetectionRadius   - How far spores spread (in game units, default 256)
-;   PulseIntervalSec  - How often spores are released (seconds)
+;   SporeSpell        - the SPEL applied to actors caught in range
+;   SporeArtObject     - the ArtObject whose NIF actually shows the drifting
+;                         spore/particle visual in-game (see note below)
+;   DetectionRadius    - how far spores spread (game units, default 256)
+;   PulseIntervalSec   - how often spores are released (seconds)
+;
+; About SporeArtObject:
+;   Blender's own particle system (used for the addon's viewport preview)
+;   has no equivalent in the NIF format, so it can never be exported --
+;   FO4's real particle visuals come from a NIF referenced by an ArtObject
+;   record, applied at runtime with ApplyArtObject(). This script calls
+;   that real, working Papyrus API, but authoring/choosing the particle
+;   NIF itself is a Creation Kit step this Blender addon cannot do for
+;   you: either reuse an existing vanilla/mod ArtObject that already
+;   looks like drifting spores/motes, or build a small dedicated one in
+;   CK/NifSkope. Leaving SporeArtObject empty just skips the visual call
+;   below (the spell/detection logic still runs).
 ;==============================================================================
 Scriptname {script_name} extends ObjectReference
 
 ; ── Properties (fill in CK) ──────────────────────────────────────────────────
-Spell Property SporeSpell Auto          ; The poison/paralysis/etc spell
+Spell      Property SporeSpell      Auto   ; the poison/paralysis/etc spell
+ArtObject  Property SporeArtObject  Auto   ; the real in-game particle visual
 Float Property DetectionRadius = {radius:.1f} Auto
 Float Property PulseIntervalSec = {interval:.1f} Auto
 Float Property GlowEmissiveMin = {glow_min:.2f} Auto
@@ -666,27 +694,29 @@ Event OnUpdate()
         Return
     EndIf
 
-    ; Animate emissive multiplier (pulsation)
+    ; Animate emissive multiplier (pulsation) -- purely a value for your own
+    ; use (e.g. to drive a separate light/imagespace effect); FO4 has no
+    ; direct "set this ref's material emissive" Papyrus call, so this is
+    ; not applied automatically. Wire it up yourself if you need it.
     _phase += PulseIntervalSec * 0.628  ; 2*pi / 10 = one full cycle per 10 pulses
     _emissive = GlowEmissiveMin + (GlowEmissiveMax - GlowEmissiveMin) * ((Math.Sin(_phase) + 1.0) * 0.5)
-    ; Note: SetEmissiveMultiplier requires a NIF with animated material or
-    ;       swap to a pre-built emissive level via SwapReferences
-    ; self.SetEmissiveMultiplier(_emissive)   ; uncomment if using custom NIF
 
-    ; Spore pulse — find actors in radius and apply spell
-    Actor[] nearActors = self.FindAllReferencesWithKeyword(None, DetectionRadius) as Actor[]
-    ; Fallback: use FindAllReferencesOfType
-    Actor player = Game.GetPlayer()
-    Float playerDist = self.GetDistance(player)
-    If playerDist <= DetectionRadius
-        _ApplySporeEffect(player)
+    ; Real in-game particle visual: apply the ArtObject for one pulse
+    ; interval so spores actually appear to drift for that duration.
+    If SporeArtObject != None
+        self.ApplyArtObject(SporeArtObject, PulseIntervalSec)
     EndIf
 
-    ; Scan for other actors (NPCs, creatures)
-    ; This uses a workaround — attach a Detection keyword or use a trigger box
-    ; for a production script.  This template uses FindNearestActor as a demo.
+    ; Spore pulse — apply the spell to the nearest actor in range.
+    ; Game.FindClosestActor is a real, correctly-typed Papyrus call (unlike
+    ; the previous template's FindAllReferencesWithKeyword(...) as Actor[],
+    ; which needed an undefined Keyword property and cannot be cast that
+    ; way in Papyrus -- each array element has to be cast individually).
+    ; This still only ever catches the single nearest actor per pulse; for
+    ; multiple actors in range simultaneously, replace this with a trigger
+    ; box (perk entry point OnEnterTrigger) instead of a polled radius scan.
     Actor nearest = Game.FindClosestActor(self.X, self.Y, self.Z, DetectionRadius)
-    If nearest != None && nearest != player
+    If nearest != None
         _ApplySporeEffect(nearest)
     EndIf
 
@@ -709,7 +739,11 @@ Event OnCellAttach()
 EndEvent
 
 Event OnCellDetach()
+    ; Stop immediately rather than waiting for one more OnUpdate tick to
+    ; see IsActive=False and quietly not re-register -- this ref may not
+    ; get another update for a long time (or ever) once the cell unloads.
     IsActive = False
+    UnregisterForUpdate()
 EndEvent
 '''
 
@@ -791,13 +825,27 @@ def apply_glow_effect(obj, effect_type: str,
 
     if effect_type == "SPORE":
         ps = setup_spore_particles(obj)
-        result["steps"].append(f"Particle system: {ps.name}")
+        result["steps"].append(
+            f"Particle system: {ps.name} (Blender viewport preview only -- "
+            f"not exported; see the generated Papyrus script for the real "
+            f"in-game effect)"
+        )
         result["particles"] = ps.name
 
         if output_dir:
             psc = generate_papyrus_script(obj, output_dir)
             result["steps"].append(f"Papyrus script: {os.path.basename(psc)}")
             result["papyrus"] = psc
+        else:
+            # Silently skipping this used to leave the modder with only a
+            # Blender-only particle preview and no idea the CK-side script
+            # was never written -- an empty Output Folder is the default,
+            # so this was the common case, not an edge case.
+            result["steps"].append(
+                "No Papyrus script generated -- set an Output Folder above "
+                "to also generate the Creation Kit script needed for an "
+                "actual in-game spore effect."
+            )
 
     return result
 

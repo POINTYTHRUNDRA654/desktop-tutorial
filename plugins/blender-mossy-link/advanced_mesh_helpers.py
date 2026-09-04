@@ -168,11 +168,22 @@ class AdvancedMeshHelpers:
         # Select non-manifold geometry
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.mesh.select_non_manifold()
-        
-        # Try to fill holes
-        bpy.ops.mesh.fill_holes(sides=4)
-        repairs['non_manifold_fixed'] = 1
-        
+        # select_non_manifold() populates the selection but doesn't report a
+        # count directly -- read it back from the mesh so "fixed" reflects
+        # whether there was actually anything non-manifold to fix, instead of
+        # always claiming 1 regardless of outcome.
+        had_non_manifold = any(v.select for v in obj.data.vertices)
+        if had_non_manifold:
+            # fill_holes only closes actual holes (open boundary loops); it
+            # can leave other non-manifold cases (e.g. interior/loose faces,
+            # bowtie verts) untouched, so re-check afterward rather than
+            # assuming success.
+            bpy.ops.mesh.fill_holes(sides=4)
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.mesh.select_non_manifold()
+            still_non_manifold = any(v.select for v in obj.data.vertices)
+            repairs['non_manifold_fixed'] = 1 if not still_non_manifold else 0
+
         # Select loose geometry
         bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.mesh.select_loose()
@@ -180,16 +191,28 @@ class AdvancedMeshHelpers:
         if num_selected > 0:
             bpy.ops.mesh.delete(type='VERT')
             repairs['loose_verts_removed'] = num_selected
-        
+
         # Recalculate normals
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.mesh.normals_make_consistent(inside=False)
-        
-        # Delete degenerate faces
+
+        # Remove degenerate faces (zero-area / zero-length-edge geometry).
+        # This used to call delete_loose() again here, which only removes
+        # vertices/edges/faces with no other geometry attached to them -- it
+        # never touches degenerate (zero-area) faces, so
+        # repairs['degenerate_faces_removed'] was permanently stuck at 0 and
+        # any actual degenerate geometry silently survived a claimed "repair".
+        # dissolve_degenerate is the operator Blender itself uses for this.
+        before_faces = len(obj.data.polygons)
         bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.delete_loose()
-        
+        bpy.ops.mesh.dissolve_degenerate(threshold=0.0001)
         bpy.ops.object.mode_set(mode='OBJECT')
+        obj.data.update()
+        after_faces = len(obj.data.polygons)
+        repairs['degenerate_faces_removed'] = max(0, before_faces - after_faces)
+
+        if bpy.context.mode != 'OBJECT':
+            bpy.ops.object.mode_set(mode='OBJECT')
         
         message = "Mesh repaired: "
         repair_list = []
@@ -199,8 +222,10 @@ class AdvancedMeshHelpers:
             repair_list.append(f"removed {repairs['loose_verts_removed']} loose vertices")
         if repairs['non_manifold_fixed']:
             repair_list.append("fixed non-manifold geometry")
-        
-        message += ", ".join(repair_list)
+        if repairs['degenerate_faces_removed']:
+            repair_list.append(f"removed {repairs['degenerate_faces_removed']} degenerate faces")
+
+        message += ", ".join(repair_list) if repair_list else "no issues found"
         
         return True, message, repairs
     
@@ -263,16 +288,38 @@ class AdvancedMeshHelpers:
 
         new_poly_count = len(obj.data.polygons)
         reduction_percent = ((original_poly_count - new_poly_count) / original_poly_count) * 100
-        
+
+        # FO4's 65,535-triangle export hard limit is a TRIANGLE count, but
+        # target_poly_count/ratio above operate on len(obj.data.polygons),
+        # which is a FACE count (quads/ngons all count as 1). Callers
+        # (FO4_OT_SmartDecimate, FO4_OT_DecimateToFO4) compared that face
+        # count directly against the 65,535 limit, so a quad-heavy mesh
+        # "decimated to 65,000 polys" could still triangulate to well over
+        # the limit at export. Compute the real post-decimate triangle count
+        # here (without permanently triangulating the mesh, so quad flow the
+        # decimate step preserved stays intact for further editing) so
+        # callers can report/validate against the number that actually
+        # matters for export.
+        obj.data.calc_loop_triangles()
+        new_tri_count = len(obj.data.loop_triangles)
+
         stats = {
             'original_poly_count': original_poly_count,
             'new_poly_count': new_poly_count,
+            # Alias kept for callers that read this key (previously a typo'd
+            # miss -- FO4_OT_DecimateToFO4 read 'poly_count_after', which
+            # didn't exist, so its post-decimate count always showed '?').
+            'poly_count_after': new_poly_count,
+            'tri_count_after': new_tri_count,
             'reduction_percent': reduction_percent,
-            'ratio_used': ratio
+            'ratio_used': ratio,
         }
-        
-        message = f"Decimated mesh: {original_poly_count} → {new_poly_count} polygons ({reduction_percent:.1f}% reduction)"
-        
+
+        message = (
+            f"Decimated mesh: {original_poly_count} → {new_poly_count} polygons "
+            f"({new_tri_count} tris) ({reduction_percent:.1f}% reduction)"
+        )
+
         return True, message, stats
     
     # ==================== Remeshing ====================
@@ -587,15 +634,13 @@ class AdvancedMeshHelpers:
             Target mesh object.
         method : str
             ``'MIN_STRETCH'`` - **(default)** Minimum Stretch unwrap.
-                                Uses a CONFORMAL (LSCM) initial layout then
-                                runs ``uv.minimize_stretch`` to convergence
-                                (100 iterations).  Produces the lowest UV
-                                distortion of any available method and is
-                                Blender's recommended technique for matching
-                                textures to geometry accurately.
+                                Smart UV Project lays out the islands, then
+                                ``uv.minimize_stretch`` relaxes them in place
+                                to convergence (100 iterations).  Produces the
+                                lowest UV distortion of any available method.
             ``'SMART'``      - Smart UV Project.  Good general-purpose choice;
                                 fast and automatic.
-            ``'ANGLE'``      - Seam-marked angle-based conformal unwrap with a
+            ``'ANGLE'``      - Smart UV Project layout with a lighter
                                 stretch-minimize refinement pass.
             ``'UNWRAP'``     - Alias for ``'ANGLE'`` (legacy name kept for
                                 backward compatibility).
@@ -627,39 +672,50 @@ class AdvancedMeshHelpers:
                 # -----------------------------------------------------------
                 # Minimum Stretch unwrap - lowest distortion available.
                 #
+                # BUG FIX: this used to run Smart UV Project, then IMMEDIATELY
+                # call `uv.unwrap(method='CONFORMAL')` on the same selection
+                # before relaxing anything. Smart UV Project computes its
+                # island cuts internally -- it never writes them to the
+                # mesh's real edge.use_seam data. `uv.unwrap()` only respects
+                # *real* seam edges, so with none present (the normal case)
+                # it silently re-unwrapped the whole selection from scratch,
+                # throwing away the Smart UV Project layout the comment below
+                # claimed it was "seeding". The fix is to let Smart UV
+                # Project produce the actual island layout and run
+                # minimize_stretch directly on it -- minimize_stretch relaxes
+                # whatever UV coordinates already exist and does not need or
+                # use seam data, so nothing gets discarded.
+                #
                 # Pipeline:
-                #   1. Smart UV Project  - seeds island boundaries / seams so
-                #      the CONFORMAL solver starts from a reasonable layout.
-                #   2. CONFORMAL (LSCM)  - Least Squares Conformal Maps; the
-                #      best analytical starting layout for the relaxation step.
-                #   3. minimize_stretch  - iterative relaxation that directly
+                #   1. Smart UV Project  - produces the initial island layout.
+                #   2. minimize_stretch  - iterative relaxation that directly
                 #      minimises the difference between 3-D and UV edge lengths
-                #      (i.e. the "stretch" metric).  100 iterations reaches
-                #      convergence for almost all real-world meshes.
+                #      (i.e. the "stretch" metric), applied to that layout in
+                #      place.  100 iterations reaches convergence for almost
+                #      all real-world meshes.
                 # -----------------------------------------------------------
                 bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
-                bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.unwrap(method='CONFORMAL', margin=margin)
                 bpy.ops.mesh.select_all(action='SELECT')
                 try:
                     bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=100)
                 except Exception:
                     pass  # older Blender builds lack this operator
-                message = "UVs unwrapped with Minimum Stretch (CONFORMAL + minimize_stretch)"
+                message = "UVs unwrapped with Minimum Stretch (Smart UV Project + minimize_stretch)"
 
             elif norm in ('ANGLE', 'UNWRAP'):
                 # -----------------------------------------------------------
-                # Angle-Based unwrap with a stretch-minimize refinement pass.
+                # Smart UV Project layout with a lighter stretch-minimize
+                # refinement pass. See the MIN_STRETCH branch above for why
+                # there is no intervening uv.unwrap() call here.
                 # -----------------------------------------------------------
                 bpy.ops.mesh.select_all(action='SELECT')
                 bpy.ops.uv.smart_project(angle_limit=66.0, island_margin=margin)
                 bpy.ops.mesh.select_all(action='SELECT')
-                bpy.ops.uv.unwrap(method='ANGLE_BASED', margin=margin)
                 try:
                     bpy.ops.uv.minimize_stretch(fill_holes=True, iterations=10)
                 except Exception:
                     pass  # older Blender builds lack this operator
-                message = "UVs unwrapped with seam-marked angle-based method (stretch minimized)"
+                message = "UVs unwrapped with Smart UV Project (stretch minimized)"
 
             elif norm == 'CUBE':
                 bpy.ops.uv.cube_project(cube_size=1.0)
@@ -888,8 +944,24 @@ class AdvancedMeshHelpers:
         threshold_rad = math.radians(sharp_threshold_deg)
         mesh = obj.data
 
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
+        # NOTE: this helper must tolerate being called while *obj* is
+        # already in Edit Mode. The natural pipeline chains it directly
+        # after the interactive Ring Seam / Split Seam tools (both of
+        # which run in Edit Mode and are designed to be followed by this
+        # auto-seamer without the user tabbing back to Object Mode first).
+        # bmesh.new() + bm.from_mesh()/bm.to_mesh() only work on a mesh
+        # that is NOT currently being edited -- calling bm.to_mesh(mesh)
+        # while mesh.is_editmode is True raises
+        # ``ValueError: to_mesh(): Mesh '...' is in editmode`` because the
+        # edit-mesh (accessed via bmesh.from_edit_mesh) is the authoritative
+        # copy while in Edit Mode, not obj.data itself. Route through the
+        # edit-mesh API in that case instead.
+        editing = mesh.is_editmode
+        if editing:
+            bm = bmesh.from_edit_mesh(mesh)
+        else:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
         bm.edges.ensure_lookup_table()
 
         if clear_existing:
@@ -908,9 +980,12 @@ class AdvancedMeshHelpers:
                 new_seams += 1
 
         total_seams = sum(1 for e in bm.edges if e.seam)
-        bm.to_mesh(mesh)
-        bm.free()
-        mesh.update()
+        if editing:
+            bmesh.update_edit_mesh(mesh)
+        else:
+            bm.to_mesh(mesh)
+            bm.free()
+            mesh.update()
 
         msg = (
             f"Marked {new_seams} new seam(s) at edges ≥ {sharp_threshold_deg:.0f}°. "

@@ -553,11 +553,11 @@ For more details:
         if not available:
             return False, f"RigNet not available: {rignet_path}", None
 
+        work_mesh = mesh_obj
         try:
             import tempfile
 
             # --- 1. Optionally simplify ---
-            work_mesh = mesh_obj
             if simplify_mesh:
                 ok, msg, work_mesh = RigNetHelpers.prepare_mesh_for_rignet(
                     mesh_obj, target_vertex_count=target_vertices
@@ -609,7 +609,13 @@ For more details:
             mesh_obj.select_set(True)
             armature_obj.select_set(True)
             bpy.context.view_layer.objects.active = armature_obj
-            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+            _parent_result = bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+            if 'FINISHED' not in _parent_result:
+                # bpy.ops only raises on poll() failure, never on a normal
+                # cancelled execute() -- must check explicitly or a failed
+                # heat-weight solve silently reports full success below.
+                print(f"[RigNet] parent_set(ARMATURE_AUTO) did not finish for "
+                      f"'{mesh_obj.name}' ({_parent_result}) -- mesh may not be skinned")
 
             return True, f"Auto-rigged successfully. Armature: '{armature_obj.name}'", armature_obj
 
@@ -617,6 +623,20 @@ For more details:
             return False, "RigNet inference timed out (10 min).", None
         except Exception as e:
             return False, f"Error during auto-rigging: {str(e)}", None
+        finally:
+            # prepare_mesh_for_rignet() (step 1) duplicates mesh_obj into a
+            # separate scratch object for simplification/export -- it was
+            # never cleaned up on ANY exit path (success or failure), so
+            # every simplified auto-rig run left a stray, no-longer-needed
+            # duplicate mesh permanently in the scene.
+            if work_mesh is not mesh_obj:
+                try:
+                    mesh_data = work_mesh.data
+                    bpy.data.objects.remove(work_mesh, do_unlink=True)
+                    if mesh_data and mesh_data.users == 0:
+                        bpy.data.meshes.remove(mesh_data)
+                except Exception:
+                    pass
     
     @staticmethod
     def prepare_mesh_for_rignet(mesh_obj, target_vertex_count=3000):
@@ -717,8 +737,13 @@ For more details:
             mesh_obj.select_set(True)
             bpy.context.view_layer.objects.active = mesh_obj
             
-            # Export as OBJ
-            bpy.ops.wm.obj_export(
+            # Export as OBJ. bpy.ops calls don't raise when the operator
+            # declines to run (no valid selection, wrong context, etc.) --
+            # they return {'CANCELLED'}, never an exception. This used to
+            # return True unconditionally as long as the call itself didn't
+            # throw. Check the result and confirm the file actually landed
+            # on disk before handing it to the RigNet subprocess.
+            _obj_result = bpy.ops.wm.obj_export(
                 filepath=output_path,
                 export_selected_objects=True,
                 apply_modifiers=True,
@@ -727,7 +752,9 @@ For more details:
                 export_uv=True,
                 export_triangulated_mesh=False
             )
-            
+            if 'CANCELLED' in set(_obj_result or ()) or not os.path.isfile(output_path):
+                return False, f"OBJ export did not complete (result={_obj_result!r})", None
+
             return True, f"Exported to {output_path}", output_path
             
         except Exception as e:
@@ -994,7 +1021,13 @@ For more details:
 # ---------------------------------------------------------------------------
 
 # FO4 hard limits
-_FO4_MAX_BONES       = 128   # max active bones per skinned mesh
+# This used to say 128, disagreeing with fo4_skeleton_helpers.py's own
+# _FO4_MAX_BONES (80) and the canonical fo4_bone_names.FO4_MAX_DEFORM_BONES_PER_MESH
+# (80, documented there as the real NIF loader limit -- exceeding it causes
+# invisible geometry in-game). Kept in sync with those rather than re-derived
+# so a RigNet-produced auto-rig validated here can't silently pass with up to
+# 48 more deform bones than the game will actually render.
+_FO4_MAX_BONES       = 80    # max deform bones per single skinned mesh (NIF loader limit)
 _FO4_MAX_INFLUENCES  = 4     # max bone influences per vertex
 
 # Expected FO4 skeleton root bone names

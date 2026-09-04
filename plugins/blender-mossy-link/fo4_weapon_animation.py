@@ -195,7 +195,12 @@ def detect_weapon_type(obj) -> str:
     # Long thin mesh → rifle; short compact → pistol; very thin flat → blade
     if longest == h and h > w * 3 and h > d * 3:
         return "MELEE_BLADE"   # thin vertical = blade
-    if longest > 0.5 and longest == d or d > w * 2:
+    # Parenthesized explicitly -- `and` binds tighter than `or` in Python,
+    # so the un-parenthesized form let a tiny mesh (longest well under 0.5)
+    # slip through as RIFLE purely from d > w*2, since that clause wasn't
+    # actually gated by the longest > 0.5 minimum-size check the comment
+    # below implies both branches should share.
+    if (longest > 0.5 and longest == d) or (longest > 0.5 and d > w * 2):
         return "RIFLE"         # long along Y = rifle
     return "PISTOL"            # default compact
 
@@ -282,7 +287,15 @@ def build_weapon_rig(weapon_obj, weapon_type: str) -> Optional[bpy.types.Object]
     weapon_obj.select_set(True)
     arm_obj.select_set(True)
     bpy.context.view_layer.objects.active = arm_obj
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    _parent_result = bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    if 'FINISHED' not in _parent_result:
+        # bpy.ops only raises on poll() failure, never on a normal cancelled
+        # execute() -- must check explicitly or a failed parent/skin here
+        # leaves the weapon mesh unattached to the new rig while every
+        # caller (FO4_OT_AutoRigWeapon / FO4_OT_WeaponFullPipeline) still
+        # reports success.
+        print(f"[FO4 Weapon] parent_set(ARMATURE_AUTO) did not finish for "
+              f"'{weapon_obj.name}' ({_parent_result}) -- mesh may not be rigged")
 
     # Store weapon type as custom property
     weapon_obj["fo4_weapon_type"] = weapon_type

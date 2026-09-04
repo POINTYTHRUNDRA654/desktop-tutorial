@@ -57,6 +57,31 @@ import mathutils
 import os
 from typing import List, Optional, Tuple
 
+# fo4_bone_names.py's own docstring: "All animation modules should import
+# from here rather than hard-coding bone-name strings, so that a mismatch
+# in one place does not silently break the other modules." This file used
+# to hard-code its own copy of the bone-name strings below instead -- the
+# same pattern that produced a disagreeing bone-count constant found and
+# fixed in the creature-rig pipeline audit earlier this session. The two
+# copies happened to still agree, but nothing enforced that; building the
+# dict from the canonical table means a future rename in fo4_bone_names.py
+# propagates here automatically instead of silently drifting.
+try:
+    from . import fo4_bone_names as _bn
+    _NPC = _bn.NPC
+except ImportError:
+    _NPC = {
+        "ROOT": "NPC Root [Root]", "COM": "NPC COM [COM ]", "PELVIS": "NPC Pelvis [Pelv]",
+        "SPINE0": "NPC Spine [Spn0]", "SPINE1": "NPC Spine1 [Spn1]", "SPINE2": "NPC Spine2 [Spn2]",
+        "NECK": "NPC Neck [Neck]", "HEAD": "NPC Head [Head]",
+        "L_CLAVICLE": "NPC L Clavicle [LClv]", "L_UPPER_ARM": "NPC L UpperArm [LUar]",
+        "L_FOREARM": "NPC L Forearm [LLar]", "L_HAND": "NPC L Hand [LHnd]",
+        "R_CLAVICLE": "NPC R Clavicle [RClv]", "R_UPPER_ARM": "NPC R UpperArm [RUar]",
+        "R_FOREARM": "NPC R Forearm [RLar]", "R_HAND": "NPC R Hand [RHnd]",
+        "L_THIGH": "NPC L Thigh [LThg]", "L_CALF": "NPC L Calf [LClf]", "L_FOOT": "NPC L Foot [Lft ]",
+        "R_THIGH": "NPC R Thigh [RThg]", "R_CALF": "NPC R Calf [RClf]", "R_FOOT": "NPC R Foot [Rft ]",
+    }
+
 
 # ---------------------------------------------------------------------------
 # FO4 skeleton bone map
@@ -65,38 +90,38 @@ from typing import List, Optional, Tuple
 
 FO4_SKELETON_BONES = {
     # Spine / torso
-    "NPC Root [Root]":          None,
-    "NPC COM [COM ]":           None,
-    "NPC Pelvis [Pelv]":        32,
-    "NPC Spine [Spn0]":         32,
-    "NPC Spine1 [Spn1]":        32,
-    "NPC Spine2 [Spn2]":        32,
+    _NPC["ROOT"]:          None,
+    _NPC["COM"]:           None,
+    _NPC["PELVIS"]:        32,
+    _NPC["SPINE0"]:        32,
+    _NPC["SPINE1"]:        32,
+    _NPC["SPINE2"]:        32,
 
     # Head
-    "NPC Head [Head]":          30,
-    "NPC Neck [Neck]":          30,
+    _NPC["HEAD"]:          30,
+    _NPC["NECK"]:          30,
 
     # Left arm
-    "NPC L Clavicle [LClv]":    40,
-    "NPC L UpperArm [LUar]":    41,
-    "NPC L Forearm [LLar]":     43,
-    "NPC L Hand [LHnd]":        33,
+    _NPC["L_CLAVICLE"]:    40,
+    _NPC["L_UPPER_ARM"]:   41,
+    _NPC["L_FOREARM"]:     43,
+    _NPC["L_HAND"]:        33,
 
     # Right arm
-    "NPC R Clavicle [RClv]":    40,
-    "NPC R UpperArm [RUar]":    42,
-    "NPC R Forearm [RLar]":     44,
-    "NPC R Hand [RHnd]":        34,
+    _NPC["R_CLAVICLE"]:    40,
+    _NPC["R_UPPER_ARM"]:   42,
+    _NPC["R_FOREARM"]:     44,
+    _NPC["R_HAND"]:        34,
 
     # Left leg
-    "NPC L Thigh [LThg]":       45,
-    "NPC L Calf [LClf]":        39,
-    "NPC L Foot [Lft ]":        38,
+    _NPC["L_THIGH"]:       45,
+    _NPC["L_CALF"]:        39,
+    _NPC["L_FOOT"]:        38,
 
     # Right leg
-    "NPC R Thigh [RThg]":       46,
-    "NPC R Calf [RClf]":        39,
-    "NPC R Foot [Rft ]":        38,
+    _NPC["R_THIGH"]:       46,
+    _NPC["R_CALF"]:        39,
+    _NPC["R_FOOT"]:        38,
 }
 
 # Biped slot names for display
@@ -340,14 +365,31 @@ def build_reference_skeleton() -> bpy.types.Object:
 # ---------------------------------------------------------------------------
 
 def bind_armor_to_skeleton(armor_obj, skeleton_obj,
-                             armor_type: str) -> tuple:
+                             armor_type: str, force: bool = False) -> tuple:
     """Parent armor mesh to skeleton with weight-painted bone binding.
+
+    *force*: bpy.ops.object.parent_set(type='ARMATURE_AUTO') replaces any
+    existing vertex groups outright -- confirmed on a real, already-
+    correctly-skinned Daz/G3 import: it silently dropped weighting on 46
+    verts that were previously fully weighted (see operators.py's
+    FO4_OT_AutoWeightArmor, which now guards the identical call). This
+    function performs the same destructive call but historically had no
+    guard of its own, so refuse by default when armor_obj already carries
+    real weight data unless the caller explicitly passes force=True.
 
     Returns (success, message).
     """
     config = ARMOR_TYPE_CONFIG.get(armor_type)
     if not config:
         return False, f"Unknown armor type: {armor_type}"
+
+    if not force and armor_obj.vertex_groups and any(
+            v.groups for v in armor_obj.data.vertices):
+        return False, (
+            f"'{armor_obj.name}' already has weight data. Refusing to "
+            f"replace it with automatic weights -- re-run with force=True "
+            f"(or confirm_replace=True from the operator) if that's intended."
+        )
 
     target_bones = config["bind_bones"]
 
@@ -357,11 +399,21 @@ def bind_armor_to_skeleton(armor_obj, skeleton_obj,
     skeleton_obj.select_set(True)
     bpy.context.view_layer.objects.active = skeleton_obj
 
-    # Parent with automatic heat-weighted skinning
-    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    # Parent with automatic heat-weighted skinning. bpy.ops calls only raise
+    # on a poll() failure, never on a normal cancelled execute() -- so this
+    # result must be checked explicitly or a failed heat-weight solve (e.g.
+    # armor mesh far from the skeleton after an unresolved import transform)
+    # silently reports success below with zero vertex weights actually bound.
+    _parent_result = bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    if 'FINISHED' not in _parent_result:
+        return False, (
+            f"parent_set(ARMATURE_AUTO) did not finish ({_parent_result}) -- "
+            f"'{armor_obj.name}' was not bound to the skeleton. Check that the "
+            f"mesh overlaps the skeleton and has no unapplied scale/rotation."
+        )
 
     # Limit weights to only the relevant bones for this armor type
-    _limit_vertex_groups(armor_obj, target_bones)
+    _limit_vertex_groups(armor_obj, target_bones, skeleton_obj)
 
     slots = config["biped_slots"]
     slot_names = [BIPED_SLOT_NAMES.get(s, str(s)) for s in slots]
@@ -371,14 +423,91 @@ def bind_armor_to_skeleton(armor_obj, skeleton_obj,
     )
 
 
-def _limit_vertex_groups(armor_obj, keep_bones: List[str]) -> None:
-    """Remove vertex groups not in keep_bones to keep weights clean."""
+def _limit_vertex_groups(armor_obj, keep_bones: List[str],
+                          skeleton_obj=None) -> None:
+    """Remove vertex groups not in keep_bones, then repair the weights that
+    removal leaves broken.
+
+    ARMATURE_AUTO heat-weighting commonly bleeds some influence from
+    boundary vertices onto the next bone up the chain (e.g. a knee-high
+    boot's top rim picking up a little Thigh influence even though BOOT's
+    bind_bones only lists Foot/Calf). This used to just delete every
+    vertex group outside keep_bones with no renormalization afterward --
+    confirmed as a real gap: any vertex whose *entire* influence happened
+    to be on a removed bone (not unusual right at a mesh's cut boundary)
+    ended up with zero total weight, i.e. frozen in bind pose while the
+    rest of the mesh moves with the skeleton -- visibly detached/torn
+    geometry in-game. A vertex with SOME remaining weight but less than
+    the full 1.0 total is nearly as bad (NIF skin weights are expected to
+    sum to 1.0 per vertex; FO4 does not renormalize at load time).
+
+    Fixes both cases: renormalizes every vertex's remaining weights back
+    to sum to 1.0, and for the fully-zeroed case, assigns full weight to
+    whichever kept bone's head is closest to the vertex (in world space,
+    via *skeleton_obj* if supplied) rather than leaving it unweighted.
+    """
     groups_to_remove = [
         vg for vg in armor_obj.vertex_groups
         if vg.name not in keep_bones
     ]
+    if not groups_to_remove:
+        return
+
+    removed_names = {vg.name for vg in groups_to_remove}
+    me = armor_obj.data
+    mw = armor_obj.matrix_world
+
+    # Precompute nearest-kept-bone fallback assignments only for vertices
+    # that actually need them (checked below) -- avoid the cost otherwise.
+    def _nearest_kept_bone(vert_index: int) -> Optional[str]:
+        if skeleton_obj is None or skeleton_obj.type != 'ARMATURE':
+            return None
+        world_co = mw @ me.vertices[vert_index].co
+        best_name, best_dist = None, None
+        sk_mw = skeleton_obj.matrix_world
+        for bname in keep_bones:
+            pbone = skeleton_obj.pose.bones.get(bname)
+            if pbone is None:
+                continue
+            bone_head_world = sk_mw @ pbone.head
+            dist = (world_co - bone_head_world).length
+            if best_dist is None or dist < best_dist:
+                best_name, best_dist = bname, dist
+        return best_name
+
     for vg in groups_to_remove:
         armor_obj.vertex_groups.remove(vg)
+
+    zeroed_reassigned = 0
+    renormalized = 0
+    for v in me.vertices:
+        # Weights left on THIS vertex after the removals above -- only
+        # groups still on armor_obj.vertex_groups can have data, so
+        # whatever's in v.groups now is exactly the "kept" contribution.
+        total = sum(g.weight for g in v.groups)
+        if total <= 1e-6:
+            # Every influence this vertex had was on a removed bone.
+            fallback = _nearest_kept_bone(v.index)
+            if fallback is not None:
+                fb_vg = armor_obj.vertex_groups.get(fallback)
+                if fb_vg is not None:
+                    fb_vg.add([v.index], 1.0, 'REPLACE')
+                    zeroed_reassigned += 1
+        elif abs(total - 1.0) > 1e-4:
+            scale = 1.0 / total
+            for g in v.groups:
+                vg = armor_obj.vertex_groups[g.group]
+                vg.add([v.index], g.weight * scale, 'REPLACE')
+            renormalized += 1
+
+    if zeroed_reassigned or renormalized:
+        print(
+            f"[FO4 Armor] _limit_vertex_groups: reassigned "
+            f"{zeroed_reassigned} fully-zeroed vertices to their nearest "
+            f"kept bone, renormalized {renormalized} under-weighted "
+            f"vertices back to 1.0 total (bones removed: "
+            f"{sorted(removed_names)})"
+        )
 
 
 def setup_cloth_physics(armor_obj, armor_type: str,
@@ -449,7 +578,7 @@ def setup_cloth_physics(armor_obj, armor_type: str,
 
 
 def setup_armor_piece(armor_obj, armor_type: str,
-                       skeleton_obj=None) -> dict:
+                       skeleton_obj=None, force: bool = False) -> dict:
     """Full armor setup pipeline.
 
     1. Find or build skeleton
@@ -457,6 +586,10 @@ def setup_armor_piece(armor_obj, armor_type: str,
     3. Limit weights to correct bones
     4. Add cloth physics if needed
     5. Store biped slot as custom property
+
+    *force*: passed straight through to bind_armor_to_skeleton() -- set True
+    only once the caller has confirmed it's OK to replace any weight data
+    already on armor_obj.
 
     Returns result dict.
     """
@@ -480,7 +613,7 @@ def setup_armor_piece(armor_obj, armor_type: str,
     result["skeleton"] = skeleton_obj
 
     # Bind
-    ok, msg = bind_armor_to_skeleton(armor_obj, skeleton_obj, armor_type)
+    ok, msg = bind_armor_to_skeleton(armor_obj, skeleton_obj, armor_type, force=force)
     result["steps"].append(msg)
     if not ok:
         result["message"] = msg
@@ -575,6 +708,26 @@ def parse_armor_description(description: str) -> str:
         if phrase in d:
             return ARMOR_KEYWORD_MAP[phrase]
 
+    # Laterality for any other phrasing of a shoulder/hand part -- the
+    # single-keyword loop below hard-maps "pauldron"/"shoulder" to
+    # PAULDRON_L and "gauntlet"/"glove"/"bracer" to GAUNTLET_L regardless
+    # of side, so "right pauldron" or "right glove" (natural phrasings
+    # that don't match the exact two-word phrases above) previously came
+    # back rigged to the LEFT arm with no error. Check "left"/"right"
+    # appearing anywhere alongside the part keyword first.
+    _shoulder_words = ("pauldron", "shoulder")
+    _hand_words = ("gauntlet", "glove", "bracer")
+    if any(w in d for w in _shoulder_words):
+        if "right" in d:
+            return "PAULDRON_R"
+        if "left" in d:
+            return "PAULDRON_L"
+    if any(w in d for w in _hand_words):
+        if "right" in d:
+            return "GAUNTLET_R"
+        if "left" in d:
+            return "GAUNTLET_L"
+
     # Single keywords
     for kw, atype in ARMOR_KEYWORD_MAP.items():
         if kw in d:
@@ -614,6 +767,35 @@ class FO4_OT_AutoSetupArmor(bpy.types.Operator):
         description="Build a FO4 reference skeleton if none exists in scene",
         default=True,
     )
+    # bind_armor_to_skeleton() (called via setup_armor_piece) replaces any
+    # existing weight data on the mesh outright -- same destructive call
+    # operators.py's FO4_OT_AutoWeightArmor guards with a confirm dialog +
+    # confirm_replace flag. This operator drove the identical call with no
+    # guard at all (not even for a manual UI click), so a mesh already
+    # imported pre-skinned (Daz/G3, etc.) got its weights silently
+    # overwritten. Mirror that same pattern here.
+    confirm_replace: bpy.props.BoolProperty(
+        name="Confirm Replace",
+        description="Internal: set once the user (or an explicit caller) has "
+                    "confirmed replacing existing weight data",
+        default=False,
+        options={'SKIP_SAVE', 'HIDDEN'},
+    )
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if (obj and obj.type == 'MESH' and not self.confirm_replace
+                and obj.vertex_groups and any(v.groups for v in obj.data.vertices)):
+            self.confirm_replace = True
+            return context.window_manager.invoke_confirm(
+                self, event,
+                title="Replace Existing Weights?",
+                message=f"'{obj.name}' already has weight data. Auto-Setup Armor "
+                        f"will replace it with Blender's automatic result.",
+                confirm_text="Replace Weights",
+                icon='ERROR',
+            )
+        return self.execute(context)
 
     def execute(self, context):
         obj = context.active_object
@@ -629,7 +811,7 @@ class FO4_OT_AutoSetupArmor(bpy.types.Operator):
                 "or import fo4_skeleton.nif first.")
             return {'CANCELLED'}
 
-        result = setup_armor_piece(obj, atype, skeleton_obj=skel)
+        result = setup_armor_piece(obj, atype, skeleton_obj=skel, force=self.confirm_replace)
 
         for step in result["steps"]:
             print(f"[FO4 Armor] {step}")
@@ -637,7 +819,10 @@ class FO4_OT_AutoSetupArmor(bpy.types.Operator):
         if result["success"]:
             self.report({'INFO'}, result["message"])
         else:
-            self.report({'ERROR'}, result["message"])
+            msg = result["message"]
+            if "already has weight data" in msg:
+                msg += " Re-run with confirm_replace=True to proceed (e.g. params={'confirm_replace': True} from Mossy)."
+            self.report({'ERROR'}, msg)
             return {'CANCELLED'}
 
         return {'FINISHED'}
@@ -663,6 +848,32 @@ class FO4_OT_SetupArmorFromDescription(bpy.types.Operator):
     bl_label   = "Setup Armor from Description"
     bl_options = {'REGISTER', 'UNDO'}
 
+    # See FO4_OT_AutoSetupArmor.confirm_replace -- same guard, same reason:
+    # setup_armor_piece() -> bind_armor_to_skeleton() silently replaces any
+    # existing weight data with no protection unless force=True is passed.
+    confirm_replace: bpy.props.BoolProperty(
+        name="Confirm Replace",
+        description="Internal: set once the user (or an explicit caller) has "
+                    "confirmed replacing existing weight data",
+        default=False,
+        options={'SKIP_SAVE', 'HIDDEN'},
+    )
+
+    def invoke(self, context, event):
+        obj = context.active_object
+        if (obj and obj.type == 'MESH' and not self.confirm_replace
+                and obj.vertex_groups and any(v.groups for v in obj.data.vertices)):
+            self.confirm_replace = True
+            return context.window_manager.invoke_confirm(
+                self, event,
+                title="Replace Existing Weights?",
+                message=f"'{obj.name}' already has weight data. Setup Armor from "
+                        f"Description will replace it with Blender's automatic result.",
+                confirm_text="Replace Weights",
+                icon='ERROR',
+            )
+        return self.execute(context)
+
     def execute(self, context):
         obj = context.active_object
         if not obj or obj.type != 'MESH':
@@ -673,14 +884,17 @@ class FO4_OT_SetupArmorFromDescription(bpy.types.Operator):
                         'chest plate armor')
         atype = parse_armor_description(desc)
 
-        result = setup_armor_piece(obj, atype)
+        result = setup_armor_piece(obj, atype, force=self.confirm_replace)
         for step in result["steps"]:
             print(f"[FO4 Armor] {step}")
 
         if result["success"]:
             self.report({'INFO'}, result["message"])
         else:
-            self.report({'ERROR'}, result["message"])
+            msg = result["message"]
+            if "already has weight data" in msg:
+                msg += " Re-run with confirm_replace=True to proceed (e.g. params={'confirm_replace': True} from Mossy)."
+            self.report({'ERROR'}, msg)
             return {'CANCELLED'}
         return {'FINISHED'}
 

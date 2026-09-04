@@ -222,13 +222,22 @@ def _resolve_nif_path(obj, mod_folder: str) -> str:
     """
     Return the absolute NIF output path for *obj* inside the mod folder.
 
-    Output layout mirrors the FO4 Data folder structure:
-      [mod_folder]/Data/Meshes/[relative_path].nif
+    Output layout mirrors an MO2 mod folder, NOT the game's own Data folder:
+      [mod_folder]/Meshes/[relative_path].nif
+
+    *mod_folder* is the user's MO2 mod staging folder (e.g.
+    ".../MO2/mods/MyMod"), which contains Meshes/Materials/Textures
+    DIRECTLY. MO2 mod folders never have their own "Data" subfolder -- that
+    only exists once MO2 virtually merges every enabled mod into the game's
+    actual Data folder. This function used to insert an extra "Data" segment
+    here, so every resolved NIF path pointed at a "Data\\Meshes\\..." folder
+    that doesn't exist anywhere in the mod, and MO2/the game could never see
+    the exported file -- confirmed as a real bug from a user report.
 
     Priority for the relative path:
       1. fo4_nif_path custom property (set from xEdit CSV, e.g. "Meshes/Foo/Bar.nif")
       2. fo4_nif_abs custom property  (absolute path from NIF-folder import)
-      3. Fallback: Data/Meshes/[object_name].nif
+      3. Fallback: Meshes/[object_name].nif
 
     NEVER writes directly into the game's Data folder — always into the mod's
     own staging folder so MO2/Vortex handles deployment.
@@ -236,11 +245,11 @@ def _resolve_nif_path(obj, mod_folder: str) -> str:
     rel = obj.get(_PROP_NIF_PATH, "")
     if rel:
         rel = rel.replace("\\", "/")
-        # Strip leading "Meshes/" — we prepend it below inside Data/
+        # Strip leading "Meshes/" — we prepend it below
         if rel.lower().startswith("meshes/"):
             rel = rel[7:]
         return os.path.normpath(
-            os.path.join(mod_folder, "Data", "Meshes", rel)
+            os.path.join(mod_folder, "Meshes", rel)
         )
 
     abs_nif = obj.get(_PROP_NIF_ABS, "")
@@ -248,12 +257,12 @@ def _resolve_nif_path(obj, mod_folder: str) -> str:
         # Preserve path relative to original data root inside the mod folder
         fname = os.path.basename(abs_nif)
         return os.path.normpath(
-            os.path.join(mod_folder, "Data", "Meshes", fname)
+            os.path.join(mod_folder, "Meshes", fname)
         )
 
     safe = obj.name.replace(" ", "_")
     return os.path.normpath(
-        os.path.join(mod_folder, "Data", "Meshes", f"{safe}.nif")
+        os.path.join(mod_folder, "Meshes", f"{safe}.nif")
     )
 
 
@@ -300,7 +309,11 @@ def _export_nif(obj, filepath: str) -> "tuple[bool, str, str]":
     # ── FBX last resort — NOT game-ready, needs CAO conversion ──────────────
     fbx_path = os.path.splitext(filepath)[0] + "_NEEDS_CAO_CONVERT.fbx"
     try:
-        bpy.ops.export_scene.fbx(
+        # bpy.ops calls don't raise when the operator declines to run --
+        # they return {'CANCELLED'}, never an exception. Check the result
+        # and confirm the file actually landed on disk before reporting
+        # this last-resort export as successful.
+        _fbx_result = bpy.ops.export_scene.fbx(
             filepath=fbx_path,
             use_selection=True,
             apply_unit_scale=True,
@@ -308,6 +321,8 @@ def _export_nif(obj, filepath: str) -> "tuple[bool, str, str]":
             axis_up=_CK_FBX_UP,
             bake_space_transform=False,
         )
+        if 'CANCELLED' in set(_fbx_result or ()) or not os.path.isfile(fbx_path):
+            return False, "none", f"FBX last-resort export did not complete (result={_fbx_result!r})"
         return (
             True, "FBX (needs CAO)",
             f"⚠ Exported FBX (game needs NIF!). "
@@ -383,7 +398,7 @@ class FO4_OT_ImportCKCell(Operator):
     # Data root for deriving game-relative NIF paths
     mod_folder: StringProperty(
         name="Mod Output Folder",
-        description="Your mod's root staging folder (e.g. C:/MO2/mods/MyMod). Exports go to [folder]/Data/Meshes/ — never into the game folder.",
+        description="Your mod's root staging folder (e.g. C:/MO2/mods/MyMod), which holds Meshes/Materials/Textures directly (no Data\\ wrapper). Exports go to [folder]/Meshes/ — never into the game folder.",
         default="",
         subtype='DIR_PATH',
     )
@@ -456,7 +471,14 @@ class FO4_OT_ImportCKCell(Operator):
         if self.ck_fbx and os.path.isfile(self.ck_fbx):
             before = set(bpy.data.objects.keys())
             try:
-                bpy.ops.import_scene.fbx(
+                # bpy.ops calls don't raise when the operator declines to
+                # run (bad/corrupt file, wrong context, etc.) -- they come
+                # back as {'CANCELLED'}, never an exception. This used to
+                # only be wrapped in try/except and otherwise trusted
+                # unconditionally, so a declined import still fell through
+                # to "Imported 0 object(s) from CK FBX" reported as INFO
+                # (success) below. Check the actual result too.
+                _fbx_result = bpy.ops.import_scene.fbx(
                     filepath=self.ck_fbx,
                     use_manual_orientation=True,
                     axis_forward=_CK_FBX_FORWARD,
@@ -470,6 +492,12 @@ class FO4_OT_ImportCKCell(Operator):
                 )
             except Exception as e:
                 self.report({'ERROR'}, f"FBX import failed: {e}")
+                return {'CANCELLED'}
+
+            if 'CANCELLED' in set(_fbx_result or ()):
+                self.report({'ERROR'},
+                    f"CK FBX import did not complete (result={_fbx_result!r}); "
+                    f"nothing was added from {os.path.basename(self.ck_fbx)}.")
                 return {'CANCELLED'}
 
             new_objs = [bpy.data.objects[k]
@@ -494,11 +522,16 @@ class FO4_OT_ImportCKCell(Operator):
                 imported_total += 1
 
             cell_col["fo4_fbx_source"] = self.ck_fbx
-            self.report(
-                {'INFO'},
-                f"Imported {imported_total} object(s) from CK FBX: "
-                f"{os.path.basename(self.ck_fbx)}"
-            )
+            if imported_total == 0:
+                self.report({'WARNING'},
+                    f"CK FBX import reported success but added 0 objects from "
+                    f"{os.path.basename(self.ck_fbx)}")
+            else:
+                self.report(
+                    {'INFO'},
+                    f"Imported {imported_total} object(s) from CK FBX: "
+                    f"{os.path.basename(self.ck_fbx)}"
+                )
 
         # ═══════════════════════════════════════════════════════════════════
         # PATH B: NIF folder import (secondary — BA2 extracted)
@@ -527,9 +560,17 @@ class FO4_OT_ImportCKCell(Operator):
                     try:
                         op = getattr(bpy.ops.import_scene, importer, None)
                         if op:
-                            op(**kwargs)
-                            ok = True
-                            break
+                            # bpy.ops calls don't raise on a declined
+                            # import (bad file, wrong context) -- they
+                            # return {'CANCELLED'}. ok used to be set True
+                            # unconditionally once the call didn't throw,
+                            # so a silently-declined import here fell
+                            # through as "successful" (just landing 0 new
+                            # objects with no entry in the failed list).
+                            _r = op(**kwargs)
+                            if 'CANCELLED' not in set(_r or ()):
+                                ok = True
+                                break
                     except Exception:
                         pass
 
@@ -698,7 +739,7 @@ class FO4_OT_ExportCKCell(Operator):
 
     mod_folder: StringProperty(
         name="Mod Output Folder",
-        description="Your mod staging folder. Exports go to [folder]/Data/Meshes/ and [folder]/Data/Materials/.",
+        description="Your mod staging folder, which holds Meshes/Materials/Textures directly (no Data\\ wrapper). Exports go to [folder]/Meshes/ and [folder]/Materials/.",
         default="",
         subtype='DIR_PATH',
     )
@@ -709,7 +750,7 @@ class FO4_OT_ExportCKCell(Operator):
     )
     export_bgsm: BoolProperty(
         name="Export BGSM",
-        description="Write matching .bgsm material files under Data/Materials/",
+        description="Write matching .bgsm material files under [Mod Output Folder]/Materials/",
         default=True,
     )
     write_manifest: BoolProperty(

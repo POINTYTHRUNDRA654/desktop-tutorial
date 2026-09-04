@@ -589,24 +589,59 @@ class FO4_OT_ImportLibraryAsset(Operator):
                 self.report({'INFO'}, f"{verb} '{name}' from blend library")
 
             elif filetype == 'FBX':
-                bpy.ops.import_scene.fbx(filepath=filepath)
+                # bpy.ops calls don't raise when an operator declines to run
+                # -- a failed poll(), bad/corrupt file, missing importer,
+                # etc. all come back as {'CANCELLED'} (or a truthy-looking
+                # result even so), never an exception. This branch used to
+                # report "Imported FBX: name" unconditionally regardless of
+                # whether anything actually landed in the scene -- the same
+                # trap the NIF branch just above is already hardened
+                # against via the before/after object-count diff. Apply the
+                # same check here.
+                _before_objs = set(context.scene.objects)
+                _fbx_result = bpy.ops.import_scene.fbx(filepath=filepath)
+                _new_objs = [o for o in context.scene.objects if o not in _before_objs]
+                if 'CANCELLED' in set(_fbx_result or ()) or not _new_objs:
+                    self.report({'ERROR'},
+                        f"FBX import did not add anything from {name} "
+                        f"(result={_fbx_result!r})")
+                    return {'CANCELLED'}
                 self.report({'INFO'}, f"Imported FBX: {name}")
 
             elif filetype == 'OBJ':
+                _before_objs = set(context.scene.objects)
                 if hasattr(bpy.ops.wm, 'obj_import'):
-                    bpy.ops.wm.obj_import(filepath=filepath)
+                    _obj_result = bpy.ops.wm.obj_import(filepath=filepath)
                 else:
-                    bpy.ops.import_scene.obj(filepath=filepath)
+                    _obj_result = bpy.ops.import_scene.obj(filepath=filepath)
+                _new_objs = [o for o in context.scene.objects if o not in _before_objs]
+                if 'CANCELLED' in set(_obj_result or ()) or not _new_objs:
+                    self.report({'ERROR'},
+                        f"OBJ import did not add anything from {name} "
+                        f"(result={_obj_result!r})")
+                    return {'CANCELLED'}
                 self.report({'INFO'}, f"Imported OBJ: {name}")
 
             elif filetype == 'NIF':
                 if hasattr(bpy.ops, 'import_scene') and hasattr(bpy.ops.import_scene, 'pynifly'):
-                    bpy.ops.import_scene.pynifly(filepath=filepath)
+                    _before_objs = set(context.scene.objects)
+                    _nif_result = bpy.ops.import_scene.pynifly(filepath=filepath)
+                    _new_objs = [o for o in context.scene.objects if o not in _before_objs]
+                    if 'CANCELLED' in _nif_result or not _new_objs:
+                        self.report(
+                            {'ERROR'},
+                            f"PyNifly did not import anything from {name} "
+                            f"(result={_nif_result!r})",
+                        )
+                        return {'CANCELLED'}
                     # Scale imported objects from FO4 game units to Blender metres (÷70)
-                    # and tag each for the ×70 round-trip on export.
+                    # and tag each for the ×70 round-trip on export. Uses the real
+                    # before/after diff above, not context.selected_objects -- a
+                    # stale selection left over from before this call could
+                    # otherwise get mis-scaled if the import silently no-op'd.
                     _fo4_scale = 1.0 / 69.99125
                     _scalable = {'MESH', 'ARMATURE', 'CURVE', 'SURFACE'}
-                    _imported = [o for o in context.selected_objects if o.type in _scalable]
+                    _imported = [o for o in _new_objs if o.type in _scalable]
                     bpy.ops.object.select_all(action='DESELECT')
                     for _obj in _imported:
                         context.view_layer.objects.active = _obj
@@ -627,11 +662,25 @@ class FO4_OT_ImportLibraryAsset(Operator):
                     return {'CANCELLED'}
 
             elif filetype in ('GLTF', 'GLB'):
-                bpy.ops.import_scene.gltf(filepath=filepath)
+                _before_objs = set(context.scene.objects)
+                _gltf_result = bpy.ops.import_scene.gltf(filepath=filepath)
+                _new_objs = [o for o in context.scene.objects if o not in _before_objs]
+                if 'CANCELLED' in set(_gltf_result or ()) or not _new_objs:
+                    self.report({'ERROR'},
+                        f"glTF import did not add anything from {name} "
+                        f"(result={_gltf_result!r})")
+                    return {'CANCELLED'}
                 self.report({'INFO'}, f"Imported glTF: {name}")
 
             elif filetype == 'DAE':
-                bpy.ops.wm.collada_import(filepath=filepath)
+                _before_objs = set(context.scene.objects)
+                _dae_result = bpy.ops.wm.collada_import(filepath=filepath)
+                _new_objs = [o for o in context.scene.objects if o not in _before_objs]
+                if 'CANCELLED' in set(_dae_result or ()) or not _new_objs:
+                    self.report({'ERROR'},
+                        f"Collada import did not add anything from {name} "
+                        f"(result={_dae_result!r})")
+                    return {'CANCELLED'}
                 self.report({'INFO'}, f"Imported Collada: {name}")
 
             elif filetype in (

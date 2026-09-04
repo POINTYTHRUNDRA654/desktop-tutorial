@@ -277,7 +277,7 @@ SF2_SOFT_LIGHTING = 1 << 26
 SF2_RIM_LIGHTING = 1 << 27
 SF2_BACK_LIGHTING2 = 1 << 28
 SF2_SNOW = 1 << 29
-SF2_TREE_ANIM = 1 << 30  # BSLightingShaderProperty SLSF2_Tree_Anim -- drives wind sway from vertex-alpha
+SF2_TREE_AIM = 1 << 30
 
 
 # ---------------------------------------------------------------------------
@@ -872,6 +872,21 @@ def _normalize_tex_path(raw: str) -> str:
         raw = raw[data_idx + 6:]
     elif raw.startswith("\\"):
         raw = raw.lstrip("\\")
+    elif not lower.startswith("textures\\"):
+        # MO2 mod folders have no "Data\" wrapper (the convention used
+        # throughout this addon), so an absolute path built from one -- e.g.
+        # "E:\Mod.Organizer-3 Work Mods&Overwrites\MyMod\Textures\LOD\
+        # Landscape\Plants\x.dds" -- never contains "\data\" and fell
+        # through this function unchanged, baking the modder's own
+        # machine-specific absolute path into the BGSM/NIF instead of the
+        # game-relative "Textures\..." path FO4 actually needs. Confirmed
+        # directly: a real exported material referenced the full
+        # "E:\Mod.Organizer-3 Work Mods&Overwrites\..." path. Anchor at the
+        # last "Textures\" segment instead, same convention already used by
+        # _lod_texture_output_dir in fo4_lod_generator.py.
+        tex_idx = lower.rfind("\\textures\\")
+        if tex_idx >= 0:
+            raw = raw[tex_idx + 1:]  # keep the leading "Textures\..."
     return raw
 
 
@@ -968,8 +983,22 @@ def _get_image_node_path(mat, node_name: str) -> str:
     return ""
 
 
-def blender_mat_to_bgsm(mat) -> BGSMData:
+def blender_mat_to_bgsm(mat, is_lod: bool = False) -> BGSMData:
     """Extract BGSM fields from a Blender material.
+
+    is_lod: True when this material belongs to an addon-generated LOD/
+    billboard copy (see :func:`export_bgsm_for_object`'s own docstring).
+    Confirmed directly by diffing real vanilla full-detail vs. LOD BGSM
+    pairs from a game-exported reference folder (RedPineFull01.BGSM vs.
+    RedPineFullLOD01.BGSM, RedPineBark01.BGSM vs. RedPineBarkLOD01.BGSM,
+    and a real shared-atlas ElmSet01LODlv2.BGSM): real FO4 LOD materials
+    consistently turn OFF ``subsurface_lighting`` and the ``tree`` (wind
+    sway) flag, and clear ``root_material_path`` -- LOD renders don't pay
+    for per-vertex wind animation or leaf subsurface scattering at
+    distance. Fields that varied between the samples depending on the
+    asset's own geometry (``two_sided``, ``non_occluder``) are deliberately
+    NOT forced here -- they should keep following the mesh's own state
+    rather than a guessed LOD-wide rule.
 
     Reads Principled BSDF settings and image nodes named "Diffuse",
     "Normal", "Specular", "Glow", and "EnvMap".  Falls back gracefully
@@ -1022,6 +1051,14 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
 
     # Two-sided flag
     two_sided = not mat.use_backface_culling
+    # BGSM stores this twice -- a standalone bool field (data.two_sided) AND
+    # a bit in shader_flags2. Only the flags2 bit used to get set from
+    # Blender's use_backface_culling here; the standalone field was left
+    # untouched, so it always stayed whatever the round-tripped source BGSM
+    # (or the BGSMData default) happened to have, out of sync with the flag
+    # a modder actually toggles in Blender. Confirmed as a real gap while
+    # diffing real vanilla BGSM pairs for the is_lod work above.
+    data.two_sided = two_sided
     if two_sided:
         data.shader_flags2 |= SF2_DOUBLE_SIDED
     else:
@@ -1097,8 +1134,26 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
         emit_sock = pbsdf.inputs.get("Emission Strength")
         if emit_sock and not emit_sock.is_linked and float(emit_sock.default_value) > 0.0:
             data.emit_enabled = True
-            data.glowmap = True
             data.shader_flags1 |= SF1_EMIT_ENABLED
+            # glowmap (and its SF2_GLOW_MAP flag, set above only when
+            # data.greyscale_texture is non-empty) tells the engine "sample
+            # a glow-map texture for this material's emissive contribution".
+            # This block used to set data.glowmap = True unconditionally
+            # just because SOME emission strength was present, even when no
+            # glow-map texture had actually been assigned (fo4_glow_effects'
+            # glow_map argument is optional -- most users applying a Pulse/
+            # Breathe/Flicker/etc. effect never pick one in the UI). That
+            # produced a BGSM claiming a glow map is in use while its glow
+            # texture path was empty -- an invalid material combo that can
+            # crash the renderer as soon as it tries to compile the shader
+            # for the newly-loaded cell (matches a real user report: glow
+            # effect applied to a plant with no glow map picked, game
+            # crashed immediately on cell/save load). Flat emissive colour
+            # with no texture is a legitimate real FO4 technique (emit
+            # enabled, glowmap left off) -- only force glowmap on here if a
+            # real glow texture is already present.
+            if data.greyscale_texture:
+                data.glowmap = True
             emit_col_sock = pbsdf.inputs.get("Emission Color") or pbsdf.inputs.get("Emission")
             if emit_col_sock and not emit_col_sock.is_linked:
                 ec = emit_col_sock.default_value
@@ -1113,6 +1168,18 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
     combined_hint = " ".join(filter(None, [fo4_shader, fo4_shader_type, fo4_core_profile]))
     if combined_hint:
         _apply_shader_hints(data, combined_hint)
+
+    # External Emittance -- fo4.setup_glowing_plant_material's "External
+    # Emittance" checkbox stores this directly as mat["fo4_external_emittance"],
+    # but nothing ever read that property: _apply_shader_hints only sets the
+    # flag when the literal substring "external_emittance" appears in
+    # combined_hint above, which none of fo4_shader/fo4_shader_type/
+    # fo4_core_profile's actual values (e.g. "glowmap_foliage") ever contain.
+    # So the checkbox silently had zero effect on the exported .bgsm -- read
+    # the real property directly instead of depending on the substring hint.
+    if mat.get("fo4_external_emittance"):
+        data.external_emittance = True
+        data.shader_flags1 |= SF1_EXTERNAL_EMITTANCE
 
     # Note: real FO4 BGSM files (format version 2, confirmed across the
     # entire sampled reference library) have no translucency/subsurface
@@ -1172,6 +1239,17 @@ def blender_mat_to_bgsm(mat) -> BGSMData:
                 setattr(data, field_name, val)
             except Exception:
                 pass
+
+    # ── LOD-specific overrides ──────────────────────────────────────────────
+    # Applied last so they win over both a round-tripped source BGSM and any
+    # preset above -- see this function's own docstring for the real-file
+    # evidence. A LOD material should never carry these over from its
+    # full-detail source even though nothing in Blender's own material
+    # editor represents them.
+    if is_lod:
+        data.subsurface_lighting = False
+        data.tree = False
+        data.root_material_path = ""
 
     return data
 
@@ -1404,55 +1482,12 @@ def _bgsm_output_path(obj, output_dir: str, mat_name: str) -> str:
     return os.path.join(output_dir, safe_name + ".bgsm")
 
 
-def _object_has_wind_rig(obj) -> bool:
-    """True if *obj* actually carries wind sway data.
-
-    Our wind pipeline (see animation_helpers.AnimationHelpers) writes two
-    things onto a wind-rigged mesh: a "Wind" vertex group (the gradient),
-    and, once baked, a "VERTEX_ALPHA" (or "Col") color attribute PyNifly
-    reads on export. Either one existing is a reliable signal this object
-    is meant to sway in-game -- used below to make sure the exported BGSM
-    actually tells the FO4 engine to read that data (see
-    _apply_wind_shader_flags).
-    """
-    mesh = getattr(obj, "data", None)
-    if mesh is None:
-        return False
-    if "Wind" in obj.vertex_groups:
-        return True
-    for name in ("VERTEX_ALPHA", "Col"):
-        if mesh.color_attributes.get(name) is not None:
-            return True
-    return False
-
-
-def _apply_wind_shader_flags(data: BGSMData) -> None:
-    """OR in the shader flags FO4 needs to animate wind from vertex alpha.
-
-    Our Blender-side wind rig (generate_wind_weights / apply_wind_vertex_colors)
-    writes a correct per-vertex sway gradient into the mesh's vertex-alpha
-    data, but that data is inert in-game unless the material also carries:
-
-    - SLSF1_Vertex_Alpha  -- tells the shader to read the vertex alpha
-      channel at all (otherwise it's ignored).
-    - SLSF2_Tree_Anim      -- tells the engine to actually bend the mesh
-      per-vertex using that alpha as the wind-sway amount.
-
-    Every real vanilla FO4 vegetation BGSM has both bits set. Materials
-    re-exported from an existing FO4 asset (``fo4_bgsm_path`` present)
-    already inherit them from the source file, so this is a no-op there --
-    it only matters for materials built fresh in Blender, where nothing
-    else in this module ever sets these two bits.
-    """
-    data.shader_flags1 |= SF1_VERTEX_ALPHA
-    data.shader_flags2 |= SF2_TREE_ANIM
-
-
 def export_bgsm_for_object(
     obj,
     output_dir: str,
     *,
     all_slots: bool = True,
+    is_lod: bool = False,
 ) -> list[tuple[bool, str]]:
     """Export BGSM files for all material slots on *obj*.
 
@@ -1461,6 +1496,8 @@ def export_bgsm_for_object(
         output_dir: Directory to write ``.bgsm`` files into.
         all_slots:  If True, export every material slot.  If False, only
                     the material in the active slot.
+        is_lod:     True when *obj* is an addon-generated LOD/billboard copy
+                    (see :func:`blender_mat_to_bgsm` for what this changes).
 
     Returns a list of ``(success, message)`` pairs, one per material.
     """
@@ -1471,8 +1508,6 @@ def export_bgsm_for_object(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    wants_wind = _object_has_wind_rig(obj)
-
     slots = obj.data.materials if all_slots else [obj.active_material]
     results = []
     for mat in slots:
@@ -1480,9 +1515,7 @@ def export_bgsm_for_object(
             results.append((False, "Empty material slot skipped"))
             continue
         try:
-            bgsm_data = blender_mat_to_bgsm(mat)
-            if wants_wind:
-                _apply_wind_shader_flags(bgsm_data)
+            bgsm_data = blender_mat_to_bgsm(mat, is_lod=is_lod)
             out_path = _bgsm_output_path(obj, output_dir, mat.name)
             raw = write_bgsm(bgsm_data)
             with open(out_path, "wb") as fh:
@@ -1583,6 +1616,20 @@ def export_textures_for_object(
                 if os.path.normcase(os.path.normpath(dest_path)) == src_norm:
                     results.append((True, f"'{os.path.basename(src_path)}' already at destination"))
                     continue
+                # Refuse to blindly clobber an existing, higher-resolution
+                # texture with whatever is currently loaded in this material
+                # -- confirmed real incident: a correct 2K texture already
+                # sitting in a mod folder got silently overwritten by a 512
+                # one during export, because this copy only ever checked
+                # whether source == destination, never what was already there.
+                if os.path.exists(dest_path) and _nvtt and _nvtt.is_texture_size_downgrade(dest_path, src_path):
+                    results.append((False, (
+                        f"Skipped '{os.path.basename(src_path)}': the file already at "
+                        f"{dest_path} is higher resolution than the texture currently "
+                        f"loaded in Blender. Not overwriting it -- delete the existing "
+                        f"file first if replacing it with a smaller one is intentional."
+                    )))
+                    continue
                 try:
                     import shutil as _shutil
                     _shutil.copy2(src_path, dest_path)
@@ -1607,6 +1654,22 @@ def export_textures_for_object(
                     results.append((False, f"DDS conversion failed for '{src_path}': {exc}"))
             if not converted:
                 dest_path = os.path.join(output_dir, os.path.basename(src_path))
+                dest_norm = os.path.normcase(os.path.normpath(dest_path))
+                # Same "don't blindly clobber a better file already there" rule
+                # as the .dds branch above -- is_texture_size_downgrade only
+                # understands DDS headers, so for a non-DDS source (no
+                # texconv/NVTT to convert it) fall back to a file-size
+                # heuristic: a larger existing file is very likely a
+                # higher-quality texture that shouldn't be silently replaced.
+                if (dest_norm != src_norm and os.path.exists(dest_path)
+                        and os.path.getsize(dest_path) > os.path.getsize(src_path)):
+                    results.append((False, (
+                        f"Skipped '{os.path.basename(src_path)}': the file already at "
+                        f"{dest_path} is larger than the texture currently loaded in "
+                        f"Blender. Not overwriting it -- delete the existing file first "
+                        f"if replacing it with a smaller one is intentional."
+                    )))
+                    continue
                 try:
                     import shutil as _shutil
                     _shutil.copy2(src_path, dest_path)

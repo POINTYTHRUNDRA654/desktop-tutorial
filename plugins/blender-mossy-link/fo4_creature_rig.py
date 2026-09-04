@@ -592,10 +592,21 @@ class FO4_OT_BuildQuadrupedRig(Operator):
 
 class FO4_OT_SetupSnapAnimation(Operator):
     """
-    Create the three keyframe sequences needed for a carnivorous plant:
-      Frame   0–30:  Idle (gentle sway, jaws open ~30°)
-      Frame  60–90:  Snap attack (jaws close fast, shake, open)
-      Frame 120–150: Idle hungry (jaws fully open, more active sway)
+    Create the keyframe sequences needed for a carnivorous plant:
+      Frame   0– 30:  Idle (gentle sway, jaws open ~30°)
+      Frame  60– 90:  Snap attack (jaws close fast, shake, open)
+      Frame  90–120:  Snap reset (interpolated: snap's re-opened jaw pose
+                       back to idle-hungry's wider jaw pose -- no extra keys
+                       needed, the existing boundary keyframes already
+                       produce real motion here)
+      Frame 120–150:  Idle hungry (jaws fully open, more active sway)
+      Frame 150–200:  Death / wither (stem droops, jaws go slack)
+
+    fo4_animation_export.py's clip presets (idle/snap_attack/snap_reset/
+    idle_hungry/death) are keyed to this exact frame layout -- keep them in
+    sync if these ranges ever change. death used to have no keyframes past
+    frame 150 at all, so exporting that preset silently produced a static
+    hold with zero motion despite being offered as a ready-to-use clip.
 
     Requires an armature with Jaw_Upper and Jaw_Lower bones.
     """
@@ -709,11 +720,37 @@ class FO4_OT_SetupSnapAnimation(Operator):
                 _key_bone("Jaw_Upper", f,  jaw_hungry)
                 _key_bone("Jaw_Lower", f, -jaw_hungry)
 
+        # ── DEATH / WITHER (frames 150–200) ────────────────────────────────────
+        # Previously unkeyed -- with no keyframes past frame 150, exporting
+        # the "death" clip preset (fo4_animation_export._CLIP_PRESETS) held
+        # every bone static at its frame-150 idle-hungry pose for the whole
+        # 150-200 range: a flat, motionless "death" animation despite being
+        # offered as one of the ready-to-use presets.
+        if has_stem:
+            droop = sway_rad * 4.0  # well past normal sway range -- a wilt, not a sway
+            for f, sx in [
+                (150, 0),
+                (165, droop * 0.6),
+                (185, droop),
+                (200, droop),   # hold the wilted pose -- death doesn't spring back
+            ]:
+                _key_bone("Stem",     f, sx,       0)
+                _key_bone("Stem_Mid", f, sx * 0.8, 0)
+                _key_bone("Stem_Top", f, sx * 0.6, 0)
+
+        if has_jaws:
+            jaw_slack = math.radians(15.0)  # sags open past the closed pose, but not held wide
+            for f, jaw_angle in [(150, jaw_hungry), (175, jaw_slack), (200, jaw_slack)]:
+                _key_bone("Jaw_Upper", f,  jaw_angle)
+                _key_bone("Jaw_Lower", f, -jaw_angle)
+
         self.report({'INFO'},
             "✓ Snap animation keyframes created:\n"
-            "  Frames 0–30:   Idle (gentle sway)\n"
-            "  Frames 60–90:  Snap attack\n"
+            "  Frames 0–30:    Idle (gentle sway)\n"
+            "  Frames 60–90:   Snap attack\n"
+            "  Frames 90–120:  Snap reset (interpolated)\n"
             "  Frames 120–150: Idle hungry (jaws wide)\n"
+            "  Frames 150–200: Death / wither\n"
             "Use 'Export Creature Animation → FO4 HKX' to convert for game use.")
         return {'FINISHED'}
 
