@@ -1,1 +1,0 @@
-Scriptname CombatStyle extends Form Native Hidden
