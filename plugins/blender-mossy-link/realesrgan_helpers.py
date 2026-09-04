@@ -439,6 +439,50 @@ class RealESRGANHelpers:
 
         return success_count, results
 
+
+    @staticmethod
+    def _resolve_image_source_path(img, output_dir):
+        """
+        Return a usable on-disk source path for a Blender image, handling
+        both loose (on-disk) images and packed/embedded images.
+
+        Blender images imported with data embedded in the .blend file
+        (e.g. glTF import with "Pack Images" enabled, the default) have an
+        empty filepath and img.packed_file set. Previously such images were
+        silently skipped here, causing FO4 texture conversion to falsely
+        report "No textures found in object materials" even though the
+        textures were present and correctly wired into the material.
+
+        Returns: str path or None if the image has no usable data.
+        """
+        if img is None:
+            return None
+
+        if img.filepath:
+            candidate = bpy.path.abspath(img.filepath)
+            if os.path.exists(candidate):
+                return candidate
+
+        if img.packed_file or (img.has_data and not img.filepath):
+            try:
+                os.makedirs(output_dir, exist_ok=True)
+                safe_name = "".join(
+                    c if (c.isalnum() or c in "_-") else "_" for c in img.name
+                )
+                temp_path = os.path.join(output_dir, f"_unpacked_{safe_name}.png")
+                orig_format = img.file_format
+                try:
+                    img.file_format = 'PNG'
+                    img.save(filepath=temp_path)
+                finally:
+                    img.file_format = orig_format
+                if os.path.exists(temp_path):
+                    return temp_path
+            except Exception:
+                return None
+
+        return None
+
     @staticmethod
     def upscale_object_textures(obj, output_dir, scale=4):
         """Upscale all textures used by a mesh object.
@@ -473,10 +517,9 @@ class RealESRGANHelpers:
             for node in mat.node_tree.nodes:
                 if node.type == 'TEX_IMAGE' and node.image:
                     img = node.image
-                    if img.filepath:
-                        img_path = bpy.path.abspath(img.filepath)
-                        if os.path.exists(img_path):
-                            texture_list.append(img_path)
+                    img_path = RealESRGANHelpers._resolve_image_source_path(img, output_dir)
+                    if img_path:
+                        texture_list.append(img_path)
 
         if not texture_list:
             return False, "No textures found in object materials", []
