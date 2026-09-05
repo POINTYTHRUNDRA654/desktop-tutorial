@@ -631,7 +631,18 @@ def register():
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
-        bpy.utils.register_class(cls)
+        # register_class() used to be unguarded here: a genuine failure on
+        # one class (not just "already registered", which the unregister
+        # above already handles) would raise straight out of this for-loop
+        # and silently abort registration of every class still left in
+        # _CLASSES, with only whatever __init__.py's Phase 1/2 wrapper
+        # printed to a console most users never open.  Wrapping it means a
+        # single bad class can no longer take the rest of the module's UI
+        # down with it.
+        try:
+            bpy.utils.register_class(cls)
+        except Exception as _e:
+            print(f"\u26a0 Failed to register {getattr(cls, '__name__', cls)}: {_e}")
 
 
 def unregister():

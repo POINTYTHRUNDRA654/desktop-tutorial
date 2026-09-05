@@ -4527,6 +4527,539 @@ class TestPrepareThirdPartyMeshNonManifoldFix(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# Test N – UV auto-fix must stay UV-seam-aware (regression guard)
+# ---------------------------------------------------------------------------
+class TestUvAutoFixIsSeamAware(unittest.TestCase):
+    """fix_flipped_uv_islands() in fo4_uv_tools.py silently mirrors UV islands
+    it thinks are flipped, directly on obj.data during export prep, with no
+    revert step. This has regressed TWICE already: once fixed by commit
+    9a38b53c ("Fix export-time UV auto-fix mirroring intentional islands"),
+    then silently reverted by a later "align copies" merge that overwrote
+    this file with a stale pre-fix version from elsewhere -- see Billy's
+    2026-09-04 report of a NIF export ruining a UV setup that had been
+    correctly fixed the day before.
+
+    The bug: flood-filling islands by raw bmesh edge adjacency merges every
+    UV island that stays mesh-connected across a seam (typical for
+    vegetation/foliage: seams split leaves/branches in UV space, not in the
+    mesh) into one blob, then majority-votes the whole blob as "flipped" --
+    mirroring deliberately-placed, correct islands right along with any
+    genuinely inverted ones.
+
+    Guard: assert the seam-aware helper (_uv_continuous_across) exists and
+    is what the flood-fill actually branches on, so a future "align/merge
+    the two addon copies" pass that silently reintroduces the old
+    edge-adjacency-only version fails CI instead of shipping broken again.
+    """
+
+    def _src(self):
+        return _read("fo4_uv_tools.py")
+
+    def test_uv_continuous_across_helper_present(self):
+        src = self._src()
+        self.assertIn(
+            "_uv_continuous_across",
+            src,
+            "fo4_uv_tools.py has lost its UV-seam-aware island flood-fill "
+            "helper (_uv_continuous_across) -- this is the exact regression "
+            "that broke Billy's UV setup on export before (commit "
+            "9a38b53c). The flood-fill must only cross an edge when both "
+            "faces share matching UV coordinates across it, never on raw "
+            "mesh-edge adjacency alone.",
+        )
+
+    def test_flood_fill_branches_on_uv_continuity_not_raw_adjacency(self):
+        src = self._src()
+        # The buggy version's flood-fill body reads exactly:
+        #     for e in face_by_idx2[fi].edges:
+        #         for nfi in edge_to_faces2.get(e.index, []):
+        #             if nfi not in face_visited2:
+        #                 stack.append(nfi)
+        # i.e. it pushes a neighbor onto the stack whenever it is merely
+        # unvisited, with no UV-continuity check at all. The fixed version
+        # gates that push behind _uv_continuous_across(...). Assert the
+        # gate call actually appears where the neighbor gets pushed.
+        self.assertIn(
+            "_uv_continuous_across(e, cur_face, face_by_idx2[nfi])",
+            src,
+            "fix_flipped_uv_islands()'s flood-fill no longer gates island "
+            "membership on UV continuity -- it will merge islands across "
+            "UV seams again and mirror correct, intentional islands.",
+        )
+
+
+class TestMirroredScaleUvCompensation(unittest.TestCase):
+    """Applying a negative (mirrored) object scale during export prep bakes
+    a mirrored 3D winding into the mesh via bpy.ops.object.transform_apply,
+    but that operator never touches UV data -- UVs are plain 2D coordinates
+    with no concept of the 3D mirror. Left uncompensated, the exported mesh
+    has 3D winding that assumes a mirror while its UVs still assume the
+    original, unmirrored orientation, corrupting the tangent basis PyNifly
+    bakes into the NIF -- read out in-game as a flipped/wrong texture.
+
+    Confirmed as a real, reproducible cause of "the UV came out wrong on
+    export" reported by Billy on 2026-09-04 for a mesh he had NOT edited at
+    all -- only re-imported and re-exported -- where the actual cause was a
+    negative-scale linked-duplicate (Alt-D) instance used to mirror a placed
+    copy of the mesh for variety, a common FO4 vegetation-placement pattern.
+
+    Guard: assert export_helpers.py detects a negative scale determinant
+    and flips the mesh's UV.x to compensate right after the scale gets
+    applied, so this doesn't silently regress the way the seam-aware UV fix
+    already has once (see TestUvAutoFixIsSeamAware).
+    """
+
+    def _src(self):
+        return _read("export_helpers.py")
+
+    def test_negative_determinant_detected(self):
+        src = self._src()
+        self.assertIn(
+            "is_mirrored",
+            src,
+            "export_helpers.py no longer detects a mirrored (negative "
+            "scale determinant) object before applying its transform -- "
+            "this is required to know when the post-apply UV compensation "
+            "below needs to run.",
+        )
+        self.assertIn(
+            "obj.scale.x * obj.scale.y * obj.scale.z",
+            src,
+            "export_helpers.py's mirror detection no longer checks the "
+            "scale determinant sign (product of the three scale axes).",
+        )
+
+    def test_uv_flip_compensates_after_transform_apply(self):
+        src = self._src()
+        self.assertIn(
+            "_loop_mirror.uv.x = 1.0 - _loop_mirror.uv.x",
+            src,
+            "export_helpers.py no longer flips UV.x to compensate for a "
+            "baked mirror transform -- a negative-scale (mirrored) "
+            "linked-duplicate instance will export with a mismatched "
+            "tangent basis again (flipped/wrong texture in-game), exactly "
+            "as reported on 2026-09-04.",
+        )
+        # The compensation must be gated on is_mirrored and placed after the
+        # transform_apply call, not unconditionally -- unmirrored objects
+        # must never have their UVs touched by this step.
+        apply_idx = src.find("bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)")
+        mirror_gate_idx = src.find("if is_mirrored:")
+        uv_flip_idx = src.find("_loop_mirror.uv.x = 1.0 - _loop_mirror.uv.x")
+        self.assertTrue(
+            apply_idx != -1 and mirror_gate_idx != -1 and uv_flip_idx != -1,
+            "Could not locate all three anchor points for the mirrored-UV "
+            "compensation in export_helpers.py.",
+        )
+        self.assertLess(
+            apply_idx, mirror_gate_idx,
+            "The is_mirrored UV-compensation gate must come AFTER the scale "
+            "transform is actually applied, not before.",
+        )
+        self.assertLess(
+            mirror_gate_idx, uv_flip_idx,
+            "The UV.x flip must live inside the is_mirrored gate.",
+        )
+
+
+class TestUvAutoFixNoLongerSilentlyMutates(unittest.TestCase):
+    """auto_fix_uv_before_export() used to call fix_flipped_uv_islands()
+    automatically on every export, silently mirroring any UV island it
+    guessed was flipped. Even after the seam-aware fix (TestUvAutoFixIsSeamAware),
+    this heuristic kept producing false positives on real, previously-correct
+    FO4 content -- confirmed 2026-09-04 flipping 22 islands on Billy's
+    GSFungusGrassHalves01 grass mesh on a plain re-import -> re-export with
+    zero edits, because foliage/vegetation routinely and intentionally uses
+    CW-in-UV-space islands to mirror texture space across seams. Signed-area
+    majority voting cannot tell that apart from a genuine flip reliably
+    enough to justify mutating the user's mesh on every export with no
+    review or undo step.
+
+    Guard: auto_fix_uv_before_export() must only report issues (via
+    validate_uv_for_export) and must NOT call fix_flipped_uv_islands()
+    itself. The manual "Fix Flipped UV Islands" operator (Ctrl+Z-able)
+    still exists and still uses the seam-aware flood-fill -- this only
+    guards against a future change silently re-wiring the automatic,
+    un-reviewable export-time path back in.
+    """
+
+    def _src(self):
+        return _read("fo4_uv_tools.py")
+
+    def test_auto_fix_does_not_call_fix_flipped_uv_islands(self):
+        src = self._src()
+        start = src.index("def auto_fix_uv_before_export(")
+        # Slice to the next top-level "def " after this function's start so
+        # we only inspect this function's own body, not the whole file.
+        next_def = src.index("\ndef ", start + 1)
+        body = src[start:next_def]
+        self.assertNotIn(
+            "fix_flipped_uv_islands(obj)",
+            body,
+            "auto_fix_uv_before_export() calls fix_flipped_uv_islands() again "
+            "-- this silently mutates the user's mesh UVs on every export "
+            "with no way to review or undo it, and has caused real, "
+            "confirmed damage to correct FO4 content (see class docstring). "
+            "It must only report issues, not fix them automatically.",
+        )
+        self.assertIn(
+            "validate_uv_for_export(obj)",
+            body,
+            "auto_fix_uv_before_export() no longer reports flipped-island "
+            "issues via validate_uv_for_export() -- the user needs to see "
+            "this warning even though it's no longer auto-fixed.",
+        )
+
+
+class TestEmptyVertexGroupsDontBlockExport(unittest.TestCase):
+    """The pre-export check that rejects a mesh with unrecognized vertex
+    groups and no armature ("Mesh has vertex group(s) [...] but no armature")
+    used to flag ANY unrecognized group name, including one with zero actual
+    weighted vertices. Confirmed as a real cause of a good vegetation export
+    being blocked over a stray, empty "Group" -- Blender's own default name
+    for a vertex group created with nothing assigned to it (an accidental
+    "+" click, a modifier's placeholder, or an import leftover). An empty
+    vertex group has no effect on the exported mesh either way and should
+    never block export; only a group that actually carries real weight data
+    with nowhere to bind it should.
+
+    Guard: the check must skip vertex groups with no weighted vertices, and
+    must also recognize FO4 dismemberment partition groups (already handled
+    by _is_partition_group elsewhere in this file, but not previously wired
+    into this specific check).
+    """
+
+    def _src(self):
+        return _read("export_helpers.py")
+
+    def _check_body(self):
+        src = self._src()
+        marker = 'f"Mesh has vertex group(s) {unknown[:3]} but no armature "'
+        idx = src.index(marker)
+        # Grab a reasonable window of code before the error message so we can
+        # inspect how `unknown` gets built without depending on exact line counts.
+        return src[max(0, idx - 1500):idx]
+
+    def test_skips_vertex_groups_with_no_weighted_vertices(self):
+        body = self._check_body()
+        self.assertIn(
+            "_group_has_weight",
+            body,
+            "The vertex-group export check no longer distinguishes an empty "
+            "(zero-weight) vertex group from one carrying real skin weight "
+            "data -- it will block export over a harmless leftover empty "
+            "group again, exactly as confirmed on Billy's grass mesh.",
+        )
+        self.assertIn(
+            "weight > 1e-6",
+            body,
+            "The vertex-group export check no longer tests actual per-vertex "
+            "weight values to decide whether a group is inert.",
+        )
+
+    def test_recognizes_partition_groups(self):
+        body = self._check_body()
+        self.assertIn(
+            "_is_partition_group(vg.name)",
+            body,
+            "The vertex-group export check doesn't exempt FO4 dismemberment "
+            "partition groups (e.g. 'FO4 Seg 000') even though "
+            "_is_partition_group() already exists in this file specifically "
+            "to identify them as not requiring an armature.",
+        )
+
+
+class TestWindReadinessCatchesWeightDiscontinuity(unittest.TestCase):
+    """scan_wind_readiness() and test_wind_deformation() used to genuinely
+    disagree: readiness's static checks (scale/rotation/origin, unwelded
+    near-duplicate positions, group coverage, vertex-color staleness) never
+    looked at whether two vertices connected by an already-welded edge have
+    sharply different Wind weights -- only the physical bend simulation in
+    test_wind_deformation caught that, by actually measuring edge stretch
+    under a test bend. A duplicated/joined piece of vegetation that carried
+    its own separately-generated gradient before being joined onto the main
+    mesh produces exactly this: perfectly welded topology (nothing for
+    "Weld Wind Seams" to fix), full Wind-group coverage, non-stale vertex
+    colors -- and a visible tear anyway. Confirmed 2026-09-05 as the real
+    cause of "Scan Wind Readiness passes but Test Wind Deformation still
+    fails" even after Weld Wind Seams + a manual Merge by Distance, neither
+    of which can fix a weight mismatch that was never a position mismatch.
+
+    Guard: scan_wind_readiness() must check for edges whose two endpoints'
+    Wind weights differ sharply, so the static scan agrees with the
+    simulation instead of silently missing this class of tear.
+    """
+
+    def _src(self):
+        return _read("animation_helpers.py")
+
+    def test_edge_weight_discontinuity_check_present(self):
+        src = self._src()
+        start = src.index("def scan_wind_readiness(")
+        next_def = src.index("\n    @staticmethod", start + 1)
+        body = src[start:next_def]
+        self.assertIn(
+            "wind_weight_discontinuous_edges",
+            body,
+            "scan_wind_readiness() no longer checks for a sharp Wind-weight "
+            "jump across an already-welded connected edge -- it will report "
+            "'ready' on a mesh that test_wind_deformation's physical bend "
+            "test would still fail, exactly as confirmed on 2026-09-05.",
+        )
+        self.assertIn(
+            "abs(w1 - w2) > jump_threshold",
+            body,
+            "scan_wind_readiness()'s weight-discontinuity check no longer "
+            "actually compares the two endpoints' weights per edge.",
+        )
+
+
+class TestRemoveDoublesSkipsCleanMesh(unittest.TestCase):
+    """The pre-export "Remove Doubles" step used to run its full bmesh
+    from_mesh/to_mesh round-trip UNCONDITIONALLY on every export, even a
+    freshly-imported, completely unedited mesh with clean topology and no
+    near-duplicate vertices at all. Confirmed 2026-09-05 as the one
+    remaining structural difference between our export and PyNifly's raw
+    export on an otherwise byte-identical mesh: PyNifly's raw export never
+    touches the mesh, while ours always ran a bmesh rebuild regardless of
+    need. Billy's own repro (import a stock, unmodified FO4 NIF and
+    immediately re-export with zero edits) produced a corrupted UV via our
+    export but not via PyNifly's raw export, pointing squarely at this step
+    as the last remaining candidate once the UV auto-fix mutation and the
+    negative-scale mirror path were both ruled out.
+
+    Guard: the Remove Doubles bmesh surgery must be skipped entirely when a
+    cheap KD-tree pre-check finds no near-duplicate vertices, and must force
+    a dependency-graph refresh when it does run.
+    """
+
+    def _src(self):
+        return _read("export_helpers.py")
+
+    def test_kdtree_precheck_present(self):
+        src = self._src()
+        self.assertIn(
+            "_has_dupes",
+            src,
+            "The Remove Doubles step no longer pre-checks for near-duplicate "
+            "vertices before touching the mesh -- it will run its bmesh "
+            "round-trip on every export again, including a completely clean, "
+            "unedited mesh, exactly as confirmed on 2026-09-05.",
+        )
+        self.assertIn(
+            "kdtree.KDTree",
+            src,
+            "The Remove Doubles pre-check no longer uses a KD-tree to detect "
+            "near-duplicate vertices without mutating the mesh.",
+        )
+
+    def test_depsgraph_refresh_after_merge(self):
+        src = self._src()
+        self.assertIn(
+            "evaluated_depsgraph_get()",
+            src,
+            "The Remove Doubles step no longer forces a dependency-graph "
+            "refresh after merging vertices -- the exporter could read a "
+            "stale pre-merge mesh state on some Blender builds.",
+        )
+
+
+class TestUnderwaterVegetationWindPresets(unittest.TestCase):
+    """FO4's ocean/water animation is the water material/effect itself
+    (animated normals, foam, waves) -- a completely separate system from the
+    vertex-wind system that sways grass, shrubs, and trees. There is no
+    dedicated in-engine "underwater current" system for vegetation. The only
+    practical way to make kelp, seaweed, or flexible coral fronds gently move
+    is to reuse the SAME wind-vegetation vertex group / vertex color plumbing
+    already used for grass/shrub/tree, but tuned to read as a slow current:
+    much lower amplitude and a much longer period than any above-water
+    preset, so the plant drifts and recovers gradually instead of gusting.
+    This is an approximation only -- FO4's wind direction/strength is global
+    above-water environmental wind and will not automatically track the
+    ocean's visible wave direction.
+
+    Guard: FO4_OT_VegetationWindSetup must expose underwater presets that are
+    both slower (longer period) and gentler (lower amplitude) than every
+    above-water preset, so a modder doesn't have to hand-tune amp/period from
+    scratch for every kelp bed or coral patch.
+    """
+
+    def _src(self):
+        return _read("operators.py")
+
+    def test_underwater_presets_present_in_enum(self):
+        src = self._src()
+        self.assertIn(
+            "'KELP'",
+            src,
+            "FO4_OT_VegetationWindSetup's preset enum no longer offers a "
+            "Kelp / Seaweed (Current) option for underwater vegetation.",
+        )
+        self.assertIn(
+            "'CORAL_SOFT'",
+            src,
+            "FO4_OT_VegetationWindSetup's preset enum no longer offers a "
+            "Soft Coral (Current) option for flexible underwater coral "
+            "fronds (rigid/stony coral should stay static instead).",
+        )
+
+    def test_underwater_presets_are_slower_and_gentler_than_every_land_preset(self):
+        src = self._src()
+        start = src.index("preset_map = {")
+        end = src.index("}", start)
+        body = src[start:end]
+        presets = {}
+        for line in body.splitlines():
+            line = line.strip()
+            if not line.startswith("'") or ":" not in line:
+                continue
+            name, _, rest = line.partition(":")
+            name = name.strip().strip("'")
+            nums = rest.strip().strip(",").strip("()")
+            amp_s, per_s = [p.strip() for p in nums.split(",")]
+            presets[name] = (float(amp_s), float(per_s))
+
+        land_presets = ["GRASS", "SHRUB", "TREE", "SHRUB_STORM", "TREE_STORM"]
+        for water_name in ("KELP", "CORAL_SOFT"):
+            self.assertIn(water_name, presets, f"{water_name} missing from preset_map")
+            w_amp, w_per = presets[water_name]
+            for land_name in land_presets:
+                l_amp, l_per = presets[land_name]
+                self.assertLessEqual(
+                    w_amp, l_amp,
+                    f"{water_name} amplitude ({w_amp}) is not gentler than "
+                    f"{land_name} ({l_amp}) -- underwater current sway should "
+                    "never be gustier than any above-water preset.",
+                )
+            # Must be slower (longer period) than every above-water preset.
+            self.assertGreater(
+                w_per, max(presets[n][1] for n in land_presets),
+                f"{water_name} period ({w_per}) is not longer than the "
+                "slowest above-water preset -- underwater drift should read "
+                "as slower/broader than even a heavy storm-swayed tree.",
+            )
+
+
+
+class TestUnregisterCallsAreExceptionSafe(unittest.TestCase):
+    """Every bpy.utils.unregister_class(...) call in a module's unregister()
+    must be individually wrapped in try/except.  Without this, one class
+    that was never actually registered (e.g. because a prior enable cycle
+    partially failed) raises RuntimeError and aborts unregistering every
+    class listed after it in that same function -- which then collides with
+    "already registered" errors the next time the addon registers, and can
+    cascade into whole panel categories silently failing to register at all.
+    This was the real root cause behind the Vegetation & Landscaping and
+    Realism panel categories vanishing from the UI after a reinstall."""
+
+    FILES_WITH_CLASS_LISTS = {
+        "automation_system.py": ["MacroDefinition", "RecordedAction"],
+        "notification_system.py": ["FO4_NotificationItem"],
+        "preferences.py": ["FO4AddonPreferences"],
+        "preset_library.py": ["PresetItem"],
+        "quest_helpers.py": [
+            "FO4_NPCData", "FO4_DialogueLine", "FO4_QuestObjective", "FO4_QuestStage",
+        ],
+        "torch_path_manager.py": [
+            "TORCH_OT_install_custom_path", "TORCH_OT_recheck_status",
+        ],
+    }
+
+    def test_unregister_class_calls_are_wrapped(self):
+        for fname, class_names in self.FILES_WITH_CLASS_LISTS.items():
+            text = _read(fname)
+            lines = text.splitlines()
+            for i, line in enumerate(lines):
+                if "unregister_class" in line and "def " not in line:
+                    window = "\n".join(lines[max(0, i - 3):i + 1])
+                    self.assertIn(
+                        "try:", window,
+                        f"{fname} line {i + 1} calls unregister_class without "
+                        "a preceding try: within 3 lines -- one missing "
+                        "registration will abort the rest of unregister()",
+                    )
+
+
+class TestRegisterRetryCallsAreExceptionSafe(unittest.TestCase):
+    """The 'already registered -> unregister existing -> retry register'
+    fallback pattern used across this addon must wrap its retry
+    bpy.utils.register_class(cls) call too.  advanced_realism_helpers.py's
+    retry call used to be unguarded: if it also raised, register() aborted
+    before reaching FO4_PT_AdvancedRealismPanel (always last in its classes
+    tuple), which is exactly how the whole Realism panel category could
+    disappear from the UI with no visible error."""
+
+    def test_advanced_realism_helpers_retry_is_wrapped(self):
+        text = _read("advanced_realism_helpers.py")
+        self.assertIn(
+            "except Exception as e2:",
+            text,
+            "advanced_realism_helpers.py's register-retry fallback must "
+            "catch its own failure instead of letting it propagate and "
+            "abort the rest of the class list",
+        )
+
+    def test_addon_diagnostics_and_thickener_retries_are_wrapped(self):
+        for fname in ("addon_diagnostics.py", "fo4_plane_thickener.py"):
+            text = _read(fname)
+            self.assertIn(
+                "used to be unguarded here", text,
+                f"{fname}'s register_class(cls) retry must be wrapped in "
+                "its own try/except",
+            )
+
+
+class TestPhase2RegistrationHasFallback(unittest.TestCase):
+    """Phase 2 (Vegetation & Landscaping, Realism, Material Browser, Quest/
+    NPC/World Building, Mod Packaging, and more) registers off a single
+    one-shot bpy.app.timers callback 3 seconds after startup.  That timer
+    has been observed to register successfully and then simply never fire,
+    silently dropping every Phase 2 feature from the UI with nothing
+    printed anywhere.  __init__.py must not depend on the timer alone."""
+
+    def test_phase2_guard_flag_present(self):
+        text = _read("__init__.py")
+        self.assertIn("_phase2_ran", text)
+        self.assertIn("_register_phase2_once", text)
+
+    def test_depsgraph_fallback_present(self):
+        text = _read("__init__.py")
+        self.assertIn("_phase2_depsgraph_fallback", text)
+        self.assertIn("depsgraph_update_post.append(_phase2_depsgraph_fallback)", text)
+
+
+
+class TestKitCreditsExportSupport(unittest.TestCase):
+    """Billy asked to be able to credit the creator and license of a
+    purchased/downloaded Blender kit when exporting a mesh from it, so he
+    can put that credit in his mod page. This locks in the three pieces
+    that make that work: the per-object properties, the UI to set them,
+    and the export-time hook that writes them out to CREDITS.txt."""
+
+    def test_kit_credit_properties_registered_and_unregistered(self):
+        text = _read("operators.py")
+        for prop in ("fo4_kit_name", "fo4_kit_creator", "fo4_kit_license"):
+            self.assertIn(
+                f"bpy.types.Object.{prop}", text,
+                f"{prop} must be registered as a per-object property",
+            )
+            self.assertIn(
+                f'"{prop}"', text,
+                f"{prop} must also be torn down in unregister()",
+            )
+
+    def test_kit_credit_fields_in_ui(self):
+        text = _read("ui_panels.py")
+        for prop in ("fo4_kit_name", "fo4_kit_creator", "fo4_kit_license"):
+            self.assertIn(prop, text, f"{prop} must be exposed in the UI")
+
+    def test_export_writes_kit_credits(self):
+        text = _read("export_helpers.py")
+        self.assertIn("_write_kit_credits", text)
+        self.assertIn("CREDITS.txt", text)
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])

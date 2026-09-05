@@ -1461,7 +1461,24 @@ def register():
                     bpy.utils.unregister_class(existing)
                 except Exception:
                     pass
-            bpy.utils.register_class(cls)
+            # This retry call used to be unguarded: if it also raised (e.g. a
+            # second, unrelated stale registration, or a genuine bl_idname
+            # collision), the exception propagated straight out of this
+            # for-loop and register() aborted -- silently skipping every
+            # class still left in `classes`, including FO4_PT_AdvancedRealismPanel
+            # itself since it is always last in the tuple.  That is exactly
+            # how the whole "Realism" panel category could vanish from the
+            # UI with zero visible error: __init__.py's Phase 2 loop only
+            # wraps the *call* to this register() function, so it caught the
+            # exception, printed one warning line to a console most users
+            # never have open, and moved on -- nothing else in this module
+            # ever got registered.  Wrapping the retry the same way the
+            # first attempt is wrapped means one bad class can no longer
+            # take the rest of the module down with it.
+            try:
+                bpy.utils.register_class(cls)
+            except Exception as e2:
+                print(f"\u26a0 Failed to register {cls.__name__}: {e2}")
 
 
 def unregister():

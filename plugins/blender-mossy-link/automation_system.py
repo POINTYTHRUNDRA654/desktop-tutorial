@@ -436,5 +436,8 @@ def unregister():
     if hasattr(bpy.types.Scene, 'fo4_macro_description'):
         del bpy.types.Scene.fo4_macro_description
     
-    bpy.utils.unregister_class(MacroDefinition)
-    bpy.utils.unregister_class(RecordedAction)
+    for _cls in (MacroDefinition, RecordedAction):
+        try:
+            bpy.utils.unregister_class(_cls)
+        except Exception:
+            pass

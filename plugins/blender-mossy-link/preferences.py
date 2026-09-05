@@ -1168,4 +1168,7 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(FO4AddonPreferences)
+    try:
+        bpy.utils.unregister_class(FO4AddonPreferences)
+    except Exception:
+        pass

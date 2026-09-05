@@ -217,8 +217,11 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(TORCH_OT_install_custom_path)
-    bpy.utils.unregister_class(TORCH_OT_recheck_status)
+    for _cls in (TORCH_OT_install_custom_path, TORCH_OT_recheck_status):
+        try:
+            bpy.utils.unregister_class(_cls)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

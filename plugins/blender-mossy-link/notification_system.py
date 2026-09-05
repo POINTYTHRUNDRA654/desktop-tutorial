@@ -220,4 +220,7 @@ def unregister():
     """Unregister notification classes"""
     if hasattr(bpy.types.Scene, 'fo4_notifications'):
         del bpy.types.Scene.fo4_notifications
-    bpy.utils.unregister_class(FO4_NotificationItem)
+    try:
+        bpy.utils.unregister_class(FO4_NotificationItem)
+    except Exception:
+        pass

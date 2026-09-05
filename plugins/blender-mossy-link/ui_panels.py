@@ -3149,6 +3149,25 @@ class FO4_PT_ExportPanel(_FO4SubPanel):
             except Exception:
                 pass
 
+        # ── Kit / source-pack credits ─────────────────────────────────────────
+        # If this mesh came from a purchased/downloaded Blender kit, record
+        # who made it and under what license here so the credit travels with
+        # the export instead of living only in the user's memory.
+        if obj and obj.type == 'MESH':
+            credit_box = layout.box()
+            credit_box.label(text="Kit / Source Credits (optional)", icon='FUND')
+            credit_col = credit_box.column(align=True)
+            credit_col.prop(obj, "fo4_kit_name", text="Kit Name")
+            credit_col.prop(obj, "fo4_kit_creator", text="Creator")
+            credit_col.prop(obj, "fo4_kit_license", text="License")
+            if getattr(obj, "fo4_kit_name", "") or getattr(obj, "fo4_kit_creator", ""):
+                credit_hint = credit_box.column(align=True)
+                credit_hint.scale_y = 0.75
+                credit_hint.label(
+                    text="Saved to a CREDITS.txt next to your exported NIF on export.",
+                    icon='INFO',
+                )
+
         # ── Exporter status & NIF settings ───────────────────────────────────
         # Shows which exporter is active and lets users verify / override the
         # key settings that determine CK compatibility.

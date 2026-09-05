@@ -808,6 +808,45 @@ class AnimationHelpers:
                     "stale, re-run 'Apply Vegetation Wind'"
                 )
 
+            # --- Weight discontinuity across a connected edge --------------
+            # None of the checks above catch this: two vertices can each be
+            # a valid Wind-group member with a non-stale vertex color, yet
+            # still have a sharply different weight from their neighbour
+            # across an already-welded, perfectly continuous edge -- e.g. a
+            # duplicated/joined piece of vegetation that carried its OWN
+            # separately-generated gradient before being joined onto the main
+            # mesh. The mesh is topologically fine (nothing for "Weld Wind
+            # Seams" to weld) and passes every check above, yet
+            # test_wind_deformation's physical bend simulation still flags a
+            # visible tear right at that seam, because the armature deform
+            # pulls the two connected vertices by very different amounts.
+            # Confirmed as the real cause of "Scan Wind Readiness passes but
+            # Test Wind Deformation still fails" even after running Weld Wind
+            # Seams + a manual Merge by Distance -- welding position can't
+            # fix a weight mismatch that was never a position mismatch.
+            # Flag it here too so the static scan agrees with the simulation
+            # instead of silently missing it.
+            jump_threshold = 0.4
+            jumps = 0
+            if me.edges:
+                for e in me.edges:
+                    v1, v2 = e.vertices
+                    w1, w2 = weights[v1], weights[v2]
+                    if abs(w1 - w2) > jump_threshold:
+                        jumps += 1
+            if jumps:
+                info['wind_weight_discontinuous_edges'] = jumps
+                issues.append(
+                    f"{jumps} edge(s) connect vertices with a sharply "
+                    "different Wind weight (jump > "
+                    f"{jump_threshold:.2f}) — these are already welded "
+                    "positionally but will still visibly tear under wind "
+                    "bending because of the weight mismatch. Re-run 'Apply "
+                    "Vegetation Wind' on the whole mesh (not just the new "
+                    "piece) so the gradient is recomputed continuously "
+                    "across all of it."
+                )
+
         return (len(issues) == 0), issues, info
 
     @staticmethod

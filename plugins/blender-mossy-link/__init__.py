@@ -588,11 +588,50 @@ def register():
 
         return None  # don't reschedule
 
+    # Phase 2 normally runs off a one-shot bpy.app.timers callback 3 seconds
+    # after startup.  That timer has been observed to simply never fire in
+    # at least one real environment (no exception, no error -- the callback
+    # is registered successfully and then silently never invoked), which
+    # leaves every Phase 2 feature -- Vegetation & Landscaping, Realism,
+    # Material Browser, Quest/NPC/World Building, Mod Packaging, and more --
+    # permanently missing from the UI with nothing printed anywhere to
+    # explain why.  _phase2_ran below is a simple guard so Phase 2 only
+    # ever runs once no matter which path triggers it.
+    _phase2_ran = [False]
+
+    def _register_phase2_once():
+        if _phase2_ran[0]:
+            return
+        _phase2_ran[0] = True
+        _register_phase2()
+
     try:
         if not bpy.app.timers.is_registered(_register_phase2):
-            bpy.app.timers.register(_register_phase2, first_interval=3.0)
+            bpy.app.timers.register(_register_phase2_once, first_interval=3.0)
     except Exception:
-        _register_phase2()  # fallback: run immediately if timers unavailable
+        _register_phase2_once()  # fallback: run immediately if timers unavailable
+
+    # Safety net: if the timer above never fires for any reason, fall back to
+    # running Phase 2 the moment the user does *anything* that changes the
+    # scene (move an object, tweak a property, etc.).  depsgraph_update_post
+    # is a completely independent mechanism from bpy.app.timers, so this
+    # still gets Phase 2 registered even in the environments where timers
+    # are unreliable.  It removes itself after the first firing either way.
+    def _phase2_depsgraph_fallback(_scene, _depsgraph):
+        try:
+            if not _phase2_ran[0]:
+                print("  [Phase 2] Timer never fired -- registering via depsgraph fallback.")
+                _register_phase2_once()
+        finally:
+            try:
+                bpy.app.handlers.depsgraph_update_post.remove(_phase2_depsgraph_fallback)
+            except Exception:
+                pass
+
+    try:
+        bpy.app.handlers.depsgraph_update_post.append(_phase2_depsgraph_fallback)
+    except Exception:
+        pass
 
     # ── Steps 3-5: deferred startup tasks (tool discovery, downloads, etc.) ──────
     try:

@@ -84,6 +84,33 @@ KNOWLEDGE_ENTRIES: list[dict] = [
         "category": "creation-kit",
         "tags": ["creation-kit", "landscape", "terrain", "texture", "ltex"],
     },
+    {
+        "id": "ck-006",
+        "title": "Creation Kit: Diagnosing a Navmesh Gap or Hole",
+        "content": (
+            "Symptom: an NPC given a travel/goto package (or a quest objective marker) either refuses to "
+            "path to the target, takes a bizarre detour, or gets stuck pacing near a specific spot instead "
+            "of reaching it. This is almost always a navmesh gap: a hole between triangles, an object with "
+            "no navcut placed over the navmesh so pathing routes through solid geometry, or a triangle that "
+            "wasn't connected/finalized. "
+            "How to find it: open the cell in CK, enter Navmesh edit mode, and visually scan for a break in "
+            "the green triangle mesh around the target position — a gap will show as bare ground with no "
+            "triangle covering it, or two triangle islands that don't share an edge. "
+            "How to fix it: select the two nearest existing triangle vertices on either side of the gap and "
+            "use the navmesh triangle tools to draw a new triangle connecting them (bridging the islands), "
+            "or drag an existing vertex to close a small gap rather than always adding new geometry. For a "
+            "solid object blocking a path that should route around it, place a Navcut (obstacle) so the "
+            "engine cuts a hole in the mesh and routes around the object's real footprint, instead of "
+            "leaving stale navmesh drawn straight through it. "
+            "After ANY navmesh edit: Navmesh -> Finalize Navmesh (Ctrl+E) — an unfinalized edit will not "
+            "take effect in-game even though it looks correct in the CK viewport. Then run Navmesh -> Check "
+            "NavMesh for errors before saving to catch disconnected islands you missed visually. "
+            "Do not finalize navmesh from inside an interior cell that shares a border with an exterior — "
+            "it disconnects the border stitch between them (see ck-004)."
+        ),
+        "category": "creation-kit",
+        "tags": ["creation-kit", "navmesh", "pathfinding", "gap", "troubleshooting", "npc-stuck"],
+    },
 
     # ── FO4EDIT / XEDIT RECORD TYPES ────────────────────────────────────────
     {
@@ -178,6 +205,63 @@ KNOWLEDGE_ENTRIES: list[dict] = [
         ),
         "category": "nif-mesh",
         "tags": ["nif", "lod", "mesh", "xlodhgen", "dyndolod"],
+    },
+    {
+        "id": "nif-004",
+        "title": "LOD: deciding which tiers an object actually needs",
+        "content": (
+            "Do not auto-generate all three LOD tiers for every static - that is the bloat "
+            "modders are trying to avoid. Decide per-object by size and how far it needs to "
+            "keep reading on the horizon, not by how important the object is: "
+            "Skip LOD entirely for small clutter/props below roughly human height - let it "
+            "cull normally at its object fade distance instead of authoring meshes nobody "
+            "will see. "
+            "LOD1 only (BaseMesh_1.nif, ~50% poly) for mid-size objects that matter up close "
+            "but will be replaced by terrain/fog before they would ever need a billboard - "
+            "most rocks, bushes, single-story structures. "
+            "LOD1+LOD2 (add BaseMesh_2.nif, ~10% poly) for objects large enough to remain a "
+            "meaningful part of the exterior view at mid-to-long range - multi-story "
+            "buildings, big rock formations, terrain-scale set pieces - so they fade "
+            "gracefully instead of popping from full detail to nothing. "
+            "Add the billboard (BaseMesh_3.nif) specifically for anything TALL and vertical "
+            "that is meant to still read on the skyline at the game's furthest draw distance: "
+            "trees, towers, chimneys, tall statues. This is why every vanilla tree has one - "
+            "a flat impostor is cheap and reads correctly for a thin vertical silhouette at "
+            "extreme range, where a full LOD2 mesh would either be wasted detail or pop out "
+            "abruptly. If an object is short or gets occluded before reaching billboard "
+            "range, skip the billboard - nobody will ever see it render. "
+            "The real anti-bloat lever is which objects get 'Has Distant LOD' checked on the "
+            "STAT record in the Creation Kit in the first place, more than which tiers you "
+            "generate once that flag is on."
+        ),
+        "category": "nif-mesh",
+        "tags": ["nif", "lod", "billboard", "mesh", "xlodgen", "performance"],
+    },
+    {
+        "id": "nif-005",
+        "title": "LOD: custom/modded meshes need hand-authored LOD models, billboards are the one exception",
+        "content": (
+            "For a fully custom static mesh (no vanilla LOD data exists for it), xLODGen/"
+            "FO4LODGen does NOT decimate or auto-simplify your full-detail mesh into reduced "
+            "LOD1/LOD2 geometry - it only discovers and applies LOD models that already "
+            "exist on disk, matched by the BaseMesh_1.nif / BaseMesh_2.nif naming convention "
+            "next to the base mesh (see nif-003). If those files are not there, the object "
+            "gets no 3D LOD tier at all, full stop - you have to build the reduced-poly "
+            "meshes yourself (decimate in Blender/3ds Max, export with the correct suffix). "
+            "Billboards are the exception: xLODGen has a dedicated billboard-generation pass "
+            "that CAN render a billboard directly from your full-detail custom mesh, so you "
+            "do not need to hand-paint or hand-model the billboard art yourself. It still "
+            "requires setup, not zero-effort: the object's STAT record needs 'Has Distant "
+            "LOD' checked in the Creation Kit and correct bounds, then you run xLODGen's "
+            "object LOD generation with billboard output enabled and it renders the impostor "
+            "for you. For vegetation specifically (tall, thin, foliage that decimates badly "
+            "anyway), the standard approach - matching how vanilla trees are set up - is to "
+            "skip the LOD1/LOD2 3D tier entirely and go straight from the full mesh to an "
+            "xLODGen-generated billboard; hand-decimating leaf/frond geometry rarely looks "
+            "good and vanilla doesn't bother with it either."
+        ),
+        "category": "nif-mesh",
+        "tags": ["nif", "lod", "billboard", "custom-mesh", "xlodgen", "vegetation"],
     },
 
     # ── BA2 ARCHIVES ─────────────────────────────────────────────────────────
@@ -380,6 +464,45 @@ KNOWLEDGE_ENTRIES: list[dict] = [
         ),
         "category": "precombine",
         "tags": ["precombine", "previs", "performance", "fps", "draw-calls"],
+    },
+    {
+        "id": "precombine-002",
+        "title": "Precombines/Previs: Regenerating After You Edit a Cell",
+        "content": (
+            "If your mod adds/moves/deletes ANY static in an exterior cell that already has vanilla "
+            "precombine data, that cell's precombines go stale and MUST be regenerated, or players get: "
+            "floating objects, invisible collision (walk through things that look solid, or hit invisible "
+            "walls), objects visible through walls, and things that can't be looted/activated even though "
+            "they're visibly there. This is the single most common cause of 'my mod looks broken for other "
+            "people but not for me' reports (it doesn't show up for you because CK doesn't use precombined "
+            "data in the editor). "
+            "Command-line workflow (Creation Kit 1.10.162+, requires xEdit/FO4Edit and CK Fixes for 3+ "
+            "masters): "
+            "1) CreationKit.exe -GeneratePrecombined:yourplugin.esp clean all  (writes to "
+            "Data/Meshes/Precombined/; 'clean' = smaller files, 'filtered' = keeps more data). "
+            "2) In FO4Edit, run script 03_MergeCombinedObjects.pas on YOUR plugin (not the generated "
+            "CombinedObjects.esp). "
+            "3) CreationKit.exe -CompressPSG:yourplugin.esp  (compresses .psg to .csg for distribution — "
+            "clean mode only). "
+            "4) CreationKit.exe -BuildCDX:yourplugin.esp  (builds the required .cdx cell index). "
+            "5) CreationKit.exe -GeneratePreVisData:yourplugin.esp clean all  (writes Data/Vis/ — this is "
+            "the slow step, budget hours for a full worldspace). "
+            "6) In FO4Edit, run script 05_MergePreVis.pas on your plugin. "
+            "7) Archive Meshes/Precombined, Vis/, .csg, and .cdx into your BA2. "
+            "Gotchas: your plugin must be temporarily tagged ESM during generation or CK silently drops "
+            "the master assignment; never rename the plugin after starting (mesh names are hashed to the "
+            "plugin name); if previs comes out as dummy/empty data, the precombine step failed silently — "
+            "restart from step 1, don't try to patch around it. If using the CK GUI instead of command "
+            "line: only use World -> PreCombine Geometry for Current Cell (NOT 'for Loaded Area' or 'for "
+            "World' — those are unreliable), one cell at a time, then Visibility -> Generate Precombined "
+            "Visibility for Current Cell for every one of those same cells — previs covers a 3x3 cell grid "
+            "per generation, so rebuilding precombines on cells you don't also rebuild previs on breaks "
+            "previs and collision for the neighbors too. "
+            "For patching compatibility with an existing popular mod instead of building from scratch, use "
+            "PRP (Previs Repair Pack) as your precombine base — see precombine-001."
+        ),
+        "category": "precombine",
+        "tags": ["precombine", "previs", "xedit", "command-line", "regenerate", "floating-objects", "invisible-collision"],
     },
 
     # ── ENB & VISUAL MODS ───────────────────────────────────────────────────
@@ -759,6 +882,170 @@ KNOWLEDGE_ENTRIES: list[dict] = [
         ),
         "category": "user-profile",
         "tags": ["user", "profile", "setup", "hardware", "personalized"],
+    },
+
+    # ── LEVELED LISTS ────────────────────────────────────────────────────────
+    {
+        "id": "lvl-001",
+        "title": "Leveled Lists (LVLI/LVLC): Core Flags and Nesting",
+        "content": (
+            "Leveled Item (LVLI) and Leveled Character (LVLC) lists are how loot and enemy spawns scale "
+            "with the player/actor level instead of being hardcoded per-container or per-encounter. "
+            "Chance None: the percent chance the list resolves to NOTHING at all — the remaining "
+            "percentage is distributed across the actual list entries. Set this above 0 on loot lists so "
+            "not every container guarantees a drop; leave it at 0 for lists that must always produce "
+            "something (e.g. a guaranteed quest item wrapper list). "
+            "Calculate from all levels <= [Actor's/Player's] level: when checked, EVERY entry at or below "
+            "the current level can be picked, not just the highest-level bracket — this is what makes low-"
+            "level entries (e.g. a pipe pistol) still possible to roll even once the player has leveled "
+            "past them, instead of the list only ever returning its highest-tier entries. "
+            "Calculate for each item in count: when an entry's Count is more than 1, roll the list "
+            "independently for EACH copy instead of giving N copies of one single roll — use this for "
+            "'grab bag' containers where you want variety, not N of the same item. "
+            "Use All: instead of picking ONE entry from the list, adds every single entry (respecting "
+            "their own Count) — used for guaranteed multi-item rewards, not random loot. "
+            "Nesting: a leveled list can contain other leveled lists as entries, and they resolve "
+            "recursively — this is how the vanilla weapon/ammo/loot lists build up 'tiers' from small "
+            "shared sub-lists instead of one giant flat list; edit the smallest shared sub-list to change "
+            "an item everywhere it's nested rather than editing every top-level list individually."
+        ),
+        "category": "leveled-list",
+        "tags": ["lvli", "lvlc", "leveled-list", "loot", "spawns", "creation-kit"],
+    },
+
+    # ── MATERIALS (BGSM/BGEM) ───────────────────────────────────────────────
+    {
+        "id": "material-001",
+        "title": "Materials: BGSM/BGEM Files and How They Attach to a NIF",
+        "content": (
+            "A NIF's BSLightingShaderProperty references a Material file, not raw texture paths directly — "
+            "the material file is what actually points at your Diffuse/Normal/Specular/etc. textures and "
+            "sets shader behavior. Two material types: BGSM (opaque materials — most static/architecture/"
+            "prop meshes) and BGEM (effect materials — used for anything with transparency/blending, like "
+            "glass, glowing effects, or alpha-blended foliage). "
+            "Material files live under Data/Materials/ and are edited with the standalone Material Editor "
+            "(bundled with the CK, launched separately from BGSMaterialEditor.exe) or a text/hex editor in "
+            "a pinch — they are NOT edited inside the main Creation Kit render window. "
+            "To reskin an existing mesh without touching the NIF at all: duplicate the .bgsm, point it at "
+            "your new textures, then in NifSkope select the BSLightingShaderProperty and change its "
+            "'Name' field (the material file path) to your new .bgsm — this is the standard workflow for "
+            "recoloring/retexturing a vanilla mesh for a new item without re-exporting geometry. "
+            "Common mistake: editing texture paths directly on the NIF's BSShaderTextureSet instead of "
+            "through the material file — this technically works for simple diffuse swaps but breaks the "
+            "moment the material also needs a shader-flag change (e.g. adding glow/emissive), since those "
+            "flags live on the material, not the NIF. "
+            "Grayscale-to-color / envmask / glow map behavior, and which shader flags each requires, is "
+            "set on the material — see nif-002 for the SLSF flag reference."
+        ),
+        "category": "materials",
+        "tags": ["bgsm", "bgem", "material", "shader", "nif", "texture", "reskin"],
+    },
+
+    # ── MOD CONFIGURATION MENUS ─────────────────────────────────────────────
+    {
+        "id": "mcm-001",
+        "title": "Mod Configuration: MCM vs Holotape/Terminal Menus",
+        "content": (
+            "Fallout 4 has NO built-in universal settings menu the way Skyrim has SkyUI's MCM baked into "
+            "the UI framework. There are two separate community approaches instead, and they are not "
+            "interchangeable: "
+            "1) 'Mod Configuration Menu' (MCM) for FO4 — a widely-adopted (161k+ endorsements) F4SE-"
+            "dependent framework that adds a real settings page inside the Pip-Boy, closely modeled on "
+            "SkyUI's MCM. Requires F4SE installed, and your mod ships a Papyrus script that extends the "
+            "MCM base config script and implements callbacks (OnConfigInit to register your page/options, "
+            "OnOptionSelect/OnOptionSliderOpen/etc. for interaction) — treat the exact base script/API "
+            "names as version-specific and check the current MCM SDK docs before writing against them, "
+            "since this is a community framework that has revised its API across versions. "
+            "2) Holotape/Terminal-driven config — the simpler, F4SE-independent alternative used by many "
+            "smaller mods: a custom Holotape item that, on activate, runs a Papyrus script showing a "
+            "Message box (or a custom Terminal menu) with choices that set GlobalVariables or call "
+            "functions directly. No dependency, no framework to learn, but no persistent 'settings page' — "
+            "it's a one-shot menu each time the player uses the holotape. "
+            "Which to pick: use MCM if your mod already needs F4SE for other reasons (most complex/scripted "
+            "overhauls do) and you want sliders/toggles/persistent settings UI; use a holotape/terminal menu "
+            "for a small mod where you don't want to add an F4SE + MCM dependency just for a couple of "
+            "toggles."
+        ),
+        "category": "mcm",
+        "tags": ["mcm", "mod-configuration-menu", "holotape", "terminal", "f4se", "settings"],
+    },
+
+    # ── WATER ────────────────────────────────────────────────────────────────
+    {
+        "id": "water-001",
+        "title": "Water: Setting Water Height and Type Per Cell",
+        "content": (
+            "A cell's water is controlled by two separate things in the Creation Kit: the cell's Water "
+            "Height (a Z-axis elevation value, set in the cell's properties) and its Water Type (which WATR "
+            "record is assigned — controls color, fog distance, wave/displacement, and flow/current for "
+            "rivers). The Commonwealth worldspace's own default is commonly cited as water height 450 with "
+            "an ocean-type WATR; individual cell overrides should take priority over that worldspace "
+            "default when set. "
+            "Common gotchas: changes can preview correctly in the CK (F5 preview) but not show up in-game "
+            "— usually a load-order conflict where another active plugin (world-editing mods like Scrap "
+            "Everything are frequent culprits) is also touching the same cell's water and loading after "
+            "yours, overriding your value. Check load order before assuming the engine is ignoring your "
+            "edit. Also, terrain LOD meshes/textures render a couple of meters below the actual loaded "
+            "terrain — at LOD distance this can visually clip through or sit oddly against a water plane "
+            "even when the actual water height value is correct up close; this is a rendering-distance "
+            "artifact, not a sign your water height is wrong."
+        ),
+        "category": "water",
+        "tags": ["water", "watr", "cell", "worldspace", "creation-kit"],
+    },
+
+    # ── ANIMATION ────────────────────────────────────────────────────────────
+    {
+        "id": "anim-001",
+        "title": "Animation: Blender Cannot Export FO4 Animations — 3ds Max Is Required",
+        "content": (
+            "Critical limitation for Blender-based modders: Blender has no equivalent of Havok Content "
+            "Tools, so it CANNOT directly export .hkx (Havok Keyframe eXtracted) animation files for "
+            "Fallout 4. Custom animation authoring currently requires 3ds Max (2013-2015 specifically — HCT "
+            "2014 64-bit is the only supported exporter version; newer 3ds Max/HCT versions are not "
+            "supported), with Maya as a secondary option. Blender still works fine for meshes/rigging "
+            "reference, static objects, and everything covered in nif-001 through nif-005 — this limitation "
+            "is specific to exporting NEW animation data. "
+            "Workflow once in 3ds Max: the Fallout 4 Animation Kit (F4AK, ShadeAnimator) provides the "
+            "pre-rigged CAT/Biped skeletons, Havok Content Tools presets (F4Animation.hko), and the rig.txt "
+            "file HCT needs to define bone hierarchy/order for export — get the bone names/order wrong and "
+            "the animation breaks silently on import. Preview meshes in the F4AK rig are for viewport "
+            "reference only and never export with the animation. "
+            "Getting a new animation to actually play in-game (behavior graph hookup — idles, AnimObjects, "
+            "additive subgraph races via Actor/Race conditions in the CK) is a separate step after export, "
+            "not covered by the export tooling itself — treat that as its own topic to look up per use case "
+            "(furniture idle vs. weapon reload vs. new movement animation each hook in differently)."
+        ),
+        "category": "animation",
+        "tags": ["animation", "hkx", "havok", "blender-limitation", "3ds-max", "f4ak"],
+    },
+
+    # ── INI TWEAKING ─────────────────────────────────────────────────────────
+    {
+        "id": "ini-001",
+        "title": "INI: Archive Invalidation / Loose File Loading Setup",
+        "content": (
+            "File location: Documents\\My Games\\Fallout4\\Fallout4Custom.ini — create it if it "
+            "doesn't exist. Never hand-edit Fallout4.ini directly for this; Fallout4Custom.ini is the "
+            "override file meant to survive game updates. "
+            "Standard setting (works on most installs):\n"
+            "[Archive]\n"
+            "bInvalidateOlderFiles=1\n"
+            "sResourceDataDirsFinal=\n"
+            "Next-Gen update caveat: some players report bInvalidateOlderFiles=1 causing crashes post-NG-"
+            "update. If that happens, drop/disable that line and instead use: "
+            "sResourceDataDirsFinal=STRINGS\\, TEXTURES\\, MUSIC\\, SOUND\\, INTERFACE\\, "
+            "MESHES\\, PROGRAMS\\, MATERIALS\\, LODSETTINGS\\, VIS\\, MISC\\, SCRIPTS\\, "
+            "SHADERSFX\\ "
+            "Mod-manager note: MO2 users can set this through Tools -> Tool Plugins -> INI Editor -> "
+            "fallout4custom.ini tab instead of editing the file by hand. "
+            "General INI safety: a malformed line in the wrong section (or editing Fallout4Prefs.ini's "
+            "structure incorrectly) is a common cause of an infinite loading screen on launch — always keep "
+            "a backup of a working INI before experimenting, and change one setting at a time when "
+            "diagnosing a launch problem."
+        ),
+        "category": "ini",
+        "tags": ["ini", "archive-invalidation", "fallout4custom", "loose-files", "next-gen"],
     },
 ]
 

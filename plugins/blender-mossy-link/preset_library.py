@@ -396,4 +396,7 @@ def unregister():
     if hasattr(bpy.types.Scene, 'fo4_preset_filter_category'):
         del bpy.types.Scene.fo4_preset_filter_category
     
-    bpy.utils.unregister_class(PresetItem)
+    try:
+        bpy.utils.unregister_class(PresetItem)
+    except Exception:
+        pass

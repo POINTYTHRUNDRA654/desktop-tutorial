@@ -282,7 +282,8 @@ def unregister():
     if hasattr(bpy.types.Scene, 'fo4_quest_id'):
         del bpy.types.Scene.fo4_quest_id
     
-    bpy.utils.unregister_class(FO4_NPCData)
-    bpy.utils.unregister_class(FO4_DialogueLine)
-    bpy.utils.unregister_class(FO4_QuestObjective)
-    bpy.utils.unregister_class(FO4_QuestStage)
+    for _cls in (FO4_NPCData, FO4_DialogueLine, FO4_QuestObjective, FO4_QuestStage):
+        try:
+            bpy.utils.unregister_class(_cls)
+        except Exception:
+            pass

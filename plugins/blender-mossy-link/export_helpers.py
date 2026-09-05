@@ -610,6 +610,27 @@ class ExportHelpers:
         except Exception:
             needs_scale = needs_rot = True
 
+        # A mirrored placement -- an odd number of negative scale axes, the
+        # standard way modders flip a linked-duplicate instance (Alt-D) left/
+        # right for variety without re-unwrapping it -- has a negative
+        # transform determinant. Applying that scale below correctly bakes
+        # the mirrored geometry and flips the triangle winding to match (so
+        # the mesh keeps looking right in Blender's own viewport), but it
+        # does NOT touch the UV data -- UVs are plain 2D coordinates with no
+        # concept of the 3D mirror. The result is a mesh whose 3D winding is
+        # now mirrored but whose UVs still assume the original, unmirrored
+        # orientation. That mismatch is invisible in Blender (which derives
+        # backface/shading from the transform at render time) but corrupts
+        # the tangent basis PyNifly bakes into the NIF, which is read out as
+        # a flipped/wrong texture in Creation Kit and in-game. Confirmed as a
+        # real, reproducible cause of "the UV came out wrong on export" for
+        # objects placed via Alt-D + negative scale even when the source
+        # mesh and its UVs were never directly touched.
+        try:
+            is_mirrored = (obj.scale.x * obj.scale.y * obj.scale.z) < 0.0
+        except Exception:
+            is_mirrored = False
+
         if needs_scale or needs_rot:
             # transform_apply raises "Cannot apply to a multi-user data" when the
             # mesh datablock is shared (a common result of Alt-D / imported dupes).
@@ -638,6 +659,24 @@ class ExportHelpers:
                 except Exception:
                     pass  # continue; validation will surface any remaining issue
 
+            if is_mirrored:
+                # Compensate for the mirror bake above by flipping every UV's
+                # U coordinate, so the exported UV winding stays correctly
+                # paired with the now-mirrored 3D winding instead of silently
+                # exporting a mismatched tangent basis for this instance.
+                try:
+                    _uv_layer_mirror = obj.data.uv_layers.active
+                    if _uv_layer_mirror is not None:
+                        for _loop_mirror in _uv_layer_mirror.data:
+                            _loop_mirror.uv.x = 1.0 - _loop_mirror.uv.x
+                        print(
+                            f"[FO4 Add-on] '{obj.name}' had a mirrored (negative "
+                            "scale) transform — flipped its UVs to compensate "
+                            "before export."
+                        )
+                except Exception:
+                    pass
+
         # 1.5. Remove doubles ----------------------------------------------------
         #    The Export panel's "Remove Doubles Threshold" slider previously had
         #    no effect on the actual export -- it only ever fed the separate
@@ -654,22 +693,62 @@ class ExportHelpers:
 
         if _threshold and _threshold > 0.0:
             try:
-                import bmesh as _bmesh_dd
-                _bm = _bmesh_dd.new()
-                _bm.from_mesh(obj.data)
-                _uv_layer = _bm.loops.layers.uv.active
-                _kwargs = {'verts': _bm.verts, 'dist': _threshold}
-                if _preserve_uvs and _uv_layer is not None:
-                    _kwargs['use_uvs'] = True
-                try:
-                    _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
-                except TypeError:
-                    _kwargs.pop('use_uvs', None)
-                    _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
-                _bm.normal_update()
-                _bm.to_mesh(obj.data)
-                _bm.free()
-                obj.data.update()
+                # Pre-check for near-duplicate vertices with a lightweight
+                # KD-tree BEFORE touching the mesh at all. Remove Doubles used
+                # to run its full bmesh from_mesh/to_mesh round-trip
+                # unconditionally on EVERY export, even a freshly-imported,
+                # completely unedited mesh that already has clean topology
+                # (Billy's own repro: import a stock FO4 NIF, change nothing,
+                # export -- UV comes out wrong via our export, but not via
+                # PyNifly's raw export, which never touches the mesh at all).
+                # That made this bmesh surgery the one remaining structural
+                # difference between our export and PyNifly's raw export on
+                # an otherwise byte-identical mesh. Skip it entirely when
+                # there is nothing to merge, so an already-clean mesh reaches
+                # the exporter completely untouched, exactly like PyNifly's
+                # own path.
+                import mathutils as _mu_dd
+                _verts = obj.data.vertices
+                _kd = _mu_dd.kdtree.KDTree(len(_verts))
+                for _i, _v in enumerate(_verts):
+                    _kd.insert(_v.co, _i)
+                _kd.balance()
+                _has_dupes = False
+                for _i, _v in enumerate(_verts):
+                    for (_co, _idx, _dist) in _kd.find_range(_v.co, _threshold):
+                        if _idx != _i:
+                            _has_dupes = True
+                            break
+                    if _has_dupes:
+                        break
+
+                if _has_dupes:
+                    import bmesh as _bmesh_dd
+                    _bm = _bmesh_dd.new()
+                    _bm.from_mesh(obj.data)
+                    _uv_layer = _bm.loops.layers.uv.active
+                    _kwargs = {'verts': _bm.verts, 'dist': _threshold}
+                    if _preserve_uvs and _uv_layer is not None:
+                        _kwargs['use_uvs'] = True
+                    try:
+                        _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
+                    except TypeError:
+                        _kwargs.pop('use_uvs', None)
+                        _bmesh_dd.ops.remove_doubles(_bm, **_kwargs)
+                    _bm.normal_update()
+                    _bm.to_mesh(obj.data)
+                    _bm.free()
+                    obj.data.update()
+                    # Force a full dependency-graph refresh. Without this, the
+                    # exporter (which reads the evaluated mesh) could still
+                    # see stale pre-merge topology/UV state on some Blender
+                    # builds -- surfacing as garbled UVs even though the
+                    # merge itself succeeded.
+                    try:
+                        bpy.context.view_layer.update()
+                        bpy.context.evaluated_depsgraph_get().update()
+                    except Exception:
+                        pass
             except Exception as _dd_err:
                 print(f"[FO4 Add-on] Remove Doubles skipped for '{obj.name}': {_dd_err}")
 
@@ -923,6 +1002,63 @@ class ExportHelpers:
             bpy.context.view_layer.objects.active = prev_active
 
     @staticmethod
+    def _write_kit_credits(obj, filepath):
+        """If ``obj`` (or, for a merged multi-object export, any of the
+        objects that fed into it) has kit/creator/license metadata set via
+        the fo4_kit_name / fo4_kit_creator / fo4_kit_license custom
+        properties, append a de-duplicated credit line to a CREDITS.txt file
+        next to the exported NIF. This is the one thing every export call
+        site funnels through, so it is the single place to hook this without
+        touching a dozen separate operators.
+
+        Nothing is written when no kit metadata is set on the object -- an
+        original, non-kit mesh produces no CREDITS.txt at all.
+        """
+        kit_name = str(getattr(obj, "fo4_kit_name", "") or "").strip()
+        kit_creator = str(getattr(obj, "fo4_kit_creator", "") or "").strip()
+        kit_license = str(getattr(obj, "fo4_kit_license", "") or "").strip()
+        if not (kit_name or kit_creator or kit_license):
+            return
+
+        out_dir = os.path.dirname(str(filepath)) or "."
+        credits_path = os.path.join(out_dir, "CREDITS.txt")
+
+        parts = []
+        parts.append(kit_name if kit_name else "(unnamed kit)")
+        if kit_creator:
+            parts.append(f"by {kit_creator}")
+        if kit_license:
+            parts.append(f"— license: {kit_license}")
+        line = "Asset kit: " + "  ".join(parts)
+
+        existing = ""
+        if os.path.exists(credits_path):
+            try:
+                with open(credits_path, "r", encoding="utf-8") as f:
+                    existing = f.read()
+            except Exception:
+                existing = ""
+
+        # Same kit credited more than once (multiple meshes from one pack) —
+        # only need the line in the file once.
+        if line.strip() in [l.strip() for l in existing.splitlines()]:
+            return
+
+        header = (
+            "Asset credits for this mod\n"
+            "Generated by Mossy's Blender addon from per-object kit metadata.\n"
+            "Include this information in your mod page / readme as required by each kit's license.\n"
+            + ("-" * 70) + "\n"
+        )
+        try:
+            with open(credits_path, "a", encoding="utf-8") as f:
+                if not existing.strip():
+                    f.write(header)
+                f.write(line + "\n")
+        except Exception as e:
+            print(f"[FO4Export] Could not write {credits_path}: {e}")
+
+    @staticmethod
     def export_mesh_to_nif(obj, filepath):
         """Export mesh to NIF format, preferring PyNifly then Niftools v0.1.1,
         falling back to FBX when neither is installed.
@@ -995,9 +1131,30 @@ class ExportHelpers:
         # but allow FO4-native non-armature vertex groups:
         #   - Wind/WindWeight/WindStiff  — procedural vegetation wind (no armature needed)
         #   - LOD0/LOD1/LOD2/LOD3/LOD4  — renderer LOD face culling (no armature needed)
+        #   - FO4 Seg NNN / SBP_NNN     — dismemberment partition groups (no armature needed)
         if obj.vertex_groups and not ExportHelpers._has_armature(obj):
-            unknown = [vg.name for vg in obj.vertex_groups
-                       if vg.name not in ExportHelpers._ARMATURE_FREE_GROUP_NAMES]
+            # A vertex group with literally zero weighted vertices is inert --
+            # it has no effect on the exported mesh either way. Confirmed as a
+            # real cause of this check blocking a perfectly good vegetation
+            # export over a stray empty "Group" (Blender's own default name
+            # for a vertex group created with nothing assigned to it -- an
+            # accidental "+" click, a modifier's placeholder, or an import
+            # leftover) that carried no actual weight data. Purge those
+            # before judging, so only groups that would ACTUALLY corrupt the
+            # export -- real skin weight data with nowhere to bind -- still
+            # block it.
+            _group_has_weight = {vg.index: False for vg in obj.vertex_groups}
+            for _v in obj.data.vertices:
+                for _ve in _v.groups:
+                    if _ve.weight > 1e-6:
+                        _group_has_weight[_ve.group] = True
+
+            unknown = [
+                vg.name for vg in obj.vertex_groups
+                if vg.name not in ExportHelpers._ARMATURE_FREE_GROUP_NAMES
+                and not ExportHelpers._is_partition_group(vg.name)
+                and _group_has_weight.get(vg.index, False)
+            ]
             if unknown:
                 return False, (
                     f"Mesh has vertex group(s) {unknown[:3]} but no armature "
@@ -1375,6 +1532,11 @@ class ExportHelpers:
                                 _roundtrip_note += f"  [{_coll_summary}]"
                     except Exception as _ce:
                         print(f"[FO4Export] Native collision patch skipped: {_ce}")
+
+                    try:
+                        ExportHelpers._write_kit_credits(obj, filepath)
+                    except Exception as _cre:
+                        print(f"[FO4Export] Kit-credit write skipped: {_cre}")
 
                     return True, f"Exported NIF via {exporter_label}: {filepath}{note}{_bgsm_note}{_tex_note}{_roundtrip_note}"
 
