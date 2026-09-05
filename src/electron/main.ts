@@ -19231,6 +19231,24 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       if (s.creativeDirectorTeam) {
         const loaded = s.creativeDirectorTeam as CdTeamState;
         if (!loaded.pendingQueue) loaded.pendingQueue = [];
+        // The AI Team must NEVER silently resume running on its own after an
+        // app restart. Before this fix, `enabled` was persisted verbatim, so
+        // a user who enabled it once (e.g. to test-drive a DLC-scale build)
+        // got a runCreativeDirectorTick() firing every 60 seconds FOREVER,
+        // every single time Mossy launched -- including autonomously
+        // inventing and building a brand-new full DLC concept from scratch
+        // whenever no project was active -- with zero further action from
+        // the user and zero visible indication anything was happening in
+        // the background. Confirmed as the real cause of a user's Mossy
+        // desktop app quietly grinding their machine down to the point of
+        // needing a restart, entirely unrelated to whatever they were
+        // actually doing at the time. In-progress project state (and its
+        // history) is still preserved across restarts -- only the
+        // always-on switch itself resets -- so nothing is lost; the user
+        // just has to click Enable again each session to resume, which is
+        // exactly the safety property we want: no perpetual unattended
+        // background AI work that outlives the user's awareness of it.
+        loaded.enabled = false;
         return loaded;
       }
     } catch { /* fall through to default */ }
@@ -19727,7 +19745,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       let nsMatch: RegExpExecArray | null;
       const re2 = new RegExp(namedScriptRe.source, 'gi');
       while ((nsMatch = re2.exec(t.message)) !== null) {
-        namedScripts.push({ name: nsMatch[1].trim(), content: nsMatch[2].trim() });
+        // The script_writer sometimes forgets to close the ```papyrus fence before its
+        // mandatory trailing marker (e.g. "## SCRIPTS COMPLETE"), so the marker line gets
+        // swallowed into this script's content by the regex above and corrupts the .psc
+        // file with an invalid trailing line that fails Papyrus compilation. Strip it.
+        const cleanedContent = nsMatch[2].trim().replace(/\n?##\s*[A-Z][A-Z \-]*\s*COMPLETE\s*$/i, '').trimEnd();
+        namedScripts.push({ name: nsMatch[1].trim(), content: cleanedContent });
       }
     }
 
