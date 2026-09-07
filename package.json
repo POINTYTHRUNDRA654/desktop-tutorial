@@ -213,6 +213,13 @@
         ]
       },
       {
+        "from": "scripts",
+        "to": "scripts",
+        "filter": [
+          "*.py"
+        ]
+      },
+      {
         "from": "CREDITS.md",
         "to": ".",
         "filter": [
