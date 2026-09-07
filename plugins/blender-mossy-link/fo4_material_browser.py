@@ -390,7 +390,14 @@ PRESETS: dict = {
         "alpha_threshold":   0.5,
         "emission_strength": 0.0,
         "two_sided":         False,
-        "fo4_shader":        "parallax",
+        # This preset's own label/description promise real parallax
+        # OCCLUSION depth (and its texture_hint calls for a height map to
+        # match) -- but the hint string here was just "parallax", which
+        # only ever set the cheaper offset-parallax flag (SF1_PARALLAX),
+        # never SF1_PARALLAX_OCCLUSION. Now that _apply_shader_hints()
+        # understands "parallax_occlusion" as its own hint, use it here so
+        # this preset actually delivers what it advertises.
+        "fo4_shader":        "parallax_occlusion",
         "texture_hint":      "_d, _n, _s, _p (parallax/height map)",
     },
     "FO4_ENV_MAP": {

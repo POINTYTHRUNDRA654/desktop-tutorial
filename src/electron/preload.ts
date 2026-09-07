@@ -2905,6 +2905,30 @@ const electronAPI = {
   },
 
   /**
+   * Nexus Mods: Sign in via OAuth (PKCE) — opens the system browser to Nexus's
+   * consent screen. Fails with a clear error until Mossy has a registered
+   * client_id (see NEXUS_OAUTH_SETUP.md in the repo root).
+   */
+  nexusSignIn: (): Promise<{ success: boolean; identity?: any; error?: string }> => {
+    return ipcRenderer.invoke('nexus-auth:sign-in');
+  },
+
+  /**
+   * Nexus Mods: Sign out and clear the stored token.
+   */
+  nexusSignOut: (): Promise<{ success: boolean; error?: string }> => {
+    return ipcRenderer.invoke('nexus-auth:sign-out');
+  },
+
+  /**
+   * Nexus Mods: Get the current signed-in identity, if any (refreshes the
+   * token first if it's expired).
+   */
+  nexusGetIdentity: (): Promise<{ success: boolean; signedIn?: boolean; identity?: any; error?: string }> => {
+    return ipcRenderer.invoke('nexus-auth:get-identity');
+  },
+
+  /**
    * Auto-Updater: Listen for update status changes
    */
   onUpdateStatus: (callback: (status: any) => void): (() => void) => {

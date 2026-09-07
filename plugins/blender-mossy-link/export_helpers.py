@@ -644,20 +644,49 @@ class ExportHelpers:
                     obj.data = obj.data.copy()
             except Exception:
                 pass
+            # Isolate `obj` before transform_apply -- it operates on EVERY
+            # currently selected object, not just the one passed in here.
+            # export_scene_as_single_nif calls _prepare_mesh_for_nif() once
+            # per mesh in a loop that deliberately leaves each earlier
+            # mesh selected afterward (see that loop's own comment: clearing
+            # the selection there used to make "Export Entire Scene as NIF"
+            # silently drop all but one shape). Without isolating here too,
+            # this transform_apply call used to also re-apply to every one
+            # of those still-selected earlier meshes. When several of them
+            # were still sharing mesh data with each other (Alt-D linked
+            # duplicates -- the normal way to tile repeated building
+            # pieces), Blender bakes each selected object's own transform
+            # into that SAME shared datablock in sequence, collapsing every
+            # instance onto one blended position -- reproducing exactly
+            # "everything I add ends up in the middle" on export. Save and
+            # restore the prior selection instead of a plain
+            # select_all(DESELECT), so this doesn't reintroduce the
+            # single-shape-dropped bug that comment already fixed once.
+            _prev_selected = [so for so in bpy.context.selected_objects if so is not obj]
             try:
-                bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-            except Exception:
-                # Last resort: fold rotation+scale into the mesh via matrix math
-                # when the operator context rejects the call.  Location is kept on
-                # the object (matching transform_apply(location=False)).
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
                 try:
-                    import mathutils
-                    loc, rot, scale = obj.matrix_basis.decompose()
-                    rs = rot.to_matrix().to_4x4() @ mathutils.Matrix.Diagonal(scale.to_4d())
-                    obj.data.transform(rs)
-                    obj.matrix_basis = mathutils.Matrix.Translation(loc)
+                    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
                 except Exception:
-                    pass  # continue; validation will surface any remaining issue
+                    # Last resort: fold rotation+scale into the mesh via matrix math
+                    # when the operator context rejects the call.  Location is kept on
+                    # the object (matching transform_apply(location=False)).
+                    try:
+                        import mathutils
+                        loc, rot, scale = obj.matrix_basis.decompose()
+                        rs = rot.to_matrix().to_4x4() @ mathutils.Matrix.Diagonal(scale.to_4d())
+                        obj.data.transform(rs)
+                        obj.matrix_basis = mathutils.Matrix.Translation(loc)
+                    except Exception:
+                        pass  # continue; validation will surface any remaining issue
+            finally:
+                for so in _prev_selected:
+                    try:
+                        so.select_set(True)
+                    except Exception:
+                        pass
 
             if is_mirrored:
                 # Compensate for the mirror bake above by flipping every UV's

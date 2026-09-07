@@ -10182,10 +10182,35 @@ class FO4_OT_AddCustomCollision(Operator):
                 obj, collision_type=self.collision_type)
             if not collision_obj:
                 raise RuntimeError("helper failed to create collision mesh")
-            self.report({'INFO'},
-                f"Created exact-mesh collision: {collision_obj.name} "
-                f"({len(collision_obj.data.polygons)} tris)")
-            _notify(f"Custom collision generated: {collision_obj.name}", 'INFO')
+            if collision_obj.get("fo4_collision_used_hull_fallback"):
+                # The exact-mesh shape couldn't be decimated under FO4's
+                # hard 255-vertex Havok mesh-shape limit, so the helper
+                # silently sealed it into a convex hull instead -- exactly
+                # what this button exists to avoid. Report a warning
+                # (not a plain success) so the user knows why doors/
+                # windows/openings just vanished, and knows a better tool
+                # exists for this case.
+                self.report(
+                    {'WARNING'},
+                    f"'{obj.name}' is too detailed for an exact-mesh "
+                    f"collision (FO4's Havok mesh-shape limit is 255 "
+                    f"verts) -- fell back to a sealed convex hull, so any "
+                    f"doors/windows/openings are now closed. For a "
+                    f"building with multiple openings, try 'Generate "
+                    f"Multi-Convex Collision' instead: {collision_obj.name} "
+                    f"({len(collision_obj.data.polygons)} tris)",
+                )
+                _notify(
+                    f"Custom collision for {obj.name} fell back to a "
+                    f"convex hull (too detailed for exact-mesh) -- see "
+                    f"the report for details",
+                    'WARNING',
+                )
+            else:
+                self.report({'INFO'},
+                    f"Created exact-mesh collision: {collision_obj.name} "
+                    f"({len(collision_obj.data.polygons)} tris)")
+                _notify(f"Custom collision generated: {collision_obj.name}", 'INFO')
             return {'FINISHED'}
         except Exception as e:
             self.report({'ERROR'}, f"Failed to generate custom collision: {str(e)}")

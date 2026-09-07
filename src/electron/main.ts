@@ -36,6 +36,7 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
 import { autoUpdaterService } from './autoUpdater';
+import { nexusAuthService } from './nexusAuth';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
 import { trimMessagesToBudget } from './messageBudget';
@@ -21089,7 +21090,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('creative-director:scan-fo4-world', async () => {
     try {
       // process.execPath = path to the .exe, so dirname = the app install folder.
-      // resources/scripts/ is where deploy-full.cjs puts the Python scripts.
+      // resources/scripts/ is populated by electron-builder itself (see the
+      // "scripts" entry under build.extraResources in package.json) — it copies
+      // every scripts/*.py file in at package time. (Previously this depended on
+      // a personal, untracked deploy-full.cjs doing the copy after the fact; that
+      // was a single point of failure and got lost, so it's now a real, git-
+      // tracked part of the build config instead.)
       const exeDir = path.dirname(process.execPath);
       const candidates = [
         path.join(exeDir, 'resources', 'scripts', 'fo4_strings_scan.py'),   // definitive installed path
@@ -27908,6 +27914,40 @@ print(json.dumps({
       return { success: true, version: autoUpdaterService.getCurrentVersion() };
     } catch (error) {
       console.error('[Main] get-app-version error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Nexus Mods OAuth (PKCE) IPC handlers.
+  // signIn() throws a clear error until Mossy has a real client_id from Nexus
+  // (see NEXUS_OAUTH_SETUP.md) — that's surfaced to the renderer as success:false.
+
+  registerHandler('nexus-auth:sign-in', async () => {
+    try {
+      const identity = await nexusAuthService.signIn();
+      return { success: true, identity };
+    } catch (error) {
+      console.error('[Main] nexus-auth:sign-in error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  registerHandler('nexus-auth:sign-out', async () => {
+    try {
+      nexusAuthService.signOut();
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] nexus-auth:sign-out error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  forceHandle('nexus-auth:get-identity', async () => {
+    try {
+      const identity = await nexusAuthService.getIdentity();
+      return { success: true, signedIn: !!identity, identity };
+    } catch (error) {
+      console.error('[Main] nexus-auth:get-identity error:', error);
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   });

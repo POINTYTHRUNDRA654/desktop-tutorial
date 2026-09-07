@@ -137,7 +137,7 @@ class MeshHelpers:
         return max(0.01, min(0.95, min(ratio_v, ratio_t)))
 
     @staticmethod
-    def _enforce_vert_limit(collision_obj, limit: int = 255) -> None:
+    def _enforce_vert_limit(collision_obj, limit: int = 255) -> bool:
         """Decimate *collision_obj* in place until BOTH its vertex count
         and its triangle count are at or below *limit*, verifying after
         each pass rather than trusting a single ratio-based Decimate to
@@ -155,6 +155,15 @@ class MeshHelpers:
         aims comfortably under the limit and loops a bounded number of
         times, verifying the real counts each time, rather than assuming
         one pass was enough.
+
+        Returns True if the mesh still exceeded *limit* after every
+        decimation attempt and had to fall back to a sealed convex hull
+        (see the "Final safety net" below) -- False if the exact-copy
+        shape (openings intact) was kept throughout. Callers that promise
+        "no convex hull" (add_custom_collision's whole reason to exist)
+        need this to know their promise was silently broken for a given
+        mesh, rather than reporting success while quietly handing back a
+        sealed hull with every doorway/window closed.
         """
         margin = max(1, limit // 25)  # ~4% headroom absorbs decimate overshoot
         target = max(4, limit - margin)
@@ -266,6 +275,8 @@ class MeshHelpers:
         # an exact copy that can't export at all.
         if len(collision_obj.data.vertices) > limit or len(collision_obj.data.polygons) > limit:
             MeshHelpers._enforce_vert_limit_hull(collision_obj, limit=limit)
+            return True
+        return False
 
     @staticmethod
     def _enforce_vert_limit_hull(collision_obj, limit: int = 255) -> None:
@@ -1547,8 +1558,18 @@ class MeshHelpers:
         # real openings (cave mouths, doorways -- the whole reason to use
         # this function over add_collision_mesh) than falling back to a
         # sealed convex hull would be, and this only engages for meshes
-        # detailed enough to actually need it.
-        MeshHelpers._enforce_vert_limit(collision_obj, limit=255)
+        # detailed enough to actually need it. IMPORTANT: for anything as
+        # detailed as a real building (multiple doors/windows/trim pieces),
+        # "detailed enough to actually need it" is the common case, not an
+        # edge case -- 255 verts is a very low ceiling. When decimation
+        # can't converge under it in time, this silently falls back to a
+        # sealed convex hull (see _enforce_vert_limit_hull), which defeats
+        # the entire point of this function (exact shape, openings kept
+        # open) with nothing telling the caller it happened. Recorded here
+        # so FO4_OT_AddCustomCollision can warn the user instead of
+        # reporting a plain success for what is now just a hull.
+        used_hull_fallback = MeshHelpers._enforce_vert_limit(collision_obj, limit=255)
+        collision_obj["fo4_collision_used_hull_fallback"] = used_hull_fallback
 
         collision_obj.parent = obj
         collision_obj.matrix_parent_inverse = obj.matrix_world.inverted()

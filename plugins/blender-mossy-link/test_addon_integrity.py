@@ -5060,6 +5060,144 @@ class TestKitCreditsExportSupport(unittest.TestCase):
         self.assertIn("CREDITS.txt", text)
 
 
+class TestBgsmShaderHintsRimSoftSubsurface(unittest.TestCase):
+    """_apply_shader_hints() in bgsm_helpers.py had three shader-flag fields
+    (subsurface_lighting, rim_lighting/SF2_RIM_LIGHTING, back_lighting +
+    backlight_power/SF2_SOFT_LIGHTING) that existed in BGSMData and were
+    correctly packed into every BGSM this addon writes, but were never
+    actually turned on by any hint -- so a skin or foliage material authored
+    fresh through a preset (as opposed to one round-tripped byte-for-byte
+    from an existing real NIF) silently shipped without the soft, lit-through
+    look real FO4 skin/foliage materials have. This loads bgsm_helpers.py
+    standalone (it's written to tolerate bpy being unavailable) and exercises
+    _apply_shader_hints() directly against real BGSMData."""
+
+    @staticmethod
+    def _load_bgsm_helpers():
+        import importlib.util
+        path = _path("bgsm_helpers.py")
+        spec = importlib.util.spec_from_file_location("bgsm_helpers_under_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules["bgsm_helpers_under_test"] = mod
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_skin_hint_enables_subsurface_lighting(self):
+        mod = self._load_bgsm_helpers()
+        data = mod.BGSMData()
+        mod._apply_shader_hints(data, "skin")
+        self.assertTrue(data.subsurface_lighting)
+
+    def test_foliage_hint_enables_back_rim_and_soft_lighting(self):
+        mod = self._load_bgsm_helpers()
+        data = mod.BGSMData()
+        mod._apply_shader_hints(data, "foliage")
+        self.assertTrue(data.back_lighting)
+        self.assertGreater(data.backlight_power, 0.0)
+        self.assertTrue(data.rim_lighting)
+        self.assertTrue(data.shader_flags2 & mod.SF2_RIM_LIGHTING)
+        self.assertTrue(data.shader_flags2 & mod.SF2_SOFT_LIGHTING)
+
+    def test_parallax_occlusion_hint_sets_its_own_flag(self):
+        mod = self._load_bgsm_helpers()
+        data = mod.BGSMData()
+        mod._apply_shader_hints(data, "parallax_occlusion")
+        self.assertTrue(data.shader_flags1 & mod.SF1_PARALLAX_OCCLUSION)
+        self.assertFalse(
+            data.shader_flags1 & mod.SF1_PARALLAX,
+            "parallax_occlusion should set the POM flag, not the plain-parallax flag",
+        )
+
+    def test_plain_parallax_hint_still_works(self):
+        mod = self._load_bgsm_helpers()
+        data = mod.BGSMData()
+        mod._apply_shader_hints(data, "parallax")
+        self.assertTrue(data.shader_flags1 & mod.SF1_PARALLAX)
+
+    def test_fo4_parallax_preset_now_uses_parallax_occlusion_hint(self):
+        text = _read("fo4_material_browser.py")
+        # The FO4_PARALLAX preset's own label/description promise real
+        # occlusion depth -- its fo4_shader value must match that.
+        idx = text.find('"FO4_PARALLAX"')
+        self.assertNotEqual(idx, -1, "FO4_PARALLAX preset must exist")
+        next_idx = text.find('"FO4_ENV_MAP"', idx)
+        chunk = text[idx:next_idx if next_idx != -1 else idx + 1500]
+        self.assertIn('"parallax_occlusion"', chunk)
+
+
+class TestPrepareMeshIsolatesSelectionBeforeTransformApply(unittest.TestCase):
+    """_prepare_mesh_for_nif()'s own transform_apply call used to run
+    against whatever was selected in the viewport, not just the object
+    being prepared. bpy.ops.object.transform_apply() always operates on
+    every currently selected object. export_scene_as_single_nif calls
+    _prepare_mesh_for_nif() once per mesh in a loop that deliberately
+    leaves each earlier mesh selected (clearing the selection there was
+    already fixed once because it made "Export Entire Scene as NIF"
+    silently drop all but one shape) -- so this transform_apply call was
+    also re-applying to every earlier mesh still selected from prior loop
+    iterations. Any of them sharing mesh data with each other (Alt-D
+    linked duplicates, the normal way to tile repeated building pieces)
+    then got Blender's own multi-user-transform-apply bug: each selected
+    object's transform gets baked into the SAME shared datablock in
+    sequence, collapsing every instance onto one blended position --
+    reproducing a real user report of "everything I add ends up in the
+    middle" when exporting a whole building made of many placed pieces."""
+
+    def test_prepare_mesh_saves_and_restores_prior_selection(self):
+        text = _read("export_helpers.py")
+        idx = text.find("def _prepare_mesh_for_nif")
+        self.assertNotEqual(idx, -1, "_prepare_mesh_for_nif must exist")
+        next_idx = text.find("\n    @staticmethod", idx + 10)
+        chunk = text[idx:next_idx if next_idx != -1 else idx + 6000]
+        self.assertIn("_prev_selected", chunk)
+        self.assertIn("select_all(action='DESELECT')", chunk)
+        # The restore must happen unconditionally (finally), not only on
+        # the success path, or an exception mid-apply would permanently
+        # leave the caller's other selected objects deselected.
+        self.assertIn("finally:", chunk)
+
+
+class TestCustomCollisionWarnsOnHullFallback(unittest.TestCase):
+    """add_custom_collision()'s entire reason to exist is an EXACT mesh
+    copy with no convex hull, so real openings (doors, windows, cave
+    mouths) stay open. But FO4's Havok compressed_mesh shape hard-caps at
+    255 verts, and _enforce_vert_limit() silently falls back to a sealed
+    convex hull when a mesh can't be decimated under that cap in time --
+    which, for anything as detailed as a real building, is the common
+    case, not a rare edge case. Before this fix, FO4_OT_AddCustomCollision
+    reported a plain success with no indication the shape it just handed
+    back was a sealed hull instead of the exact-mesh copy it promised --
+    matching a real user report of the custom-collision button suddenly
+    producing "a solid blob around my building" with no explanation."""
+
+    def test_enforce_vert_limit_reports_whether_it_fell_back_to_hull(self):
+        text = _read("mesh_helpers.py")
+        idx = text.find("def _enforce_vert_limit(")
+        self.assertNotEqual(idx, -1)
+        next_idx = text.find("\n    @staticmethod", idx + 10)
+        chunk = text[idx:next_idx if next_idx != -1 else idx + 4000]
+        self.assertIn("-> bool", text[idx:idx + 80])
+        self.assertIn("return True", chunk)
+        self.assertIn("return False", chunk)
+
+    def test_add_custom_collision_records_hull_fallback_flag(self):
+        text = _read("mesh_helpers.py")
+        idx = text.find("def add_custom_collision(")
+        self.assertNotEqual(idx, -1)
+        next_idx = text.find("\n    @staticmethod", idx + 10)
+        chunk = text[idx:next_idx if next_idx != -1 else idx + 6000]
+        self.assertIn("fo4_collision_used_hull_fallback", chunk)
+
+    def test_operator_warns_instead_of_plain_success_on_fallback(self):
+        text = _read("operators.py")
+        idx = text.find("class FO4_OT_AddCustomCollision")
+        self.assertNotEqual(idx, -1)
+        next_idx = text.find("\nclass ", idx + 10)
+        chunk = text[idx:next_idx if next_idx != -1 else idx + 4000]
+        self.assertIn("fo4_collision_used_hull_fallback", chunk)
+        self.assertIn("'WARNING'", chunk)
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromModule(sys.modules[__name__])

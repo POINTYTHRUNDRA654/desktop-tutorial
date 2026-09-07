@@ -1260,6 +1260,15 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
     if "skin" in hint_lower:
         data.skin_tint = True
         data.shader_flags1 |= SF1_SKIN_TINT
+        # BGSMData has always had a subsurface_lighting field (and a
+        # subsurface_rolloff to go with it), but no hint ever turned it on --
+        # so every skin material authored fresh through a preset (as opposed
+        # to one round-tripped byte-for-byte from an existing real NIF)
+        # silently shipped with subsurface scattering off despite being
+        # tagged "skin". This is what gives real FO4 face/body materials
+        # their soft, slightly translucent look instead of reading as flat
+        # plastic; subsurface_rolloff keeps its existing default (0.3).
+        data.subsurface_lighting = True
     if "hair" in hint_lower:
         data.hair = True
         data.shader_flags1 |= SF1_HAIR
@@ -1283,7 +1292,16 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
         data.shader_flags1 |= SF1_EMIT_ENABLED
     if "env" in hint_lower or "environment" in hint_lower:
         data.shader_flags1 |= SF1_ENVIRONMENT_MAPPING
-    if "parallax" in hint_lower:
+    if "parallax_occlusion" in hint_lower:
+        # True parallax occlusion mapping (needs a real height/parallax map
+        # in the displacement_texture slot) reads far deeper than simple
+        # offset parallax, and the flag for it (SF1_PARALLAX_OCCLUSION) was
+        # defined above but never set by any hint -- "parallax" alone only
+        # ever produced the cheaper SLSF1_Parallax look. Checked before the
+        # plain "parallax" hint below since "parallax_occlusion" also
+        # contains the substring "parallax".
+        data.shader_flags1 |= SF1_PARALLAX_OCCLUSION
+    elif "parallax" in hint_lower:
         data.shader_flags1 |= SF1_PARALLAX
     if "multilayer" in hint_lower:
         data.shader_flags2 |= SF2_MULTI_LAYER_PARALLAX
@@ -1301,6 +1319,21 @@ def _apply_shader_hints(data: BGSMData, hint: str) -> None:
         # (Real v2 BGSM files have no translucency/subsurface data fields to
         # set alongside this -- see the note in blender_mat_to_bgsm.)
         data.shader_flags1 |= SF1_BACK_LIGHTING
+        # The flag above only tells the engine back-lighting is *available* --
+        # the BGSM file also carries its own back_lighting bool and a
+        # separate backlight_power magnitude (both packed unconditionally in
+        # every BGSM this addon writes), and neither was ever set here. That
+        # left every foliage material with the flag "on" but the file's own
+        # fields saying "off, strength 0.0" -- i.e. no actual light bleed
+        # through the leaves in-game despite the flag. Rim + soft lighting
+        # are the same idea applied to leaf-edge/canopy highlights, and their
+        # flag bits (SF2_RIM_LIGHTING / SF2_SOFT_LIGHTING) were likewise
+        # defined but never set by any hint until now.
+        data.back_lighting = True
+        data.backlight_power = 0.6
+        data.rim_lighting = True
+        data.shader_flags2 |= SF2_RIM_LIGHTING
+        data.shader_flags2 |= SF2_SOFT_LIGHTING
 
 
 def bgsm_to_blender_mat(data: BGSMData, mat) -> None:
