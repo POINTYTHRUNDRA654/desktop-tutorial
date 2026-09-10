@@ -98,6 +98,47 @@ partial asar swap:
    same build).
 7. **Relaunch Mossy NVIDIA** — running process has old version in memory.
 
+### The app.asar lock during `electron-builder --win` packaging
+
+**Symptom:** `npm run build:win:nvidia` (or any `electron-builder --win` pass)
+completes the Vite/tsc build and platform audit fine, then fails at the
+packaging step with:
+```
+⨯ remove D:\Projects\desktop-tutorial\release\win-unpacked\resources\app.asar:
+  The process cannot access the file because it is being used by another process.
+```
+
+**Root cause, confirmed 2026-09-10 via Resource Monitor (CPU tab → Associated
+Handles → search `app.asar`):** the **Claude Code / Claude for VS Code
+extension** — not the general VS Code file watcher, not antivirus, not a
+leftover `Mossy NVIDIA.exe` process. Its codebase-context feature holds file
+handles open on `.asar` files anywhere inside the project folder (confirmed
+handles on `release\win-unpacked\resources\app.asar`,
+`Mossy\Mossy NVIDIA\resources\app.asar`, and even
+`node_modules\electron\dist\resources\default_app.asar`, which isn't even
+part of this repo's own output). `files.watcherExclude`/`search.exclude` in
+`.vscode/settings.json` do **not** stop this — those only govern the generic
+file watcher, not this extension's own indexing, so adding more excludes
+there will not fix a recurrence.
+
+**Fix that actually works:** fully quit VS Code (not "Reload Window" —
+that doesn't release the handles) before the packaging step runs, then
+reopen it after. Killing just `Mossy NVIDIA.exe` processes is not enough by
+itself; check both with Resource Monitor if this ever resurfaces in a
+different shape.
+
+**Automated via `build-nvidia.ps1`** (repo root): closes VS Code, deletes
+`release\win-unpacked`, runs `npm run build:win:nvidia`, reopens VS Code when
+done. Run it via:
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File "D:\Projects\desktop-tutorial\build-nvidia.ps1"
+```
+(A `build-nvidia.bat` double-click wrapper also exists, but double-clicking
+`.bat` files currently fails with a "This app can't run on this PC" dialog on
+this machine — a separate, unrelated Windows file-association issue, not yet
+diagnosed. Use the `powershell -File` invocation above, or a desktop shortcut
+targeting that same command, until the `.bat` issue is root-caused.)
+
 ### CRITICAL: Writing source files safely
 
 **NEVER use the Write tool for `.ts` or `.tsx` files.** The Write tool silently embeds null bytes (`\x00`) in large files. TypeScript ignores them but Vite compiles the corrupted version, producing a truncated bundle with wrong runtime behaviour. This is invisible until the deployed app behaves incorrectly.
