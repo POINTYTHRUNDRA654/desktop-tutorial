@@ -7,5 +7,24 @@
   "git.confirmSync": true,
   "git.enableSmartCommit": false,
   "git.autofetch": true,
-  "chat.sessionSync.enabled": true
+  "chat.sessionSync.enabled": true,
+  "files.watcherExclude": {
+    "**/release/**": true,
+    "**/release-test/**": true,
+    "**/tmp-release/**": true,
+    "**/dist/**": true,
+    "**/dist-electron/**": true
+  },
+  "search.exclude": {
+    "**/release": true,
+    "**/release-test": true,
+    "**/tmp-release": true,
+    "**/dist": true,
+    "**/dist-electron": true
+  },
+  "files.exclude": {
+    "**/release": true,
+    "**/release-test": true,
+    "**/tmp-release": true
+  }
 }
