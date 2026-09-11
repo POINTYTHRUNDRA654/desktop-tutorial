@@ -719,6 +719,33 @@ async function findSpecialPrograms(): Promise<InstalledProgram[]> {
       displayName: 'NifSkope',
       name: 'NifSkope'
     },
+    // MeshLab (mesh repair/cleanup preprocessing before Blender -- not FO4-aware
+    // itself, but useful for fixing non-manifold/disjoint geometry on scanned
+    // or sculpted meshes before rigging; see fo4_custom_creature_rig_pipeline.md)
+    {
+      templates: [
+        'Program Files\\VCG\\MeshLab\\meshlab.exe',
+        'Program Files (x86)\\VCG\\MeshLab\\meshlab.exe',
+        'Modding\\MeshLab\\meshlab.exe',
+        'Tools\\MeshLab\\meshlab.exe',
+      ],
+      displayName: 'MeshLab',
+      name: 'MeshLab'
+    },
+    // Packer-IO (free standalone UV packing tool by 3d-io; imports/exports
+    // OBJ/FBX/glTF/DAE/PLY/STL -- useful for repacking UVs efficiently before
+    // baking/exporting textures, especially on custom meshes coming out of
+    // the MeshLab -> Blender cleanup pipeline above)
+    {
+      templates: [
+        'Program Files\\Packer-IO\\Packer-IO.exe',
+        'Program Files (x86)\\Packer-IO\\Packer-IO.exe',
+        'Modding\\Packer-IO\\Packer-IO.exe',
+        'Tools\\Packer-IO\\Packer-IO.exe',
+      ],
+      displayName: 'Packer-IO',
+      name: 'PackerIO'
+    },
     // F4SE (Fallout 4 Script Extender)
     {
       templates: [
