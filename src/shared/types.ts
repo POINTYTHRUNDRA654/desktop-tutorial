@@ -42,6 +42,8 @@ export interface ProjectSettings {
   // Tool paths specific to this project
   xeditPath?: string;
   nifSkopePath?: string;
+  meshlabPath?: string;
+  packerIoPath?: string;
   creationKitPath?: string;
   blenderPath?: string;
 
@@ -565,6 +567,8 @@ export interface Settings {
   // External Modding Tools
   xeditPath?: string;
   nifSkopePath?: string;
+  meshlabPath?: string; // optional mesh-repair preprocessing step before Blender
+  packerIoPath?: string; // optional standalone UV packing tool (3d-io Packer-IO)
   xeditScriptsDirOverride?: string;
   fomodCreatorPath?: string;
   creationKitPath?: string;
@@ -1036,6 +1040,8 @@ export const DEFAULT_SETTINGS: Settings = {
   xeditPath: '',
   xeditScriptsDirOverride: '',
   nifSkopePath: '',
+  meshlabPath: '',
+  packerIoPath: '',
   fomodCreatorPath: '',
   creationKitPath: '',
   blenderPath: '',

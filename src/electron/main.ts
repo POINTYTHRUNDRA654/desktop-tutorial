@@ -1962,6 +1962,8 @@ const loadSettings = (): any => {
     xeditPath: '',
     xeditScriptsDirOverride: '',
     nifSkopePath: '',
+    meshlabPath: '',
+    packerIoPath: '',
     fomodCreatorPath: '',
     creationKitPath: '',
     blenderPath: '',
@@ -4783,6 +4785,8 @@ function setupIpcHandlers() {
         },
         integrations: {
           nifskope: { available: Boolean(s?.nifSkopePath && fs.existsSync(s.nifSkopePath)) },
+          meshlab: { available: Boolean(s?.meshlabPath && fs.existsSync(s.meshlabPath)) },
+          packerIo: { available: Boolean(s?.packerIoPath && fs.existsSync(s.packerIoPath)) },
           creationKit: { available: Boolean(s?.creationKitPath && fs.existsSync(s.creationKitPath)) },
           xedit: { available: Boolean(s?.xeditPath && fs.existsSync(s.xeditPath)) },
           outfitStudio: { available: Boolean(s?.outfitStudioPath && fs.existsSync(s.outfitStudioPath)) },
@@ -25848,6 +25852,8 @@ HOW TO APPLY THIS: when a user asks why their mod isn't getting downloads, or is
       creationKitPath:        { label: 'Creation Kit', path: '' },
       blenderPath:            { label: 'Blender / UModel', path: '' },
       nifSkopePath:           { label: 'NifSkope 2', path: '' },
+      meshlabPath:            { label: 'MeshLab', path: '' },
+      packerIoPath:           { label: 'Packer-IO', path: '' },
       f4sePath:               { label: 'F4SE Loader', path: '' },
       archive2Path:           { label: 'Archive2', path: '' },
       mo2Path:                { label: 'Mod Organizer 2', path: '' },
@@ -37628,7 +37634,7 @@ app.whenReady().then(() => {
   // via GET /tool-paths.  Keep in sync with the path fields in src/shared/types.ts.
   const BRIDGE_PATH_KEYS = [
     'fallout4Path', 'xeditPath', 'creationKitPath', 'blenderPath',
-    'nifSkopePath', 'fomodCreatorPath', 'lootPath', 'vortexPath',
+    'nifSkopePath', 'meshlabPath', 'packerIoPath', 'fomodCreatorPath', 'lootPath', 'vortexPath',
     'mo2Path', 'wryeBashPath', 'bodySlidePath', 'outfitStudioPath',
     'baePath', 'gimpPath', 'archive2Path', 'pjmScriptPath', 'f4sePath',
     'upscaylPath', 'nvidiaTextureToolsPath', 'autodeskFbxPath',
@@ -39078,28 +39084,33 @@ app.whenReady().then(() => {
   // ── Screen Awareness (Phase 2 "Seeing") ────────────────────────────────────
   // Opt-in, mirrors brainb:start/stop's shape -- see BridgeServer.ts's
   // startScreenAwareness() for the real focus-gated capture loop this
-  // controls. 'blender' is the only real first-slice scope.
-  let _screenAwarenessActive = false;
-  let _screenAwarenessProgram = 'blender';
-  lateHandle('screen-awareness:start', async (_event, program?: string) => {
-    _screenAwarenessProgram = String(program || 'blender').toLowerCase();
-    bridge.startScreenAwareness(_screenAwarenessProgram);
-    _screenAwarenessActive = true;
+  // controls. GENERALIZED from the original Blender-only first slice: now
+  // watches any/all of BridgeServer.KNOWN_MODDING_TOOLS (Blender, xEdit,
+  // Creation Kit, NifSkope, Archive2, Mod Organizer 2, GIMP, BAE) since
+  // Mossy tutors Fallout 4 modding broadly, not just the Blender pipeline --
+  // still curated, not "watch whatever has focus" (see that constant's own
+  // comment for why). `tools` optionally narrows to a subset of those keys;
+  // omitted/empty means "watch all of them," which is the common case.
+  lateHandle('screen-awareness:start', async (_event, tools?: string[]) => {
+    bridge.startScreenAwareness(tools);
+    const status = bridge.getScreenAwarenessStatus();
     // Persist so the next launch's auto-start (below) restores this --
     // matches startBrainBProcess()'s "don't make the user re-find the
-    // button every session" precedent.
+    // button every session" precedent. Persists the RESOLVED watch list
+    // (post-validation against KNOWN_MODDING_TOOLS), not whatever the
+    // caller passed in, so a stale/unknown tool name from an older build
+    // never gets silently replayed on the next launch.
     try {
       const s = loadSettings();
       s.screenAwarenessAutoStart = true;
-      s.screenAwarenessProgram = _screenAwarenessProgram;
+      s.screenAwarenessTools = status.watching;
       saveSettings(s);
     } catch { /* non-critical -- worst case next launch doesn't auto-start */ }
-    return { ok: true, program: _screenAwarenessProgram };
+    return { ok: true, watching: status.watching };
   });
 
   lateHandle('screen-awareness:stop', async () => {
     bridge.stopScreenAwareness();
-    _screenAwarenessActive = false;
     try {
       const s = loadSettings();
       s.screenAwarenessAutoStart = false;
@@ -39108,9 +39119,7 @@ app.whenReady().then(() => {
     return { ok: true };
   });
 
-  lateHandle('screen-awareness:status', async () => {
-    return { active: _screenAwarenessActive, program: _screenAwarenessProgram };
-  });
+  lateHandle('screen-awareness:status', async () => bridge.getScreenAwarenessStatus());
 
   // ── F4AI bridge composite status ──────────────────────────────────────────
   lateHandle('f4ai-bridge-status', async () => {
@@ -39200,10 +39209,11 @@ app.whenReady().then(() => {
   try {
     const startupSettings = loadSettings();
     if (startupSettings?.screenAwarenessAutoStart) {
-      _screenAwarenessProgram = String(startupSettings.screenAwarenessProgram || 'blender').toLowerCase();
-      bridge.startScreenAwareness(_screenAwarenessProgram);
-      _screenAwarenessActive = true;
-      writeMainLog(`[Screen Awareness] Auto-started on launch (watching for ${_screenAwarenessProgram})`);
+      const savedTools = Array.isArray(startupSettings.screenAwarenessTools)
+        ? startupSettings.screenAwarenessTools as string[]
+        : undefined; // undefined -> startScreenAwareness() defaults to watching all known tools
+      bridge.startScreenAwareness(savedTools);
+      writeMainLog(`[Screen Awareness] Auto-started on launch (watching: ${bridge.getScreenAwarenessStatus().watching.join(', ')})`);
     }
   } catch (err) {
     writeMainLog(`[Screen Awareness] Auto-start failed: ${err instanceof Error ? err.message : String(err)}`);

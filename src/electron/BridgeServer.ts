@@ -122,7 +122,11 @@ export class BridgeServer {
     // Brain B's own "Enable" pattern, not always-on background capture.
     private _screenAwarenessInterval: ReturnType<typeof setInterval> | null = null;
     private _screenAwarenessWasFocused = false;
+    // _screenAwarenessProgram now means "whichever known tool currently has
+    // focus" (or null when none does), not a single fixed target -- see the
+    // KNOWN_MODDING_TOOLS generalization in startScreenAwareness() below.
     private _screenAwarenessProgram: string | null = null;
+    private _screenAwarenessWatchList: string[] = [];
 
     constructor(addonPort: number = 9999, port: number = 21337) {
         this.addonPort = addonPort;
@@ -413,6 +417,39 @@ export class BridgeServer {
     }
 
     /**
+     * Curated set of FO4 modding tools Screen Awareness watches for, keyed by
+     * the same short name used everywhere else in the loop (pattern lookup,
+     * capture tagging, diagnostics) -> the real process name to match against
+     * _getForegroundProcessName()'s output. Deliberately curated, not "watch
+     * whatever has focus": Mossy is a Fallout 4 modding tutor specifically,
+     * so what she watches for real mistakes in is the tools actually used for
+     * that -- not email, a browser, or unrelated work, which would also
+     * burn real Groq vision-API quota on content she has no business seeing.
+     * Sourced from the same real installed-tool list already surfaced in
+     * Mossy's own brain (the "tools-availability" neuron), not invented
+     * fresh. Each tool maps to a LIST of substring matchers, not one exact
+     * name -- several of these ship under genuinely different process names
+     * across versions/forks (FO4Edit64.exe vs FO4xEdit64.exe are both real
+     * "xEdit" builds a modder might have; gimp-2.10.exe vs gimp-3.0.exe),
+     * and a single exact-equality or single-prefix match would silently
+     * stop covering one of them. Matching (see startScreenAwareness() below)
+     * checks whether the real foreground process name CONTAINS any one of a
+     * tool's matchers, case-insensitively -- not exact equality.
+     */
+    static readonly KNOWN_MODDING_TOOLS: Record<string, string[]> = {
+        blender: ['blender'],
+        xedit: ['fo4edit', 'fo4xedit', 'xedit'],   // FO4Edit64.exe / FO4xEdit64.exe
+        creationkit: ['creationkit'],               // CreationKit32.exe / CreationKit64.exe
+        nifskope: ['nifskope'],                     // NifSkope2.exe
+        archive2: ['archive2'],                     // Archive2.exe
+        modorganizer: ['modorganizer'],             // ModOrganizer.exe (MO2)
+        gimp: ['gimp'],                              // gimp-2.10.exe / gimp-3.0.exe
+        bae: ['bae'],                                 // bae.exe (BA2 Extractor)
+        meshlab: ['meshlab'],                         // meshlab.exe -- mesh repair/cleanup, pre-Blender
+        packerio: ['packer-io', 'packerio'],          // Packer-IO.exe -- standalone UV packing
+    };
+
+    /**
      * Real OS-level foreground-window detection, via a Win32 GetForegroundWindow
      * + GetWindowThreadProcessId call through PowerShell's Add-Type -- not
      * something that existed anywhere in this file before Screen Awareness
@@ -505,40 +542,57 @@ export class BridgeServer {
      * a vision-model API call) -- those only happen when `program` truly
      * has focus.
      *
-     * First-slice scope: `program` defaults to 'blender', matching this
-     * feature's own explicit "one program first" build order.
+     * GENERALIZED (was first-slice Blender-only): `tools` now names which
+     * KNOWN_MODDING_TOOLS keys to watch for, defaulting to ALL of them --
+     * Mossy is a Fallout 4 modding tutor, so "whatever modding tool has
+     * focus" is the right generalization of "whatever program has focus,"
+     * not literally every foreground window (see KNOWN_MODDING_TOOLS's own
+     * comment for why). An unknown key in `tools` is ignored rather than
+     * throwing, so a stale persisted setting from a future/renamed tool list
+     * degrades to "watch everything else" instead of crashing the watcher.
      */
-    startScreenAwareness(program: string = 'blender'): void {
+    startScreenAwareness(tools?: string[]): void {
         if (this._screenAwarenessInterval) return; // already running
-        this._screenAwarenessProgram = program.toLowerCase();
+        const keys = (tools && tools.length > 0)
+            ? tools.map(t => t.toLowerCase()).filter(t => t in BridgeServer.KNOWN_MODDING_TOOLS)
+            : Object.keys(BridgeServer.KNOWN_MODDING_TOOLS);
+        this._screenAwarenessWatchList = keys.length > 0 ? keys : Object.keys(BridgeServer.KNOWN_MODDING_TOOLS);
+        this._screenAwarenessProgram = null; // no tool focused yet
         this._screenAwarenessWasFocused = false;
         const POLL_INTERVAL_MS = 5000;
         this._screenAwarenessInterval = setInterval(async () => {
             const focused = await this._getForegroundProcessName();
-            const isRelevant = focused === this._screenAwarenessProgram;
-            // Logged only on real state transitions, not every 5s tick --
-            // a continuous "still not focused" line every 5 seconds forever
+            const matchedKey = focused
+                ? this._screenAwarenessWatchList.find(key =>
+                      BridgeServer.KNOWN_MODDING_TOOLS[key].some(matcher => focused.includes(matcher)))
+                  ?? null
+                : null;
+            const isRelevant = matchedKey !== null;
+            // Logged only on real state transitions (including switching
+            // from one watched tool to another), not every 5s tick -- a
+            // continuous "still not focused" line every 5 seconds forever
             // would itself violate "costs nothing when idle" by slowly
             // growing the log file even during idle time.
-            if (isRelevant !== this._screenAwarenessWasFocused) {
+            if (isRelevant !== this._screenAwarenessWasFocused || matchedKey !== this._screenAwarenessProgram) {
                 this._logScreenAwareness({
                     event: isRelevant ? 'watch-started' : 'watch-stopped',
-                    program: this._screenAwarenessProgram, focusedProcess: focused,
+                    program: matchedKey, focusedProcess: focused,
                 });
                 this._screenAwarenessWasFocused = isRelevant;
+                this._screenAwarenessProgram = matchedKey;
             }
-            if (!isRelevant) return;
+            if (!isRelevant || !matchedKey) return;
             try {
                 const { dataUrl } = await this._captureScreenBase64();
                 const win = BrowserWindow.getAllWindows()[0];
                 if (win && !win.isDestroyed()) {
                     win.webContents.send('screen-awareness:capture', {
-                        program: this._screenAwarenessProgram, dataUrl, timestamp: Date.now(),
+                        program: matchedKey, dataUrl, timestamp: Date.now(),
                     });
                 }
             } catch (e: any) {
                 this._logScreenAwareness({
-                    event: 'capture-error', program: this._screenAwarenessProgram,
+                    event: 'capture-error', program: matchedKey,
                     error: String(e?.message || e),
                 });
             }
@@ -555,6 +609,17 @@ export class BridgeServer {
         }
         this._screenAwarenessWasFocused = false;
         this._screenAwarenessProgram = null;
+        this._screenAwarenessWatchList = [];
+    }
+
+    /** Current watch list + whichever tool (if any) is focused right now --
+     *  used by the 'screen-awareness:status' IPC handler in main.ts. */
+    getScreenAwarenessStatus(): { active: boolean; watching: string[]; currentProgram: string | null } {
+        return {
+            active: this._screenAwarenessInterval !== null,
+            watching: this._screenAwarenessWatchList,
+            currentProgram: this._screenAwarenessProgram,
+        };
     }
 
     /** Same on-disk log every other diagnostic trace this session writes to
