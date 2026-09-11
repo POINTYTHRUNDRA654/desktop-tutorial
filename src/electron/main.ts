@@ -1789,6 +1789,23 @@ const getSecretValue = (settings: any, field: SecretField, envName?: string): st
   return '';
 };
 
+// Mod authors who've asked to be fully opted out of anything Mossy does --
+// never mentioned, referenced, used as examples, or otherwise touched. Ships
+// as the default modContentWhitelist for brand-new installs (see
+// DEFAULT_SETTINGS in shared/types.ts) AND retroactively merged into every
+// EXISTING user's settings.json below, additively -- this only ever adds
+// entries the user hasn't already removed, never removes anything the user
+// added themselves. Add new opt-outs here as a plain array entry.
+// - PRA / praecipitator (Discord: pra) -- opted out 2026-09-10. Nexus mods
+//   confirmed under this handle (nexusmods.com/fallout4/users/577730), all
+//   sharing the "Pra's ___" naming convention: Pra's Fo4Edit Scripts, Sim
+//   Settlements - Pra's Random Addon (1 & 2, + SimS 2 RU), Pra's Fairline
+//   Hills Settlement, The Watching Tower - Pra's Plot-A-Palooza Entry, SS2 -
+//   Sales From Below - Pra's Plotapalooza 4 Entry, Pra's Synthesis Patchers.
+//   "Pra's" alone covers all of these (and any future upload following the
+//   same pattern) without hand-listing every title.
+const PROTECTED_CREATORS_SEED = ['PRA', 'praecipitator', "Pra's"];
+
 const loadSettings = (): any => {
   try {
     if (fs.existsSync(settingsPath)) {
@@ -1862,7 +1879,27 @@ const loadSettings = (): any => {
         tokenInitialized = true;
       }
 
-      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate) {
+      // Retroactively merge PROTECTED_CREATORS_SEED into any existing user's
+      // whitelist -- additive only (never drops an entry the user added or
+      // removed themselves), case-insensitive de-dupe so this doesn't create
+      // a visible duplicate if the user already added "PRA" by hand.
+      let protectedCreatorsSeeded = false;
+      {
+        const existingWhitelist: string[] = Array.isArray(next?.privacySettings?.modContentWhitelist)
+          ? next.privacySettings.modContentWhitelist
+          : [];
+        const existingLower = new Set(existingWhitelist.map((e: string) => String(e).trim().toLowerCase()));
+        const toAdd = PROTECTED_CREATORS_SEED.filter((name) => !existingLower.has(name.toLowerCase()));
+        if (toAdd.length > 0) {
+          next.privacySettings = {
+            ...(next.privacySettings || {}),
+            modContentWhitelist: [...existingWhitelist, ...toAdd],
+          };
+          protectedCreatorsSeeded = true;
+        }
+      }
+
+      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate || protectedCreatorsSeeded) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
           if (migrated) {
@@ -1879,6 +1916,9 @@ const loadSettings = (): any => {
           }
           if (forcedBackendUrlUpdate) {
             console.log('[Settings] Seeded backend URL from environment');
+          }
+          if (protectedCreatorsSeeded) {
+            console.log('[Settings] Merged protected-creator opt-outs into Mod Content Whitelist');
           }
         } catch (e) {
           console.warn('[Settings] Failed to persist migrated settings:', e);
@@ -10850,7 +10890,7 @@ end.
       // defaults to true here — unchanged behavior for them.
       if (payload.includeGameData !== false) {
         try {
-          const neuronBlock = buildBrainNeuronBlock();
+          const neuronBlock = buildBrainNeuronBlock(userPromptText);
           if (neuronBlock) {
             messages.splice(messages.length - 1, 0, { role: 'system', content: neuronBlock });
           }
@@ -13717,6 +13757,21 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   // Mod Browser IPC handlers (renderer -> main)
   const { modBrowser: modBrowserEngine } = require('../mining/modBrowser');
+  // Restore a previously-validated Nexus API key on startup. authenticateNexus()
+  // persists the token to settings.json but the engine's in-memory key was never
+  // read back from it -- meaning every restart quietly lost Nexus auth, and every
+  // mod-browser/trending call (including the ones that feed Mossy's own knowledge
+  // vault from "what's new" queries) failed with "Authenticate first" until the
+  // user manually re-entered their key. Same forked-state/silent-degradation shape
+  // as other recurring bugs in this codebase -- fixed at the source instead of
+  // patched per-symptom.
+  {
+    const persistedNexusToken = String(loadSettings()?.nexusAuthToken || '').trim();
+    if (persistedNexusToken) {
+      modBrowserEngine.restoreNexusAuth(persistedNexusToken);
+      console.log('[ModBrowser] Restored persisted Nexus API key from settings');
+    }
+  }
 
   registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
     const startTime = Date.now();
@@ -25418,29 +25473,98 @@ print(json.dumps(result))
   // future, not a limit anyone should expect to actually hit day to day.
   const BRAIN_NEURON_CHAR_BUDGET = 40_000; // lowered 2026-08-26: 200K chars was overflowing both the 131K-token primary model AND the 262K-token fallback once combined with the rest of the system prompt, causing every game-data-related turn (including many misclassified as such) to hard-fail with a Groq 400 context-length error instead of answering. See MOSSY_CHAT_CONTEXT_OVERFLOW_FIX.md.
 
-  function buildBrainNeuronBlock(): string {
+  /**
+   * Extracts lowercase "significant" words from free text for cheap keyword
+   * matching against neuron category metadata. Same spirit as
+   * knowledgeRetrieval.ts's extractKeywords() in the renderer, reimplemented
+   * here since main.ts (Electron main process) doesn't share renderer modules.
+   */
+  function extractNeuronQueryKeywords(text: string): string[] {
+    const STOP = new Set(['the','and','for','are','with','that','this','have','has','you','your','from','what','how','can','does','about','into','out','not','all','any','use','used','when','where','which','she','her','him','his']);
+    return Array.from(new Set(
+      String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length >= 3 && !STOP.has(w))
+    )).slice(0, 24);
+  }
+
+  /**
+   * Scores one neuron's relevance to a set of query keywords by checking its
+   * category metadata (id, domain, title) — cheap and precise, avoids scanning
+   * every neuron's (often huge) content string on every single turn.
+   */
+  function scoreNeuronRelevance(neuron: BrainNeuron, keywords: string[]): number {
+    if (keywords.length === 0) return 0;
+    const haystack = `${neuron.id} ${neuron.domain} ${neuron.title}`.toLowerCase();
+    let score = 0;
+    for (const kw of keywords) {
+      if (haystack.includes(kw)) score += 1;
+    }
+    return score;
+  }
+
+  /**
+   * Billy's fix (2026-09-10) for the "she has it scanned but doesn't know it"
+   * bug: the old version picked which neurons fit the BRAIN_NEURON_CHAR_BUDGET
+   * purely by static priority, so the same handful of high-priority neurons won
+   * every single turn and everything else silently never got a turn regardless
+   * of what was actually asked. Neurons already carry a category (`domain`) —
+   * this now scores every neuron against the current question's keywords first,
+   * so a neuron whose id/domain/title matches what's being asked jumps the
+   * queue ahead of its static priority. A relevant neuron that still doesn't
+   * fit whole gets truncated to the remaining budget instead of dropped
+   * entirely — a partial real answer beats silently getting none. Remaining
+   * budget after matches still fills by priority, same as before, so a plain
+   * conversational turn with no keyword match behaves exactly as it did prior
+   * to this change.
+   */
+  function buildBrainNeuronBlock(query?: string): string {
     const neurons = getAllBrainNeurons();
     if (neurons.length === 0) return '';
 
-    const included: BrainNeuron[] = [];
+    const keywords = extractNeuronQueryKeywords(query || '');
+    const scored = neurons
+      .map((n) => ({ neuron: n, relevance: scoreNeuronRelevance(n, keywords) }))
+      .sort((a, b) => {
+        if (b.relevance !== a.relevance) return b.relevance - a.relevance;
+        return (b.neuron.priority || 0) - (a.neuron.priority || 0);
+      });
+
+    const includedContent: Array<{ neuron: BrainNeuron; content: string; truncated: boolean }> = [];
     let used = 0;
-    for (const n of neurons) {
-      const size = (n.content || '').length;
-      if (used + size > BRAIN_NEURON_CHAR_BUDGET) continue;
-      included.push(n);
-      used += size;
-    }
-    if (included.length < neurons.length) {
-      const skipped = neurons.filter(n => !included.includes(n)).map(n => n.id);
-      writeMainLog(`[BrainNeurons] Budget ${BRAIN_NEURON_CHAR_BUDGET} chars: included ${included.length}/${neurons.length}, skipped: ${skipped.join(', ')}`);
+    for (const { neuron: n, relevance } of scored) {
+      const remaining = BRAIN_NEURON_CHAR_BUDGET - used;
+      if (remaining <= 0) continue;
+      const full = n.content || '';
+      if (full.length <= remaining) {
+        includedContent.push({ neuron: n, content: full, truncated: false });
+        used += full.length;
+      } else if (relevance > 0 && remaining > 500) {
+        // Directly relevant to this question but doesn't fit whole — a
+        // truncated real answer beats silently dropping it entirely.
+        includedContent.push({ neuron: n, content: full.slice(0, remaining), truncated: true });
+        used += remaining;
+      }
+      // else: doesn't fit and isn't a direct match for this question — skip,
+      // same as the old behavior.
     }
 
-    const sections = included.map(n =>
-      `▶ BRAIN MODULE — ${n.title} [${n.domain}]\n${n.content}`
+    if (includedContent.length < neurons.length || includedContent.some((c) => c.truncated)) {
+      const includedIds = new Set(includedContent.map((c) => c.neuron.id));
+      const skipped = neurons.filter((n) => !includedIds.has(n.id)).map((n) => n.id);
+      const truncatedIds = includedContent.filter((c) => c.truncated).map((c) => c.neuron.id);
+      const matchCount = scored.filter((s) => s.relevance > 0).length;
+      writeMainLog(`[BrainNeurons] Budget ${BRAIN_NEURON_CHAR_BUDGET} chars: included ${includedContent.length}/${neurons.length} (query-matched: ${matchCount}), truncated: ${truncatedIds.join(', ') || 'none'}, skipped: ${skipped.join(', ') || 'none'}`);
+    }
+
+    const sections = includedContent.map(({ neuron: n, content, truncated }) =>
+      `▶ BRAIN MODULE — ${n.title} [${n.domain}]${truncated ? ' (truncated to fit budget)' : ''}\n${content}`
     );
     return [
       '╔════════════════════════════════════════════════════════════╗',
-      `║  MOSSY EXTENDED BRAIN — ${included.length} Active Knowledge Modules`,
+      `║  MOSSY EXTENDED BRAIN — ${includedContent.length} Active Knowledge Modules`,
       '╚════════════════════════════════════════════════════════════╝',
       ...sections,
       '╔════════════════════════════════════════════════════════════╗',
@@ -26208,12 +26332,57 @@ print(json.dumps(result))
     } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
   });
 
+  // ── SHARED: actually invoke a scripts/fo4_*.py scanner (mirrors the working
+  // pattern already used by creative-director:scan-fo4-world for the strings
+  // scanner). Before 2026-09-10 the form-graph/asset-graph/papyrus-api scans
+  // below only ever read a pre-existing static JSON dump — the button that
+  // claimed to "rescan" them finished instantly because nothing was actually
+  // re-parsed. This makes forceRefresh really regenerate the dump.
+  async function runFo4PythonScanScript(scriptFilename: string, timeoutMs = 180_000): Promise<void> {
+    const exeDir = path.dirname(process.execPath);
+    const candidates = [
+      path.join(exeDir, 'resources', 'scripts', scriptFilename),
+      path.join(app.getAppPath(), '..', 'scripts', scriptFilename),
+      path.join(app.getAppPath(), '..', '..', 'scripts', scriptFilename),
+      path.join(process.cwd(), 'scripts', scriptFilename),
+    ];
+    const script = candidates.find((p) => { try { return fs.existsSync(p); } catch { return false; } }) ?? '';
+    if (!script) throw new Error(`${scriptFilename} not found. Looked in:\n  ${candidates.join('\n  ')}`);
+    const { execFileSync } = await import('child_process');
+    let py = 'python';
+    try {
+      const where = execFileSync('where', ['python'], { encoding: 'utf-8', timeout: 5000 });
+      const found = where.split(/\r?\n/).map((l) => l.trim()).find(Boolean);
+      if (found) py = found;
+    } catch { /* fall back to 'python' on PATH */ }
+    const scanFo4Root = resolveFO4Root();
+    if (!scanFo4Root) throw new Error('Fallout 4 install not found — cannot locate the Data folder to scan.');
+    writeMainLog(`[BrainScan] Running ${scriptFilename} for real against ${path.join(scanFo4Root, 'Data')} (this can take a while for the full game)…`);
+    const scriptStdout = execFileSync(py, [script], {
+      timeout: timeoutMs,
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        MOSSY_FO4_DATA: path.join(scanFo4Root, 'Data'),
+        MOSSY_SCAN_OUTPUT_DIR: resolveScanCacheDir(),
+      },
+    });
+    // Log the script's own output too — this is what caught the previous bug
+    // (resolveFO4Root pointing at a decoy folder): the script ran, exited 0,
+    // and wrote a well-formed but empty JSON file, which looked identical to
+    // success in this log unless you could also see it printing "SKIP: ...".
+    const tail = String(scriptStdout || '').trim().split(/\r?\n/).slice(-6).join(' | ');
+    writeMainLog(`[BrainScan] ${scriptFilename} finished writing fresh output${tail ? ` — ${tail}` : ''}`);
+  }
+
   // ── FO4 FORM GRAPH SCAN ─────────────────────────────────────────────────
   // ── PAPYRUS NATIVE API REFERENCE (real function signatures, not a hardcoded
   // shortlist) — parsed from Bethesda's actual shipped Scripts/Source/Base/*.psc
-  // declarations by scripts/fo4_papyrus_api_scan.py. Read-only here; run the
-  // script manually to (re)generate it, matching the form/asset graph pattern.
-  async function runPapyrusApiScan(): Promise<any> {
+  // declarations by scripts/fo4_papyrus_api_scan.py. forceRefresh now actually
+  // re-runs the script (see runFo4PythonScanScript above) instead of only
+  // re-reading whatever static dump happens to already be on disk.
+  async function runPapyrusApiScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_papyrus_api_scan.py');
     const p = resolveScanCacheFile('fo4_papyrus_api.json');
     if (!fs.existsSync(p)) return { available: false };
     try {
@@ -26239,14 +26408,15 @@ print(json.dumps(result))
   registerHandler('scan:papyrus-api', async (_event, forceRefresh?: boolean) => {
     try {
       if (!forceRefresh) { const c = loadScanCache('papyrus-api'); if (c) return { success: true, data: c, fromCache: true }; }
-      const data = await runPapyrusApiScan();
+      const data = await runPapyrusApiScan(forceRefresh);
       saveScanCache('papyrus-api', data);
       addBrainNeuron({ id: 'papyrus-api-reference', domain: 'Papyrus Scripting', title: `Papyrus Native API Reference (${data.total_functions || 0} functions, ${data.total_events || 0} events)`, priority: 93, content: formatPapyrusApiNeuron(data), source: 'scan' });
       return { success: true, data, fromCache: false };
     } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
   });
 
-  async function runFo4FormGraphScan(): Promise<any> {
+  async function runFo4FormGraphScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_form_graph.py');
     const p = resolveScanCacheFile('fo4_form_graph.json');
     if (!fs.existsSync(p)) return { available: false };
     try {
@@ -26295,7 +26465,7 @@ print(json.dumps(result))
   registerHandler('scan:fo4-form-graph', async (_event, forceRefresh?: boolean) => {
     try {
       if (!forceRefresh) { const c = loadScanCache('fo4-form-graph', 24); if (c) return { success: true, data: c, fromCache: true }; }
-      const data = await runFo4FormGraphScan();
+      const data = await runFo4FormGraphScan(forceRefresh);
       saveScanCache('fo4-form-graph', data);
       addBrainNeuron({ id: 'fo4-form-graph', domain: 'FO4 Game Systems', title: `FO4 Form Graph (${data.perk_count||0} perks, ${data.cobj_count||0} recipes)`, priority: 91, content: formatFo4FormGraphNeuron(data), source: 'scan' });
       return { success: true, data, fromCache: false };
@@ -26303,7 +26473,8 @@ print(json.dumps(result))
   });
 
   // ── FO4 ASSET GRAPH SCAN ─────────────────────────────────────────────────
-  async function runFo4AssetGraphScan(): Promise<any> {
+  async function runFo4AssetGraphScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_asset_graph.py');
     const p = resolveScanCacheFile('fo4_asset_graph.json');
     if (!fs.existsSync(p)) return { available: false };
     try {
@@ -26316,7 +26487,7 @@ print(json.dumps(result))
       // Sample: armor paint OMODs
       const AP_PAINT = '0x0024A0FA';
       const paintOmods = Object.entries(omodData)
-        .filter(([, od]) => od.parent_formid === AP_PAINT)
+        .filter(([, od]) => od.attach_point === AP_PAINT)
         .slice(0, 20)
         .map(([fid]) => edidIndex[fid] || fid);
       // Sample: ARMA with nif paths
@@ -26361,9 +26532,3232 @@ print(json.dumps(result))
   registerHandler('scan:fo4-asset-graph', async (_event, forceRefresh?: boolean) => {
     try {
       if (!forceRefresh) { const c = loadScanCache('fo4-asset-graph', 24); if (c) return { success: true, data: c, fromCache: true }; }
-      const data = await runFo4AssetGraphScan();
+      const data = await runFo4AssetGraphScan(forceRefresh);
       saveScanCache('fo4-asset-graph', data);
       addBrainNeuron({ id: 'fo4-asset-graph', domain: 'FO4 Game Systems', title: `FO4 Asset Graph (${data.omod_count||0} OMODs, ${data.model_path_count||0} NIFs)`, priority: 90, content: formatFo4AssetGraphNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 QUEST GRAPH SCAN ────────────────────────────────────────────────
+  // The strings scan already captures every quest's name/EditorID, and the
+  // form graph already captures PERK/SPEL/script attachments — but neither
+  // one opens up what a quest actually *does*. This is the gap: for every
+  // QUST record, its stages (with journal/log-entry text), objectives, and
+  // aliases (quest-giver, target, companion, etc.), via scripts/fo4_quest_graph.py.
+  async function runFo4QuestGraphScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_quest_graph.py', 240_000);
+    const p = resolveScanCacheFile('fo4_quest_graph.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_quests: raw.total_quests || 0,
+        quests_with_stage_data: raw.quests_with_stage_data || 0,
+        walkthrough_sample: raw.walkthrough_sample || {},
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4QuestGraphNeuron(d: any): string {
+    if (!d?.available) return 'FO4 quest graph not yet scanned. Run: python scripts/fo4_quest_graph.py';
+    const samples = Object.values(d.walkthrough_sample || {}) as string[];
+    return [
+      `FO4 Quest Structure: ${d.total_quests} quest records, ${d.quests_with_stage_data} with real stage/objective/alias data extracted from the ESM (journal text, objectives, quest-role aliases, attached Papyrus scripts).`,
+      '',
+      'QUEST WALKTHROUGHS (highest-content quests, sample):',
+      ...samples.slice(0, 40).flatMap((s) => [s, '']),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-quest-graph', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-quest-graph', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4QuestGraphScan(forceRefresh);
+      saveScanCache('fo4-quest-graph', data);
+      addBrainNeuron({ id: 'fo4-quest-graph', domain: 'FO4 Game Systems', title: `FO4 Quest Structure (${data.quests_with_stage_data||0} quests with stage data)`, priority: 91, content: formatFo4QuestGraphNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 LEVELED NPC SCAN (spawn tables) ─────────────────────────────────
+  // Upgraded this session from a shallow LVLD/LVLF/LVLO-only decode to the
+  // same full depth LVLI (Leveled Item) already has via the SOUN/CLFM/
+  // TXST/LVLI scanner — LVLN's struct is nearly identical (same LVLO Base
+  // Data + optional COED Extra Data), differing only in a signed vs.
+  // unsigned Count field, the "Calculate All" flag label, no LVSG/ONAM,
+  // and a trailing MODL model-override path LVLI lacks. LVLI itself is
+  // NOT produced by this script anymore — it already has its own deeper
+  // home in the fo4-sound-color-texture-leveled scan. Real-data
+  // validation: LCharTurretTripodMountedNotRandom's model override
+  // correctly resolves to a matching turret marker mesh; LCharHostile*
+  // and the real companion NPC LCharCurie correctly decode the Calculate
+  // All flag.
+  async function runFo4LeveledListsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_leveled_lists.py', 180_000);
+    const p = resolveScanCacheFile('fo4_leveled_lists.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        leveled_npc_count: raw.leveled_npc_count || 0,
+        with_extra_data: raw.with_extra_data || 0,
+        with_model_override: raw.with_model_override || 0,
+        calculate_all: raw.calculate_all || 0,
+        leveled_npcs: raw.leveled_npcs || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4LeveledListsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 leveled NPC lists not yet scanned. Run: python scripts/fo4_leveled_lists.py';
+    const sampleLists = (d.leveled_npcs || []).filter((l: any) => l.edid && l.entries?.length).slice(0, 20);
+    return [
+      `FO4 Leveled NPCs (spawn tables): ${d.leveled_npc_count} leveled NPC/creature lists (${d.calculate_all} Calculate All, ${d.with_extra_data} with COED extra data, ${d.with_model_override} with a model override) — each entry is (player-level threshold → FormID that can spawn, count, optional owner/rank/condition extra data). Leveled Items (LVLI) are covered separately by the FO4 Sound/Color/Texture/Leveled scan.`,
+      '',
+      'SAMPLE LEVELED NPC LISTS (level-scaling — what spawns at what player level):',
+      ...sampleLists.flatMap((l: any) => [
+        `${l.edid} (${l.form_id}):`,
+        ...l.entries.map((e: any) => `  level ${e.level}+ → ${e.reference} x${e.count}`),
+      ]),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-leveled-lists', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-leveled-lists', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4LeveledListsScan(forceRefresh);
+      saveScanCache('fo4-leveled-lists', data);
+      addBrainNeuron({ id: 'fo4-leveled-lists', domain: 'FO4 Game Systems', title: `FO4 Leveled NPCs (${data.leveled_npc_count||0})`, priority: 82, content: formatFo4LeveledListsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 DIALOGUE TREE SCAN (which INFO belongs to which DIAL topic) ────
+  async function runFo4DialogueGraphScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_dialogue_graph.py', 240_000);
+    const p = resolveScanCacheFile('fo4_dialogue_graph.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_dial_topics: raw.total_dial_topics || 0,
+        total_info_responses: raw.total_info_responses || 0,
+        info_responses_linked_to_topic: raw.info_responses_linked_to_topic || 0,
+        dial_topics: raw.dial_topics || {},
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4DialogueGraphNeuron(d: any): string {
+    if (!d?.available) return 'FO4 dialogue tree not yet scanned. Run: python scripts/fo4_dialogue_graph.py';
+    const topics = Object.values(d.dial_topics || {}) as any[];
+    const sample = topics.filter((t) => t.info_ids?.length).slice(0, 15);
+    return [
+      `FO4 Dialogue Tree: ${d.total_dial_topics} topics, ${d.total_info_responses} response lines, ${d.info_responses_linked_to_topic} linked to their parent topic — this is which response belongs to which conversation topic, not just the raw text.`,
+      '',
+      'SAMPLE TOPICS (name — number of responses under it):',
+      ...sample.map((t) => `  ${t.edid || t.form_id}${t.name ? ` ("${t.name}")` : ''} — ${t.info_ids.length} response(s)`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-dialogue-graph', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-dialogue-graph', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4DialogueGraphScan(forceRefresh);
+      saveScanCache('fo4-dialogue-graph', data);
+      addBrainNeuron({ id: 'fo4-dialogue-graph', domain: 'FO4 Game Systems', title: `FO4 Dialogue Tree (${data.total_info_responses||0} responses, ${data.info_responses_linked_to_topic||0} linked)`, priority: 81, content: formatFo4DialogueGraphNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 AI PACKAGE SCAN ─────────────────────────────────────────────────
+  async function runFo4AiPackagesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_ai_packages.py', 180_000);
+    const p = resolveScanCacheFile('fo4_ai_packages.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_packages: raw.total_packages || 0,
+        scripted_packages: raw.scripted_packages || 0,
+        packages: raw.packages || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4AiPackagesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 AI packages not yet scanned. Run: python scripts/fo4_ai_packages.py';
+    const scripted = (d.packages || []).filter((p: any) => p.scripts?.length).slice(0, 30);
+    const scheduled = (d.packages || []).filter((p: any) => p.schedule && p.schedule.day_of_week !== 'Any').slice(0, 20);
+    return [
+      `FO4 AI Packages: ${d.total_packages} PACK records, ${d.scripted_packages} with an attached Papyrus script (which script actually drives that NPC/behavior). Every package's Pack Data (general flags/type/interrupt-override/preferred-speed/interrupt-flags) and Schedule (day/hour/duration) is decoded — verified against real base-game data whose own EditorIDs literally encode their schedule (e.g. "DmndSolomonVisitPowerNoodlesMWF20x4" decodes to exactly Mon/Wed/Fri, hour 20, 240min duration). Location/target linkage (the "Procedure Tree") is intentionally NOT decoded — it's a variable-count nested branch structure, not a flat repeat, and guessing at it risks the exact kind of wrong-but-confident answer this whole scanning effort exists to avoid.`,
+      '',
+      'SCRIPTED PACKAGES (sample):',
+      ...scripted.map((p: any) => `  ${p.edid || p.form_id} → ${p.scripts.join(', ')}`),
+      '',
+      'PACKAGES WITH A REAL SCHEDULE (sample):',
+      ...scheduled.map((p: any) => `  ${p.edid || p.form_id}: ${p.schedule.day_of_week} at ${p.schedule.hour}:00 for ${p.schedule.duration_minutes}min`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-ai-packages', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-ai-packages', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4AiPackagesScan(forceRefresh);
+      saveScanCache('fo4-ai-packages', data);
+      addBrainNeuron({ id: 'fo4-ai-packages', domain: 'FO4 Game Systems', title: `FO4 AI Packages (${data.scripted_packages||0} scripted)`, priority: 78, content: formatFo4AiPackagesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 ITEM DESCRIPTIONS + CONTAINER LOOT LISTS ────────────────────────
+  async function runFo4ItemsContainersScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_items_and_containers.py', 180_000);
+    const p = resolveScanCacheFile('fo4_items_and_containers.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_descriptions: raw.total_descriptions || 0,
+        total_containers: raw.total_containers || 0,
+        descriptions: raw.descriptions || [],
+        containers: raw.containers || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ItemsContainersNeuron(d: any): string {
+    if (!d?.available) return 'FO4 item descriptions/containers not yet scanned. Run: python scripts/fo4_items_and_containers.py';
+    const descSample = (d.descriptions || []).filter((x: any) => x.description).slice(0, 20);
+    const contSample = (d.containers || []).filter((x: any) => x.items?.length).slice(0, 15);
+    return [
+      `FO4 Item Text & Containers: ${d.total_descriptions} perk/chem/book/magic-effect descriptions (the actual flavor text, not just the name), ${d.total_containers} containers with their direct (non-leveled) contents.`,
+      '',
+      'SAMPLE DESCRIPTIONS:',
+      ...descSample.map((x: any) => `  [${x.record_type}] ${x.name || x.edid}: ${x.description}`),
+      '',
+      'SAMPLE CONTAINER CONTENTS:',
+      ...contSample.map((c: any) => `  ${c.name || c.edid} (${c.form_id}): ${c.items.map((i: any) => `${i.item} x${i.count}`).join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-items-containers', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-items-containers', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ItemsContainersScan(forceRefresh);
+      saveScanCache('fo4-items-containers', data);
+      addBrainNeuron({ id: 'fo4-items-containers', domain: 'FO4 Game Systems', title: `FO4 Item Text & Containers (${data.total_descriptions||0} descriptions, ${data.total_containers||0} containers)`, priority: 76, content: formatFo4ItemsContainersNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 ACTOR (NPC_) + WEAPON + ARMOR COMBAT STATS ──────────────────────
+  async function runFo4ActorCombatStatsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_actor_and_combat_stats.py', 180_000);
+    const p = resolveScanCacheFile('fo4_actor_and_combat_stats.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_npcs: raw.total_npcs || 0,
+        total_weapons: raw.total_weapons || 0,
+        total_armors: raw.total_armors || 0,
+        npcs: raw.npcs || [],
+        weapons: raw.weapons || [],
+        armors: raw.armors || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ActorCombatStatsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 actor/combat stats not yet scanned. Run: python scripts/fo4_actor_and_combat_stats.py';
+    const npcSample = (d.npcs || []).filter((n: any) => n.acbs).slice(0, 15);
+    const weapSample = (d.weapons || []).filter((w: any) => w.stats).slice(0, 15);
+    const armoSample = (d.armors || []).filter((a: any) => a.armor_rating != null).slice(0, 15);
+    return [
+      `FO4 Actor & Combat Stats: ${d.total_npcs} NPCs with full ACBS config (level/flags/disposition) + factions + perks, ${d.total_weapons} weapons with damage/handling stats, ${d.total_armors} armor pieces with rating/weight/resistances. Decoded field-by-field from the authoritative xEdit/FO4Edit record definitions, verified against real base-game data (e.g. X01 power armor = 320 rating, T60 = 280 — matching known real values).`,
+      '',
+      'SAMPLE NPCs:',
+      ...npcSample.map((n: any) => `  ${n.edid || n.form_id}: level ${n.acbs.level}${n.acbs.level_is_mult ? ' (mult)' : ''}, flags [${n.acbs.flags.join(', ')}], ${n.factions.length} factions, ${n.perks.length} perks, race ${n.race || '—'}`),
+      '',
+      'SAMPLE WEAPONS:',
+      ...weapSample.map((w: any) => `  ${w.edid}: base dmg ${w.stats.damage_base}, capacity ${w.stats.capacity}, speed ${w.stats.speed}, weight ${w.stats.weight}, anim ${w.stats.animation_type}${w.stats.flags.length ? `, flags [${w.stats.flags.join(', ')}]` : ''}`),
+      '',
+      'SAMPLE ARMOR:',
+      ...armoSample.map((a: any) => `  ${a.edid}: rating ${a.armor_rating}, weight ${a.weight}, health ${a.health}${a.resistances.length ? `, ${a.resistances.length} resistances` : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-actor-combat-stats', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-actor-combat-stats', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ActorCombatStatsScan(forceRefresh);
+      saveScanCache('fo4-actor-combat-stats', data);
+      addBrainNeuron({ id: 'fo4-actor-combat-stats', domain: 'FO4 Game Systems', title: `FO4 Actor & Combat Stats (${data.total_npcs||0} NPCs, ${data.total_weapons||0} weapons, ${data.total_armors||0} armors)`, priority: 79, content: formatFo4ActorCombatStatsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 AI PACKAGE PROCEDURES + LOCATION/TARGET DATA ────────────────────
+  // The one piece deliberately left out of fo4_ai_packages.py: where a
+  // package sends an NPC and what it does when it gets there. Shipped as
+  // its own independent scanner (own handler, own cache file, own brain
+  // neuron) rather than folded into fo4_ai_packages.py, so it can be run,
+  // cached, or disabled on its own.
+  async function runFo4PackageProceduresScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_package_procedures.py', 180_000);
+    const p = resolveScanCacheFile('fo4_package_procedures.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_packages: raw.total_packages || 0,
+        packages_with_conditions: raw.packages_with_conditions || 0,
+        packages_with_targets: raw.packages_with_targets || 0,
+        packages_with_branches: raw.packages_with_branches || 0,
+        packages: raw.packages || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4PackageProceduresNeuron(d: any): string {
+    if (!d?.available) return 'FO4 package procedures/targets not yet scanned. Run: python scripts/fo4_package_procedures.py';
+    const branchSample = (d.packages || []).filter((p: any) => p.branches?.length).slice(0, 12);
+    const targetSample = (d.packages || []).filter((p: any) => p.targets?.some((t: any) => t.location || t.target)).slice(0, 12);
+    return [
+      `FO4 Package Procedures & Targets: ${d.total_packages} packages decoded, ${d.packages_with_conditions} with top-level conditions (CTDA), ${d.packages_with_targets} with location/target data (PLDT/PTDA/PDTO), ${d.packages_with_branches} with an explicit Procedure Tree (most packages instead reference a shared template package for their actual branch logic — that's real game structure, not a scan gap). Every struct decoded field-by-field from the authoritative xEdit/FO4Edit source and verified against real base-game data — e.g. VertibirdTravelReturnTemplate's branches decode to exactly Hover then Travel, and BoS_EntrywayGuard_PatrolLinkedRefNoConvoWeapDrawn's target correctly resolves to "Linked Reference" with a 150.0 patrol radius, both matching what the package's own name says it does.`,
+      '',
+      'PACKAGES WITH PROCEDURE BRANCHES (sample — this is literally what the AI does):',
+      ...branchSample.map((p: any) => `  ${p.edid || p.form_id}: ${p.branches.map((b: any) => b.procedure_type || b.branch_type).filter(Boolean).join(' → ')}`),
+      '',
+      'PACKAGES WITH LOCATION/TARGET DATA (sample):',
+      ...targetSample.map((p: any) => {
+        const t = p.targets.find((x: any) => x.location || x.target);
+        const loc = t?.location ? `location: ${t.location.type} ${t.location.value ?? ''} (radius ${t.location.radius})` : '';
+        const tgt = t?.target ? `target: ${t.target.type} ${t.target.value ?? ''}` : '';
+        return `  ${p.edid || p.form_id}: ${[loc, tgt].filter(Boolean).join(', ')}`;
+      }),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-package-procedures', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-package-procedures', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4PackageProceduresScan(forceRefresh);
+      saveScanCache('fo4-package-procedures', data);
+      addBrainNeuron({ id: 'fo4-package-procedures', domain: 'FO4 Game Systems', title: `FO4 Package Procedures & Targets (${data.packages_with_branches||0} with branches, ${data.packages_with_targets||0} with targets)`, priority: 77, content: formatFo4PackageProceduresNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 GLOBALS, FORMID LISTS, KEYWORDS, CLASSES, ENCHANTMENTS ──────────
+  // Found during a full inventory audit against every FO4 record type:
+  // GLOB/FLST/KYWD/CLAS had zero coverage anywhere, despite being
+  // referenced constantly by everything else already scanned. ENCH had
+  // only name-level coverage — its effects list is now decoded too,
+  // reusing the exact EFID/EFIT parser already proven for SPEL.
+  async function runFo4ReferenceDataScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_reference_data.py', 180_000);
+    const p = resolveScanCacheFile('fo4_reference_data.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_globals: raw.total_globals || 0,
+        total_formlists: raw.total_formlists || 0,
+        total_keywords: raw.total_keywords || 0,
+        total_classes: raw.total_classes || 0,
+        total_enchantments: raw.total_enchantments || 0,
+        globals: raw.globals || [],
+        formlists: raw.formlists || [],
+        keywords: raw.keywords || [],
+        classes: raw.classes || [],
+        enchantments: raw.enchantments || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ReferenceDataNeuron(d: any): string {
+    if (!d?.available) return 'FO4 reference data (globals/formlists/keywords/classes/enchantments) not yet scanned. Run: python scripts/fo4_reference_data.py';
+    const enchSample = (d.enchantments || []).filter((e: any) => e.effects?.length).slice(0, 12);
+    const globalSample = (d.globals || []).slice(0, 10);
+    return [
+      `FO4 Reference Data: ${d.total_globals} globals, ${d.total_formlists} FormID lists, ${d.total_keywords} keywords, ${d.total_classes} classes, ${d.total_enchantments} legendary/enchantment effects. Verified against real base-game data — e.g. GameDaysPassed/GameDay globals decode with correct types and plausible values, and every class EDID (CourserClass, SupermutantClass, BoSProctorClass, etc.) matches a real recognizable FO4 actor class.`,
+      '',
+      'SAMPLE GLOBALS:',
+      ...globalSample.map((g: any) => `  ${g.edid} (${g.type}): ${g.value}`),
+      '',
+      'SAMPLE LEGENDARY/ENCHANTMENT EFFECTS:',
+      ...enchSample.map((e: any) => `  ${e.edid}: cost ${e.data?.enchantment_cost}, ${e.data?.cast_type}/${e.data?.target_type}, ${e.effects.length} MGEF effect(s) → ${e.effects.map((f: any) => f.mgef_form_id).join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-reference-data', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-reference-data', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ReferenceDataScan(forceRefresh);
+      saveScanCache('fo4-reference-data', data);
+      addBrainNeuron({ id: 'fo4-reference-data', domain: 'FO4 Game Systems', title: `FO4 Reference Data (${data.total_globals||0} globals, ${data.total_keywords||0} keywords, ${data.total_enchantments||0} enchantments)`, priority: 74, content: formatFo4ReferenceDataNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 TERMINAL MENU STRUCTURES (TERM) ─────────────────────────────────
+  // First of the three record types Billy asked to start on ("terminal
+  // menu structures, scene/companion dialogue actions, deeper
+  // faction/race behavioral data") after the full inventory audit. TERM's
+  // Body Text and Menu Item sections are genuinely flat repeatable arrays
+  // (unlike PACK's Procedure Tree), verified against real staged game
+  // data — 314/314 submenu FormID links resolve to a real TERM record
+  // within the same dataset, a 100% internal-consistency check.
+  async function runFo4TerminalsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_terminals.py', 180_000);
+    const p = resolveScanCacheFile('fo4_terminals.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_terminals: raw.total_terminals || 0,
+        terminals_with_menu_items: raw.terminals_with_menu_items || 0,
+        total_menu_items: raw.total_menu_items || 0,
+        terminals: raw.terminals || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4TerminalsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 terminal menu structures not yet scanned. Run: python scripts/fo4_terminals.py';
+    const sample = (d.terminals || []).filter((t: any) => t.menu_items?.length).slice(0, 8);
+    return [
+      `FO4 Terminal Menu Structures: ${d.total_terminals} terminals, ${d.terminals_with_menu_items} with menu items, ${d.total_menu_items} total menu items. Each terminal decodes header/welcome text, body-text pages (with conditions), and menu items (submenu links, display text/image, conditions). Verified against real base-game data — every submenu FormID link resolves to a real TERM record in the dataset, and structurally-known terminals (e.g. Vault 81's Old Overseer's Terminal logs) decode into the expected shape.`,
+      '',
+      'SAMPLE TERMINALS:',
+      ...sample.map((t: any) => `  ${t.edid || t.form_id}: ${t.menu_items.length} menu item(s)${t.body_text?.length ? `, ${t.body_text.length} body page(s)` : ''} — ${t.menu_items.slice(0, 4).map((m: any) => m.type).filter(Boolean).join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-terminals', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-terminals', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4TerminalsScan(forceRefresh);
+      saveScanCache('fo4-terminals', data);
+      addBrainNeuron({ id: 'fo4-terminals', domain: 'FO4 Game Systems', title: `FO4 Terminal Menus (${data.total_terminals||0} terminals, ${data.total_menu_items||0} menu items)`, priority: 73, content: formatFo4TerminalsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 SCENES (companion/cinematic dialogue actions) ───────────────────
+  // Second of the three record types Billy asked to start on. SCEN drives
+  // every companion conversation, cinematic dialogue sequence and scripted
+  // multi-actor scene — Phases (timeline beats w/ start & completion
+  // conditions), Actors (participant aliases), and Actions (dialogue
+  // lines/packages/timers/radio cues). Several subrecord tags are reused
+  // 2-3 times within one struct for different fields, resolved by a
+  // positional field-pointer that never guesses — verified against real
+  // staged game data via 4 independent FormID cross-checks, each 100%:
+  // action.topic->DIAL, action.packages->PACK, scene.template_scene->SCEN,
+  // and start_scenes.scene->SCEN. Scene Fragments (Papyrus script binding
+  // to phase/action indexes) are NOT decoded — an explicit, documented gap.
+  async function runFo4ScenesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_scenes.py', 180_000);
+    const p = resolveScanCacheFile('fo4_scenes.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_scenes: raw.total_scenes || 0,
+        scenes_with_actions: raw.scenes_with_actions || 0,
+        total_actions: raw.total_actions || 0,
+        total_phases: raw.total_phases || 0,
+        scenes: raw.scenes || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ScenesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 scene (companion/cinematic dialogue) structures not yet scanned. Run: python scripts/fo4_scenes.py';
+    const sample = (d.scenes || []).filter((s: any) => s.actions?.length >= 2).slice(0, 8);
+    return [
+      `FO4 Scenes: ${d.total_scenes} scenes, ${d.scenes_with_actions} with actions, ${d.total_actions} total actions across ${d.total_phases} phases. Each scene decodes Phases (with start/completion conditions), Actors (participant aliases with behaviour flags), and Actions (Dialogue/Package/Timer/Player Dialogue/Start Scene/NPC Response Dialogue/Radio — with topic, packages, dialogue subtypes, emotion, camera, and headtracking data as applicable). Verified against real base-game data — every action.topic resolves to a real DIAL record, every action.packages entry to a real PACK record, and every scene-to-scene link (template_scene, Start Scene targets) to a real SCEN record, 100% across the whole dataset. Scene Fragments (Papyrus script binding) are not yet decoded — a known, explicit gap.`,
+      '',
+      'SAMPLE SCENES:',
+      ...sample.map((s: any) => `  ${s.edid || s.form_id}: ${s.actors.length} actor(s), ${s.phases.length} phase(s), ${s.actions.length} action(s) — ${s.actions.slice(0, 5).map((a: any) => a.type).join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-scenes', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-scenes', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ScenesScan(forceRefresh);
+      saveScanCache('fo4-scenes', data);
+      addBrainNeuron({ id: 'fo4-scenes', domain: 'FO4 Game Systems', title: `FO4 Scenes (${data.total_scenes||0} scenes, ${data.total_actions||0} actions)`, priority: 72, content: formatFo4ScenesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 FACTIONS (crime/combat/vendor behavioral data) ──────────────────
+  // Third of the three record types Billy asked to start on. Factions
+  // were previously only name-indexed; this decodes the actual behavior
+  // data driving crime tracking, combat reactions, vendor hours/buy-sell
+  // rules, and rank titles for every faction in the game. Almost no
+  // subrecord-tag ambiguity (unlike SCEN) — verified against real staged
+  // game data: every faction Relation FormID resolves to a real FACT or
+  // RACE record (777/777), and known factions (Minutemen, Institute)
+  // decode with plausible, EDID-matching flag/crime shapes.
+  async function runFo4FactionsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_factions.py', 180_000);
+    const p = resolveScanCacheFile('fo4_factions.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_factions: raw.total_factions || 0,
+        factions_with_relations: raw.factions_with_relations || 0,
+        factions_with_ranks: raw.factions_with_ranks || 0,
+        factions_tracking_crime: raw.factions_tracking_crime || 0,
+        factions: raw.factions || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4FactionsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 faction behavioral data not yet scanned. Run: python scripts/fo4_factions.py';
+    const sample = (d.factions || []).filter((f: any) => f.relations?.length || f.ranks?.length).slice(0, 8);
+    return [
+      `FO4 Faction Behavioral Data: ${d.total_factions} factions, ${d.factions_with_relations} with faction/race relations, ${d.factions_with_ranks} with ranks, ${d.factions_tracking_crime} tracking crime. Each faction decodes Relations (target faction/race, modifier, combat reaction), crime values (arrest/attack-on-sight/murder/assault/trespass/pickpocket bounties), vendor hours & buy/sell rules, rank titles, and top-level conditions. Verified against real base-game data — every relation's target FormID resolves to a real FACT or RACE record (777/777), and MinutemenFaction/InstituteFaction decode with exactly the expected shape (Track Crime/Can Be Owner flags, attack-on-sight true, plausible relation counts).`,
+      '',
+      'SAMPLE FACTIONS:',
+      ...sample.map((f: any) => `  ${f.edid || f.form_id}: ${f.relations.length} relation(s), ${f.ranks.length} rank(s), flags: ${f.flags.join(', ') || '(none)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-factions', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-factions', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4FactionsScan(forceRefresh);
+      saveScanCache('fo4-factions', data);
+      addBrainNeuron({ id: 'fo4-factions', domain: 'FO4 Game Systems', title: `FO4 Factions (${data.total_factions||0} factions, ${data.factions_with_relations||0} with relations)`, priority: 71, content: formatFo4FactionsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 RACES (behavioral data) ──────────────────────────────────────────
+  // Fourth of the record types Billy asked to start on. Races were
+  // previously only name-indexed; this decodes height/weight, combat &
+  // AI behavior flags, biped object assignments, XP value, limb-severing/
+  // explosion debris data, racial abilities, base movement defaults, and
+  // voice/unarmed-weapon assignments for every race. RACE is the largest,
+  // most tag-reuse-heavy record type decoded this project — this pass
+  // uses a strict whitelist (only tags individually verified to have one
+  // meaning across the whole record); the deeply-nested body/behavior-
+  // graph/head/face/morph/subgraph sections are an explicit, documented
+  // gap, not guessed at. Verified against real staged game data — every
+  // race's DATA struct decodes cleanly (45/45), and known races match
+  // plausible/lore-correct shapes (HumanRace female height 0.98 vs male
+  // 1.0; SynthGen1Race alone flagged "Ungendered", correctly matching
+  // FO4 lore, where GhoulRace/HumanRace instead show "Has Facial Rig").
+  async function runFo4RacesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_races.py', 180_000);
+    const p = resolveScanCacheFile('fo4_races.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_races: raw.total_races || 0,
+        races_with_data: raw.races_with_data || 0,
+        races: raw.races || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4RacesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 race behavioral data not yet scanned. Run: python scripts/fo4_races.py';
+    const sample = (d.races || []).filter((r: any) => r.data).slice(0, 8);
+    return [
+      `FO4 Race Behavioral Data: ${d.total_races} races, ${d.races_with_data} with decoded DATA. Each race decodes height/weight, behavior flags, biped object slots, XP value, limb-severing/explosion debris data, racial abilities (Actor Effects), voice types, skin, unarmed weapon, and base movement type defaults. Verified against real base-game data — HumanRace decodes with female height 0.98 vs male 1.0 (matching known real proportions), and SynthGen1Race is the only major playable race flagged "Ungendered" (canonically correct — synths are lore-ungendered) while GhoulRace/HumanRace instead show "Has Facial Rig". Body part lists, behavior graphs, and head/face/morph data are not yet decoded — a known, explicit gap.`,
+      '',
+      'SAMPLE RACES:',
+      ...sample.map((r: any) => `  ${r.edid || r.form_id}: height ${r.data.male_height}/${r.data.female_height} (M/F), size ${r.data.size}, flags: ${r.data.flags.slice(0, 4).join(', ')}${r.data.flags.length > 4 ? '…' : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-races', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-races', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4RacesScan(forceRefresh);
+      saveScanCache('fo4-races', data);
+      addBrainNeuron({ id: 'fo4-races', domain: 'FO4 Game Systems', title: `FO4 Races (${data.total_races||0} races, ${data.races_with_data||0} with data)`, priority: 70, content: formatFo4RacesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 COMBAT STYLES (CSTY) ─────────────────────────────────────────────
+  // First of the "grind it to zero" pass through every remaining record
+  // type, top-down by modding relevance. Combat Style is what actually
+  // drives NPC fighting behavior — offense/defense multipliers, melee
+  // bash/stagger tuning, dueling/flanking/charging tactics, ranged
+  // accuracy, and flight combat. The most tractable record decoded this
+  // project: every tag unique, every struct fixed-size, no ambiguity.
+  // Verified against real staged game data with an unusually strong
+  // self-check — test records literally named for their expected values
+  // (csTestRaidero1d1c1, csTestRaidero50d50c1, etc.) decode to exactly
+  // those values (1.0, 0.5, ...).
+  async function runFo4CombatStylesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_combat_styles.py', 180_000);
+    const p = resolveScanCacheFile('fo4_combat_styles.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_combat_styles: raw.total_combat_styles || 0,
+        combat_styles_with_flight_data: raw.combat_styles_with_flight_data || 0,
+        combat_styles: raw.combat_styles || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4CombatStylesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 combat style data not yet scanned. Run: python scripts/fo4_combat_styles.py';
+    const sample = (d.combat_styles || []).filter((s: any) => s.general).slice(0, 8);
+    return [
+      `FO4 Combat Styles: ${d.total_combat_styles} combat styles. Each decodes General (offensive/defensive/group offensive multipliers, per-weapon-category equipment score multipliers, threat avoidance), Melee (stagger/bash/power-attack tuning), Ranged Accuracy, Close Range (dueling/flanking/charging tactics), Long Range (strafe/crouch/range behavior), Cover Search Distance, Flight (hover/dive-bomb/perch-attack for flying creatures), and top-level Flags (Dueling/Flanking/Allow Dual Wielding/Charging). Verified against real base-game data with an unusually strong self-check — test records literally named for their expected values (csTestRaidero1d1c1, csTestRaidero50d50c1/c0) decode to exactly those offensive-mult values.`,
+      '',
+      'SAMPLE COMBAT STYLES:',
+      ...sample.map((s: any) => `  ${s.edid || s.form_id}: offensive ${s.general.offensive_mult}, defensive ${s.general.defensive_mult}, flags: ${s.flags.join(', ') || '(none)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-combat-styles', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-combat-styles', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4CombatStylesScan(forceRefresh);
+      saveScanCache('fo4-combat-styles', data);
+      addBrainNeuron({ id: 'fo4-combat-styles', domain: 'FO4 Game Systems', title: `FO4 Combat Styles (${data.total_combat_styles||0} styles)`, priority: 69, content: formatFo4CombatStylesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 ACTOR VALUES (AVIF) ──────────────────────────────────────────────
+  // Second stop in the "grind it to zero" pass. AVIF defines every Actor
+  // Value in the game — SPECIAL stats, skills, AI attributes, damage
+  // resistances, condition values (Health/Radiation/etc.), charge
+  // meters, and internal engine variables — with default value, flags
+  // (Minimum 1/Maximum 10/Maximum 100/Multiply By 100/Percentage/Damage
+  // Is Positive/God Mode Immune/Hardcoded), and type classification.
+  // Trivially simple, unique tags throughout. Verified against real
+  // staged game data — e.g. all 4 core SPECIAL stats (Strength/
+  // Perception/Endurance/Charisma) correctly decode identical flags
+  // (Minimum 1, Hardcoded); FULL/DESC/Abbreviation resolve to None for
+  // base-game records — the same already-documented string-table gap
+  // as TERM/RACE/FACT (loose .STRINGS files not staged), not a bug.
+  async function runFo4ActorValuesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_actor_values.py', 180_000);
+    const p = resolveScanCacheFile('fo4_actor_values.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_actor_values: raw.total_actor_values || 0,
+        by_type: raw.by_type || {},
+        actor_values: raw.actor_values || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ActorValuesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 actor value data not yet scanned. Run: python scripts/fo4_actor_values.py';
+    const sample = (d.actor_values || []).slice(0, 15);
+    const typeSummary = Object.entries(d.by_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    return [
+      `FO4 Actor Values: ${d.total_actor_values} actor values (${typeSummary}). Each decodes Default Value, Flags (Minimum 1/Maximum 10/Maximum 100/Multiply By 100/Percentage/Damage Is Positive/God Mode Immune/Hardcoded), and Type (Derived Attribute/Special/Skill/AI Attribute/Resistance/Condition/Charge/Int Value/Variable/Resource) when present — several base-game records (including all core SPECIAL stats) omit the Type field entirely, which this scanner reports honestly as null rather than guessing. Verified against real base-game data — every core SPECIAL stat (Strength/Perception/Endurance/Charisma/etc.) decodes identical Minimum-1/Hardcoded flags.`,
+      '',
+      'SAMPLE ACTOR VALUES (EDID: type, default, flags):',
+      ...sample.map((a: any) => `  ${a.edid}: ${a.type || '(no type field)'}, default ${a.default_value}, flags: ${a.flags.join(', ') || '(none named)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-actor-values', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-actor-values', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ActorValuesScan(forceRefresh);
+      saveScanCache('fo4-actor-values', data);
+      addBrainNeuron({ id: 'fo4-actor-values', domain: 'FO4 Game Systems', title: `FO4 Actor Values (${data.total_actor_values||0} values)`, priority: 68, content: formatFo4ActorValuesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 ENCOUNTER ZONES (ECZN) ───────────────────────────────────────────
+  // Third stop in the "grind it to zero" pass. Encounter Zones drive
+  // level scaling and combat-boundary behavior for a Location or an
+  // Owner (NPC/Faction) — min/max level range, "Never Resets" (unique/
+  // quest-critical fights), "Match PC Below Minimum Level", and combat
+  // boundary/workshop flags. Trivially simple, one fixed 12-byte struct,
+  // no ambiguity. Verified against real staged game data — e.g.
+  // DmndKelloggHouseNoReset is the only Diamond City-area zone flagged
+  // "Never Resets", exactly matching its own EDID.
+  async function runFo4EncounterZonesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_encounter_zones.py', 180_000);
+    const p = resolveScanCacheFile('fo4_encounter_zones.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_encounter_zones: raw.total_encounter_zones || 0,
+        never_reset_zones: raw.never_reset_zones || 0,
+        encounter_zones: raw.encounter_zones || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4EncounterZonesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 encounter zone data not yet scanned. Run: python scripts/fo4_encounter_zones.py';
+    const sample = (d.encounter_zones || []).slice(0, 10);
+    return [
+      `FO4 Encounter Zones: ${d.total_encounter_zones} zones, ${d.never_reset_zones} flagged "Never Resets" (unique/quest-critical fights). Each decodes Owner (NPC/Faction), Location, Rank, Min/Max Level, and Flags (Never Resets/Match PC Below Minimum Level/Disable Combat Boundary/Workshop). Verified against real base-game data — DmndKelloggHouseNoReset is the only zone near Diamond City flagged "Never Resets", exactly matching its own EDID.`,
+      '',
+      'SAMPLE ZONES:',
+      ...sample.map((z: any) => `  ${z.edid}: level ${z.min_level}-${z.max_level}, flags: ${z.flags.join(', ') || '(none)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-encounter-zones', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-encounter-zones', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4EncounterZonesScan(forceRefresh);
+      saveScanCache('fo4-encounter-zones', data);
+      addBrainNeuron({ id: 'fo4-encounter-zones', domain: 'FO4 Game Systems', title: `FO4 Encounter Zones (${data.total_encounter_zones||0} zones)`, priority: 67, content: formatFo4EncounterZonesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 HAZARDS (radiation clouds, gas, fire, etc.) ──────────────────────
+  // Fourth stop in the "grind it to zero" pass. Hazard records define the
+  // persistent area-effect clouds spawned by radiation leaks, gas traps,
+  // and lingering grenade damage — spread radius, lifetime, tick
+  // interval, and the actual Spell/Enchantment effect applied. Simple,
+  // one fixed 52-byte struct, no ambiguity. Verified against real staged
+  // game data with an exceptionally strong self-check: every
+  // "RadiationHazard*NNN"-named record's decoded radius scales in exact
+  // linear ratio (21.33x) to its own EDID's numeric suffix — 512→24.0,
+  // 1024→48.0, 2048→96.0 — across dozens of records, and Strong/Light/
+  // Deadly variants consistently point to distinct effect FormIDs.
+  async function runFo4HazardsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_hazards.py', 180_000);
+    const p = resolveScanCacheFile('fo4_hazards.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_hazards: raw.total_hazards || 0,
+        hazards_with_effect: raw.hazards_with_effect || 0,
+        hazards: raw.hazards || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4HazardsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 hazard data not yet scanned. Run: python scripts/fo4_hazards.py';
+    const sample = (d.hazards || []).filter((h: any) => h.data).slice(0, 10);
+    return [
+      `FO4 Hazards: ${d.total_hazards} hazards, ${d.hazards_with_effect} with an applied Spell/Enchantment effect. Each decodes Radius, Lifetime, Target Interval, Flags (Affects Player Only/Inherit Duration or Radius from Spawn Spell/Align to Impact Normal/Drop to Ground/Taper Effectiveness by Proximity), the applied Effect, and Taper Effectiveness (Full Effect Radius/Weight/Curve). Verified against real base-game data — radius scales in exact linear proportion to the EDID's own numeric suffix across dozens of RadiationHazard*NNN records.`,
+      '',
+      'SAMPLE HAZARDS:',
+      ...sample.map((h: any) => `  ${h.edid}: radius ${h.data.radius}, lifetime ${h.data.lifetime}, effect ${h.data.effect || '(none)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-hazards', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-hazards', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4HazardsScan(forceRefresh);
+      saveScanCache('fo4-hazards', data);
+      addBrainNeuron({ id: 'fo4-hazards', domain: 'FO4 Game Systems', title: `FO4 Hazards (${data.total_hazards||0} hazards)`, priority: 66, content: formatFo4HazardsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── FO4 FLORA (harvestable plants) ───────────────────────────────────────
+  // Fifth stop in the "grind it to zero" pass. Flora records are the
+  // harvestable plants scattered through the world — Ingredient yielded,
+  // Harvest Sound, and per-season yield amounts (Spring/Summer/Fall/
+  // Winter — FO4's harvest system scales output by season, unlike
+  // Skyrim's). Simple, unique tags. Verified against real base-game data
+  // — differently-named plant variants (FloraCornStalk01/02,
+  // FloraInsCornStalk01/02, GreenHsPlanter01Corn) all correctly share the
+  // same Corn ingredient FormID, and a special decorative Vault 81
+  // planter correctly decodes 0/0/0/0 yield instead of the normal
+  // 100/100/100/100.
+  async function runFo4FloraScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_flora.py', 180_000);
+    const p = resolveScanCacheFile('fo4_flora.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_flora: raw.total_flora || 0,
+        flora_with_ingredient: raw.flora_with_ingredient || 0,
+        flora: raw.flora || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4FloraNeuron(d: any): string {
+    if (!d?.available) return 'FO4 flora data not yet scanned. Run: python scripts/fo4_flora.py';
+    const sample = (d.flora || []).filter((f: any) => f.ingredient).slice(0, 10);
+    return [
+      `FO4 Flora: ${d.total_flora} harvestable plants, ${d.flora_with_ingredient} with a decoded ingredient yield. Each decodes the Ingredient item yielded, Harvest Sound, and per-season yield counts. Verified against real base-game data — plant variants sharing the same crop (corn, tato, mutfruit) consistently point to the same ingredient FormID across differently-named/modeled instances, and a decorative Vault 81 planter correctly shows zero yield.`,
+      '',
+      'SAMPLE FLORA:',
+      ...sample.map((f: any) => `  ${f.edid}: ingredient ${f.ingredient}, yield ${f.seasonal_yield ? `${f.seasonal_yield.spring}/${f.seasonal_yield.summer}/${f.seasonal_yield.fall}/${f.seasonal_yield.winter}` : '(none)'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-flora', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-flora', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4FloraScan(forceRefresh);
+      saveScanCache('fo4-flora', data);
+      addBrainNeuron({ id: 'fo4-flora', domain: 'FO4 Game Systems', title: `FO4 Flora (${data.total_flora||0} plants)`, priority: 65, content: formatFo4FloraNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-7: scan:fo4-association-types (ASTP) ───────────────────────
+  // Association Types define the relationship-title vocabulary used to
+  // describe how one NPC/actor relates to another — parent/child titles by
+  // gender, plus whether it's a family relationship. Trivially simple,
+  // source-verified (wbDefinitionsFO4.pas ~12184-12194): EDID + 4 plain
+  // strings (Male/Female Parent Title, Male/Female Child Title) + a
+  // single-bit DATA flags field (Family Association). Verified against
+  // real base-game data — all 13 vanilla association types decode with
+  // lore-correct titles (Spouse=Husband/Wife, ParentChild=Father/Mother/
+  // Son/Daughter, GrandAuntUncle correctly preserves the game's own EDID
+  // typo "Grandnewphew" rather than silently fixing it), and
+  // is_family_association correctly reads false only on the three
+  // non-family relationships (Courting, BusinessPartners, BossEmployee)
+  // plus FavorTarget, true on every blood/marriage relationship.
+  async function runFo4AssociationTypesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_association_types.py', 180_000);
+    const p = resolveScanCacheFile('fo4_association_types.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_association_types: raw.total_association_types || 0,
+        association_types: raw.association_types || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4AssociationTypesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 association type data not yet scanned. Run: python scripts/fo4_association_types.py';
+    const sample = (d.association_types || []).slice(0, 13);
+    return [
+      `FO4 Association Types: ${d.total_association_types} relationship-title definitions (parent/child titles by gender, family flag). Verified against real base-game data — all 13 vanilla types decode with lore-correct gendered titles (Spouse=Husband/Wife, ParentChild=Father/Mother/Son/Daughter, AuntUncle=Uncle/Aunt/Nephew/Niece), and the family flag is correctly false only on Courting/BusinessPartners/BossEmployee/FavorTarget.`,
+      '',
+      'ASSOCIATION TYPES:',
+      ...sample.map((a: any) => `  ${a.edid}: ${a.male_parent_title}/${a.female_parent_title} → ${a.male_child_title}/${a.female_child_title}${a.is_family_association ? ' [family]' : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-association-types', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-association-types', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4AssociationTypesScan(forceRefresh);
+      saveScanCache('fo4-association-types', data);
+      addBrainNeuron({ id: 'fo4-association-types', domain: 'FO4 Game Systems', title: `FO4 Association Types (${data.total_association_types||0} types)`, priority: 64, content: formatFo4AssociationTypesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-8: scan:fo4-movement-types (MOVT) ───────────────────────────
+  // Movement Types define the per-gait speed/turn profile used by Races
+  // and actor overrides — walk/run/sprint speed by direction, pitch/yaw
+  // turn rates, flight float height and turn gain. Referenced by RACE's
+  // movement-type FormID fields (fo4_races.py captures the reference;
+  // this scanner decodes what it points to). Source-verified
+  // (wbDefinitionsFO4.pas ~12199-12282): EDID, MNAM (Name string), SPED
+  // (fixed 28-float Movement Data struct), INAM (fixed 3-float, xEdit
+  // itself labels it unused/dead data), JNAM (Float Height), LNAM
+  // (Flight - Angle Gain). Every tag unique, no repeating groups.
+  // Verified against real base-game data — every decoded creature shows
+  // Sprint > Run > Walk speed, true flying creatures (EyeBot, Stingwing,
+  // Bloodbug) correctly show nonzero Float Height while ground creatures
+  // show 0, and the three Vertibird flight-state records correctly show
+  // a distinctly lower Flight Angle Gain (0.0375-0.05) than every other
+  // record's default 0.1.
+  async function runFo4MovementTypesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_movement_types.py', 180_000);
+    const p = resolveScanCacheFile('fo4_movement_types.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_movement_types: raw.total_movement_types || 0,
+        movement_types_with_speed_data: raw.movement_types_with_speed_data || 0,
+        movement_types: raw.movement_types || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4MovementTypesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 movement type data not yet scanned. Run: python scripts/fo4_movement_types.py';
+    const sample = (d.movement_types || []).filter((m: any) => m.speed).slice(0, 10);
+    return [
+      `FO4 Movement Types: ${d.total_movement_types} movement profiles, ${d.movement_types_with_speed_data} with decoded speed data. Each decodes walk/run/sprint speed by direction, pitch/yaw turn rates, flight float height, and flight angle gain. Verified against real base-game data — sprint speed exceeds run exceeds walk on every decoded creature, true flying creatures (EyeBot, Stingwing, Bloodbug) correctly show nonzero float height while ground creatures show zero, and Vertibird's flight-state records correctly show a distinctly lower flight angle gain than every other record.`,
+      '',
+      'SAMPLE MOVEMENT TYPES:',
+      ...sample.map((m: any) => `  ${m.edid}: walk ${m.speed.walk_forward}, run ${m.speed.run_forward}, sprint ${m.speed.sprint_forward}${m.float_height ? `, float height ${m.float_height}` : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-movement-types', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-movement-types', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4MovementTypesScan(forceRefresh);
+      saveScanCache('fo4-movement-types', data);
+      addBrainNeuron({ id: 'fo4-movement-types', domain: 'FO4 Game Systems', title: `FO4 Movement Types (${data.total_movement_types||0} types)`, priority: 63, content: formatFo4MovementTypesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-9: scan:fo4-body-part-data (BPTD) ───────────────────────────
+  // Body Part Data drives per-limb damage/severing/explosion/crippling
+  // behavior — referenced by RACE's GNAM field (fo4_races.py captures the
+  // FormID reference; this scanner decodes what it points to). Unlike the
+  // recent trivial record types, BPTD holds a repeating "Body Parts" group
+  // that is NOT length-delimited — a flat stream of subrecords, one set
+  // per part, back to back. Source-verified (wbDefinitionsFO4.pas
+  // ~10885-10979). The struct's own nominal key field (BPTN, Part Name)
+  // is explicitly marked optional in source, so BPNN (Part Node) — the
+  // one field guaranteed present on every part — is used as the reliable
+  // part boundary instead, with the same forward-only positional
+  // technique already verified in fo4_scenes.py. Verified against real
+  // base-game data (synthetic test covering a part with no BPTN present,
+  // to prove the boundary never bleeds across parts, plus 405 real body
+  // parts across 40 records with zero boundary anomalies) — every
+  // creature's Head part correctly carries a 2.0x damage multiplier
+  // (matching FO4's headshot mechanic), limbs are correctly flagged
+  // Severable while Root/COM/Torso are not, and Deathclaw's tail decodes
+  // as its own severable part with a reduced 0.5x multiplier.
+  async function runFo4BodyPartDataScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_body_part_data.py', 180_000);
+    const p = resolveScanCacheFile('fo4_body_part_data.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_body_part_data_records: raw.total_body_part_data_records || 0,
+        total_body_parts: raw.total_body_parts || 0,
+        body_part_data: raw.body_part_data || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4BodyPartDataNeuron(d: any): string {
+    if (!d?.available) return 'FO4 body part data not yet scanned. Run: python scripts/fo4_body_part_data.py';
+    const sample = (d.body_part_data || []).slice(0, 6);
+    return [
+      `FO4 Body Part Data: ${d.total_body_part_data_records} BPTD records, ${d.total_body_parts} total body parts decoded (per-limb damage multiplier, severable/explodable/on-cripple behavior, hit chances, gore effects). Verified against real base-game data — every creature's Head part carries a 2.0x damage multiplier matching the known headshot mechanic, limbs are flagged Severable while Root/COM/Torso are not, and Deathclaw's tail decodes as its own severable part with a reduced 0.5x multiplier.`,
+      '',
+      'SAMPLE BODY PART DATA:',
+      ...sample.map((b: any) => `  ${b.edid}: ${b.body_part_count} parts (${(b.body_parts||[]).map((p: any) => p.data?.part_type).filter(Boolean).join(', ')})`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-body-part-data', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-body-part-data', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4BodyPartDataScan(forceRefresh);
+      saveScanCache('fo4-body-part-data', data);
+      addBrainNeuron({ id: 'fo4-body-part-data', domain: 'FO4 Game Systems', title: `FO4 Body Part Data (${data.total_body_part_data_records||0} records)`, priority: 62, content: formatFo4BodyPartDataNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-10: scan:fo4-idle-animations (IDLE) ─────────────────────────
+  // Idle Animations are the building blocks Package/Scene actions and AI
+  // packages reference to play a specific animation — behavior graph
+  // target, animation event name, gating conditions, looping/replay
+  // behavior, and parent/sibling links for animation-tree chaining.
+  // Source-verified (wbDefinitionsFO4.pas ~12514-12536): EDID, repeating
+  // Conditions (CTDA, same 32-byte struct + optional CIS1/CIS2 used
+  // everywhere else, with the same last_ctda-tracking fix verified in
+  // fo4_scenes.py/fo4_factions.py), DNAM (Behavior Graph string), ENAM
+  // (Animation Event string), ANAM (a single subrecord packing 2
+  // FormIDs — Parent + Previous Sibling — NOT one ANAM tag per entry;
+  // caught during real-data validation when an initial 4-byte-only
+  // assumption produced 0 parent links against 3,025 real records with
+  // ANAM present, fixed by unpacking every 4-byte chunk in the
+  // subrecord), DATA (fixed 6-byte struct: looping min/max, flags,
+  // animation group section, replay delay), GNAM (Animation File
+  // string). Verified against real base-game data — 3,012 idle
+  // animations, 2,729 with a parent link (1,909 resolving to another
+  // IDLE in the same file; the remainder correctly explained by source,
+  // since ANAM can also point to an AACT record), and animation event
+  // names decode as recognizable real FO4 events (standStart,
+  // g_IdleSitting, dyn_Flavor).
+  async function runFo4IdleAnimationsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_idle_animations.py', 180_000);
+    const p = resolveScanCacheFile('fo4_idle_animations.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_idle_animations: raw.total_idle_animations || 0,
+        idles_with_conditions: raw.idles_with_conditions || 0,
+        idles_with_parent: raw.idles_with_parent || 0,
+        idle_animations: raw.idle_animations || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4IdleAnimationsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 idle animation data not yet scanned. Run: python scripts/fo4_idle_animations.py';
+    const sample = (d.idle_animations || []).filter((i: any) => i.animation_event).slice(0, 10);
+    return [
+      `FO4 Idle Animations: ${d.total_idle_animations} idle animations, ${d.idles_with_conditions} with gating conditions, ${d.idles_with_parent} with a parent/sibling link. Each decodes the Behavior Graph target, Animation Event name, gating Conditions, looping/replay behavior, and animation-tree parent link. Verified against real base-game data — animation event names decode as recognizable real FO4 events, and parent links cross-check against real IDLE FormIDs.`,
+      '',
+      'SAMPLE IDLE ANIMATIONS:',
+      ...sample.map((i: any) => `  ${i.edid}: event "${i.animation_event}"${i.data?.loops_forever ? ' [loops forever]' : ''}${i.parent ? `, parent ${i.parent}` : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-idle-animations', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-idle-animations', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4IdleAnimationsScan(forceRefresh);
+      saveScanCache('fo4-idle-animations', data);
+      addBrainNeuron({ id: 'fo4-idle-animations', domain: 'FO4 Game Systems', title: `FO4 Idle Animations (${data.total_idle_animations||0} animations)`, priority: 61, content: formatFo4IdleAnimationsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-11: scan:fo4-head-parts (HDPT) ──────────────────────────────
+  // Head Parts are the character-creation building blocks (face, hair,
+  // eyes, facial hair, scars, eyebrows, meatcaps, teeth, head rear) that
+  // compose an NPC's head appearance. Note: EYES is genuinely commented
+  // out / unused in FO4's own xEdit source (wbDefinitionsFO4.pas
+  // ~9803-9805) — FO4 doesn't use a standalone EYES record; eye
+  // appearance lives inside HDPT (Type=Eyes) and RACE instead, confirmed
+  // rather than assumed. Source-verified (wbDefinitionsFO4.pas
+  // ~10036-10078): EDID, FULL, MODL, DATA (u8 flags: Playable/Male/
+  // Female/Is Extra Part/Use Solid Tint/Uses Body Texture), PNAM (Type
+  // enum: Misc/Face/Eyes/Hair/Facial Hair/Scar/Eyebrows/Meatcaps/Teeth/
+  // Head Rear), HNAM (repeating Extra Parts FormID array, one HNAM
+  // subrecord per entry), a repeating 'Parts' group (NAM0 Part Type enum
+  // + NAM1 Filename, NAM0 used as the per-entry boundary), TNAM (Texture
+  // Set), CNAM (Color), RNAM (Valid Races), and Conditions (same CTDA +
+  // CIS1/CIS2 handling verified throughout this project). Verified
+  // against real base-game data — 396 head parts split plausibly across
+  // types (85 Hair, 85 Eyes, 43 Facial Hair, etc.), zero Scar/Eyebrows
+  // entries (matching FO4's actual character-creation design, which
+  // handles those via sliders rather than HDPT records), and
+  // MaleEyesHumanBrown correctly decodes flags [Playable, Male] matching
+  // its own name plus a plausible Chargen Morph .tri file.
+  async function runFo4HeadPartsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_head_parts.py', 180_000);
+    const p = resolveScanCacheFile('fo4_head_parts.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_head_parts: raw.total_head_parts || 0,
+        by_type: raw.by_type || {},
+        head_parts: raw.head_parts || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4HeadPartsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 head part data not yet scanned. Run: python scripts/fo4_head_parts.py';
+    const typeLine = Object.entries(d.by_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.head_parts || []).slice(0, 8);
+    return [
+      `FO4 Head Parts: ${d.total_head_parts} head parts (${typeLine}). Each decodes the model, flags, type, extra-part links, race-morph/chargen-morph filenames, texture set, color, valid races, and gating conditions. Verified against real base-game data — flags decode matching each part's own EDID naming (e.g. Male/Female), and the type distribution matches FO4's actual character-creation design.`,
+      '',
+      'SAMPLE HEAD PARTS:',
+      ...sample.map((h: any) => `  ${h.edid}: type ${h.type}, flags [${(h.flags||[]).join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-head-parts', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-head-parts', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4HeadPartsScan(forceRefresh);
+      saveScanCache('fo4-head-parts', data);
+      addBrainNeuron({ id: 'fo4-head-parts', domain: 'FO4 Game Systems', title: `FO4 Head Parts (${data.total_head_parts||0} parts)`, priority: 60, content: formatFo4HeadPartsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-12: scan:fo4-impact-data-sets (IPDS) ────────────────────────
+  // Impact Data Sets map a Material (MATT) to the Impact (IPCT) effect
+  // that plays when something hits a surface of that material —
+  // referenced by HAZD and BPTD's per-part Impact DataSet fields.
+  // Trivially simple, source-verified (wbDefinitionsFO4.pas ~11189-11195):
+  // EDID + repeating PNAM entries (fixed 8-byte struct: Material FormID,
+  // Impact FormID). Verified against real base-game data — 293 sets,
+  // 3,207 material->impact entries, EDIDs matching known impact-set
+  // naming (WPNBlockGenericImpactSet, PHYStoneSubwayPillarLargeSet).
+  async function runFo4ImpactDataSetsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_impact_data_sets.py', 180_000);
+    const p = resolveScanCacheFile('fo4_impact_data_sets.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_impact_data_sets: raw.total_impact_data_sets || 0,
+        total_material_impact_entries: raw.total_material_impact_entries || 0,
+        impact_data_sets: raw.impact_data_sets || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ImpactDataSetsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 impact data set data not yet scanned. Run: python scripts/fo4_impact_data_sets.py';
+    const sample = (d.impact_data_sets || []).slice(0, 8);
+    return [
+      `FO4 Impact Data Sets: ${d.total_impact_data_sets} sets, ${d.total_material_impact_entries} material->impact entries. Each maps a Material FormID to the Impact (visual/particle effect) FormID that plays on hit. Verified against real base-game data — EDIDs match known impact-set naming conventions.`,
+      '',
+      'SAMPLE IMPACT DATA SETS:',
+      ...sample.map((i: any) => `  ${i.edid}: ${i.entries.length} material->impact entries`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-impact-data-sets', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-impact-data-sets', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ImpactDataSetsScan(forceRefresh);
+      saveScanCache('fo4-impact-data-sets', data);
+      addBrainNeuron({ id: 'fo4-impact-data-sets', domain: 'FO4 Game Systems', title: `FO4 Impact Data Sets (${data.total_impact_data_sets||0} sets)`, priority: 59, content: formatFo4ImpactDataSetsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-13: scan:fo4-explosions (EXPL) ──────────────────────────────
+  // Explosion records define damage, blast radius, force, knockdown/
+  // stagger, and spawn behavior when something detonates — referenced by
+  // PROJ's "Explosion" field (decoded by fo4_projectiles.py) and by
+  // weapons/perks. Source-verified (wbDefinitionsFO4.pas ~10473-10526):
+  // EDID, FULL, MNAM (Image Space Modifier), DATA (Light/Sound1/Sound2/
+  // Impact Data Set/Placed Object/Spawn Projectile FormIDs, Force/
+  // Damage/Inner+Outer Radius/IS Radius floats, a FormVersion-gated
+  // Vertical Offset Mult union read via the record's own FormVersion
+  // header field exactly like xEdit's decider, Flags bitfield, Sound
+  // Level enum, Placed Object AutoFade Delay, Stagger enum, and a Spawn
+  // struct). Real-data finding: xEdit's own struct marks only the
+  // leading elements required (nil, 13) — confirmed by 15 legacy
+  // low-FormVersion records (CarNukeTEST, FakeForce100Explosion, etc.)
+  // carrying a 56-byte DATA instead of the modern 84 bytes; parsed with
+  // a running offset that stops gracefully and leaves later-added
+  // fields null rather than guessing. Verified against real base-game
+  // data — FakeForce100Explosion decodes force=100.0 matching its own
+  // name, nukaGrenadeExplosion/fragGrenadeExplosion/plasmaGrenadeExplosion
+  // damage and radius values match known real FO4 grenade balance.
+  async function runFo4ExplosionsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_explosions.py', 180_000);
+    const p = resolveScanCacheFile('fo4_explosions.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_explosions: raw.total_explosions || 0,
+        explosions_with_data: raw.explosions_with_data || 0,
+        explosions: raw.explosions || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ExplosionsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 explosion data not yet scanned. Run: python scripts/fo4_explosions.py';
+    const sample = (d.explosions || []).filter((e: any) => e.data?.damage).slice(0, 10);
+    return [
+      `FO4 Explosions: ${d.total_explosions} explosion records, ${d.explosions_with_data} with decoded data. Each decodes damage, inner/outer blast radius, force, knockdown/stagger flags, and spawn behavior. Verified against real base-game data — grenade damage/radius values match known FO4 balance (frag/plasma/cryo ~100-150 damage, Nuka grenade the strongest at 300).`,
+      '',
+      'SAMPLE EXPLOSIONS:',
+      ...sample.map((e: any) => `  ${e.edid}: damage ${e.data.damage}, inner/outer radius ${e.data.inner_radius}/${e.data.outer_radius}, stagger ${e.data.stagger}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-explosions', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-explosions', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ExplosionsScan(forceRefresh);
+      saveScanCache('fo4-explosions', data);
+      addBrainNeuron({ id: 'fo4-explosions', domain: 'FO4 Game Systems', title: `FO4 Explosions (${data.total_explosions||0} records)`, priority: 58, content: formatFo4ExplosionsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-14: scan:fo4-projectiles (PROJ) ─────────────────────────────
+  // Projectile records define how a fired weapon shot travels and
+  // behaves — gravity, speed, range, hitscan vs. physical, explosion
+  // triggered on impact (decoded by fo4_explosions.py), muzzle flash,
+  // cone spread, impact force. Source-verified (wbDefinitionsFO4.pas
+  // ~10143-10205): EDID, FULL, DNAM (Flags bitfield, Type enum: Missile/
+  // Lobber/Beam/Flame/Cone/Barrier/Arrow, Gravity/Speed/Range floats,
+  // Light/Muzzle Flash Light FormIDs, Alt. Trigger Proximity/Timer,
+  // Explosion FormID, Sound FormID, Muzzle Flash Duration/Fade Duration/
+  // Impact Force, Sound Countdown/Disable/Default Weapon Source FormIDs,
+  // Cone Spread/Collision Radius/Lifetime/Relaunch Interval, Decal Data/
+  // Collision Layer FormIDs, Tracer Frequency, VATS Projectile FormID),
+  // Muzzle Flash Model (NAM1 filename), VNAM (Sound Level). Parsed with
+  // a running offset (same technique as fo4_explosions.py) so any future
+  // struct-growth case degrades gracefully instead of guessing. Verified
+  // against real base-game data — every laser weapon decodes as Beam
+  // type at speed 10000, every grenade as Lobber with realistic arc
+  // gravity (~0.5), flamers as Flame type, and the homing
+  // MissileProjectileSeek correctly shows gravity=0.0 (no ballistic drop
+  // needed for an actively-tracking projectile).
+  async function runFo4ProjectilesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_projectiles.py', 180_000);
+    const p = resolveScanCacheFile('fo4_projectiles.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_projectiles: raw.total_projectiles || 0,
+        by_type: raw.by_type || {},
+        projectiles: raw.projectiles || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ProjectilesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 projectile data not yet scanned. Run: python scripts/fo4_projectiles.py';
+    const typeLine = Object.entries(d.by_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.projectiles || []).filter((p: any) => p.data?.type).slice(0, 10);
+    return [
+      `FO4 Projectiles: ${d.total_projectiles} projectiles (${typeLine}). Each decodes gravity, speed, range, hitscan/explosion/seeking flags, linked Explosion, muzzle flash, and cone spread. Verified against real base-game data — laser weapons decode as Beam type at speed 10000, grenades as Lobber with realistic arc gravity, and the homing missile correctly shows zero gravity.`,
+      '',
+      'SAMPLE PROJECTILES:',
+      ...sample.map((p: any) => `  ${p.edid}: type ${p.data.type}, speed ${p.data.speed}, gravity ${p.data.gravity}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-projectiles', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-projectiles', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ProjectilesScan(forceRefresh);
+      saveScanCache('fo4-projectiles', data);
+      addBrainNeuron({ id: 'fo4-projectiles', domain: 'FO4 Game Systems', title: `FO4 Projectiles (${data.total_projectiles||0} projectiles)`, priority: 57, content: formatFo4ProjectilesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-15: scan:fo4-story-manager (SMBN/SMQN/SMEN) ─────────────────
+  // The Story Manager is the tree the engine walks to decide which
+  // quest/event fires next — Branch Nodes (random/priority selection),
+  // Quest Nodes (leaves that start Quests), Event Nodes (react to a
+  // named game event). Combined into one scanner since all three share
+  // the same tree-node shape and form one conceptual system.
+  // Source-verified (wbDefinitionsFO4.pas ~11862-11911): EDID, PNAM
+  // (Parent FormID), SNAM (Child FormID), CITC (Condition Count,
+  // informational), Conditions (CTDA + CIS1/CIS2, same handling used
+  // throughout this project), DNAM (node flags; SMQN's DNAM is 2x u16
+  // instead of one u32, decoded per record type rather than assumed
+  // shared), and node-type-specific trailing fields: SMQN adds Max
+  // Concurrent Quests, Num Quests to Run, Hours Until Reset, and a
+  // repeating Quests array (NNAM Quest FormID used as the boundary);
+  // SMEN adds ENAM (a 4-character event-type code). Verified against
+  // real base-game data — 295 nodes (75 Branch, 213 Quest, 7 Event),
+  // and every Event Node's 4-character event_type code matches its own
+  // EDID's meaning exactly (CrimeGoldEvent->ADCR, IncreaseLevel->LEVL,
+  // HackComputer->HACK, TriggerMineExplosionEvent->TMEE).
+  async function runFo4StoryManagerScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_story_manager.py', 180_000);
+    const p = resolveScanCacheFile('fo4_story_manager.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_story_manager_nodes: raw.total_story_manager_nodes || 0,
+        by_type: raw.by_type || {},
+        story_manager_nodes: raw.story_manager_nodes || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4StoryManagerNeuron(d: any): string {
+    if (!d?.available) return 'FO4 story manager data not yet scanned. Run: python scripts/fo4_story_manager.py';
+    const typeLine = Object.entries(d.by_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.story_manager_nodes || []).filter((n: any) => n.node_type === 'SMEN').slice(0, 8);
+    return [
+      `FO4 Story Manager: ${d.total_story_manager_nodes} nodes (${typeLine}). Branch Nodes pick among children (random/priority), Quest Nodes start Quests, Event Nodes react to a named game event. Each decodes Parent/Child tree links and gating Conditions. Verified against real base-game data — every Event Node's 4-character event code matches its own EDID's meaning exactly.`,
+      '',
+      'SAMPLE EVENT NODES:',
+      ...sample.map((n: any) => `  ${n.edid}: event_type "${n.event_type}"`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-story-manager', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-story-manager', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4StoryManagerScan(forceRefresh);
+      saveScanCache('fo4-story-manager', data);
+      addBrainNeuron({ id: 'fo4-story-manager', domain: 'FO4 Game Systems', title: `FO4 Story Manager (${data.total_story_manager_nodes||0} nodes)`, priority: 56, content: formatFo4StoryManagerNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-16: scan:fo4-static-collections (SCOL) ──────────────────────
+  // Static Collections group multiple placeable objects into one
+  // reusable prefab — each part referencing a base object plus a list
+  // of position/rotation/scale placements. Common in vanilla clutter/
+  // debris dressing and a useful modding building block for placing
+  // complex assemblies as a single reference. Source-verified
+  // (wbDefinitionsFO4.pas ~16164-16198): EDID, MODL, FULL, a repeating
+  // "Parts" group (ONAM Static FormID as the per-part boundary, DATA
+  // repeating 28-byte Placement structs — X/Y/Z position, X/Y/Z
+  // rotation, Scale). Verified against real base-game data — 2,617
+  // collections, 15,878 total placements, and FinancialD_Building18_SG
+  // decodes 177 building-piece placements with rotations cleanly
+  // snapping to 1.5708 rad (exactly 90 degrees), matching what a
+  // hand-built architectural prefab would show.
+  async function runFo4StaticCollectionsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_static_collections.py', 180_000);
+    const p = resolveScanCacheFile('fo4_static_collections.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_static_collections: raw.total_static_collections || 0,
+        total_placements: raw.total_placements || 0,
+        static_collections: raw.static_collections || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4StaticCollectionsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 static collection data not yet scanned. Run: python scripts/fo4_static_collections.py';
+    const sample = (d.static_collections || []).slice().sort((a: any, b: any) => b.total_placements - a.total_placements).slice(0, 8);
+    return [
+      `FO4 Static Collections: ${d.total_static_collections} prefab collections, ${d.total_placements} total placements. Each decodes the part list (base object + position/rotation/scale placements). Verified against real base-game data — large collections decode with plausible grid-snapped rotations and unit scale, consistent with hand-built architectural assemblies.`,
+      '',
+      'SAMPLE STATIC COLLECTIONS (by placement count):',
+      ...sample.map((s: any) => `  ${s.edid}: ${s.part_count} parts, ${s.total_placements} placements`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-static-collections', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-static-collections', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4StaticCollectionsScan(forceRefresh);
+      saveScanCache('fo4-static-collections', data);
+      addBrainNeuron({ id: 'fo4-static-collections', domain: 'FO4 Game Systems', title: `FO4 Static Collections (${data.total_static_collections||0} collections)`, priority: 55, content: formatFo4StaticCollectionsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-17: scan:fo4-ammunition (AMMO) ──────────────────────────────
+  // First of the "referenced but not deep" tier — base objects other
+  // scanners have only ever pointed at by FormID, now decoded directly.
+  // Ammunition defines caliber economics and ballistics linkage — value,
+  // weight, the Projectile fired (decoded by fo4_projectiles.py),
+  // per-shot damage, weapon-resistance-bypass behavior, casing model.
+  // Source-verified (wbDefinitionsFO4.pas ~8644-8677): EDID, FULL, MODL,
+  // YNAM/ZNAM (Pick Up/Put Down Sound), DESC, KWDA, DATA (Value, Weight),
+  // DNAM (Projectile FormID, Flags, Damage, Health), ONAM (Short Name),
+  // NAM1 (Casing Model). Verified against real base-game data — weight
+  // values match known real FO4 ammo weights precisely (10mm=0.025,
+  // .308=0.041, Fusion Cell=0.029); damage=0 across the board is
+  // expected, since FO4 puts per-shot damage on the weapon, not ammo.
+  async function runFo4AmmunitionScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_ammunition.py', 180_000);
+    const p = resolveScanCacheFile('fo4_ammunition.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return { available: true, total_ammunition: raw.total_ammunition || 0, ammunition: raw.ammunition || [] };
+    } catch { return { available: false }; }
+  }
+  function formatFo4AmmunitionNeuron(d: any): string {
+    if (!d?.available) return 'FO4 ammunition data not yet scanned. Run: python scripts/fo4_ammunition.py';
+    const sample = (d.ammunition || []).slice(0, 10);
+    return [
+      `FO4 Ammunition: ${d.total_ammunition} ammo types. Each decodes value, weight, linked Projectile, damage, weapon-resistance-bypass flags, and casing model. Verified against real base-game data — weight values match known real FO4 ammo weights precisely.`,
+      '',
+      'SAMPLE AMMUNITION:',
+      ...sample.map((a: any) => `  ${a.edid}: value ${a.value}, weight ${a.weight}, projectile ${a.projectile}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-ammunition', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-ammunition', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4AmmunitionScan(forceRefresh);
+      saveScanCache('fo4-ammunition', data);
+      addBrainNeuron({ id: 'fo4-ammunition', domain: 'FO4 Game Systems', title: `FO4 Ammunition (${data.total_ammunition||0} types)`, priority: 54, content: formatFo4AmmunitionNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-18: scan:fo4-misc-items (MISC) ──────────────────────────────
+  // Misc. Items are junk/collectible/component-scrap objects — value,
+  // weight, and the Components list it breaks down into on scrapping, a
+  // central piece of FO4's settlement-building economy. Source-verified
+  // (wbDefinitionsFO4.pas ~13134-13163): EDID, FULL, MODL, ICON, MICO,
+  // YNAM/ZNAM, KWDA, DATA (Value, Weight), CVPA (repeating Component
+  // FormID + Count entries), CDIX (Component Display Indices). Verified
+  // against real base-game data — 2,176 items, 620 with components, and
+  // shipment_Screws_small (25x) / c_Screws_scrap (1x) both correctly
+  // point to the identical Screws component FormID, with desk fans
+  // correctly yielding Gears components on scrapping.
+  async function runFo4MiscItemsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_misc_items.py', 180_000);
+    const p = resolveScanCacheFile('fo4_misc_items.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_misc_items: raw.total_misc_items || 0,
+        misc_items_with_components: raw.misc_items_with_components || 0,
+        misc_items: raw.misc_items || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4MiscItemsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 misc item data not yet scanned. Run: python scripts/fo4_misc_items.py';
+    const sample = (d.misc_items || []).filter((m: any) => m.components.length).slice(0, 10);
+    return [
+      `FO4 Misc. Items: ${d.total_misc_items} items, ${d.misc_items_with_components} with a scrapping components list. Each decodes value, weight, and the FormID+Count Components it breaks down into. Verified against real base-game data — shipment items and their matching scrap items point to the same component FormID.`,
+      '',
+      'SAMPLE MISC ITEMS WITH COMPONENTS:',
+      ...sample.map((m: any) => `  ${m.edid}: ${m.components.map((c: any) => `${c.count}x ${c.component}`).join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-misc-items', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-misc-items', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4MiscItemsScan(forceRefresh);
+      saveScanCache('fo4-misc-items', data);
+      addBrainNeuron({ id: 'fo4-misc-items', domain: 'FO4 Game Systems', title: `FO4 Misc. Items (${data.total_misc_items||0} items)`, priority: 53, content: formatFo4MiscItemsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-19: scan:fo4-armor-addons (ARMA) ────────────────────────────
+  // Armor Addons are the actual 3D-model layer an ARMO record's Models
+  // array points to — biped slot coverage (the classic 30-61 equip-slot
+  // bitmask), male/female priority and weight-slider variants,
+  // world/1st-person model filenames by gender, skin texture overrides,
+  // additional valid races, footstep sound. Source-verified
+  // (wbDefinitionsFO4.pas ~8755-8817): EDID, BOD2 (First Person Flags,
+  // same biped bitmask used throughout this engine), RNAM (Race), DNAM
+  // (Male/Female Priority, Weight Slider flags, Detection Sound Value,
+  // Weapon Adjust), MOD2-MOD5 (model filenames by gender/person), NAM0-
+  // NAM3 (skin texture/swap list FormIDs), MODL (reused in this record
+  // type ONLY for "Additional Races" FormIDs, NOT a model filename —
+  // confirmed from source since ARMA's actual models all use MOD2-5),
+  // SNDD (Footstep Sound), ONAM (Art Object). Verified against real
+  // base-game data — PipboyVault81AA decodes exactly slot "60 -
+  // Pipboy", hazmat suit hats cover the full head-slot set while a
+  // simple flight cap only covers "Headband", matching real FO4 armor
+  // coverage logic exactly.
+  async function runFo4ArmorAddonsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_armor_addons.py', 180_000);
+    const p = resolveScanCacheFile('fo4_armor_addons.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return { available: true, total_armor_addons: raw.total_armor_addons || 0, armor_addons: raw.armor_addons || [] };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ArmorAddonsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 armor addon data not yet scanned. Run: python scripts/fo4_armor_addons.py';
+    const sample = (d.armor_addons || []).filter((a: any) => a.biped_flags.length).slice(0, 10);
+    return [
+      `FO4 Armor Addons: ${d.total_armor_addons} armor addons. Each decodes biped slot coverage, male/female model filenames, skin texture overrides, and footstep sound. Verified against real base-game data — biped slot coverage matches each piece's own name and real-world coverage (e.g. Pipboy addon decodes exactly the Pipboy slot; hazmat hoods cover the full head-slot set).`,
+      '',
+      'SAMPLE ARMOR ADDONS:',
+      ...sample.map((a: any) => `  ${a.edid}: [${a.biped_flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-armor-addons', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-armor-addons', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ArmorAddonsScan(forceRefresh);
+      saveScanCache('fo4-armor-addons', data);
+      addBrainNeuron({ id: 'fo4-armor-addons', domain: 'FO4 Game Systems', title: `FO4 Armor Addons (${data.total_armor_addons||0} addons)`, priority: 52, content: formatFo4ArmorAddonsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-20: scan:fo4-statics (STAT/MSTT) ────────────────────────────
+  // Statics are the plain non-interactive world-dressing meshes (rocks,
+  // rubble, foliage, wreckage) making up the bulk of FO4's placed-object
+  // count; Moveable Statics are the physics-pushable subset. Combined
+  // into one scanner since both are the same "dumb decoration" tier.
+  // First scanner in this project to decode RECORD-HEADER flags (u32 at
+  // header offset 8) instead of a subrecord field. Source-verified
+  // (wbDefinitionsFO4.pas ~15043-15106 STAT, ~10090-10116 MSTT): STAT
+  // header flags (Heading Marker/Non Occluder/Has Tree LOD/Hidden From
+  // Local Map/Used as Platform/Has Distant LOD/Is Marker/Obstacle/
+  // NavMesh Generation variants), EDID, FULL, MODL, DNAM (Direction
+  // Material: Max Angle, Material FormID, Leaf Amplitude/Frequency);
+  // MSTT header flags (Must Update Anims/Hidden From Local Map/Used As
+  // Platform/Random Anim Start/Has Currents/Obstacle/NavMesh variants),
+  // EDID, FULL, MODL, DATA (On Local Map bool), SNAM (Looping Sound).
+  // Verified against real base-game data — 20,329 statics (19,368 STAT,
+  // 961 MSTT), every "Marker"-named record correctly decodes the "Is
+  // Marker" header flag, and fire/spark/drip MSTT effects correctly
+  // carry looping sounds and matching animation flags.
+  async function runFo4StaticsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_statics.py', 180_000);
+    const p = resolveScanCacheFile('fo4_statics.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return { available: true, total_statics: raw.total_statics || 0, by_type: raw.by_type || {}, statics: raw.statics || [] };
+    } catch { return { available: false }; }
+  }
+  function formatFo4StaticsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 static data not yet scanned. Run: python scripts/fo4_statics.py';
+    const typeLine = Object.entries(d.by_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.statics || []).filter((s: any) => s.header_flags.length).slice(0, 10);
+    return [
+      `FO4 Statics: ${d.total_statics} objects (${typeLine}). STAT decodes header flags, direction material (wind/foliage sway); MSTT decodes header flags, on-local-map, and looping sound. Verified against real base-game data — every Marker-named record correctly decodes the Is Marker header flag.`,
+      '',
+      'SAMPLE STATICS:',
+      ...sample.map((s: any) => `  ${s.edid} (${s.record_type}): [${s.header_flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-statics', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-statics', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4StaticsScan(forceRefresh);
+      saveScanCache('fo4-statics', data);
+      addBrainNeuron({ id: 'fo4-statics', domain: 'FO4 Game Systems', title: `FO4 Statics (${data.total_statics||0} objects)`, priority: 51, content: formatFo4StaticsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-21: scan:fo4-activators (ACTI) ───────────────────────────────
+  // Activators are every world object the player can "Activate" (E) on —
+  // levers, radios, danger markers, water-edge triggers, workbench
+  // interaction points. First interactive half of the "referenced but not
+  // deep" tier (STAT/MSTT covered the dumb-decoration half). Source-verified
+  // (wbDefinitionsFO4.pas ~8509-8583): record-header flags (Never Fades/
+  // Non Occluder/Heading Marker/Must Update Anims/Hidden From Local Map/
+  // Headtrack Marker/Used as Platform/Pack-In Use Only/Has Distant LOD/
+  // Random Anim Start/Dangerous/Ignore Object Interaction/Is Marker/
+  // Obstacle/NavMesh Generation variants/Child Can Use), EDID, FULL, MODL,
+  // PNAM (Marker Color RGB), SNAM/VNAM (Looping/Activation Sound), WNAM
+  // (Water Type), FNAM (flags: No Displacement/Ignored by Sandbox/Is a
+  // Radio), KNAM (Interaction Keyword), KWDA, RADR (Radio Receiver: Sound
+  // Model, Frequency, Volume, Starts Active, No Signal Static — parsed
+  // defensively via running offset), CITC + CTDA/CIS1/CIS2 Conditions.
+  // Verified against real base-game data — 1,284 activators; every
+  // "Radio"-named record correctly decodes the "Is a Radio" flag with
+  // plausible station frequency/volume, and every "Dangerous"-flagged
+  // record is a trap/caps-stash object matching its own name.
+  async function runFo4ActivatorsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_activators.py', 180_000);
+    const p = resolveScanCacheFile('fo4_activators.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_activators: raw.total_activators || 0,
+        with_conditions: raw.with_conditions || 0,
+        with_radio: raw.with_radio || 0,
+        dangerous: raw.dangerous || 0,
+        activators: raw.activators || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ActivatorsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 activator data not yet scanned. Run: python scripts/fo4_activators.py';
+    const sample = (d.activators || []).filter((a: any) => a.radio || a.header_flags.length).slice(0, 10);
+    return [
+      `FO4 Activators: ${d.total_activators} objects (${d.with_radio} radios, ${d.with_conditions} with activation Conditions, ${d.dangerous} Dangerous-flagged). Decodes record-header flags, marker color, looping/activation sound, water type, interaction keyword, radio receiver settings, and CTDA Conditions gating activation. Verified against real base-game data — every Radio-named record correctly decodes the Is a Radio flag with plausible frequency/volume.`,
+      '',
+      'SAMPLE ACTIVATORS:',
+      ...sample.map((a: any) => `  ${a.edid}: [${a.header_flags.join(', ')}]${a.radio ? ` radio=${a.radio.frequency}` : ''}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-activators', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-activators', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ActivatorsScan(forceRefresh);
+      saveScanCache('fo4-activators', data);
+      addBrainNeuron({ id: 'fo4-activators', domain: 'FO4 Game Systems', title: `FO4 Activators (${data.total_activators||0} objects)`, priority: 50, content: formatFo4ActivatorsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-22: scan:fo4-doors (DOOR) ────────────────────────────────────
+  // Doors are activatable transition/portal objects — open/close/loop
+  // sounds, automatic vs. manual behavior, locked-state alt-text overrides.
+  // Third of the "referenced but not deep" tier's interactive-object half.
+  // Source-verified (wbDefinitionsFO4.pas ~9494-9525): record-header flags
+  // (Non Occluder/Has Distant LOD/Random Anim Start/Is Marker), EDID, FULL,
+  // MODL, KWDA, SNAM (Sound - Open), ANAM (Sound - Close), BNAM (Sound -
+  // Loop), FNAM (u8 flags: Automatic/Hidden/Minimal Use/Sliding/Do Not
+  // Open in Combat Search/No "To" Text), ONAM/CNAM (Alternate Text -
+  // Open/Close). Verified against real base-game data — 371 doors; every
+  // "AutoloadDoor"-named record correctly decodes the Automatic flag,
+  // "Hidden"-named records correctly decode the Hidden flag, and every
+  // Elevator/Vault door correctly decodes Sliding with matching open/close
+  // sound FormIDs.
+  async function runFo4DoorsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_doors.py', 180_000);
+    const p = resolveScanCacheFile('fo4_doors.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_doors: raw.total_doors || 0,
+        automatic: raw.automatic || 0,
+        with_alt_text: raw.with_alt_text || 0,
+        doors: raw.doors || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4DoorsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 door data not yet scanned. Run: python scripts/fo4_doors.py';
+    const sample = (d.doors || []).filter((r: any) => r.flags.length || r.header_flags.length).slice(0, 10);
+    return [
+      `FO4 Doors: ${d.total_doors} objects (${d.automatic} Automatic). Decodes record-header flags, open/close/loop sounds, behavior flags (Automatic/Hidden/Minimal Use/Sliding), and alternate open/close text. Verified against real base-game data — every AutoloadDoor-named record correctly decodes the Automatic flag, and every Elevator/Vault door correctly decodes Sliding with matching open/close sound FormIDs.`,
+      '',
+      'SAMPLE DOORS:',
+      ...sample.map((r: any) => `  ${r.edid}: flags=[${r.flags.join(', ')}] header=[${r.header_flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-doors', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-doors', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4DoorsScan(forceRefresh);
+      saveScanCache('fo4-doors', data);
+      addBrainNeuron({ id: 'fo4-doors', domain: 'FO4 Game Systems', title: `FO4 Doors (${data.total_doors||0} objects)`, priority: 49, content: formatFo4DoorsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-23: scan:fo4-lights (LIGH) ───────────────────────────────────
+  // Every placed/carriable light source — color, radius, falloff/FOV/near-
+  // clip cone shaping, flicker animation, shadow-casting mode, god-ray
+  // linkage. Final item of the "referenced but not deep" tier before the
+  // broader ~100+ engine-plumbing sweep. Source-verified
+  // (wbDefinitionsFO4.pas ~12785-12854): record-header flags (Random Anim
+  // Start/Unknown 17/Obstacle/Portal-strict, computed from each entry's
+  // real bit index since the source's inline hex comments for bits 25/28
+  // are copy-paste duplicates of bit 17's mask), EDID, MODL, KWDA, FULL,
+  // ICON, MICO, DATA (Time/Radius/Color/Flags [Can be Carried/Flicker/Off
+  // By Default/Pulse/Shadow variants/Non Specular/Ambient Only/etc.]/
+  // Falloff Exponent/FOV/Near Clip/Flicker Effect/Constant/Scalar/
+  // Exponent/God Rays Near Clip/Value/Weight — parsed via running offset
+  // per xEdit's own legacy-size note, same technique as EXPL/PROJ), FNAM
+  // (Fade Value), NAM0 (Gobo), LNAM (Lens), WGDR (God Rays), SNAM (Sound).
+  // Verified against real base-game data — 801 lights; every candle-named
+  // record correctly decodes the Flicker flag with a warm off-white color,
+  // and Diamond City neon sign lights correctly decode saturated colors
+  // (cyan/blue/red) matching their own names.
+  async function runFo4LightsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_lights.py', 180_000);
+    const p = resolveScanCacheFile('fo4_lights.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_lights: raw.total_lights || 0,
+        carriable: raw.carriable || 0,
+        flickering: raw.flickering || 0,
+        lights: raw.lights || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4LightsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 light data not yet scanned. Run: python scripts/fo4_lights.py';
+    const sample = (d.lights || []).filter((r: any) => r.data && r.data.flags.length).slice(0, 10);
+    return [
+      `FO4 Lights: ${d.total_lights} objects (${d.flickering} Flicker, ${d.carriable} Can be Carried). Decodes record-header flags, color/radius/cone shaping, Flags bitfield, flicker animation params, and Lens/God Rays/Sound linkage. Verified against real base-game data — every candle-named record correctly decodes the Flicker flag with a warm color, and Diamond City neon signs correctly decode saturated colors matching their names.`,
+      '',
+      'SAMPLE LIGHTS:',
+      ...sample.map((r: any) => `  ${r.edid}: color=rgb(${r.data.color?.r},${r.data.color?.g},${r.data.color?.b}) flags=[${r.data.flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-lights', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-lights', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4LightsScan(forceRefresh);
+      saveScanCache('fo4-lights', data);
+      addBrainNeuron({ id: 'fo4-lights', domain: 'FO4 Game Systems', title: `FO4 Lights (${data.total_lights||0} objects)`, priority: 48, content: formatFo4LightsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-24: scan:fo4-furniture (FURN) ────────────────────────────────
+  // Every sittable/leanable/usable-position object, INCLUDING crafting
+  // workbenches (WBDT struct distinguishes plain seating from Weapons/
+  // Armor/Power Armor/Chemistry-Cooking/Robot stations) and Power Armor
+  // frames. Closes out the "referenced but not deep" tier (STAT/MSTT,
+  // ACTI, DOOR, LIGH, FURN — base objects other scanners only ever
+  // pointed at by FormID). Source-verified (wbDefinitionsFO4.pas
+  // ~9883-9953, enums ~6378-6392): record-header flags (Is Perch/Power
+  // Armor/Must Exit To Talk/Child Can Use/etc.), EDID, FULL, MODL, KWDA,
+  // WNAM (Drinking Water), ATTX (Activate Text Override), FNAM (Ignored
+  // By Sandbox), CITC+CTDA/CIS1/CIS2 Conditions, WBDT (Bench Type enum
+  // — None/Create Object/Weapons/Alchemy/Armor/Power Armor/Robot Mod —
+  // plus Uses Skill), NAM1 (Associated Form), Markers (ENAM index +
+  // NAM0 disabled entry points), Marker Entry Points (FNPR: Sit/Lay/
+  // Lean type + Front/Behind/Right/Left/Up entry flags), XMRK (Marker
+  // Model). Verified against real base-game data — 598 furniture
+  // records (72 workbenches, 58 Power Armor frames); every
+  // Chemistry/Cooking-named workbench correctly decodes the shared
+  // "Alchemy" bench type (matching xEdit's own source comment), every
+  // PowerArmorFrame/Furniture record carries the header-level Power
+  // Armor flag, and MS11Workbench correctly decodes the special-case
+  // "Create Object" bench type.
+  async function runFo4FurnitureScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_furniture.py', 180_000);
+    const p = resolveScanCacheFile('fo4_furniture.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_furniture: raw.total_furniture || 0,
+        workbenches: raw.workbenches || 0,
+        power_armor_frames: raw.power_armor_frames || 0,
+        furniture: raw.furniture || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4FurnitureNeuron(d: any): string {
+    if (!d?.available) return 'FO4 furniture data not yet scanned. Run: python scripts/fo4_furniture.py';
+    const sample = (d.furniture || []).filter((f: any) => f.workbench_data && f.workbench_data.bench_type !== 'None').slice(0, 10);
+    return [
+      `FO4 Furniture: ${d.total_furniture} objects (${d.workbenches} workbenches, ${d.power_armor_frames} Power Armor frames). Decodes record-header flags, Workbench Data (bench type/skill), Associated Form, marker entry points, and CTDA Conditions gating use. Verified against real base-game data — every Chemistry/Cooking-named workbench correctly decodes the shared Alchemy bench type, and every PowerArmorFrame record carries the header-level Power Armor flag.`,
+      '',
+      'SAMPLE WORKBENCHES:',
+      ...sample.map((f: any) => `  ${f.edid}: ${f.workbench_data.bench_type} (skill: ${f.workbench_data.uses_skill})`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-furniture', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-furniture', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4FurnitureScan(forceRefresh);
+      saveScanCache('fo4-furniture', data);
+      addBrainNeuron({ id: 'fo4-furniture', domain: 'FO4 Game Systems', title: `FO4 Furniture (${data.total_furniture||0} objects)`, priority: 47, content: formatFo4FurnitureNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-25: scan:fo4-magic-effects (MGEF) ────────────────────────────
+  // First scanner in the broader engine-plumbing sweep (following the
+  // completed "referenced but not deep" tier). Every chem, addiction,
+  // radiation tick, perk-passive bonus, weapon/armor enchantment, and
+  // status ailment in FO4 is underneath one or more Magic Effects; other
+  // scanners (Form Graph, Actor & Combat Stats) have only ever pointed at
+  // MGEF by FormID. Source-verified (wbDefinitionsFO4.pas ~13017-13132,
+  // Archetype enum ~12964-13015): EDID, FULL, KWDA, DATA (the largest
+  // struct in this project — Flags/Base Cost/Assoc. Item/Resist Value/
+  // Casting Light/Taper Weight/Hit+Enchant Shader/Minimum Skill Level/
+  // Spellmaking/Taper Curve+Duration/Second AV Weight/Archetype [50-value
+  // enum: Value Modifier/Script/Dispel/Absorb/Calm/Frenzy/Paralysis/
+  // Stimpack/Damage/Immunity/Jetpack/Chameleon/etc]/Primary+Secondary
+  // Actor Value/Projectile/Explosion/Casting Type/Delivery/Casting+Hit
+  // Effect Art/Impact Data/Dual Casting/Enchant Art/Equip Ability/Image
+  // Space Modifier/Perk to Apply/Casting Sound Level/Script Effect AI —
+  // parsed via running offset with graceful truncation, same technique as
+  // EXPL/PROJ/LIGH), ESCE (Counter Effects array), SNDD (repeating Sound
+  // Type+FormID struct), DNAM (Magic Item Description), CTDA/CIS1/CIS2
+  // Conditions. Verified against real base-game data — 638 magic effects;
+  // RestoreHealthStimpak/RestoreHealthChem correctly decode the Stimpack
+  // archetype, and jetpackEFFECT/abPowerArmorJetpack correctly decode the
+  // Jetpack archetype, both exactly matching their own EDID names.
+  async function runFo4MagicEffectsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_magic_effects.py', 180_000);
+    const p = resolveScanCacheFile('fo4_magic_effects.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_magic_effects: raw.total_magic_effects || 0,
+        by_archetype: raw.by_archetype || {},
+        hostile: raw.hostile || 0,
+        magic_effects: raw.magic_effects || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4MagicEffectsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 magic effect data not yet scanned. Run: python scripts/fo4_magic_effects.py';
+    const archLine = Object.entries(d.by_archetype || {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.magic_effects || []).filter((m: any) => m.data && m.data.archetype !== 'Value Modifier').slice(0, 10);
+    return [
+      `FO4 Magic Effects: ${d.total_magic_effects} effects (${d.hostile} Hostile). Archetype breakdown: ${archLine}. Decodes the full Magic Effect Data struct (archetype, casting type/delivery, actor values, projectile/explosion linkage, dual casting, perk-to-apply), Counter Effects, Sounds, and CTDA Conditions. Verified against real base-game data — RestoreHealthStimpak/RestoreHealthChem correctly decode the Stimpack archetype, and jetpack effects correctly decode the Jetpack archetype.`,
+      '',
+      'SAMPLE MAGIC EFFECTS:',
+      ...sample.map((m: any) => `  ${m.edid}: ${m.data.archetype} (${m.data.casting_type}/${m.data.delivery})`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-magic-effects', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-magic-effects', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4MagicEffectsScan(forceRefresh);
+      saveScanCache('fo4-magic-effects', data);
+      addBrainNeuron({ id: 'fo4-magic-effects', domain: 'FO4 Game Systems', title: `FO4 Magic Effects (${data.total_magic_effects||0} effects)`, priority: 46, content: formatFo4MagicEffectsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-26: scan:fo4-effect-shaders (EFSH) ───────────────────────────
+  // Effect Shaders drive every membrane/particle visual FX in the game —
+  // the glow on a legendary weapon, a chem's screen-edge tint, and the Hit
+  // Shader/Enchant Shader fields fo4_magic_effects.py just linked to by
+  // FormID. Source-verified (wbDefinitionsFO4.pas ~9562-9760, decider
+  // ~2680-2691): EDID, ICON/ICO2/NAM7/NAM8/NAM9 (Fill/Particle/Holes/
+  // Membrane Palette/Particle Palette textures). DNAM is a FormVersion-
+  // keyed union — only the modern struct (FormVersion >= 102) is decoded;
+  // a record below that threshold is honestly flagged legacy_format
+  // rather than guessed against xEdit's much larger old-format layout
+  // (never observed in real base-game data during testing). Modern DNAM:
+  // Membrane Shader Source/Dest Blend Mode + Blend Operation + Z Test
+  // Function, Fill/Edge Color Keys (RGBA), alpha fade/persistent-ratio/
+  // pulse timing (Fill and Edge variants), Holes Animation, Ambient
+  // Sound, Color Key Scale/Time, Flags (No Membrane Shader/Particle
+  // Animated/Affect Skin Only/etc.), Texture Scale. Verified against
+  // real base-game data — 63 effect shaders (3 legacy_format, honestly
+  // left undecoded); the computed modern-struct field-size total (157
+  // bytes) exactly matches every real record's DNAM subrecord length,
+  // confirming byte-for-byte field alignment with no drift.
+  async function runFo4EffectShadersScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_effect_shaders.py', 180_000);
+    const p = resolveScanCacheFile('fo4_effect_shaders.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_effect_shaders: raw.total_effect_shaders || 0,
+        legacy_format: raw.legacy_format || 0,
+        no_membrane_shader: raw.no_membrane_shader || 0,
+        effect_shaders: raw.effect_shaders || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4EffectShadersNeuron(d: any): string {
+    if (!d?.available) return 'FO4 effect shader data not yet scanned. Run: python scripts/fo4_effect_shaders.py';
+    const sample = (d.effect_shaders || []).filter((e: any) => e.data).slice(0, 10);
+    return [
+      `FO4 Effect Shaders: ${d.total_effect_shaders} shaders (${d.legacy_format} legacy-format, undecoded DNAM). Decodes membrane/particle blend modes, fill/edge color keys, alpha fade timing, holes animation, ambient sound, and shader flags. Verified against real base-game data — the computed modern-struct field-size total exactly matches every real record's DNAM subrecord length.`,
+      '',
+      'SAMPLE EFFECT SHADERS:',
+      ...sample.map((e: any) => `  ${e.edid}: color=rgba(${e.data.fill_color_key_1?.r},${e.data.fill_color_key_1?.g},${e.data.fill_color_key_1?.b},${e.data.fill_color_key_1?.a}) flags=[${e.data.flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-effect-shaders', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-effect-shaders', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4EffectShadersScan(forceRefresh);
+      saveScanCache('fo4-effect-shaders', data);
+      addBrainNeuron({ id: 'fo4-effect-shaders', domain: 'FO4 Game Systems', title: `FO4 Effect Shaders (${data.total_effect_shaders||0} shaders)`, priority: 45, content: formatFo4EffectShadersNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-27: scan:fo4-cameras (CAMS/CPTH) ─────────────────────────────
+  // Camera Shots define every kill-cam/VATS-style camera behavior (follow
+  // attacker/projectile/target, first-person or not, spring/damping
+  // physics); Camera Paths string them into multi-shot sequences (VATS
+  // kill montages). Combined since a Camera Path's real content is just a
+  // FormID list of Camera Shots. Third of the broader engine-plumbing
+  // sweep ("cameras" from the agreed scope). Source-verified
+  // (wbDefinitionsFO4.pas ~11056-11124): CAMS — EDID, MODL, CTDA/CIS1/CIS2
+  // Conditions, DATA (64-byte struct parsed via running offset: Action
+  // [Shoot/Fly/Hit/Zoom], Location + Target [Attacker/Projectile/Target/
+  // Lead Actor], Flags [Position Follows Location/First Person Camera/No
+  // Tracer/etc.], Time Multipliers, Max/Min Time, Location/Target Spring,
+  // Rotation Offset), MNAM (Image Space Modifier). CPTH — EDID, CTDAs,
+  // ANAM (Related Camera Paths array), DATA (u8 flags: Disable/Shot
+  // List/Dynamic Camera Times/Randomize Paths), SNAM (Camera Shots
+  // array). Verified against real base-game data — 772 camera shots + 447
+  // camera paths; every FirstPerson-named record correctly decodes the
+  // First Person Camera flag, and ZoomActionHolder correctly decodes the
+  // Zoom action.
+  async function runFo4CamerasScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_cameras.py', 180_000);
+    const p = resolveScanCacheFile('fo4_cameras.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_camera_shots: raw.total_camera_shots || 0,
+        total_camera_paths: raw.total_camera_paths || 0,
+        first_person: raw.first_person || 0,
+        by_action: raw.by_action || {},
+        camera_shots: raw.camera_shots || [],
+        camera_paths: raw.camera_paths || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4CamerasNeuron(d: any): string {
+    if (!d?.available) return 'FO4 camera data not yet scanned. Run: python scripts/fo4_cameras.py';
+    const actionLine = Object.entries(d.by_action || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.camera_shots || []).filter((c: any) => c.data && c.data.flags.length).slice(0, 10);
+    return [
+      `FO4 Cameras: ${d.total_camera_shots} camera shots (${actionLine}), ${d.total_camera_paths} camera paths (${d.first_person} First Person). Decodes camera action/location/target, flags, spring physics, and Image Space Modifier linkage; camera paths decode Related Paths and the Camera Shots they string together. Verified against real base-game data — every FirstPerson-named record correctly decodes the First Person Camera flag.`,
+      '',
+      'SAMPLE CAMERA SHOTS:',
+      ...sample.map((c: any) => `  ${c.edid}: ${c.data.action} [${c.data.flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-cameras', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-cameras', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4CamerasScan(forceRefresh);
+      saveScanCache('fo4-cameras', data);
+      addBrainNeuron({ id: 'fo4-cameras', domain: 'FO4 Game Systems', title: `FO4 Cameras (${data.total_camera_shots||0} shots, ${data.total_camera_paths||0} paths)`, priority: 44, content: formatFo4CamerasNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-28: scan:fo4-outfits-and-art (OTFT/ARTO) ─────────────────────
+  // Outfits are the named clothing/armor sets NPCs and leveled lists equip
+  // as a bundle — a staple of "add a new NPC/settler type" mods. Art
+  // Objects are the visual-effect attachments MGEF's Casting Art/Hit
+  // Effect Art/Enchant Art fields (fo4_magic_effects.py) and ENCH point
+  // at. Combined since both are small FormID-array-style records. Fourth
+  // of the broader engine-plumbing sweep. Source-verified
+  // (wbDefinitionsFO4.pas OTFT ~12230-12233, ARTO ~12235-12247): OTFT —
+  // EDID, INAM (repeating Item FormID array -> ARMO or LVLI, the latter
+  // meaning the outfit rolls a random piece each assignment). ARTO — EDID,
+  // KWDA, MODL, DNAM (Art Type enum: Magic Casting/Magic Hit Effect/
+  // Enchantment Effect). Verified against real base-game data — 388
+  // outfits + 166 art objects; every "HitEffect"-named art object
+  // correctly decodes the Magic Hit Effect art type.
+  async function runFo4OutfitsAndArtScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_outfits_and_art.py', 180_000);
+    const p = resolveScanCacheFile('fo4_outfits_and_art.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_outfits: raw.total_outfits || 0,
+        total_art_objects: raw.total_art_objects || 0,
+        by_art_type: raw.by_art_type || {},
+        outfits: raw.outfits || [],
+        art_objects: raw.art_objects || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4OutfitsAndArtNeuron(d: any): string {
+    if (!d?.available) return 'FO4 outfit/art object data not yet scanned. Run: python scripts/fo4_outfits_and_art.py';
+    const artLine = Object.entries(d.by_art_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const sample = (d.outfits || []).filter((o: any) => o.items.length).slice(0, 10);
+    return [
+      `FO4 Outfits & Art Objects: ${d.total_outfits} outfits, ${d.total_art_objects} art objects (${artLine}). Outfits decode their ARMO/LVLI item lists; Art Objects decode model path and Art Type. Verified against real base-game data — every HitEffect-named art object correctly decodes the Magic Hit Effect art type.`,
+      '',
+      'SAMPLE OUTFITS:',
+      ...sample.map((o: any) => `  ${o.edid}: ${o.items.length} item(s)`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-outfits-and-art', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-outfits-and-art', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4OutfitsAndArtScan(forceRefresh);
+      saveScanCache('fo4-outfits-and-art', data);
+      addBrainNeuron({ id: 'fo4-outfits-and-art', domain: 'FO4 Game Systems', title: `FO4 Outfits & Art (${data.total_outfits||0} outfits, ${data.total_art_objects||0} art)`, priority: 43, content: formatFo4OutfitsAndArtNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-29: scan:fo4-water (WATR) ────────────────────────────────────
+  // Every body of water — ocean, river, irradiated puddle, Nuka-blue pool
+  // — with fog color/depth, physical wave/reflection properties, specular
+  // sun highlights, scrolling noise texture layers, and radiation/danger
+  // linkage via Consume/Contact Spell. Fifth of the broader engine-
+  // plumbing sweep. Source-verified (wbDefinitionsFO4.pas ~15203-15297):
+  // EDID, FULL, FNAM (Dangerous/Directional Sound flags), SNAM (Open
+  // Sound), XNAM (Consume Spell -> SPEL), YNAM (Contact Spell -> SPEL),
+  // INAM (Image Space), DNAM (the largest fixed struct after MGEF in this
+  // project — Fog/Physical/Specular/Noise/Silt Properties, parsed via
+  // running offset with graceful truncation), NAM0/NAM1 (Linear/Angular
+  // Velocity), NAM2/NAM3/NAM4 (3 layers of noise texture). Verified
+  // against real base-game data — 42 water bodies; the computed DNAM
+  // field-size total (201 bytes) exactly matches every real record's DNAM
+  // length, and every "Irradiated"/"GlowingSea"-named water body shares a
+  // distinct Consume Spell FormID separate from ordinary water, matching
+  // the game's real radiation mechanic.
+  async function runFo4WaterScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_water.py', 180_000);
+    const p = resolveScanCacheFile('fo4_water.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_water: raw.total_water || 0,
+        dangerous: raw.dangerous || 0,
+        water: raw.water || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4WaterNeuron(d: any): string {
+    if (!d?.available) return 'FO4 water data not yet scanned. Run: python scripts/fo4_water.py';
+    const sample = (d.water || []).slice(0, 10);
+    return [
+      `FO4 Water: ${d.total_water} water bodies. Decodes fog/physical/specular/noise/silt visual properties, Consume/Contact Spell linkage (radiation and other on-touch effects), and noise texture layers. Verified against real base-game data — every Irradiated/GlowingSea-named water body shares a distinct Consume Spell FormID separate from ordinary water.`,
+      '',
+      'SAMPLE WATER BODIES:',
+      ...sample.map((w: any) => `  ${w.edid}: consume_spell=${w.consume_spell}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-water', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-water', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4WaterScan(forceRefresh);
+      saveScanCache('fo4-water', data);
+      addBrainNeuron({ id: 'fo4-water', domain: 'FO4 Game Systems', title: `FO4 Water (${data.total_water||0} bodies)`, priority: 42, content: formatFo4WaterNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-30: scan:fo4-materials-impacts-voices (MATT/IPCT/VTYP) ──────
+  // Three small, simple record types combined: Material Types classify
+  // every surface (stone, wood, flesh, metal) for footstep sounds and
+  // impact routing, already referenced by IPDS's per-material Impact
+  // lookup (deep-decoded earlier); Impacts are the decal/particle/sound
+  // response IPDS points a material+projectile combo at; Voice Types tag
+  // NPC dialogue actors as default-dialog-eligible and/or female. Sixth
+  // of the broader engine-plumbing sweep. Source-verified
+  // (wbDefinitionsFO4.pas MATT ~11134-11152, IPCT ~11154-11187, VTYP
+  // ~11126-11132): MATT — EDID, PNAM (Material Parent, inheritance
+  // chains), MNAM (Material Name), CNAM (Havok Display Color, stored as
+  // 3 FLOATS not bytes), BNAM (Buoyancy), FNAM (Stair Material/Arrows
+  // Stick/Can Tunnel), HNAM (Havok Impact Data Set), ANAM (Breakable FX).
+  // IPCT — EDID, MODL, DATA (24-byte struct: Effect Duration/
+  // Orientation/Angle Threshold/Placement Radius/Sound Level/Flags/
+  // Impact Result), DNAM/ENAM (Texture Sets), SNAM/NAM1 (Sounds), NAM3
+  // (Footstep Explosion), NAM2 (Hazard), FNAM (Footstep Particle Max
+  // Dist). VTYP — EDID, DNAM (Allow Default Dialog/Female flags).
+  // Verified against real base-game data — 147 materials, 618 impacts,
+  // 531 voice types (170 female); every "Stone...Stairs"-named material
+  // correctly decodes the Stair Material flag, and every "Female"-named
+  // voice type correctly decodes the Female flag while "Male"-named ones
+  // correctly don't.
+  async function runFo4MaterialsImpactsVoicesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_materials_impacts_voices.py', 180_000);
+    const p = resolveScanCacheFile('fo4_materials_impacts_voices.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_materials: raw.total_materials || 0,
+        total_impacts: raw.total_impacts || 0,
+        total_voice_types: raw.total_voice_types || 0,
+        female_voices: raw.female_voices || 0,
+        materials: raw.materials || [],
+        impacts: raw.impacts || [],
+        voice_types: raw.voice_types || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4MaterialsImpactsVoicesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 material/impact/voice data not yet scanned. Run: python scripts/fo4_materials_impacts_voices.py';
+    const matSample = (d.materials || []).filter((m: any) => m.flags.length).slice(0, 8);
+    return [
+      `FO4 Materials/Impacts/Voices: ${d.total_materials} materials, ${d.total_impacts} impacts, ${d.total_voice_types} voice types (${d.female_voices} female). Materials decode parent inheritance, Havok color, buoyancy, and Stair/Arrows-Stick/Tunnel flags; Impacts decode duration/orientation/sound-level/result and texture/sound/hazard linkage; Voice Types decode dialog-eligibility and gender flags. Verified against real base-game data — every Stone-Stairs-named material correctly decodes the Stair Material flag.`,
+      '',
+      'SAMPLE MATERIALS:',
+      ...matSample.map((m: any) => `  ${m.edid}: [${m.flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-materials-impacts-voices', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-materials-impacts-voices', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4MaterialsImpactsVoicesScan(forceRefresh);
+      saveScanCache('fo4-materials-impacts-voices', data);
+      addBrainNeuron({ id: 'fo4-materials-impacts-voices', domain: 'FO4 Game Systems', title: `FO4 Materials/Impacts/Voices (${data.total_materials||0}/${data.total_impacts||0}/${data.total_voice_types||0})`, priority: 41, content: formatFo4MaterialsImpactsVoicesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-31: scan:fo4-formlists-loadscreens-globals (FLST/LSCR/GLOB) ─
+  // Seventh of the broader engine-plumbing sweep, thirty-first record type
+  // overall. Form ID Lists are the reusable FormID bundles referenced
+  // everywhere else in the plugin system (leveled lists, quest scripts,
+  // faction rosters) — a staple of "add to this list" mods. Load Screens
+  // are the loading-tip/camera-path records shown during cell transitions.
+  // Globals are the named script variables (GameYear, TimeScale, per-quest
+  // stage trackers, companion affinity counters) queried and set constantly
+  // by both vanilla scripts and mods. Combined into one scanner since all
+  // three are small, simple record types. Source-verified
+  // (wbDefinitionsFO4.pas FLST, LSCR, GLOB): FLST — EDID, FULL, LNAM
+  // (repeating raw FormID array, untyped by design — a list can mix record
+  // types). LSCR — EDID, DESC, CTDA/CIS1/CIS2 Conditions, NNAM (Loading Nif
+  // Model), TNAM (Camera Transform), ONAM (Rotation Min/Max, s16), ZNAM
+  // (Zoom Min/Max, f32), MOD2 (Camera Path), header flags (Displays In Main
+  // Menu/No Rotation). GLOB — EDID, FNAM (Type: Short/Long/Float/Boolean),
+  // FLTV (Value, stored as float regardless of type), header flag
+  // (Constant). Verified against real base-game data — 586 form lists, 358
+  // load screens, 1,346 globals (433 constant); real GLOB values are
+  // plausible and match known game facts (GameYear=287, TimeScale=20,
+  // companion affinity globals hold sensible signed short values); globals
+  // showing "Unknown" type were confirmed via raw-byte inspection to
+  // genuinely omit the optional FNAM subrecord in the real data, not a
+  // decode gap; HC_SurvivalExitMenu correctly decodes the Displays In Main
+  // Menu header flag; FLST list sizes (e.g. 179-entry HelpManualInstalled
+  // Content) are plausible.
+  async function runFo4FormlistsLoadscreensGlobalsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_formlists_loadscreens_globals.py', 180_000);
+    const p = resolveScanCacheFile('fo4_formlists_loadscreens_globals.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_form_lists: raw.total_form_lists || 0,
+        total_load_screens: raw.total_load_screens || 0,
+        total_globals: raw.total_globals || 0,
+        constant_globals: raw.constant_globals || 0,
+        by_global_type: raw.by_global_type || {},
+        form_lists: raw.form_lists || [],
+        load_screens: raw.load_screens || [],
+        globals: raw.globals || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4FormlistsLoadscreensGlobalsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 form list/load screen/global data not yet scanned. Run: python scripts/fo4_formlists_loadscreens_globals.py';
+    const typeBreakdown = Object.entries(d.by_global_type || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const globalSample = (d.globals || []).filter((g: any) => g.type !== 'Unknown (None)').slice(0, 8);
+    return [
+      `FO4 Form Lists/Load Screens/Globals: ${d.total_form_lists} form lists, ${d.total_load_screens} load screens, ${d.total_globals} globals (${d.constant_globals} constant). Form Lists decode their raw FormID member arrays; Load Screens decode camera/rotation/zoom setup, main-menu flag, and Conditions; Globals decode Type (Short/Long/Float/Boolean) and Value. Type breakdown: ${typeBreakdown}. Verified against real base-game data — GameYear/TimeScale and companion affinity globals hold plausible values; globals with no decoded Type were confirmed to genuinely omit the optional Type subrecord rather than reflect a decode gap.`,
+      '',
+      'SAMPLE TYPED GLOBALS:',
+      ...globalSample.map((g: any) => `  ${g.edid}: ${g.type} = ${g.value}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-formlists-loadscreens-globals', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-formlists-loadscreens-globals', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4FormlistsLoadscreensGlobalsScan(forceRefresh);
+      saveScanCache('fo4-formlists-loadscreens-globals', data);
+      addBrainNeuron({ id: 'fo4-formlists-loadscreens-globals', domain: 'FO4 Game Systems', title: `FO4 FormLists/LoadScreens/Globals (${data.total_form_lists||0}/${data.total_load_screens||0}/${data.total_globals||0})`, priority: 40, content: formatFo4FormlistsLoadscreensGlobalsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-32: scan:fo4-regions (REGN) ──────────────────────────────────
+  // Eighth of the broader engine-plumbing sweep, thirty-second record type
+  // overall. Regions are the polygon-bounded zones painted onto a worldspace
+  // that drive procedural object scatter (trees/rocks/grass/statics),
+  // weather selection, ambient sound/music, and map naming — behind vanilla
+  // content like the Glowing Sea's weather table and per-area tree scatter,
+  // and a staple of "reskin this biome" or "add a settlement area" mods.
+  // Source-verified (wbDefinitionsFO4.pas REGN ~14835-14956): record header
+  // flag Border Region (bit 6, computed from bit index per this project's
+  // standing rule); EDID, RCLR (Map Color RGB), WNAM (Worldspace); Region
+  // Areas (repeating group boundary-keyed on RPLI Edge Fall-off, each with
+  // an RPLD polygon-point array); Region Data Entries (repeating group
+  // boundary-keyed on RDAT Data Header [Type enum/Flags/Priority], each
+  // optionally holding ICON, RDMO Music, RDSA Sounds array, RDMP Map Name,
+  // RDOT Objects array [52-byte fixed structs], RDGS Grasses array, RDWT
+  // Weather Types array, RLDM LOD Display Distance Multiplier, ANAM
+  // Occlusion Accuracy Dist). Verified against real base-game data — 105
+  // regions (2 border, 27 with weather); FXDiamondSky's 5-point polygon
+  // boundary plausibly traces the Diamond City area of the Commonwealth
+  // worldspace; regions whose RDAT declares an Objects/Grass type but whose
+  // RDOT/RDGS subrecord is 0 bytes long were confirmed via raw-byte
+  // inspection to be genuinely empty placeholder scatter groups, not a
+  // decode gap.
+  async function runFo4RegionsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_regions.py', 180_000);
+    const p = resolveScanCacheFile('fo4_regions.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_regions: raw.total_regions || 0,
+        border_regions: raw.border_regions || 0,
+        regions_with_objects: raw.regions_with_objects || 0,
+        regions_with_weather: raw.regions_with_weather || 0,
+        regions_with_grass: raw.regions_with_grass || 0,
+        regions: raw.regions || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4RegionsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 region data not yet scanned. Run: python scripts/fo4_regions.py';
+    const weatherSample = (d.regions || []).filter((r: any) => r.data_entries.some((e: any) => e.weather_types.length)).slice(0, 5);
+    return [
+      `FO4 Regions: ${d.total_regions} regions (${d.border_regions} border, ${d.regions_with_weather} with weather, ${d.regions_with_objects} with object scatter, ${d.regions_with_grass} with grass). Each region decodes its polygon boundary (Region Areas), Map Color, Worldspace, and every Region Data Entry (Objects/Weather/Map/Land/Grass/Sound/Imposter type, with full Sounds/Objects/Grasses/Weather Types sub-arrays). Verified against real base-game data — FXDiamondSky's polygon boundary plausibly traces the Diamond City area.`,
+      '',
+      'SAMPLE REGIONS WITH WEATHER:',
+      ...weatherSample.map((r: any) => `  ${r.edid}: ${r.data_entries.filter((e: any) => e.weather_types.length).map((e: any) => e.weather_types.length + ' weather entries').join(', ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-regions', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-regions', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4RegionsScan(forceRefresh);
+      saveScanCache('fo4-regions', data);
+      addBrainNeuron({ id: 'fo4-regions', domain: 'FO4 Game Systems', title: `FO4 Regions (${data.total_regions||0})`, priority: 39, content: formatFo4RegionsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-33: scan:fo4-sound-color-texture-leveled (SOUN/CLFM/TXST/LVLI)
+  // Ninth of the broader engine-plumbing sweep, thirty-third record type
+  // overall. Four types combined: Sound Markers are placeable ambient/
+  // repeat-timed sound triggers; Colors are the reusable tintable palette
+  // entries referenced by HDPT/ARMA skin and hair tinting; Texture Sets are
+  // the diffuse/normal/glow/material texture bundles behind every
+  // alternate-texture mod; Leveled Items are the random-loot-roll
+  // containers behind every lootable container and vendor list — arguably
+  // the single highest-value type left in this sweep, on par with the
+  // already-covered LVLN. Source-verified (wbDefinitionsFO4.pas SOUN
+  // ~14958-14967, CLFM ~12437-12456, TXST ~10014-10034 + DODT struct
+  // ~6034-6053, LVLI ~12925-12958 + LVLO/COED structs ~5926-5934). SOUN —
+  // EDID, SDSC (Sound Descriptor), REPT (Min/Max Time, Stackable). CLFM —
+  // header flag Non-Playable, EDID, FULL, CNAM (raw Color/Index value,
+  // decoded as both RGBA and float-remap-index since the on-disk union
+  // depends on the FNAM Remapping Index flag), FNAM Flags, Conditions.
+  // TXST — EDID, 8 texture path strings, DODT Decal Data (36-byte fixed
+  // struct, field-size self-check confirmed exact on all 207 real records
+  // with decal data), DNAM Flags, MNAM Material. LVLI — EDID, LVLD/LVLM/
+  // LVLF/LVLG/LLCT, Leveled List Entries (LVLO Level/Reference/Count/
+  // Chance None + optional COED Extra Data [Owner/union raw value/Item
+  // Condition]), Filter Keyword Chances, LVSG, ONAM. Verified against real
+  // base-game data — 221 sound markers, 166 colors (107 playable, 32
+  // remapping-index), 382 texture sets, 2,098 leveled items (405 Use All);
+  // CLFM's RGBA-flagged colors match their EDID names exactly (black =
+  // 0,0,0; White = near-255; WarpaintGreen = greenish), remapping-index
+  // colors are all DLC04 hair-color palette entries with plausible
+  // sequential float indices; LVLI's Dmg50-suffixed Power Armor set
+  // entries correctly decode a 0.5 Item Condition via COED; SOUN's AMB-
+  // prefixed ambient markers correctly decode a repeat timer while
+  // one-shot Teleporter markers correctly have none.
+  async function runFo4SoundColorTextureLeveledScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_sound_color_texture_leveled.py', 180_000);
+    const p = resolveScanCacheFile('fo4_sound_color_texture_leveled.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_sound_markers: raw.total_sound_markers || 0,
+        total_colors: raw.total_colors || 0,
+        playable_colors: raw.playable_colors || 0,
+        remapping_index_colors: raw.remapping_index_colors || 0,
+        total_texture_sets: raw.total_texture_sets || 0,
+        total_leveled_items: raw.total_leveled_items || 0,
+        use_all_leveled_items: raw.use_all_leveled_items || 0,
+        sound_markers: raw.sound_markers || [],
+        colors: raw.colors || [],
+        texture_sets: raw.texture_sets || [],
+        leveled_items: raw.leveled_items || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4SoundColorTextureLeveledNeuron(d: any): string {
+    if (!d?.available) return 'FO4 sound marker/color/texture set/leveled item data not yet scanned. Run: python scripts/fo4_sound_color_texture_leveled.py';
+    const lvliSample = (d.leveled_items || []).filter((l: any) => l.entries.length).slice(0, 6);
+    return [
+      `FO4 Sound Markers/Colors/Texture Sets/Leveled Items: ${d.total_sound_markers} sound markers, ${d.total_colors} colors (${d.playable_colors} playable, ${d.remapping_index_colors} remapping-index), ${d.total_texture_sets} texture sets, ${d.total_leveled_items} leveled items (${d.use_all_leveled_items} Use All). Sound Markers decode descriptor + repeat timing; Colors decode both RGBA and remap-index interpretations plus Conditions; Texture Sets decode all 8 texture channels plus full Decal Data; Leveled Items decode full loot-roll entries including per-entry Owner/Item Condition extra data. Verified against real base-game data — Item Condition on Dmg50-suffixed Power Armor set entries correctly decodes to 0.5.`,
+      '',
+      'SAMPLE LEVELED ITEMS:',
+      ...lvliSample.map((l: any) => `  ${l.edid}: ${l.entries.length} entries [${l.flags.join(', ')}]`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-sound-color-texture-leveled', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-sound-color-texture-leveled', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4SoundColorTextureLeveledScan(forceRefresh);
+      saveScanCache('fo4-sound-color-texture-leveled', data);
+      addBrainNeuron({ id: 'fo4-sound-color-texture-leveled', domain: 'FO4 Game Systems', title: `FO4 Sound/Color/Texture/Leveled (${data.total_sound_markers||0}/${data.total_colors||0}/${data.total_texture_sets||0}/${data.total_leveled_items||0})`, priority: 38, content: formatFo4SoundColorTextureLeveledNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-34: scan:fo4-object-modifications (OMOD) ─────────────────────
+  // Tenth of the broader engine-plumbing sweep, thirty-fourth record type
+  // overall, and one of the single highest modding-value gaps found in a
+  // full record-type re-survey against wbDefinitionsFO4.pas: OMOD is the
+  // weapon/armor MOD ATTACHMENT record — every receiver/barrel/magazine/
+  // sight/muzzle/grip attachment, every armor lining/plating/material swap,
+  // and every Legendary effect mod is one of these. This is the record type
+  // behind the entire weapon/armor customization system. Source-verified
+  // (wbDefinitionsFO4.pas OMOD ~16063-16104, Properties struct ~8416-8455,
+  // property enum tables ~8292-8414, deciders ~5101-5170): record header
+  // flags Legendary Mod / Mod Collection, computed from bit INDEX (4 and 7)
+  // rather than the source's stale inline hex comments (0x08/0x40) — real-
+  // data check confirmed bit 4 is set on all 74 "Legendary"-named records
+  // and bit 3 (the stale comment) never appears at all. EDID, FULL/DESC
+  // (LStrings), MODL, DATA (Include Count/Property Count/Form Type [ARMO/
+  // WEAP/NPC_ — selects which property enum applies]/Attach Point, then a
+  // trailing Attach Parent Slots keyword array, an Includes array [nested
+  // OMOD FormID + Minimum Level + Optional/Don't-Use-All], and a Properties
+  // array [Value Type/Function Type/Property name (looked up against the
+  // Form-Type-selected enum: 14 Armor properties, 6 Actor properties, 95
+  // Weapon properties)/Value 1+2 unions/Step] — byte layout verified exact
+  // against all 2,409 real OMOD DATA subrecords with zero length
+  // mismatches, confirming the source's disused "Items" array is genuinely
+  // always empty). MNAM/FNAM (Target/Filter Keywords), LNAM (Loose Mod),
+  // NAM1 (Priority), FLTR. Verified against real base-game data — 2,409
+  // OMODs (74 Legendary, 1,018 weapon mods, 777 armor mods); zero Unknown
+  // property names across the entire real dataset; mod_Legendary_Weapon_
+  // Speed correctly decodes property=Speed with a MUL+ADD 0.25 function;
+  // AmmoConversion weapon mods correctly show AttackDamage MUL+ADD -0.25;
+  // Mod Collection entries (e.g. modcol_GaussRifle_Scopes) correctly show
+  // increasing per-tier Minimum Level gates across their Includes.
+  async function runFo4ObjectModificationsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_object_modifications.py', 180_000);
+    const p = resolveScanCacheFile('fo4_object_modifications.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_omods: raw.total_omods || 0,
+        legendary_mods: raw.legendary_mods || 0,
+        weapon_mods: raw.weapon_mods || 0,
+        armor_mods: raw.armor_mods || 0,
+        object_modifications: raw.object_modifications || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ObjectModificationsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 object modification data not yet scanned. Run: python scripts/fo4_object_modifications.py';
+    const legendarySample = (d.object_modifications || []).filter((o: any) => o.header_flags.includes('Legendary Mod')).slice(0, 8);
+    return [
+      `FO4 Object Modifications (weapon/armor mod attachments): ${d.total_omods} OMODs (${d.legendary_mods} Legendary, ${d.weapon_mods} weapon mods, ${d.armor_mods} armor mods). Each decodes its Form Type-selected Property list (95 weapon properties, 14 armor properties, 6 actor properties), Function Type (SET/ADD/MUL+ADD/AND/OR/REM), Attach Point and Attach Parent Slots keywords, and nested Includes (Mod Collection tiers with per-tier Minimum Level gates). Verified against real base-game data — zero Unknown property names across 2,409 real OMODs; mod_Legendary_Weapon_Speed correctly decodes property=Speed.`,
+      '',
+      'SAMPLE LEGENDARY MODS:',
+      ...legendarySample.map((o: any) => `  ${o.edid} [${o.form_type}]: ${o.properties.map((p: any) => `${p.property} ${p.function_type} ${p.value1}`).join('; ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-object-modifications', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-object-modifications', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ObjectModificationsScan(forceRefresh);
+      saveScanCache('fo4-object-modifications', data);
+      addBrainNeuron({ id: 'fo4-object-modifications', domain: 'FO4 Game Systems', title: `FO4 Object Modifications (${data.total_omods||0})`, priority: 37, content: formatFo4ObjectModificationsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-35: scan:fo4-ingestibles-and-ingredients (ALCH/INGR) ─────────
+  // Eleventh of the broader engine-plumbing sweep, thirty-fifth record type
+  // overall. Ingestibles are every chem, food item, and drink in the game —
+  // Stimpaks, Jet, Nuka-Cola, RadAway, every craftable chem at a Chemistry
+  // Station — and Ingredients are the raw crafting components consumed to
+  // make them (though real base-game data shows FO4 barely uses the INGR
+  // system at all, unlike Skyrim — crafting materials are MISC items via
+  // COBJ recipes instead, confirmed by only 1 real INGR record existing).
+  // Both carry the same Effects list format (EFID/EFIT/Conditions) already
+  // used by MGEF/SPEL/ENCH elsewhere, so a chem's actual behavior (which
+  // MGEF effects it applies, at what magnitude/duration, under what
+  // Conditions) is now fully readable, not just name-only. Source-verified
+  // (wbDefinitionsFO4.pas ALCH ~8594-8642, INGR ~12627-12660, EFID/EFIT
+  // ~7897-7904). ALCH — header flag Medicine (bit 29, matches the source's
+  // hex comment here, no gotcha), EDID, FULL, KWDA, MODL, ICON/MICO, YNAM/
+  // ZNAM (Pickup/Putdown Sound), ETYP (Equipment Type), CUSD (Crafting
+  // Sound), DESC, DATA (Weight), ENIT (Effect Data: Value/Flags [No Auto-
+  // Calc/Food Item/Medicine/Poison]/Addiction FormID/Addiction Chance/
+  // Sound-Consume), DNAM (Addiction Name), Effects (EFID Base Effect + EFIT
+  // Magnitude/Area/Duration + Conditions). INGR — EDID, FULL, KWDA, MODL,
+  // ICON/MICO, ETYP, YNAM/ZNAM, DATA (Value/Weight), ENIT (Ingredient
+  // Value/Flags), same Effects format. Verified against real base-game
+  // data — 231 ingestibles (19 Medicine, 171 Food, 44 addictive), 1
+  // ingredient; Stimpak correctly decodes Medicine + 0.1 weight + a healing
+  // effect chain gated by per-limb Conditions; every major chem (Jet,
+  // Psycho, Mentats, MedX, Buffout) correctly decodes a 0.1 (10%) Addiction
+  // Chance with its own unique Addiction spell FormID, matching known FO4
+  // chem-addiction mechanics exactly.
+  async function runFo4IngestiblesAndIngredientsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_ingestibles_and_ingredients.py', 180_000);
+    const p = resolveScanCacheFile('fo4_ingestibles_and_ingredients.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_ingestibles: raw.total_ingestibles || 0,
+        medicine_ingestibles: raw.medicine_ingestibles || 0,
+        food_ingestibles: raw.food_ingestibles || 0,
+        addictive_ingestibles: raw.addictive_ingestibles || 0,
+        total_ingredients: raw.total_ingredients || 0,
+        ingestibles: raw.ingestibles || [],
+        ingredients: raw.ingredients || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4IngestiblesAndIngredientsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 ingestible/ingredient data not yet scanned. Run: python scripts/fo4_ingestibles_and_ingredients.py';
+    const addictiveSample = (d.ingestibles || []).filter((a: any) => a.effect_data && a.effect_data.addiction).slice(0, 8);
+    return [
+      `FO4 Ingestibles/Ingredients: ${d.total_ingestibles} ingestibles (${d.medicine_ingestibles} Medicine, ${d.food_ingestibles} Food, ${d.addictive_ingestibles} addictive), ${d.total_ingredients} ingredients. Each decodes its full Effects chain (Base Effect -> MGEF, Magnitude/Area/Duration, Conditions) plus Addiction data. Verified against real base-game data — Stimpak correctly decodes Medicine + a per-limb-conditioned healing effect chain; every major chem correctly decodes its 10% Addiction Chance.`,
+      '',
+      'SAMPLE ADDICTIVE CHEMS:',
+      ...addictiveSample.map((a: any) => `  ${a.edid}: ${(a.effect_data.addiction_chance * 100).toFixed(0)}% addiction chance -> ${a.effect_data.addiction}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-ingestibles-and-ingredients', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-ingestibles-and-ingredients', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4IngestiblesAndIngredientsScan(forceRefresh);
+      saveScanCache('fo4-ingestibles-and-ingredients', data);
+      addBrainNeuron({ id: 'fo4-ingestibles-and-ingredients', domain: 'FO4 Game Systems', title: `FO4 Ingestibles/Ingredients (${data.total_ingestibles||0}/${data.total_ingredients||0})`, priority: 36, content: formatFo4IngestiblesAndIngredientsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-36: scan:fo4-locations-material-swaps-sound-descriptors ─────
+  // (LCTN/MSWP/SNDR) — twelfth of the broader engine-plumbing sweep,
+  // thirty-sixth record type overall. Locations are the named place
+  // hierarchy every quest/encounter-zone/radiant-system query runs against;
+  // Material Swaps are the recolor/reskin system referenced by OMOD's
+  // MaterialSwaps property (decoded last session) and ARMO/STAT alternate-
+  // material mods; Sound Descriptors (SNDR) are the modern sound-file
+  // wrapper that has replaced the legacy SOUN system almost everywhere —
+  // virtually every Sound FormID elsewhere in this project's scanners
+  // points at one of these. Source-verified (wbDefinitionsFO4.pas LCTN
+  // ~11214-11318, MSWP ~16003-16017, SNDR ~12284-12333). LCTN — header
+  // flags Unknown 11 / Partial Form, EDID, FULL, KWDA, PNAM (Parent
+  // Location, the hierarchy link), NAM1 (Music), FNAM (Unreported Crime
+  // Faction), MNAM (World Location Marker Ref), RNAM (World Location
+  // Radius), ANAM (Actor Fade Mult), CNAM (Map Color); the fourteen ACPR/
+  // LCPR/RCPR/ACUN/LCUN/RCUN/ACSR/LCSR/RCSR/ACEC/LCEC/RCEC/ACID/LCID/ACEP/
+  // LCEP cell-reference bookkeeping arrays are deliberately not decoded
+  // (CK-regenerated placement data, not something mods hand-edit). MSWP —
+  // header flag Custom Swap, EDID, first FNAM (Tree Folder), Material
+  // Substitutions (boundary-keyed on BNAM Original Material, each with SNAM
+  // Replacement Material + CNAM Color Remapping Index). SNDR — EDID, NNAM
+  // (Notes), CNAM (Descriptor Type: Standard/Compound/AutoWeapon, decoded
+  // via direct hash lookup), GNAM (Category), SNAM (Alternate Sound For),
+  // Sounds (ANAM File Name array), ONAM (Output Model), Conditions, LNAM
+  // (Looping/Sidechain/Rumble Send), BNAM (on-disk union resolved by its
+  // own byte length: 6-byte Values struct for Standard/Compound, 4-byte
+  // Base Descriptor FormID for AutoWeapon), DNAM (Descriptors array), Rates
+  // of Fire (RPM + File, for variable-rate AutoWeapon sounds). Verified
+  // against real base-game data — 393 locations (352 with parent), 2,536
+  // material swaps, 5,474 sound descriptors (18 AutoWeapon, 18 with rate-
+  // of-fire data); every DiamondCity-interior LCTN correctly parents to the
+  // same interior-grouping Location while DiamondCityLocation itself
+  // parents to the outer Commonwealth-level marker, and DiamondCityPlayer
+  // HouseLocation is the one sibling with a nonzero World Location Radius;
+  // MSWP substitutions show real matching .bgsm material paths (e.g.
+  // StationWagon vehicle reskins); the Gamma Gun's AutoWeapon SNDR
+  // correctly resolves its union to a Base Descriptor FormID and its Rates
+  // of Fire show a plausible escalating RPM table (420-900).
+  async function runFo4LocationsMaterialSwapsSoundDescriptorsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_locations_material_swaps_sound_descriptors.py', 180_000);
+    const p = resolveScanCacheFile('fo4_locations_material_swaps_sound_descriptors.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_locations: raw.total_locations || 0,
+        locations_with_parent: raw.locations_with_parent || 0,
+        total_material_swaps: raw.total_material_swaps || 0,
+        total_sound_descriptors: raw.total_sound_descriptors || 0,
+        autoweapon_sound_descriptors: raw.autoweapon_sound_descriptors || 0,
+        sound_descriptors_with_rate_of_fire: raw.sound_descriptors_with_rate_of_fire || 0,
+        locations: raw.locations || [],
+        material_swaps: raw.material_swaps || [],
+        sound_descriptors: raw.sound_descriptors || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4LocationsMaterialSwapsSoundDescriptorsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 location/material swap/sound descriptor data not yet scanned. Run: python scripts/fo4_locations_material_swaps_sound_descriptors.py';
+    const mswpSample = (d.material_swaps || []).filter((m: any) => m.substitutions.length).slice(0, 6);
+    return [
+      `FO4 Locations/Material Swaps/Sound Descriptors: ${d.total_locations} locations (${d.locations_with_parent} with parent), ${d.total_material_swaps} material swaps, ${d.total_sound_descriptors} sound descriptors (${d.autoweapon_sound_descriptors} AutoWeapon, ${d.sound_descriptors_with_rate_of_fire} with rate-of-fire data). Locations decode their full parent hierarchy, music, and crime faction; Material Swaps decode real original->replacement material paths; Sound Descriptors decode their type-selected data union and any variable rate-of-fire table. Verified against real base-game data — the Gamma Gun's AutoWeapon descriptor correctly shows an escalating RPM table.`,
+      '',
+      'SAMPLE MATERIAL SWAPS:',
+      ...mswpSample.map((m: any) => `  ${m.edid}: ${m.substitutions.map((s: any) => `${s.original_material} -> ${s.replacement_material}`).join('; ')}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-locations-material-swaps-sound-descriptors', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-locations-material-swaps-sound-descriptors', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4LocationsMaterialSwapsSoundDescriptorsScan(forceRefresh);
+      saveScanCache('fo4-locations-material-swaps-sound-descriptors', data);
+      addBrainNeuron({ id: 'fo4-locations-material-swaps-sound-descriptors', domain: 'FO4 Game Systems', title: `FO4 Locations/MatSwaps/Sounds (${data.total_locations||0}/${data.total_material_swaps||0}/${data.total_sound_descriptors||0})`, priority: 35, content: formatFo4LocationsMaterialSwapsSoundDescriptorsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-37: scan:fo4-talking-activators-and-landscape-textures ─────
+  // (TACT/LTEX) — thirteenth of the broader engine-plumbing sweep,
+  // thirty-seventh record type overall. Talking Activators are the
+  // placeable radio/PA-system/loudspeaker/intercom objects (every
+  // in-world quest holotape player, mainframe voice, and radio prop is
+  // one of these); Landscape Textures are the terrain-paint entries
+  // every worldspace's ground texture layer references, tying a
+  // paintable ground texture to its Texture Set, Material Type, and
+  // physics friction/restitution. Source-verified (wbDefinitionsFO4.pas
+  // TACT ~8574-8592, LTEX ~12880-12890). TACT — record header flags
+  // Hidden From Local Map / Random Anim Start / Radio Station, EDID,
+  // FULL, MODL, KWDA, SNAM (Looping Sound -> SNDR), VNAM (Voice Type ->
+  // VTYP); PNAM/FNAM deliberately not decoded (source itself marks
+  // these wbUnknown, no modding value). LTEX — EDID, TNAM (Texture Set
+  // -> TXST), MNAM (Material Type -> MATT), HNAM (Havok Friction/
+  // Restitution, u8 each), SNAM (Texture Specular Exponent, u8), Grasses
+  // (repeating GNAM FormID array -> GRAS). Verified against real
+  // base-game data — 43 talking activators, 105 landscape textures (52
+  // with grasses); talking activator EDIDs correctly resolve to actual
+  // in-world voiced props (intercoms, mainframes, holotape players,
+  // radios) with plausible Voice Type FormIDs, the Hidden From Local Map
+  // flag correctly fires on 3 records, and landscape texture friction/
+  // restitution/specular values are plausible small integers consistent
+  // across similar terrain-type EDIDs.
+  async function runFo4TalkingActivatorsAndLandscapeTexturesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_talking_activators_and_landscape_textures.py', 180_000);
+    const p = resolveScanCacheFile('fo4_talking_activators_and_landscape_textures.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_talking_activators: raw.total_talking_activators || 0,
+        radio_stations: raw.radio_stations || 0,
+        total_landscape_textures: raw.total_landscape_textures || 0,
+        landscape_textures_with_grasses: raw.landscape_textures_with_grasses || 0,
+        talking_activators: raw.talking_activators || [],
+        landscape_textures: raw.landscape_textures || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4TalkingActivatorsAndLandscapeTexturesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 talking activator/landscape texture data not yet scanned. Run: python scripts/fo4_talking_activators_and_landscape_textures.py';
+    const grassSample = (d.landscape_textures || []).filter((l: any) => l.grasses.length).slice(0, 6);
+    return [
+      `FO4 Talking Activators/Landscape Textures: ${d.total_talking_activators} talking activators (${d.radio_stations} radio stations), ${d.total_landscape_textures} landscape textures (${d.landscape_textures_with_grasses} with grasses). Talking Activators decode their looping sound, voice type, and header flags; Landscape Textures decode their texture set, material type, physics friction/restitution/specular exponent, and any attached grasses. Verified against real base-game data — talking activator EDIDs correctly resolve to actual in-world voiced props (intercoms, mainframes, holotape players).`,
+      '',
+      'SAMPLE LANDSCAPE TEXTURES WITH GRASSES:',
+      ...grassSample.map((l: any) => `  ${l.edid}: friction=${l.friction} restitution=${l.restitution} grasses=${l.grasses.length}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-talking-activators-and-landscape-textures', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-talking-activators-and-landscape-textures', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4TalkingActivatorsAndLandscapeTexturesScan(forceRefresh);
+      saveScanCache('fo4-talking-activators-and-landscape-textures', data);
+      addBrainNeuron({ id: 'fo4-talking-activators-and-landscape-textures', domain: 'FO4 Game Systems', title: `FO4 TalkingActivators/LandscapeTextures (${data.total_talking_activators||0}/${data.total_landscape_textures||0})`, priority: 34, content: formatFo4TalkingActivatorsAndLandscapeTexturesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-38: scan:fo4-weather ─────────────────────────────────────
+  // (WTHR) — fourteenth of the broader engine-plumbing sweep, thirty-
+  // eighth record type overall. Weathers are the single record every
+  // worldspace's Climate cycles through — fog, precipitation, lightning,
+  // sky/ambient color grading, weather-triggered ambient sounds, sky
+  // statics (rain-effect meshes), and weather-triggered magic. Source-
+  // verified (wbDefinitionsFO4.pas WTHR ~15568-15750, wbByteColors
+  // ~5329, wbWeatherColors ~5348, wbAmbientColors ~5362-5392). Header
+  // flag Unknown 9, EDID, MNAM (Precipitation Type -> SPGD), NNAM
+  // (Visual Effect -> RFCT), NAM0 Weather Colors (19 named color groups
+  // x 8 time-of-day variants, 4-byte RGB+unused each), FNAM Fog Distance
+  // (18 floats), DATA (Wind Speed/Trans Delta/Sun Glare/Sun Damage/
+  // Precipitation+Thunder Fade timings/Flags [Pleasant/Cloudy/Rainy/
+  // Snow/Sky Statics-Always Visible/Sky Statics-Follows Sun/Rain
+  // Occlusion/HUD Rain Effects]/Lightning Color/Wind Direction — parsed
+  // with a running offset since source declares only 16 of the full 20
+  // bytes as guaranteed present, same legacy-shrink pattern as EXPL),
+  // NAM1 (Disabled Cloud Layers bitmask), Sounds (SNAM: Sound -> SNDR +
+  // Type), Sky Statics (TNAM -> STAT), IMSP Image Spaces (8 time-of-day
+  // FormIDs -> IMGS), WGDR God Rays (8 time-of-day FormIDs -> GDRY),
+  // GNAM (Sun Glare Lens Flare -> LENS), UNAM Magic (Lightning Strike/
+  // Weather Activate Spells + Thresholds), VNAM/WNAM (Volatility/
+  // Visibility Mult). UPGRADE PASS: the fields originally scope-limited
+  // out are now decoded too — 29 Cloud Texture Layer path strings (fixed-
+  // signature subrecords resolved from source's own TwbSignature table),
+  // Cloud Speed (RNAM Y / QNAM X, per-layer u8 arrays via source's own
+  // (byte-127)/127/10 conversion), Cloud Colors (PNAM, variable-count
+  // 32-byte wbWeatherColors groups, one per active cloud layer), Cloud
+  // Alphas (JNAM, variable-count 32-byte 8-float groups), DALC
+  // Directional Ambient Lighting (8 positional 32-byte structs in
+  // Sunrise/Day/Sunset/Night/EarlySunrise/LateSunrise/EarlySunset/
+  // LateSunset order, same struct already decoded once for LGTM), and
+  // Aurora (the single optional MODL path WTHR carries). Still NOT
+  // decoded: LNAM/ONAM (source itself marks these unused). Verified
+  // against real base-game data — 71 weathers (36 Pleasant, 8 Rainy, 6
+  // Snow); CommonwealthClear's Sky-Upper Day color (38,64,99) and Sun
+  // Day color (255,255,255) are plausible real sky colors; 56 weathers
+  // have cloud texture layers with real .dds paths (e.g.
+  // Sky\CloudsUpper01_d.dds), cloud speed values decode to small
+  // plausible drift floats (~0.02-0.07); all 71 weathers have DALC with
+  // plausible ambient RGB (a bluish z_plus sky-facing color, darker
+  // horizontal faces); Aurora self-validates perfectly — EditorCloudPreview
+  // resolves to Sky\SkyrimAurora.nif and the RadStorm weathers resolve to
+  // Sky\RadStormSkyEffect.nif, confirming this is a general full-screen
+  // sky-mesh override slot, not Nuka-World-exclusive.
+  async function runFo4WeatherScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_weather.py', 180_000);
+    const p = resolveScanCacheFile('fo4_weather.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_weathers: raw.total_weathers || 0,
+        with_sounds: raw.with_sounds || 0,
+        with_sky_statics: raw.with_sky_statics || 0,
+        pleasant: raw.pleasant || 0,
+        rainy: raw.rainy || 0,
+        snow: raw.snow || 0,
+        with_cloud_textures: raw.with_cloud_textures || 0,
+        with_directional_ambient_lighting: raw.with_directional_ambient_lighting || 0,
+        with_aurora: raw.with_aurora || 0,
+        weathers: raw.weathers || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4WeatherNeuron(d: any): string {
+    if (!d?.available) return 'FO4 weather data not yet scanned. Run: python scripts/fo4_weather.py';
+    const rainySample = (d.weathers || []).filter((w: any) => (w.data?.flags || []).includes('Weather - Rainy')).slice(0, 6);
+    const auroraSample = (d.weathers || []).filter((w: any) => w.aurora_model).slice(0, 6);
+    return [
+      `FO4 Weather: ${d.total_weathers} weathers (${d.pleasant} Pleasant, ${d.rainy} Rainy, ${d.snow} Snow), ${d.with_sounds} with ambient sounds, ${d.with_sky_statics} with sky statics, ${d.with_cloud_textures} with cloud texture layers, ${d.with_directional_ambient_lighting} with directional ambient lighting (DALC), ${d.with_aurora} with an Aurora/full-screen sky-mesh override. Each weather decodes its full 19-group x 8-time-of-day color palette, fog distance curve, precipitation/lightning behavior flags, ambient sound set, sky statics, image spaces, god rays, weather-triggered magic, up to 29 cloud texture layers with per-layer drift speed/color/alpha, 8-time-of-day directional ambient lighting, and any Aurora sky-mesh override. Verified against real base-game data — CommonwealthClear's sky/sun colors and fog curve are plausible real values, cloud texture layers resolve to real .dds paths, and Aurora correctly resolves EditorCloudPreview to Sky\\SkyrimAurora.nif and RadStorm weathers to Sky\\RadStormSkyEffect.nif.`,
+      '',
+      'SAMPLE RAINY WEATHERS:',
+      ...rainySample.map((w: any) => `  ${w.edid}: sky_statics=${w.sky_statics.length} sounds=${w.sounds.length} cloud_layers=${Object.keys(w.cloud_texture_layers||{}).length}`),
+      ...(auroraSample.length ? ['', 'SAMPLE AURORA/SKY-MESH OVERRIDES:', ...auroraSample.map((w: any) => `  ${w.edid}: ${w.aurora_model}`)] : []),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-weather', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-weather', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4WeatherScan(forceRefresh);
+      saveScanCache('fo4-weather', data);
+      addBrainNeuron({ id: 'fo4-weather', domain: 'FO4 Game Systems', title: `FO4 Weather (${data.total_weathers||0})`, priority: 33, content: formatFo4WeatherNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-39: scan:fo4-books-notes-keys-messages ──────────────────
+  // (BOOK/NOTE/KEYM/MESG combined) — thirty-ninth record type overall.
+  // Books are the skill-book/perk-magazine/Actor-Value-training items
+  // every "unique magazine" mod extends; Notes are holotapes/terminal-
+  // note/audio-log items (Sound/Voice/Program/Terminal sub-typed); Keys
+  // are the trivial lock-opening items; Messages are the conditional
+  // popup/message-box system driving quest notifications, each with its
+  // own conditional multi-button choice list. Source-verified
+  // (wbDefinitionsFO4.pas BOOK ~8819-8861, NOTE ~16034-16061, KEYM
+  // ~12662-12684, MESG ~11349-11366). BOOK — EDID, FULL, DESC (tooltip
+  // description), CNAM (in-book readable text), MODL, ICON, KWDA, FIMD
+  // (Featured Item Message -> MESG), DATA (Value/Weight), DNAM (13-byte
+  // struct verified exact against all 327 real records: Flags [Advance
+  // Actor Value/Can't be Taken/Add Spell/Add Perk] + a Teaches union
+  // decided by those same flag bits [Actor Value -> AVIF, Spell -> SPEL,
+  // Perk -> PERK] + Text Offset X/Y), INAM (Inventory Art -> STAT). NOTE
+  // — EDID, FULL, MODL, ICON, DNAM (Type enum: Sound/Voice/Program/
+  // Terminal), DATA, SNAM (union decided by Type: Sound -> SNDR, Voice
+  // -> Scene -> SCEN, Terminal -> TERM, Program -> unused since it uses
+  // PNAM instead), PNAM (Program File). KEYM — header flags Calc Value
+  // From Components/Pack-In Use Only, EDID, FULL, KWDA, DATA. MESG —
+  // EDID, DESC (body text), FULL (title), QNAM (Owner Quest -> QUST),
+  // DNAM (Flags: Message Box/Delay Initial Display), TNAM (Display
+  // Time), SNAM (SWF path), NNAM (Short Title), Menu Buttons (repeating
+  // group boundary-keyed on ITXT, each with its own Conditions array
+  // using the project's standard reused CTDA+CIS1/CIS2 parser). Verified
+  // against real base-game data — 327 books (100 teach an Actor Value/
+  // Spell/Perk), 167 notes (27 Terminal-typed, 133 Voice-typed, 7
+  // Program-typed, 0 Sound-typed — confirmed genuine, not a decode gap),
+  // 177 keys, 1,481 messages (84 with menu buttons); every PerkMag-
+  // prefixed book (the real in-game Perk Magazine collectibles) EDID
+  // correctly resolves teaches_type=Perk with a real Perk FormID, and
+  // every Terminal-typed note EDID correctly resolves to a real
+  // holotape/terminal-unlock EDID pattern.
+  async function runFo4BooksNotesKeysMessagesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_books_notes_keys_messages.py', 180_000);
+    const p = resolveScanCacheFile('fo4_books_notes_keys_messages.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_books: raw.total_books || 0,
+        books_that_teach: raw.books_that_teach || 0,
+        total_notes: raw.total_notes || 0,
+        terminal_notes: raw.terminal_notes || 0,
+        total_keys: raw.total_keys || 0,
+        total_messages: raw.total_messages || 0,
+        messages_with_buttons: raw.messages_with_buttons || 0,
+        books: raw.books || [],
+        notes: raw.notes || [],
+        keys: raw.keys || [],
+        messages: raw.messages || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4BooksNotesKeysMessagesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 book/note/key/message data not yet scanned. Run: python scripts/fo4_books_notes_keys_messages.py';
+    const teachSample = (d.books || []).filter((b: any) => b.teaches_type).slice(0, 6);
+    return [
+      `FO4 Books/Notes/Keys/Messages: ${d.total_books} books (${d.books_that_teach} teach an Actor Value/Spell/Perk), ${d.total_notes} notes (${d.terminal_notes} Terminal-typed), ${d.total_keys} keys, ${d.total_messages} messages (${d.messages_with_buttons} with conditional menu buttons). Books decode their full Teaches union and text-offset positioning; Notes decode their Sound/Voice/Program/Terminal sub-type union; Messages decode their full conditional multi-button choice list using the project's standard Conditions parser. Verified against real base-game data — every PerkMag-prefixed book correctly resolves teaches_type=Perk with a real Perk FormID.`,
+      '',
+      'SAMPLE TEACHING BOOKS:',
+      ...teachSample.map((b: any) => `  ${b.edid}: teaches ${b.teaches_type} (${b.teaches_form_id})`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-books-notes-keys-messages', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-books-notes-keys-messages', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4BooksNotesKeysMessagesScan(forceRefresh);
+      saveScanCache('fo4-books-notes-keys-messages', data);
+      addBrainNeuron({ id: 'fo4-books-notes-keys-messages', domain: 'FO4 Game Systems', title: `FO4 Books/Notes/Keys/Messages (${data.total_books||0}/${data.total_notes||0}/${data.total_keys||0}/${data.total_messages||0})`, priority: 32, content: formatFo4BooksNotesKeysMessagesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-40: scan:fo4-equip-slots-lighting-addon-collision ──────
+  // (EQUP/LGTM/ADDN/COLL combined) — fortieth record type overall,
+  // fifteenth of the broader engine-plumbing sweep. Equip Slots are the
+  // body-slot exclusivity system every equippable armor/weapon
+  // references; Lighting Templates are the default lighting/fog recipe
+  // every interior cell inherits; Addon Nodes are the attach-point
+  // particle/light/sound emitters used by muzzle flashes and similar
+  // effects; Collision Layers are the physics collision-group system.
+  // Source-verified (wbDefinitionsFO4.pas EQUP ~11969-11978, LGTM
+  // ~11790-11823, ADDN ~10981-10997, COLL ~12417-12435). EQUP — EDID,
+  // PNAM (Slot Parents exclusivity chain -> EQUP), DATA (Flags: Use All
+  // Parents/Parents Optional/Item Slot), ANAM (Condition Actor Value ->
+  // AVIF, or the 0xFFFFFFFF sentinel). LGTM — DATA (136-byte-when-full
+  // Lighting struct: Ambient/Directional/Fog colors, Fog Near/Far, Fog
+  // Power/Clip/Max, Light Fade Begin/End, Near/Far Height Mid/Range,
+  // High Density Scale — parsed with a running offset since source
+  // declares only the first 15 of 27 elements guaranteed present, same
+  // legacy-shrink pattern as EXPL/WTHR), DALC (single 32-byte
+  // Directional Ambient struct — unlike WTHR's 8 time-of-day variants,
+  // LGTM has exactly one), WGDR (single God Rays FormID -> GDRY). ADDN —
+  // EDID, MODL, DATA (Node Index), SNAM (Sound -> SNDR), LNAM (Light ->
+  // LIGH), DNAM (Master Particle System Cap + Flags enum). COLL — EDID,
+  // DESC, BNAM (Index, the actual collision-layer ID NIF setups
+  // reference), FNAM (Debug Color), GNAM (Flags: Trigger Volume/Sensor/
+  // Navmesh Obstacle), MNAM (Name), INTV (Interactables Count), CNAM
+  // (Collides With, the actual collision matrix -> COLL array). Verified
+  // against real base-game data — 38 equip slots (6 Item Slot) with real
+  // slot names (LeftHandOther, BothHandsMiddle, RightHandAlt,
+  // PowerArmorBatterySlot); 66 lighting templates, InstituteLighting
+  // TemplateNew correctly decodes cool blue-white ambient/fog colors
+  // matching the Institute's known aesthetic; 255 addon nodes; 57
+  // collision layers with real engine-standard L_-prefixed names
+  // (L_WEAPON, L_PROJECTILE, L_STATIC, L_CHARCONTROLLER) and plausible
+  // indices 0-56 with matching collision matrices.
+  async function runFo4EquipSlotsLightingAddonCollisionScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_equip_slots_lighting_addon_collision.py', 180_000);
+    const p = resolveScanCacheFile('fo4_equip_slots_lighting_addon_collision.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_equip_slots: raw.total_equip_slots || 0,
+        item_slots: raw.item_slots || 0,
+        total_lighting_templates: raw.total_lighting_templates || 0,
+        total_addon_nodes: raw.total_addon_nodes || 0,
+        total_collision_layers: raw.total_collision_layers || 0,
+        collision_layers_with_matrix: raw.collision_layers_with_matrix || 0,
+        equip_slots: raw.equip_slots || [],
+        lighting_templates: raw.lighting_templates || [],
+        addon_nodes: raw.addon_nodes || [],
+        collision_layers: raw.collision_layers || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4EquipSlotsLightingAddonCollisionNeuron(d: any): string {
+    if (!d?.available) return 'FO4 equip slot/lighting template/addon node/collision layer data not yet scanned. Run: python scripts/fo4_equip_slots_lighting_addon_collision.py';
+    const collSample = (d.collision_layers || []).slice(0, 8);
+    return [
+      `FO4 Equip Slots/Lighting Templates/Addon Nodes/Collision Layers: ${d.total_equip_slots} equip slots (${d.item_slots} Item Slot), ${d.total_lighting_templates} lighting templates, ${d.total_addon_nodes} addon nodes, ${d.total_collision_layers} collision layers (${d.collision_layers_with_matrix} with a collision matrix). Equip Slots decode their full parent exclusivity chain; Lighting Templates decode their full color/fog recipe plus directional ambient lighting; Collision Layers decode their index, debug color, flags, and full Collides-With matrix. Verified against real base-game data — collision layer EDIDs and indices match the real engine-standard L_-prefixed naming scheme.`,
+      '',
+      'SAMPLE COLLISION LAYERS:',
+      ...collSample.map((c: any) => `  ${c.edid} (index ${c.index}): collides with ${c.collides_with.length} layers, flags=${c.flags.join('/')||'none'}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-equip-slots-lighting-addon-collision', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-equip-slots-lighting-addon-collision', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4EquipSlotsLightingAddonCollisionScan(forceRefresh);
+      saveScanCache('fo4-equip-slots-lighting-addon-collision', data);
+      addBrainNeuron({ id: 'fo4-equip-slots-lighting-addon-collision', domain: 'FO4 Game Systems', title: `FO4 EquipSlots/Lighting/Addon/Collision (${data.total_equip_slots||0}/${data.total_lighting_templates||0}/${data.total_addon_nodes||0}/${data.total_collision_layers||0})`, priority: 31, content: formatFo4EquipSlotsLightingAddonCollisionNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-41: scan:fo4-debris-imagespace-particle-geometry ───────
+  // (DEBR/IMGS/SPGD combined) — forty-first record type overall,
+  // sixteenth of the broader engine-plumbing sweep. Debris records are
+  // the break-apart piece sets used by robot/object destruction
+  // effects; Image Spaces are the full color-grading recipe (HDR/
+  // tonemapping, cinematic saturation/brightness/contrast, tint, depth
+  // of field, and an optional LUT) that every Weather/interior CELL
+  // references — one of the highest-value remaining gaps for anyone
+  // building an ENB/reshade-style visual overhaul; Shader Particle
+  // Geometry drives the built-in rain/snow particle system's per-
+  // particle behavior. Source-verified (wbDefinitionsFO4.pas DEBR
+  // ~10528-10540, IMGS ~10542-10593, SPGD ~9129-9161). MICN is
+  // commented out entirely in xEdit's own source (alongside LSPR) —
+  // confirmed genuinely unused/dead in FO4, same as the EYES record
+  // type found earlier; no scanner needed. DEBR — EDID, Models
+  // (repeating group: one DATA subrecord per model holding an embedded
+  // variable-length string — Percentage, null-terminated Model
+  // Filename, trailing Flags [Has Collision Data] — confirmed byte-
+  // exact against real data; MODT texture-hash blob deliberately not
+  // decoded, it's a CK-regenerated cache). IMGS — EDID, HNAM HDR (9
+  // floats: Eye Adapt Speed/Tonemap E/Bloom Threshold+Scale/Auto
+  // Exposure Max+Min/Sunlight+Sky Scale/Middle Gray), CNAM Cinematic
+  // (Saturation/Brightness/Contrast), TNAM Tint (Amount + RGB Color),
+  // DNAM Depth of Field (Strength/Distance/Range/Sky-Blur-Radius enum/
+  // Vignette Radius+Strength — parsed with a running offset, same
+  // legacy-shrink pattern as EXPL/WTHR/LGTM), TX00 (LUT texture path).
+  // SPGD — DATA (source itself lists a duplicate "Center Offset Min"
+  // label at two positions, trusted positionally and labeled _1/_2
+  // rather than guessed, interleaved with the source's own 4-byte
+  // Unknown gaps between nearly every real field), MNAM (Particle
+  // Texture path). Verified against real base-game data — 5 debris
+  // records (RobotDebris* correctly resolve real robot-debris nif
+  // paths with plausible break percentages); 293 image spaces (209
+  // with a LUT), a VR-workshop dawn weather image space's Middle Gray
+  // value correctly decodes to 0.18 — the textbook photographic
+  // tonemapping constant, confirming exact struct offsets; 3 shader
+  // particle geometries, all three real rain-type SPGD records
+  // (MistyRainy/ActualRain/RealRain) correctly decode type=Rain with
+  // consistent gravity velocity (~750-775) and matching 8x2 subtexture
+  // grids.
+  async function runFo4DebrisImagespaceParticleGeometryScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_debris_imagespace_particle_geometry.py', 180_000);
+    const p = resolveScanCacheFile('fo4_debris_imagespace_particle_geometry.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_debris: raw.total_debris || 0,
+        total_image_spaces: raw.total_image_spaces || 0,
+        image_spaces_with_lut: raw.image_spaces_with_lut || 0,
+        total_shader_particle_geometry: raw.total_shader_particle_geometry || 0,
+        debris: raw.debris || [],
+        image_spaces: raw.image_spaces || [],
+        shader_particle_geometry: raw.shader_particle_geometry || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4DebrisImagespaceParticleGeometryNeuron(d: any): string {
+    if (!d?.available) return 'FO4 debris/image space/shader particle geometry data not yet scanned. Run: python scripts/fo4_debris_imagespace_particle_geometry.py';
+    const spgdSample = (d.shader_particle_geometry || []).slice(0, 5);
+    return [
+      `FO4 Debris/Image Spaces/Shader Particle Geometry: ${d.total_debris} debris records, ${d.total_image_spaces} image spaces (${d.image_spaces_with_lut} with a color-grading LUT), ${d.total_shader_particle_geometry} shader particle geometries. Debris decodes its full break-apart model+percentage+collision-flag list; Image Spaces decode the complete HDR/cinematic/tint/depth-of-field color-grading recipe plus any LUT path — the same data every ENB/reshade-style visual mod needs to read or override; Shader Particle Geometry decodes the rain/snow particle behavior struct. Verified against real base-game data — a VR-workshop dawn weather image space's Middle Gray value correctly decodes to 0.18, the textbook photographic tonemapping constant.`,
+      '',
+      'SAMPLE SHADER PARTICLE GEOMETRY:',
+      ...spgdSample.map((s: any) => `  ${s.edid}: type=${s.data.type||'?'} gravity=${s.data.gravity_velocity} density=${s.data.particle_density}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-debris-imagespace-particle-geometry', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-debris-imagespace-particle-geometry', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4DebrisImagespaceParticleGeometryScan(forceRefresh);
+      saveScanCache('fo4-debris-imagespace-particle-geometry', data);
+      addBrainNeuron({ id: 'fo4-debris-imagespace-particle-geometry', domain: 'FO4 Game Systems', title: `FO4 Debris/ImageSpaces/ParticleGeometry (${data.total_debris||0}/${data.total_image_spaces||0}/${data.total_shader_particle_geometry||0})`, priority: 30, content: formatFo4DebrisImagespaceParticleGeometryNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-42: scan:fo4-music-damage-instance-layer-material ──────
+  // (MUSC/MUST/DMGT/INNR/LAYR/LCRT/MATO combined) — forty-second record
+  // type overall, seventeenth of the broader engine-plumbing sweep.
+  // Music Types are the named music "buckets" every Location/quest
+  // music cue references, pulling from a playlist of Music Tracks;
+  // Damage Types tie an Actor Value to the Spell that applies its
+  // damage-resistance math; Instance Naming Rules drive the "Rusty"/
+  // "Pristine"-style automatic name-suffix system for leveled/legendary
+  // items; Layers and Location Reference Types are small hierarchy/
+  // tagging systems; Material Objects are the directional-material
+  // overlay system used for wet/scorched/snow surface effects. Source-
+  // verified (wbDefinitionsFO4.pas LCRT ~9996-10000, MUSC ~11825-11842,
+  // MUST ~11928-11948, MATO ~12249-12269, DMGT ~15868-15878, INNR
+  // ~15899-15949, LAYR ~15964-15967). LCRT — EDID, CNAM (map-marker
+  // filter Color). MUSC — EDID, FNAM (Flags), PNAM (Priority + Ducking
+  // dB), WNAM (Fade Duration), TNAM (Music Tracks -> MUST). MUST — EDID,
+  // CNAM (Track Type hash enum: Palette/Single Track/Silent Track),
+  // FLTV/DNAM (Duration/Fade-Out), ANAM/BNAM (Track/Finale Filename),
+  // LNAM (Loop Data), FNAM (Cue Points), Conditions (standard reused
+  // CTDA+CIS1/CIS2 parser), SNAM (sub-Tracks for Palette type). DMGT —
+  // EDID, DNAM (a wbUnion keyed on the record's own FormVersion read
+  // from the header exactly like xEdit's decider and this project's
+  // EXPL/EFSH precedent: FormVersion < 78 = raw AV-index array, >= 78 =
+  // {Actor Value -> AVIF, Spell -> SPEL} struct array). INNR — EDID,
+  // UNAM (Target enum), a two-level repeating group (Rulesets keyed on
+  // VNAM, each holding Names keyed on WNAM with KWDA/XNAM Property/
+  // YNAM Index) driving automatic item name suffixes. LAYR — EDID, PNAM
+  // (Parent -> LAYR). MATO — EDID, MODL, DATA (Directional Material:
+  // Falloff Scale/Bias, Noise/Material UV Scale, Projection Vector,
+  // Normal Dampener, Single Pass Color/Flag — parsed with a running
+  // offset, same legacy-shrink pattern as EXPL/WTHR/LGTM/IMGS). Verified
+  // against real base-game data — 704 location reference types, 111
+  // music types (faction-themed MUSzFactionInstitute/Brotherhood/
+  // Railroad correctly decode Cycle Tracks + Ducks Current Track), 552
+  // music tracks (38 Palette, each correctly showing large sub-track
+  // fan-out counts of 13-20), 8 damage types (dtRadiationIngestion is
+  // the one real modern-FormVersion record and correctly decodes the
+  // Actor-Value+Spell struct pair, the other 7 correctly decode the
+  // legacy raw-index format per their own lower FormVersion), 7
+  // instance naming rules, 3,826 layers, 26 material objects (Snow-
+  // prefixed materials correctly decode a light blue-gray Single Pass
+  // Color consistent with a frost/snow visual treatment).
+  async function runFo4MusicDamageInstanceLayerMaterialScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_music_damage_instance_layer_material.py', 180_000);
+    const p = resolveScanCacheFile('fo4_music_damage_instance_layer_material.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_location_reference_types: raw.total_location_reference_types || 0,
+        total_music_types: raw.total_music_types || 0,
+        total_music_tracks: raw.total_music_tracks || 0,
+        palette_music_tracks: raw.palette_music_tracks || 0,
+        total_damage_types: raw.total_damage_types || 0,
+        modern_format_damage_types: raw.modern_format_damage_types || 0,
+        total_instance_naming_rules: raw.total_instance_naming_rules || 0,
+        total_layers: raw.total_layers || 0,
+        total_material_objects: raw.total_material_objects || 0,
+        location_reference_types: raw.location_reference_types || [],
+        music_types: raw.music_types || [],
+        music_tracks: raw.music_tracks || [],
+        damage_types: raw.damage_types || [],
+        instance_naming_rules: raw.instance_naming_rules || [],
+        layers: raw.layers || [],
+        material_objects: raw.material_objects || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4MusicDamageInstanceLayerMaterialNeuron(d: any): string {
+    if (!d?.available) return 'FO4 music/damage type/instance naming/layer/loc-ref-type/material data not yet scanned. Run: python scripts/fo4_music_damage_instance_layer_material.py';
+    const dmgtSample = (d.damage_types || []).slice(0, 8);
+    return [
+      `FO4 Music/Damage Types/Instance Naming/Layers/LocRefTypes/Materials: ${d.total_music_types} music types, ${d.total_music_tracks} music tracks (${d.palette_music_tracks} Palette), ${d.total_damage_types} damage types (${d.modern_format_damage_types} modern-format), ${d.total_instance_naming_rules} instance naming rules, ${d.total_layers} layers, ${d.total_location_reference_types} location reference types, ${d.total_material_objects} material objects. Damage Types decode their FormVersion-keyed union correctly per record; Instance Naming Rules decode the full nested ruleset/property structure driving automatic legendary/leveled item names. Verified against real base-game data — the one modern-FormVersion Damage Type (Radiation Ingestion) correctly decodes its Actor Value + Spell pair while every legacy-FormVersion one correctly decodes the older raw-index format.`,
+      '',
+      'SAMPLE DAMAGE TYPES:',
+      ...dmgtSample.map((x: any) => `  ${x.edid} (FormVersion ${x.form_version}, ${x.legacy_format ? 'legacy' : 'modern'} format)`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-music-damage-instance-layer-material', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-music-damage-instance-layer-material', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4MusicDamageInstanceLayerMaterialScan(forceRefresh);
+      saveScanCache('fo4-music-damage-instance-layer-material', data);
+      addBrainNeuron({ id: 'fo4-music-damage-instance-layer-material', domain: 'FO4 Game Systems', title: `FO4 Music/Damage/Instance/Layer/Material (${data.total_music_types||0}/${data.total_damage_types||0}/${data.total_instance_naming_rules||0}/${data.total_layers||0}/${data.total_material_objects||0})`, priority: 29, content: formatFo4MusicDamageInstanceLayerMaterialNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-43: scan:fo4-image-space-adapters ───────────────────────
+  // (IMAD) — the final item on the original "grind it to zero" candidate
+  // list, previously deliberately skipped for interpolator-array
+  // complexity. IMAD drives every scripted post-processing effect: low-
+  // health red screen tint, VATS radial blur, rad-storm screen warp,
+  // sniper-scope depth of field, EMP double vision, drug-effect color
+  // grading. Source-verified (wbDefinitionsFO4.pas IMAD ~10608-10758,
+  // wbTimeInterpolator/wbColorInterpolator ~10595-10606, IAD signature
+  // constants ~87-128). EDID, DNAM "Data Count" (Flags [Animatable] +
+  // Duration float, then 55 count fields — every other DNAM field is a
+  // keyframe COUNT for its matching array subrecord, not an actual
+  // value, confirmed byte-exact against real data; two float exceptions,
+  // Radial Blur Center X/Y, can't be keyframed the same way and store
+  // real values instead of counts). Interpolator arrays: BNAM Blur
+  // Radius/VNAM Double Vision/TNAM Tint Color/NAM3 Fade Color, a Radial
+  // Blur group (RNAM/SNAM/UNAM/NAM1/NAM2) and a Depth of Field group
+  // (WNAM/XNAM/YNAM/NAM5/NAM6), NAM4 Motion Blur, plus 42 fixed-
+  // signature IAD-tagged arrays (source's own hex-index + "IAD" table)
+  // covering HDR (Eye Adapt/Bloom/Target Lum/Sunlight/Sky Scale, Mult+
+  // Add) and Cinematic (Saturation/Brightness/Contrast, Mult+Add) — 20
+  // of the 42 are source's own unlabeled "Unknown" slots, kept under
+  // their raw hex index rather than guessed at. A Time interpolator
+  // element is 8 bytes (Time+Value floats); a Color interpolator element
+  // is 20 bytes (Time+R+G+B+A floats). Verified against real base-game
+  // data — 247 image space adapters (78 animatable); every single DNAM
+  // count field cross-checked exactly against the true element count of
+  // its matching array on every record, confirming the entire struct
+  // layout byte-exact; LowHealthImod's Tint Color keyframes correctly
+  // animate red->orange->red exactly matching the real low-health screen
+  // effect; RadStormIMod correctly decodes Animatable with populated
+  // Radial Blur/DoF/Motion Blur arrays matching its screen-warp effect.
+  async function runFo4ImageSpaceAdaptersScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_image_space_adapters.py', 180_000);
+    const p = resolveScanCacheFile('fo4_image_space_adapters.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_image_space_adapters: raw.total_image_space_adapters || 0,
+        animatable: raw.animatable || 0,
+        with_color_effects: raw.with_color_effects || 0,
+        with_radial_blur: raw.with_radial_blur || 0,
+        with_depth_of_field: raw.with_depth_of_field || 0,
+        with_hdr_cinematic: raw.with_hdr_cinematic || 0,
+        image_space_adapters: raw.image_space_adapters || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4ImageSpaceAdaptersNeuron(d: any): string {
+    if (!d?.available) return 'FO4 image space adapter data not yet scanned. Run: python scripts/fo4_image_space_adapters.py';
+    const sample = (d.image_space_adapters || []).filter((i: any) => i.color_interpolator_arrays?.tint_color?.length).slice(0, 6);
+    return [
+      `FO4 Image Space Adapters: ${d.total_image_space_adapters} adapters (${d.animatable} animatable) — the record behind every scripted screen effect (low-health tint, VATS/rad-storm radial blur, sniper depth of field, drug-effect color grading). ${d.with_color_effects} have color keyframe effects, ${d.with_radial_blur} radial blur, ${d.with_depth_of_field} depth of field, ${d.with_hdr_cinematic} HDR/Cinematic keyframes. Each decodes its full keyframe timeline (Time->Value or Time->RGBA per array) for every animatable visual property. Verified against real base-game data — LowHealthImod's Tint Color keyframes correctly animate red->orange->red matching the real in-game low-health screen effect, and every DNAM count field exactly matches its array's true element count.`,
+      '',
+      'SAMPLE COLOR-EFFECT ADAPTERS:',
+      ...sample.map((i: any) => `  ${i.edid}: tint_keyframes=${i.color_interpolator_arrays.tint_color.length} duration=${i.dnam?.duration ?? '?'}s`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-image-space-adapters', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-image-space-adapters', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4ImageSpaceAdaptersScan(forceRefresh);
+      saveScanCache('fo4-image-space-adapters', data);
+      addBrainNeuron({ id: 'fo4-image-space-adapters', domain: 'FO4 Game Systems', title: `FO4 Image Space Adapters (${data.total_image_space_adapters||0})`, priority: 28, content: formatFo4ImageSpaceAdaptersNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-44: scan:fo4-worldspaces-and-climates ───────────────────
+  // (WRLD/CLMT combined) — first stop in the newly-expanded push into
+  // world-data record types. Unlike CELL/REFR/ACHR/LAND/NAVI/NAVM, WRLD
+  // and CLMT are compact hand-authored definitions (a handful per game),
+  // not CK-generated bulk geometry, so they get the same full-depth
+  // treatment as every other scanner. Source-verified (wbDefinitionsFO4
+  // .pas WRLD ~15461-15565, CLMT ~9105-9127). WRLD — EDID, FULL (LString
+  // — honest gap, no .STRINGS loader), WCTR Fixed Dimensions Center
+  // Cell, LTMP Interior Lighting -> LGTM, XEZN/XLCN, Parent (WNAM ->
+  // WRLD + PNAM Flags), CNAM Climate -> CLMT, NAM2/NAM3 Water/LOD Water
+  // -> WATR, DNAM Land Data, ICON Map Image, Cloud Model, MNAM Map Data,
+  // ONAM World Map Offset, DATA Flags [Small World/Can't Fast Travel/No
+  // LOD Water/No Landscape/No Sky/Fixed Dimensions/No Grass], Object
+  // Bounds, ZNAM Music, HD LOD Diffuse/Normal textures. Deliberately NOT
+  // decoded: MHDT heightmap byte array, WLEV, OFST LOD offset table —
+  // all CK-regenerated geometry, not hand-edited. CLMT — EDID, WLST
+  // Weather Types array (Weather -> WTHR + Chance + Global -> GLOB),
+  // Sun/Sun Glare textures, Model, TNAM Timing (Sunrise/Sunset Begin/End
+  // via source's own hour=byte//6, minute=(byte%6)*10 formula,
+  // Volatility, Moons/Phase Length [Masser/Secunda visibility + phase
+  // length]). Verified against real base-game data — 5 worldspaces, 7
+  // climates; Commonwealth correctly has both Climate and Water while
+  // DiamondCity/Goodneighbor "bubble" city interiors correctly decode
+  // Small World with no Climate; DefaultClimate correctly has 8 weather
+  // entries (the overworld's full rotation) vs. 1 for every city
+  // climate; DiamondCityPastelClimate correctly shows both moons
+  // visible while GoodneighborClimate/DiamondCityClimate show neither.
+  async function runFo4WorldspacesAndClimatesScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_worldspaces_and_climates.py', 180_000);
+    const p = resolveScanCacheFile('fo4_worldspaces_and_climates.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_worldspaces: raw.total_worldspaces || 0,
+        total_climates: raw.total_climates || 0,
+        worldspaces: raw.worldspaces || [],
+        climates: raw.climates || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4WorldspacesAndClimatesNeuron(d: any): string {
+    if (!d?.available) return 'FO4 worldspace/climate data not yet scanned. Run: python scripts/fo4_worldspaces_and_climates.py';
+    return [
+      `FO4 Worldspaces/Climates: ${d.total_worldspaces} worldspaces, ${d.total_climates} climates. Each worldspace decodes its Climate/Water/LOD Water FormIDs, map bounds, flags (Small World/Fixed Dimensions/No Landscape/etc.), and parent-worldspace chain. Each climate decodes its full Weather Types weight table (Weather FormID + Chance + Global override) and Sunrise/Sunset timing with moon visibility. Verified against real base-game data — Commonwealth correctly has both a Climate and Water body, DiamondCity/Goodneighbor correctly decode as Small World bubble interiors with no Climate, and DefaultClimate correctly has the largest Weather Types table (8 entries) of any climate.`,
+      '',
+      'WORLDSPACES:',
+      ...(d.worldspaces || []).map((w: any) => `  ${w.edid}: climate=${w.climate||'none'} water=${w.water||'none'} flags=[${(w.flags||[]).join(', ')}]`),
+      '',
+      'CLIMATES:',
+      ...(d.climates || []).map((c: any) => `  ${c.edid}: ${c.weather_types.length} weather types, sunrise ${c.timing?.sunrise_begin}-${c.timing?.sunrise_end}, sunset ${c.timing?.sunset_begin}-${c.timing?.sunset_end}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-worldspaces-and-climates', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-worldspaces-and-climates', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4WorldspacesAndClimatesScan(forceRefresh);
+      saveScanCache('fo4-worldspaces-and-climates', data);
+      addBrainNeuron({ id: 'fo4-worldspaces-and-climates', domain: 'FO4 Game Systems', title: `FO4 Worldspaces/Climates (${data.total_worldspaces||0}/${data.total_climates||0})`, priority: 27, content: formatFo4WorldspacesAndClimatesNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-45: scan:fo4-cells ───────────────────────────────────────
+  // (CELL) — second stop in the world-data push. Unlike REFR/ACHR/LAND/
+  // NAVM, the CELL record itself is compact and hand-editable — it's the
+  // objects PLACED IN a cell and its generated geometry that are bulk
+  // data, not CELL itself. Source-verified (wbDefinitionsFO4.pas CELL
+  // ~8951-9091). EDID, FULL (LString), DATA Flags [Is Interior Cell/Has
+  // Water/Can't Travel From Here/Public Area/Show Sky/Use Sky Lighting/
+  // Sunlight Shadows/etc.], XCLC Grid X/Y + Force Hide Land quadrants
+  // (exterior only), XCLL Lighting override (Ambient/Directional/Fog
+  // Near colors, Fog Near/Far/Power/Clip Distance, an 8-time-of-day-free
+  // single DALC directional-ambient struct reused from LGTM/WTHR, an
+  // Inherits bitmask saying which fields fall back to the Lighting
+  // Template instead, Near/Far Height Mid/Range, High-density Fog
+  // scales), LTMP Lighting Template -> LGTM, XCLW Water Height (a
+  // 0x7F7FFFFF sentinel — the real observed "unset" pattern, source's
+  // own comment names a slightly different value but real data wins —
+  // decodes to None instead of a garbage ~FLT_MAX number), XCLR Regions
+  // -> REGN, XLCN Location -> LCTN, XCWT Water -> WATR, Ownership (XOWN
+  // Owner + No Crime flag, XRNK Rank), XILL Lock List, XILW Exterior LOD
+  // (fake-window worldspace view), XCCM Sky/Weather from Region, XCAS
+  // Acoustic Space, XEZN Encounter Zone, XCMO Music Type, XCIM Image
+  // Space, XGDR God Rays. Deliberately NOT decoded: VISI/PCMB timestamp
+  // bytes, MHDT, XPRI Physics References (can exceed 20,000 entries per
+  // source's own comment) and XCRI Combined References — all 100% CK-
+  // generated/invalidated-by-any-edit bookkeeping, not hand-authored.
+  // Given ~40,000 CELL records in the base game alone, only cells with
+  // an EditorID/FULL/override are kept (Water Height alone doesn't
+  // count — ~99% of all cells have a non-sentinel one, which would
+  // defeat the filter) — real data: 40,165 total down to 6,066 kept.
+  // Verified against real base-game data — SanctuaryRosaHouse (a house
+  // interior) correctly decodes a warm brownish ambient/fog lighting
+  // override plausible for a cozy interior, while exterior cells
+  // correctly show no lighting override (they use their Lighting
+  // Template/Climate instead); DiamondCity's exterior cells correctly
+  // show as Interior-flag-less "bubble" exterior squares.
+  async function runFo4CellsScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_cells.py', 180_000);
+    const p = resolveScanCacheFile('fo4_cells.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_cells_with_content: raw.total_cells_with_content || 0,
+        interior_cells: raw.interior_cells || 0,
+        with_lighting_override: raw.with_lighting_override || 0,
+        with_music: raw.with_music || 0,
+        with_encounter_zone: raw.with_encounter_zone || 0,
+        with_owner: raw.with_owner || 0,
+        cells: raw.cells || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4CellsNeuron(d: any): string {
+    if (!d?.available) return 'FO4 cell data not yet scanned. Run: python scripts/fo4_cells.py';
+    const namedSample = (d.cells || []).filter((c: any) => c.edid && c.lighting_override).slice(0, 6);
+    return [
+      `FO4 Cells: ${d.total_cells_with_content} cells with an EditorID/name/override (${d.interior_cells} interior, ${d.with_lighting_override} with a lighting override, ${d.with_music} with a music type, ${d.with_encounter_zone} with an encounter zone, ${d.with_owner} with an owner) out of ~40,000 total in the base game — plain wilderness exterior grid squares with nothing to say are dropped. Each kept cell decodes its full Lighting override (ambient/directional/fog colors, directional ambient lighting, inherits mask), Water Height, Regions, Location, Acoustic Space, Encounter Zone, Music Type, Image Space, God Rays, and Ownership. Verified against real base-game data — SanctuaryRosaHouse correctly decodes a warm brownish interior lighting override while exterior cells correctly show none.`,
+      '',
+      'SAMPLE CELLS WITH A LIGHTING OVERRIDE:',
+      ...namedSample.map((c: any) => `  ${c.edid}: ambient=(${c.lighting_override.ambient_color?.r},${c.lighting_override.ambient_color?.g},${c.lighting_override.ambient_color?.b}) fog_far=${c.lighting_override.fog_far}`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-cells', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-cells', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4CellsScan(forceRefresh);
+      saveScanCache('fo4-cells', data);
+      addBrainNeuron({ id: 'fo4-cells', domain: 'FO4 Game Systems', title: `FO4 Cells (${data.total_cells_with_content||0})`, priority: 26, content: formatFo4CellsNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-46: scan:fo4-placement-index ────────────────────────────
+  // (REFR/ACHR) — third stop in the world-data push, and architecturally
+  // different from every other scanner in this project. REFR/ACHR are
+  // per-instance PLACEMENTS, not definitions — the base ESM alone has
+  // 1,244,528 REFR + 7,615 ACHR against only ~23,000 unique Base
+  // FormIDs. A one-entry-per-instance dump (this project's usual
+  // pattern) would be multiple gigabytes, useless as AI context — so
+  // this is an AGGREGATE INDEX keyed by Base FormID: how many times is
+  // base object X placed, in which cells, is it ever Persistent/
+  // Initially Disabled — the actual question a modder validating
+  // "is this object already placed somewhere" asks, without paying the
+  // cost of 1.2 million position/rotation triples. Persistent/Initially
+  // Disabled decode straight from the 24-byte record HEADER flags (bits
+  // 10/11), same technique as STAT/MSTT/ACTI/DOOR/FURN. Cell/worldspace
+  // attribution uses a "nearest preceding CELL/WRLD record" heuristic
+  // during the single linear pass (a REFR/ACHR doesn't store its own
+  // containing CELL — that only exists via GRUP nesting; this is the
+  // same heuristic xEdit-class tooling relies on, correct for the
+  // standard layout every Bethesda tool produces). VMAD (script
+  // fragments) deliberately never decoded — permanent skip, arbitrary
+  // per-instance Papyrus bytecode. Verified against real base-game data
+  // — 1,244,528 REFR + 7,615 ACHR reduce to 23,422 unique base objects
+  // (5,618 placed exactly once); the highest-count bases correctly show
+  // very high Persistent ratios consistent with marker-type objects
+  // (one base at 5,456 placements is Persistent 100% of the time),
+  // while ACHR-heavy bases correctly attribute samples to specific
+  // interior CELL FormIDs.
+  async function runFo4PlacementIndexScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_placement_index.py', 180_000);
+    const p = resolveScanCacheFile('fo4_placement_index.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_refr: raw.total_refr || 0,
+        total_achr: raw.total_achr || 0,
+        unique_base_objects: raw.unique_base_objects || 0,
+        with_only_one_placement: raw.with_only_one_placement || 0,
+        base_objects: raw.base_objects || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4PlacementIndexNeuron(d: any): string {
+    if (!d?.available) return 'FO4 placement index not yet scanned. Run: python scripts/fo4_placement_index.py';
+    const topSample = (d.base_objects || []).slice(0, 15);
+    return [
+      `FO4 Placement Index: ${d.total_refr.toLocaleString()} placed objects (REFR) + ${d.total_achr.toLocaleString()} placed NPCs (ACHR) across ${d.unique_base_objects.toLocaleString()} unique base objects (${d.with_only_one_placement.toLocaleString()} placed exactly once). This is an AGGREGATE index, not a per-instance dump — for a base FormID it gives placement count, how many are Persistent/Initially Disabled, and up to 5 sample placements with their containing cell/worldspace, letting you check whether a base object is already placed somewhere and how common it is, without a multi-gigabyte per-instance position dump. Cell attribution uses a nearest-preceding-CELL-record heuristic since REFR/ACHR don't store their own containing cell. Verified against real base-game data — the highest-count base objects correctly show very high Persistent ratios consistent with marker-type objects.`,
+      '',
+      'TOP 15 MOST-PLACED BASE OBJECTS:',
+      ...topSample.map((b: any) => `  ${b.base_form_id}: ${b.count.toLocaleString()} placements (${b.persistent_count.toLocaleString()} persistent, types: ${Object.entries(b.type_counts).map(([k,v]) => `${k}=${v}`).join('/')})`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-placement-index', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-placement-index', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4PlacementIndexScan(forceRefresh);
+      saveScanCache('fo4-placement-index', data);
+      addBrainNeuron({ id: 'fo4-placement-index', domain: 'FO4 Game Systems', title: `FO4 Placement Index (${data.unique_base_objects||0} bases)`, priority: 25, content: formatFo4PlacementIndexNeuron(data), source: 'scan' });
+      return { success: true, data, fromCache: false };
+    } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
+  });
+
+  // ── TIER 2-A-47: scan:fo4-landscape-texture-layers ───────────────────
+  // (LAND) — fourth stop in the world-data push. LAND is the per-cell
+  // terrain record: heightmap, vertex normals/colors (100% CK-sculpted
+  // geometry, never hand-typed) and which landscape textures paint which
+  // quadrant (exactly what a landscape-texture mod cares about). This
+  // scanner decodes only the texture-layer portion. Source-verified
+  // (wbDefinitionsFO4.pas LAND ~12695-12780). A repeating Layers array,
+  // union-decided by BTXT (Base Layer Header: Texture -> LTEX + Quadrant
+  // enum [Bottom Left/Right, Top Left/Right] + Layer index s16) vs. ATXT
+  // (Alpha Layer Header, same shape, plus a VTXT per-vertex alpha-blend
+  // data blob — NOT decoded, geometry-like), plus VTEX (a flat Texture
+  // FormID array, the older per-cell default texture list with no
+  // quadrant/layer association). Deliberately NOT decoded: DATA
+  // (Unknown), VNML (33x33 vertex normals), VHGT (33x33 heightmap +
+  // Offset), VCLR (33x33 vertex colors), MPCD (source marks Unknown) —
+  // all CK-sculpted geometry. LAND has no EditorID — cell attribution
+  // reuses the placement index's "nearest preceding CELL record"
+  // heuristic. Verified against real base-game data — only 4,045 of
+  // 37,020 LAND records actually have explicit texture layers (the rest
+  // use bare unpainted terrain, confirmed genuine via zero decompression
+  // failures on every record, not a decode gap); a sample LAND's Cell
+  // FormID (0x0000DB41) matches the exact same exterior cell already
+  // seen in the CELL scanner's own output, a real cross-scanner
+  // consistency check; alpha layers correctly show increasing Layer
+  // blend-order indices (0,1,2,3) per quadrant.
+  async function runFo4LandscapeTextureLayersScan(forceRefresh?: boolean): Promise<any> {
+    if (forceRefresh) await runFo4PythonScanScript('fo4_landscape_texture_layers.py', 180_000);
+    const p = resolveScanCacheFile('fo4_landscape_texture_layers.json');
+    if (!fs.existsSync(p)) return { available: false };
+    try {
+      const raw = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      return {
+        available: true,
+        total_land_records_with_layers: raw.total_land_records_with_layers || 0,
+        unique_textures_used: raw.unique_textures_used || 0,
+        most_used_textures: raw.most_used_textures || [],
+        land_records: raw.land_records || [],
+      };
+    } catch { return { available: false }; }
+  }
+  function formatFo4LandscapeTextureLayersNeuron(d: any): string {
+    if (!d?.available) return 'FO4 landscape texture layer data not yet scanned. Run: python scripts/fo4_landscape_texture_layers.py';
+    const topTextures = (d.most_used_textures || []).slice(0, 10);
+    return [
+      `FO4 Landscape Texture Layers: ${d.total_land_records_with_layers} LAND records have explicit hand-painted texture layers (out of ~37,000 total — most terrain uses bare unpainted default texture), using ${d.unique_textures_used} unique landscape textures. Each decodes its Base Layer (per-quadrant default texture) and Alpha Layers (per-quadrant blended textures in draw order) plus the cell it belongs to. Verified against real base-game data — sample LAND cell FormIDs cross-check against the CELL scanner's own output.`,
+      '',
+      'MOST-USED LANDSCAPE TEXTURES (by quadrant-layer occurrence):',
+      ...topTextures.map((t: any) => `  ${t.texture}: used in ${t.quadrant_count} quadrant-layers`),
+    ].join('\n');
+  }
+  registerHandler('scan:fo4-landscape-texture-layers', async (_event, forceRefresh?: boolean) => {
+    try {
+      if (!forceRefresh) { const c = loadScanCache('fo4-landscape-texture-layers', 24); if (c) return { success: true, data: c, fromCache: true }; }
+      const data = await runFo4LandscapeTextureLayersScan(forceRefresh);
+      saveScanCache('fo4-landscape-texture-layers', data);
+      addBrainNeuron({ id: 'fo4-landscape-texture-layers', domain: 'FO4 Game Systems', title: `FO4 Landscape Texture Layers (${data.total_land_records_with_layers||0})`, priority: 24, content: formatFo4LandscapeTextureLayersNeuron(data), source: 'scan' });
       return { success: true, data, fromCache: false };
     } catch (err: any) { return { success: false, error: err?.message || String(err) }; }
   });
@@ -27157,7 +30551,7 @@ print(json.dumps({
   });
 
   // ── Master scan runner — kicks off all scans at startup ─────────────────
-  registerHandler('scan:run-all', async (_event, tier?: 1 | 2 | 3) => {
+  registerHandler('scan:run-all', async (_event, tier?: 1 | 2 | 3, forceRefresh?: boolean) => {
     const t = tier || 3;
     const results: Record<string, any> = {};
     const tier1 = [
@@ -27173,10 +30567,68 @@ print(json.dumps({
     ] as Array<[string, () => Promise<any>, (d: any) => void]>;
     const tier2: Array<[string, () => Promise<any>, (d: any) => void]> = [
       ['scan:papyrus-full',       runPapyrusFullScan,       (d: any) => addBrainNeuron({ id:'papyrus-full-analysis', domain:'Papyrus Scripting',    title:`Full Papyrus Library Analysis (${d.total_scripts||0} scripts)`,            priority:92, content:formatPapyrusFullNeuron(d),       source:'scan'})],
-      ['scan:papyrus-api',        runPapyrusApiScan,        (d: any) => addBrainNeuron({ id:'papyrus-api-reference', domain:'Papyrus Scripting',    title:`Papyrus Native API Reference (${d.total_functions||0} functions, ${d.total_events||0} events)`, priority:93, content:formatPapyrusApiNeuron(d), source:'scan'})],
+      ['scan:papyrus-api',        () => runPapyrusApiScan(forceRefresh),        (d: any) => addBrainNeuron({ id:'papyrus-api-reference', domain:'Papyrus Scripting',    title:`Papyrus Native API Reference (${d.total_functions||0} functions, ${d.total_events||0} events)`, priority:93, content:formatPapyrusApiNeuron(d), source:'scan'})],
       ['scan:knowledge-vault',    runKnowledgeVaultScan,    (d: any) => addBrainNeuron({ id:'knowledge-vault-index', domain:'Knowledge Base',       title:`Knowledge Vault Index (${d.total||0} entries)`,                             priority:88, content:formatKnowledgeVaultNeuron(d),    source:'scan'})],
-      ['scan:fo4-form-graph',     runFo4FormGraphScan,      (d: any) => addBrainNeuron({ id:'fo4-form-graph',        domain:'FO4 Game Systems',     title:`FO4 Form Graph (${d.perk_count||0} perks, ${d.cobj_count||0} recipes)`,   priority:91, content:formatFo4FormGraphNeuron(d),      source:'scan'})],
-      ['scan:fo4-asset-graph',    runFo4AssetGraphScan,     (d: any) => addBrainNeuron({ id:'fo4-asset-graph',       domain:'FO4 Game Systems',     title:`FO4 Asset Graph (${d.omod_count||0} OMODs, ${d.model_path_count||0} NIFs)`,priority:90, content:formatFo4AssetGraphNeuron(d),     source:'scan'})],
+      ['scan:fo4-form-graph',     () => runFo4FormGraphScan(forceRefresh),      (d: any) => addBrainNeuron({ id:'fo4-form-graph',        domain:'FO4 Game Systems',     title:`FO4 Form Graph (${d.perk_count||0} perks, ${d.cobj_count||0} recipes)`,   priority:91, content:formatFo4FormGraphNeuron(d),      source:'scan'})],
+      ['scan:fo4-asset-graph',    () => runFo4AssetGraphScan(forceRefresh),     (d: any) => addBrainNeuron({ id:'fo4-asset-graph',       domain:'FO4 Game Systems',     title:`FO4 Asset Graph (${d.omod_count||0} OMODs, ${d.model_path_count||0} NIFs)`,priority:90, content:formatFo4AssetGraphNeuron(d),     source:'scan'})],
+      ['scan:fo4-quest-graph',    () => runFo4QuestGraphScan(forceRefresh),     (d: any) => addBrainNeuron({ id:'fo4-quest-graph',       domain:'FO4 Game Systems',     title:`FO4 Quest Structure (${d.quests_with_stage_data||0} quests with stage data)`,priority:91, content:formatFo4QuestGraphNeuron(d),     source:'scan'})],
+      ['scan:fo4-leveled-lists',  () => runFo4LeveledListsScan(forceRefresh),   (d: any) => addBrainNeuron({ id:'fo4-leveled-lists',     domain:'FO4 Game Systems',     title:`FO4 Leveled NPCs (${d.leveled_npc_count||0})`,priority:82, content:formatFo4LeveledListsNeuron(d),   source:'scan'})],
+      ['scan:fo4-dialogue-graph', () => runFo4DialogueGraphScan(forceRefresh),  (d: any) => addBrainNeuron({ id:'fo4-dialogue-graph',    domain:'FO4 Game Systems',     title:`FO4 Dialogue Tree (${d.total_info_responses||0} responses, ${d.info_responses_linked_to_topic||0} linked)`,priority:81, content:formatFo4DialogueGraphNeuron(d), source:'scan'})],
+      ['scan:fo4-ai-packages',    () => runFo4AiPackagesScan(forceRefresh),     (d: any) => addBrainNeuron({ id:'fo4-ai-packages',       domain:'FO4 Game Systems',     title:`FO4 AI Packages (${d.scripted_packages||0} scripted)`,priority:78, content:formatFo4AiPackagesNeuron(d),     source:'scan'})],
+      ['scan:fo4-items-containers', () => runFo4ItemsContainersScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-items-containers', domain:'FO4 Game Systems',  title:`FO4 Item Text & Containers (${d.total_descriptions||0} descriptions, ${d.total_containers||0} containers)`,priority:76, content:formatFo4ItemsContainersNeuron(d), source:'scan'})],
+      ['scan:fo4-actor-combat-stats', () => runFo4ActorCombatStatsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-actor-combat-stats', domain:'FO4 Game Systems', title:`FO4 Actor & Combat Stats (${d.total_npcs||0} NPCs, ${d.total_weapons||0} weapons, ${d.total_armors||0} armors)`,priority:79, content:formatFo4ActorCombatStatsNeuron(d), source:'scan'})],
+      ['scan:fo4-package-procedures', () => runFo4PackageProceduresScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-package-procedures', domain:'FO4 Game Systems', title:`FO4 Package Procedures & Targets (${d.packages_with_branches||0} with branches, ${d.packages_with_targets||0} with targets)`,priority:77, content:formatFo4PackageProceduresNeuron(d), source:'scan'})],
+      ['scan:fo4-reference-data', () => runFo4ReferenceDataScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-reference-data', domain:'FO4 Game Systems', title:`FO4 Reference Data (${d.total_globals||0} globals, ${d.total_keywords||0} keywords, ${d.total_enchantments||0} enchantments)`,priority:74, content:formatFo4ReferenceDataNeuron(d), source:'scan'})],
+      ['scan:fo4-terminals', () => runFo4TerminalsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-terminals', domain:'FO4 Game Systems', title:`FO4 Terminal Menus (${d.total_terminals||0} terminals, ${d.total_menu_items||0} menu items)`,priority:73, content:formatFo4TerminalsNeuron(d), source:'scan'})],
+      ['scan:fo4-scenes', () => runFo4ScenesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-scenes', domain:'FO4 Game Systems', title:`FO4 Scenes (${d.total_scenes||0} scenes, ${d.total_actions||0} actions)`,priority:72, content:formatFo4ScenesNeuron(d), source:'scan'})],
+      ['scan:fo4-factions', () => runFo4FactionsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-factions', domain:'FO4 Game Systems', title:`FO4 Factions (${d.total_factions||0} factions, ${d.factions_with_relations||0} with relations)`,priority:71, content:formatFo4FactionsNeuron(d), source:'scan'})],
+      ['scan:fo4-races', () => runFo4RacesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-races', domain:'FO4 Game Systems', title:`FO4 Races (${d.total_races||0} races, ${d.races_with_data||0} with data)`,priority:70, content:formatFo4RacesNeuron(d), source:'scan'})],
+      ['scan:fo4-combat-styles', () => runFo4CombatStylesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-combat-styles', domain:'FO4 Game Systems', title:`FO4 Combat Styles (${d.total_combat_styles||0} styles)`,priority:69, content:formatFo4CombatStylesNeuron(d), source:'scan'})],
+      ['scan:fo4-actor-values', () => runFo4ActorValuesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-actor-values', domain:'FO4 Game Systems', title:`FO4 Actor Values (${d.total_actor_values||0} values)`,priority:68, content:formatFo4ActorValuesNeuron(d), source:'scan'})],
+      ['scan:fo4-encounter-zones', () => runFo4EncounterZonesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-encounter-zones', domain:'FO4 Game Systems', title:`FO4 Encounter Zones (${d.total_encounter_zones||0} zones)`,priority:67, content:formatFo4EncounterZonesNeuron(d), source:'scan'})],
+      ['scan:fo4-hazards', () => runFo4HazardsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-hazards', domain:'FO4 Game Systems', title:`FO4 Hazards (${d.total_hazards||0} hazards)`,priority:66, content:formatFo4HazardsNeuron(d), source:'scan'})],
+      ['scan:fo4-flora', () => runFo4FloraScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-flora', domain:'FO4 Game Systems', title:`FO4 Flora (${d.total_flora||0} plants)`,priority:65, content:formatFo4FloraNeuron(d), source:'scan'})],
+      ['scan:fo4-association-types', () => runFo4AssociationTypesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-association-types', domain:'FO4 Game Systems', title:`FO4 Association Types (${d.total_association_types||0} types)`,priority:64, content:formatFo4AssociationTypesNeuron(d), source:'scan'})],
+      ['scan:fo4-movement-types', () => runFo4MovementTypesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-movement-types', domain:'FO4 Game Systems', title:`FO4 Movement Types (${d.total_movement_types||0} types)`,priority:63, content:formatFo4MovementTypesNeuron(d), source:'scan'})],
+      ['scan:fo4-body-part-data', () => runFo4BodyPartDataScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-body-part-data', domain:'FO4 Game Systems', title:`FO4 Body Part Data (${d.total_body_part_data_records||0} records)`,priority:62, content:formatFo4BodyPartDataNeuron(d), source:'scan'})],
+      ['scan:fo4-idle-animations', () => runFo4IdleAnimationsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-idle-animations', domain:'FO4 Game Systems', title:`FO4 Idle Animations (${d.total_idle_animations||0} animations)`,priority:61, content:formatFo4IdleAnimationsNeuron(d), source:'scan'})],
+      ['scan:fo4-head-parts', () => runFo4HeadPartsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-head-parts', domain:'FO4 Game Systems', title:`FO4 Head Parts (${d.total_head_parts||0} parts)`,priority:60, content:formatFo4HeadPartsNeuron(d), source:'scan'})],
+      ['scan:fo4-impact-data-sets', () => runFo4ImpactDataSetsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-impact-data-sets', domain:'FO4 Game Systems', title:`FO4 Impact Data Sets (${d.total_impact_data_sets||0} sets)`,priority:59, content:formatFo4ImpactDataSetsNeuron(d), source:'scan'})],
+      ['scan:fo4-explosions', () => runFo4ExplosionsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-explosions', domain:'FO4 Game Systems', title:`FO4 Explosions (${d.total_explosions||0} records)`,priority:58, content:formatFo4ExplosionsNeuron(d), source:'scan'})],
+      ['scan:fo4-projectiles', () => runFo4ProjectilesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-projectiles', domain:'FO4 Game Systems', title:`FO4 Projectiles (${d.total_projectiles||0} projectiles)`,priority:57, content:formatFo4ProjectilesNeuron(d), source:'scan'})],
+      ['scan:fo4-story-manager', () => runFo4StoryManagerScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-story-manager', domain:'FO4 Game Systems', title:`FO4 Story Manager (${d.total_story_manager_nodes||0} nodes)`,priority:56, content:formatFo4StoryManagerNeuron(d), source:'scan'})],
+      ['scan:fo4-static-collections', () => runFo4StaticCollectionsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-static-collections', domain:'FO4 Game Systems', title:`FO4 Static Collections (${d.total_static_collections||0} collections)`,priority:55, content:formatFo4StaticCollectionsNeuron(d), source:'scan'})],
+      ['scan:fo4-ammunition', () => runFo4AmmunitionScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-ammunition', domain:'FO4 Game Systems', title:`FO4 Ammunition (${d.total_ammunition||0} types)`,priority:54, content:formatFo4AmmunitionNeuron(d), source:'scan'})],
+      ['scan:fo4-misc-items', () => runFo4MiscItemsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-misc-items', domain:'FO4 Game Systems', title:`FO4 Misc. Items (${d.total_misc_items||0} items)`,priority:53, content:formatFo4MiscItemsNeuron(d), source:'scan'})],
+      ['scan:fo4-armor-addons', () => runFo4ArmorAddonsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-armor-addons', domain:'FO4 Game Systems', title:`FO4 Armor Addons (${d.total_armor_addons||0} addons)`,priority:52, content:formatFo4ArmorAddonsNeuron(d), source:'scan'})],
+      ['scan:fo4-statics', () => runFo4StaticsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-statics', domain:'FO4 Game Systems', title:`FO4 Statics (${d.total_statics||0} objects)`,priority:51, content:formatFo4StaticsNeuron(d), source:'scan'})],
+      ['scan:fo4-activators', () => runFo4ActivatorsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-activators', domain:'FO4 Game Systems', title:`FO4 Activators (${d.total_activators||0} objects)`,priority:50, content:formatFo4ActivatorsNeuron(d), source:'scan'})],
+      ['scan:fo4-doors', () => runFo4DoorsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-doors', domain:'FO4 Game Systems', title:`FO4 Doors (${d.total_doors||0} objects)`,priority:49, content:formatFo4DoorsNeuron(d), source:'scan'})],
+      ['scan:fo4-lights', () => runFo4LightsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-lights', domain:'FO4 Game Systems', title:`FO4 Lights (${d.total_lights||0} objects)`,priority:48, content:formatFo4LightsNeuron(d), source:'scan'})],
+      ['scan:fo4-furniture', () => runFo4FurnitureScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-furniture', domain:'FO4 Game Systems', title:`FO4 Furniture (${d.total_furniture||0} objects)`,priority:47, content:formatFo4FurnitureNeuron(d), source:'scan'})],
+      ['scan:fo4-magic-effects', () => runFo4MagicEffectsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-magic-effects', domain:'FO4 Game Systems', title:`FO4 Magic Effects (${d.total_magic_effects||0} effects)`,priority:46, content:formatFo4MagicEffectsNeuron(d), source:'scan'})],
+      ['scan:fo4-effect-shaders', () => runFo4EffectShadersScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-effect-shaders', domain:'FO4 Game Systems', title:`FO4 Effect Shaders (${d.total_effect_shaders||0} shaders)`,priority:45, content:formatFo4EffectShadersNeuron(d), source:'scan'})],
+      ['scan:fo4-cameras', () => runFo4CamerasScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-cameras', domain:'FO4 Game Systems', title:`FO4 Cameras (${d.total_camera_shots||0} shots, ${d.total_camera_paths||0} paths)`,priority:44, content:formatFo4CamerasNeuron(d), source:'scan'})],
+      ['scan:fo4-outfits-and-art', () => runFo4OutfitsAndArtScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-outfits-and-art', domain:'FO4 Game Systems', title:`FO4 Outfits & Art (${d.total_outfits||0} outfits, ${d.total_art_objects||0} art)`,priority:43, content:formatFo4OutfitsAndArtNeuron(d), source:'scan'})],
+      ['scan:fo4-water', () => runFo4WaterScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-water', domain:'FO4 Game Systems', title:`FO4 Water (${d.total_water||0} bodies)`,priority:42, content:formatFo4WaterNeuron(d), source:'scan'})],
+      ['scan:fo4-materials-impacts-voices', () => runFo4MaterialsImpactsVoicesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-materials-impacts-voices', domain:'FO4 Game Systems', title:`FO4 Materials/Impacts/Voices (${d.total_materials||0}/${d.total_impacts||0}/${d.total_voice_types||0})`,priority:41, content:formatFo4MaterialsImpactsVoicesNeuron(d), source:'scan'})],
+      ['scan:fo4-formlists-loadscreens-globals', () => runFo4FormlistsLoadscreensGlobalsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-formlists-loadscreens-globals', domain:'FO4 Game Systems', title:`FO4 FormLists/LoadScreens/Globals (${d.total_form_lists||0}/${d.total_load_screens||0}/${d.total_globals||0})`,priority:40, content:formatFo4FormlistsLoadscreensGlobalsNeuron(d), source:'scan'})],
+      ['scan:fo4-regions', () => runFo4RegionsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-regions', domain:'FO4 Game Systems', title:`FO4 Regions (${d.total_regions||0})`,priority:39, content:formatFo4RegionsNeuron(d), source:'scan'})],
+      ['scan:fo4-sound-color-texture-leveled', () => runFo4SoundColorTextureLeveledScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-sound-color-texture-leveled', domain:'FO4 Game Systems', title:`FO4 Sound/Color/Texture/Leveled (${d.total_sound_markers||0}/${d.total_colors||0}/${d.total_texture_sets||0}/${d.total_leveled_items||0})`,priority:38, content:formatFo4SoundColorTextureLeveledNeuron(d), source:'scan'})],
+      ['scan:fo4-object-modifications', () => runFo4ObjectModificationsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-object-modifications', domain:'FO4 Game Systems', title:`FO4 Object Modifications (${d.total_omods||0})`,priority:37, content:formatFo4ObjectModificationsNeuron(d), source:'scan'})],
+      ['scan:fo4-ingestibles-and-ingredients', () => runFo4IngestiblesAndIngredientsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-ingestibles-and-ingredients', domain:'FO4 Game Systems', title:`FO4 Ingestibles/Ingredients (${d.total_ingestibles||0}/${d.total_ingredients||0})`,priority:36, content:formatFo4IngestiblesAndIngredientsNeuron(d), source:'scan'})],
+      ['scan:fo4-locations-material-swaps-sound-descriptors', () => runFo4LocationsMaterialSwapsSoundDescriptorsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-locations-material-swaps-sound-descriptors', domain:'FO4 Game Systems', title:`FO4 Locations/MatSwaps/Sounds (${d.total_locations||0}/${d.total_material_swaps||0}/${d.total_sound_descriptors||0})`,priority:35, content:formatFo4LocationsMaterialSwapsSoundDescriptorsNeuron(d), source:'scan'})],
+      ['scan:fo4-talking-activators-and-landscape-textures', () => runFo4TalkingActivatorsAndLandscapeTexturesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-talking-activators-and-landscape-textures', domain:'FO4 Game Systems', title:`FO4 TalkingActivators/LandscapeTextures (${d.total_talking_activators||0}/${d.total_landscape_textures||0})`,priority:34, content:formatFo4TalkingActivatorsAndLandscapeTexturesNeuron(d), source:'scan'})],
+      ['scan:fo4-weather', () => runFo4WeatherScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-weather', domain:'FO4 Game Systems', title:`FO4 Weather (${d.total_weathers||0})`,priority:33, content:formatFo4WeatherNeuron(d), source:'scan'})],
+      ['scan:fo4-books-notes-keys-messages', () => runFo4BooksNotesKeysMessagesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-books-notes-keys-messages', domain:'FO4 Game Systems', title:`FO4 Books/Notes/Keys/Messages (${d.total_books||0}/${d.total_notes||0}/${d.total_keys||0}/${d.total_messages||0})`,priority:32, content:formatFo4BooksNotesKeysMessagesNeuron(d), source:'scan'})],
+      ['scan:fo4-equip-slots-lighting-addon-collision', () => runFo4EquipSlotsLightingAddonCollisionScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-equip-slots-lighting-addon-collision', domain:'FO4 Game Systems', title:`FO4 EquipSlots/Lighting/Addon/Collision (${d.total_equip_slots||0}/${d.total_lighting_templates||0}/${d.total_addon_nodes||0}/${d.total_collision_layers||0})`,priority:31, content:formatFo4EquipSlotsLightingAddonCollisionNeuron(d), source:'scan'})],
+      ['scan:fo4-debris-imagespace-particle-geometry', () => runFo4DebrisImagespaceParticleGeometryScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-debris-imagespace-particle-geometry', domain:'FO4 Game Systems', title:`FO4 Debris/ImageSpaces/ParticleGeometry (${d.total_debris||0}/${d.total_image_spaces||0}/${d.total_shader_particle_geometry||0})`,priority:30, content:formatFo4DebrisImagespaceParticleGeometryNeuron(d), source:'scan'})],
+      ['scan:fo4-music-damage-instance-layer-material', () => runFo4MusicDamageInstanceLayerMaterialScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-music-damage-instance-layer-material', domain:'FO4 Game Systems', title:`FO4 Music/Damage/Instance/Layer/Material (${d.total_music_types||0}/${d.total_damage_types||0}/${d.total_instance_naming_rules||0}/${d.total_layers||0}/${d.total_material_objects||0})`,priority:29, content:formatFo4MusicDamageInstanceLayerMaterialNeuron(d), source:'scan'})],
+      ['scan:fo4-image-space-adapters', () => runFo4ImageSpaceAdaptersScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-image-space-adapters', domain:'FO4 Game Systems', title:`FO4 Image Space Adapters (${d.total_image_space_adapters||0})`,priority:28, content:formatFo4ImageSpaceAdaptersNeuron(d), source:'scan'})],
+      ['scan:fo4-worldspaces-and-climates', () => runFo4WorldspacesAndClimatesScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-worldspaces-and-climates', domain:'FO4 Game Systems', title:`FO4 Worldspaces/Climates (${d.total_worldspaces||0}/${d.total_climates||0})`,priority:27, content:formatFo4WorldspacesAndClimatesNeuron(d), source:'scan'})],
+      ['scan:fo4-cells', () => runFo4CellsScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-cells', domain:'FO4 Game Systems', title:`FO4 Cells (${d.total_cells_with_content||0})`,priority:26, content:formatFo4CellsNeuron(d), source:'scan'})],
+      ['scan:fo4-placement-index', () => runFo4PlacementIndexScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-placement-index', domain:'FO4 Game Systems', title:`FO4 Placement Index (${d.unique_base_objects||0} bases)`,priority:25, content:formatFo4PlacementIndexNeuron(d), source:'scan'})],
+      ['scan:fo4-landscape-texture-layers', () => runFo4LandscapeTextureLayersScan(forceRefresh), (d: any) => addBrainNeuron({ id:'fo4-landscape-texture-layers', domain:'FO4 Game Systems', title:`FO4 Landscape Texture Layers (${d.total_land_records_with_layers||0})`,priority:24, content:formatFo4LandscapeTextureLayersNeuron(d), source:'scan'})],
       ['scan:user-project',       runUserProjectScan,       (d: any) => addBrainNeuron({ id:'user-project',          domain:'Active Mod Project',   title:`User Mod Project (${d.totalUserScripts||0} scripts)`,                      priority:95, content:formatUserProjectNeuron(d),       source:'scan'})],
       ['scan:fo4-version',        runFo4VersionScan,        (d: any) => addBrainNeuron({ id:'fo4-version',           domain:'Game Installation',    title:`FO4 Version & DLCs (${d.versionGuess})`,                                   priority:87, content:formatFo4VersionNeuron(d),        source:'scan'})],
       ['scan:npc-voice-types',    runNpcVoiceTypesScan,     (d: any) => addBrainNeuron({ id:'npc-voice-types',       domain:'NPC & Dialogue',       title:`NPC Voice Types (${Object.keys(d?.voice_types||{}).length} types)`,        priority:84, content:formatNpcVoiceTypesNeuron(d),     source:'scan'})],
@@ -27194,12 +30646,19 @@ print(json.dumps({
 
     for (const [name, fn, register] of toRun) {
       try {
-        const cached = loadScanCache(name.replace('scan:', ''));
+        // forceRefresh (the "Rescan Game Data" button in Settings, restored
+        // 2026-09-10 — the old UI wiring for this was lost, this handler
+        // itself always silently preferred up-to-7-day-old cache with no way
+        // to bypass it, so even a restored button would have quietly done
+        // nothing for a week after any real game/mod change) skips the cache
+        // entirely so every scan actually re-runs against the real current
+        // state instead of replaying whatever was true up to a week ago.
+        const cached = forceRefresh ? null : loadScanCache(name.replace('scan:', ''));
         const data = cached || await (fn as () => Promise<any>)();
         if (!cached) saveScanCache(name.replace('scan:', ''), data);
         (register as (d: any) => void)(data);
         results[name] = { success: true, fromCache: !!cached };
-        writeMainLog(`[BrainScan] ${name} complete`);
+        writeMainLog(`[BrainScan] ${name} complete${forceRefresh ? ' (forced)' : ''}`);
       } catch (err: any) {
         results[name] = { success: false, error: err?.message || String(err) };
         writeMainLog(`[BrainScan] ${name} failed: ${err?.message || err}`);
@@ -27220,6 +30679,64 @@ print(json.dumps({
         ['knowledge-vault',    runKnowledgeVaultScan,   (d: any) => addBrainNeuron({ id:'knowledge-vault-index',domain:'Knowledge Base',       title:`Knowledge Vault Index`,                                             priority:88, content:formatKnowledgeVaultNeuron(d),    source:'scan'})],
         ['fo4-form-graph',     runFo4FormGraphScan,     (d: any) => addBrainNeuron({ id:'fo4-form-graph',       domain:'FO4 Game Systems',      title:`FO4 Form Graph`,                                                    priority:91, content:formatFo4FormGraphNeuron(d),      source:'scan'})],
         ['fo4-asset-graph',    runFo4AssetGraphScan,    (d: any) => addBrainNeuron({ id:'fo4-asset-graph',      domain:'FO4 Game Systems',      title:`FO4 Asset Graph`,                                                   priority:90, content:formatFo4AssetGraphNeuron(d),     source:'scan'})],
+        ['fo4-quest-graph',    runFo4QuestGraphScan,    (d: any) => addBrainNeuron({ id:'fo4-quest-graph',      domain:'FO4 Game Systems',      title:`FO4 Quest Structure`,                                               priority:91, content:formatFo4QuestGraphNeuron(d),     source:'scan'})],
+        ['fo4-leveled-lists',  runFo4LeveledListsScan,  (d: any) => addBrainNeuron({ id:'fo4-leveled-lists',    domain:'FO4 Game Systems',      title:`FO4 Leveled Lists`,                                                 priority:82, content:formatFo4LeveledListsNeuron(d),   source:'scan'})],
+        ['fo4-dialogue-graph', runFo4DialogueGraphScan, (d: any) => addBrainNeuron({ id:'fo4-dialogue-graph',   domain:'FO4 Game Systems',      title:`FO4 Dialogue Tree`,                                                 priority:81, content:formatFo4DialogueGraphNeuron(d), source:'scan'})],
+        ['fo4-ai-packages',    runFo4AiPackagesScan,    (d: any) => addBrainNeuron({ id:'fo4-ai-packages',      domain:'FO4 Game Systems',      title:`FO4 AI Packages`,                                                   priority:78, content:formatFo4AiPackagesNeuron(d),     source:'scan'})],
+        ['fo4-items-containers', runFo4ItemsContainersScan, (d: any) => addBrainNeuron({ id:'fo4-items-containers', domain:'FO4 Game Systems', title:`FO4 Item Text & Containers`,                                     priority:76, content:formatFo4ItemsContainersNeuron(d), source:'scan'})],
+        ['fo4-actor-combat-stats', runFo4ActorCombatStatsScan, (d: any) => addBrainNeuron({ id:'fo4-actor-combat-stats', domain:'FO4 Game Systems', title:`FO4 Actor & Combat Stats`,                                     priority:79, content:formatFo4ActorCombatStatsNeuron(d), source:'scan'})],
+        ['fo4-package-procedures', runFo4PackageProceduresScan, (d: any) => addBrainNeuron({ id:'fo4-package-procedures', domain:'FO4 Game Systems', title:`FO4 Package Procedures & Targets`,                            priority:77, content:formatFo4PackageProceduresNeuron(d), source:'scan'})],
+        ['fo4-reference-data', runFo4ReferenceDataScan, (d: any) => addBrainNeuron({ id:'fo4-reference-data', domain:'FO4 Game Systems', title:`FO4 Reference Data`,                                                priority:74, content:formatFo4ReferenceDataNeuron(d), source:'scan'})],
+        ['fo4-terminals',      runFo4TerminalsScan,     (d: any) => addBrainNeuron({ id:'fo4-terminals',        domain:'FO4 Game Systems',      title:`FO4 Terminal Menus`,                                                priority:73, content:formatFo4TerminalsNeuron(d),      source:'scan'})],
+        ['fo4-scenes',         runFo4ScenesScan,        (d: any) => addBrainNeuron({ id:'fo4-scenes',           domain:'FO4 Game Systems',      title:`FO4 Scenes`,                                                        priority:72, content:formatFo4ScenesNeuron(d),         source:'scan'})],
+        ['fo4-factions',       runFo4FactionsScan,      (d: any) => addBrainNeuron({ id:'fo4-factions',         domain:'FO4 Game Systems',      title:`FO4 Factions`,                                                      priority:71, content:formatFo4FactionsNeuron(d),       source:'scan'})],
+        ['fo4-races',          runFo4RacesScan,         (d: any) => addBrainNeuron({ id:'fo4-races',            domain:'FO4 Game Systems',      title:`FO4 Races`,                                                         priority:70, content:formatFo4RacesNeuron(d),          source:'scan'})],
+        ['fo4-combat-styles',  runFo4CombatStylesScan,  (d: any) => addBrainNeuron({ id:'fo4-combat-styles',    domain:'FO4 Game Systems',      title:`FO4 Combat Styles`,                                                 priority:69, content:formatFo4CombatStylesNeuron(d), source:'scan'})],
+        ['fo4-actor-values',   runFo4ActorValuesScan,   (d: any) => addBrainNeuron({ id:'fo4-actor-values',     domain:'FO4 Game Systems',      title:`FO4 Actor Values`,                                                  priority:68, content:formatFo4ActorValuesNeuron(d),  source:'scan'})],
+        ['fo4-encounter-zones', runFo4EncounterZonesScan, (d: any) => addBrainNeuron({ id:'fo4-encounter-zones', domain:'FO4 Game Systems',    title:`FO4 Encounter Zones`,                                               priority:67, content:formatFo4EncounterZonesNeuron(d), source:'scan'})],
+        ['fo4-hazards',        runFo4HazardsScan,       (d: any) => addBrainNeuron({ id:'fo4-hazards',          domain:'FO4 Game Systems',      title:`FO4 Hazards`,                                                       priority:66, content:formatFo4HazardsNeuron(d),       source:'scan'})],
+        ['fo4-flora',          runFo4FloraScan,         (d: any) => addBrainNeuron({ id:'fo4-flora',            domain:'FO4 Game Systems',      title:`FO4 Flora`,                                                         priority:65, content:formatFo4FloraNeuron(d),         source:'scan'})],
+        ['fo4-association-types', runFo4AssociationTypesScan, (d: any) => addBrainNeuron({ id:'fo4-association-types', domain:'FO4 Game Systems', title:`FO4 Association Types`,                                             priority:64, content:formatFo4AssociationTypesNeuron(d), source:'scan'})],
+        ['fo4-movement-types', runFo4MovementTypesScan, (d: any) => addBrainNeuron({ id:'fo4-movement-types', domain:'FO4 Game Systems', title:`FO4 Movement Types`,                                                             priority:63, content:formatFo4MovementTypesNeuron(d), source:'scan'})],
+        ['fo4-body-part-data', runFo4BodyPartDataScan, (d: any) => addBrainNeuron({ id:'fo4-body-part-data', domain:'FO4 Game Systems', title:`FO4 Body Part Data`,                                                               priority:62, content:formatFo4BodyPartDataNeuron(d), source:'scan'})],
+        ['fo4-idle-animations', runFo4IdleAnimationsScan, (d: any) => addBrainNeuron({ id:'fo4-idle-animations', domain:'FO4 Game Systems', title:`FO4 Idle Animations`,                                                           priority:61, content:formatFo4IdleAnimationsNeuron(d), source:'scan'})],
+        ['fo4-head-parts', runFo4HeadPartsScan, (d: any) => addBrainNeuron({ id:'fo4-head-parts', domain:'FO4 Game Systems', title:`FO4 Head Parts`,                                                                               priority:60, content:formatFo4HeadPartsNeuron(d), source:'scan'})],
+        ['fo4-impact-data-sets', runFo4ImpactDataSetsScan, (d: any) => addBrainNeuron({ id:'fo4-impact-data-sets', domain:'FO4 Game Systems', title:`FO4 Impact Data Sets`,                                                       priority:59, content:formatFo4ImpactDataSetsNeuron(d), source:'scan'})],
+        ['fo4-explosions', runFo4ExplosionsScan, (d: any) => addBrainNeuron({ id:'fo4-explosions', domain:'FO4 Game Systems', title:`FO4 Explosions`,                                                                             priority:58, content:formatFo4ExplosionsNeuron(d), source:'scan'})],
+        ['fo4-projectiles', runFo4ProjectilesScan, (d: any) => addBrainNeuron({ id:'fo4-projectiles', domain:'FO4 Game Systems', title:`FO4 Projectiles`,                                                                         priority:57, content:formatFo4ProjectilesNeuron(d), source:'scan'})],
+        ['fo4-story-manager', runFo4StoryManagerScan, (d: any) => addBrainNeuron({ id:'fo4-story-manager', domain:'FO4 Game Systems', title:`FO4 Story Manager`,                                                                 priority:56, content:formatFo4StoryManagerNeuron(d), source:'scan'})],
+        ['fo4-static-collections', runFo4StaticCollectionsScan, (d: any) => addBrainNeuron({ id:'fo4-static-collections', domain:'FO4 Game Systems', title:`FO4 Static Collections`,                                             priority:55, content:formatFo4StaticCollectionsNeuron(d), source:'scan'})],
+        ['fo4-ammunition', runFo4AmmunitionScan, (d: any) => addBrainNeuron({ id:'fo4-ammunition', domain:'FO4 Game Systems', title:`FO4 Ammunition`,                                                                           priority:54, content:formatFo4AmmunitionNeuron(d), source:'scan'})],
+        ['fo4-misc-items', runFo4MiscItemsScan, (d: any) => addBrainNeuron({ id:'fo4-misc-items', domain:'FO4 Game Systems', title:`FO4 Misc. Items`,                                                                           priority:53, content:formatFo4MiscItemsNeuron(d), source:'scan'})],
+        ['fo4-armor-addons', runFo4ArmorAddonsScan, (d: any) => addBrainNeuron({ id:'fo4-armor-addons', domain:'FO4 Game Systems', title:`FO4 Armor Addons`,                                                                     priority:52, content:formatFo4ArmorAddonsNeuron(d), source:'scan'})],
+        ['fo4-statics', runFo4StaticsScan, (d: any) => addBrainNeuron({ id:'fo4-statics', domain:'FO4 Game Systems', title:`FO4 Statics`,                                                                                         priority:51, content:formatFo4StaticsNeuron(d), source:'scan'})],
+        ['fo4-activators', runFo4ActivatorsScan, (d: any) => addBrainNeuron({ id:'fo4-activators', domain:'FO4 Game Systems', title:`FO4 Activators`,                                                                                     priority:50, content:formatFo4ActivatorsNeuron(d), source:'scan'})],
+        ['fo4-doors', runFo4DoorsScan, (d: any) => addBrainNeuron({ id:'fo4-doors', domain:'FO4 Game Systems', title:`FO4 Doors`,                                                                                                         priority:49, content:formatFo4DoorsNeuron(d), source:'scan'})],
+        ['fo4-lights', runFo4LightsScan, (d: any) => addBrainNeuron({ id:'fo4-lights', domain:'FO4 Game Systems', title:`FO4 Lights`,                                                                                                       priority:48, content:formatFo4LightsNeuron(d), source:'scan'})],
+        ['fo4-furniture', runFo4FurnitureScan, (d: any) => addBrainNeuron({ id:'fo4-furniture', domain:'FO4 Game Systems', title:`FO4 Furniture`,                                                                                             priority:47, content:formatFo4FurnitureNeuron(d), source:'scan'})],
+        ['fo4-magic-effects', runFo4MagicEffectsScan, (d: any) => addBrainNeuron({ id:'fo4-magic-effects', domain:'FO4 Game Systems', title:`FO4 Magic Effects`,                                                                                 priority:46, content:formatFo4MagicEffectsNeuron(d), source:'scan'})],
+        ['fo4-effect-shaders', runFo4EffectShadersScan, (d: any) => addBrainNeuron({ id:'fo4-effect-shaders', domain:'FO4 Game Systems', title:`FO4 Effect Shaders`,                                                                             priority:45, content:formatFo4EffectShadersNeuron(d), source:'scan'})],
+        ['fo4-cameras', runFo4CamerasScan, (d: any) => addBrainNeuron({ id:'fo4-cameras', domain:'FO4 Game Systems', title:`FO4 Cameras`,                                                                                                         priority:44, content:formatFo4CamerasNeuron(d), source:'scan'})],
+        ['fo4-outfits-and-art', runFo4OutfitsAndArtScan, (d: any) => addBrainNeuron({ id:'fo4-outfits-and-art', domain:'FO4 Game Systems', title:`FO4 Outfits & Art`,                                                                             priority:43, content:formatFo4OutfitsAndArtNeuron(d), source:'scan'})],
+        ['fo4-water', runFo4WaterScan, (d: any) => addBrainNeuron({ id:'fo4-water', domain:'FO4 Game Systems', title:`FO4 Water`,                                                                                                                 priority:42, content:formatFo4WaterNeuron(d), source:'scan'})],
+        ['fo4-materials-impacts-voices', runFo4MaterialsImpactsVoicesScan, (d: any) => addBrainNeuron({ id:'fo4-materials-impacts-voices', domain:'FO4 Game Systems', title:`FO4 Materials/Impacts/Voices`,                                       priority:41, content:formatFo4MaterialsImpactsVoicesNeuron(d), source:'scan'})],
+        ['fo4-formlists-loadscreens-globals', runFo4FormlistsLoadscreensGlobalsScan, (d: any) => addBrainNeuron({ id:'fo4-formlists-loadscreens-globals', domain:'FO4 Game Systems', title:`FO4 FormLists/LoadScreens/Globals`,                          priority:40, content:formatFo4FormlistsLoadscreensGlobalsNeuron(d), source:'scan'})],
+        ['fo4-regions', runFo4RegionsScan, (d: any) => addBrainNeuron({ id:'fo4-regions', domain:'FO4 Game Systems', title:`FO4 Regions`,                                                                   priority:39, content:formatFo4RegionsNeuron(d), source:'scan'})],
+        ['fo4-sound-color-texture-leveled', runFo4SoundColorTextureLeveledScan, (d: any) => addBrainNeuron({ id:'fo4-sound-color-texture-leveled', domain:'FO4 Game Systems', title:`FO4 Sound/Color/Texture/Leveled`,                                   priority:38, content:formatFo4SoundColorTextureLeveledNeuron(d), source:'scan'})],
+        ['fo4-object-modifications', runFo4ObjectModificationsScan, (d: any) => addBrainNeuron({ id:'fo4-object-modifications', domain:'FO4 Game Systems', title:`FO4 Object Modifications`,                                                             priority:37, content:formatFo4ObjectModificationsNeuron(d), source:'scan'})],
+        ['fo4-ingestibles-and-ingredients', runFo4IngestiblesAndIngredientsScan, (d: any) => addBrainNeuron({ id:'fo4-ingestibles-and-ingredients', domain:'FO4 Game Systems', title:`FO4 Ingestibles/Ingredients`,                                       priority:36, content:formatFo4IngestiblesAndIngredientsNeuron(d), source:'scan'})],
+        ['fo4-locations-material-swaps-sound-descriptors', runFo4LocationsMaterialSwapsSoundDescriptorsScan, (d: any) => addBrainNeuron({ id:'fo4-locations-material-swaps-sound-descriptors', domain:'FO4 Game Systems', title:`FO4 Locations/MatSwaps/Sounds`,                                     priority:35, content:formatFo4LocationsMaterialSwapsSoundDescriptorsNeuron(d), source:'scan'})],
+        ['fo4-talking-activators-and-landscape-textures', runFo4TalkingActivatorsAndLandscapeTexturesScan, (d: any) => addBrainNeuron({ id:'fo4-talking-activators-and-landscape-textures', domain:'FO4 Game Systems', title:`FO4 TalkingActivators/LandscapeTextures`,                                     priority:34, content:formatFo4TalkingActivatorsAndLandscapeTexturesNeuron(d), source:'scan'})],
+        ['fo4-weather', runFo4WeatherScan, (d: any) => addBrainNeuron({ id:'fo4-weather', domain:'FO4 Game Systems', title:`FO4 Weather`,                                     priority:33, content:formatFo4WeatherNeuron(d), source:'scan'})],
+        ['fo4-books-notes-keys-messages', runFo4BooksNotesKeysMessagesScan, (d: any) => addBrainNeuron({ id:'fo4-books-notes-keys-messages', domain:'FO4 Game Systems', title:`FO4 Books/Notes/Keys/Messages`,                                     priority:32, content:formatFo4BooksNotesKeysMessagesNeuron(d), source:'scan'})],
+        ['fo4-equip-slots-lighting-addon-collision', runFo4EquipSlotsLightingAddonCollisionScan, (d: any) => addBrainNeuron({ id:'fo4-equip-slots-lighting-addon-collision', domain:'FO4 Game Systems', title:`FO4 EquipSlots/Lighting/Addon/Collision`,                                     priority:31, content:formatFo4EquipSlotsLightingAddonCollisionNeuron(d), source:'scan'})],
+        ['fo4-debris-imagespace-particle-geometry', runFo4DebrisImagespaceParticleGeometryScan, (d: any) => addBrainNeuron({ id:'fo4-debris-imagespace-particle-geometry', domain:'FO4 Game Systems', title:`FO4 Debris/ImageSpaces/ParticleGeometry`,                                     priority:30, content:formatFo4DebrisImagespaceParticleGeometryNeuron(d), source:'scan'})],
+        ['fo4-music-damage-instance-layer-material', runFo4MusicDamageInstanceLayerMaterialScan, (d: any) => addBrainNeuron({ id:'fo4-music-damage-instance-layer-material', domain:'FO4 Game Systems', title:`FO4 Music/Damage/Instance/Layer/Material`,                                     priority:29, content:formatFo4MusicDamageInstanceLayerMaterialNeuron(d), source:'scan'})],
+        ['fo4-image-space-adapters', runFo4ImageSpaceAdaptersScan, (d: any) => addBrainNeuron({ id:'fo4-image-space-adapters', domain:'FO4 Game Systems', title:`FO4 Image Space Adapters`,                                     priority:28, content:formatFo4ImageSpaceAdaptersNeuron(d), source:'scan'})],
+        ['fo4-worldspaces-and-climates', runFo4WorldspacesAndClimatesScan, (d: any) => addBrainNeuron({ id:'fo4-worldspaces-and-climates', domain:'FO4 Game Systems', title:`FO4 Worldspaces/Climates`,                                     priority:27, content:formatFo4WorldspacesAndClimatesNeuron(d), source:'scan'})],
+        ['fo4-cells', runFo4CellsScan, (d: any) => addBrainNeuron({ id:'fo4-cells', domain:'FO4 Game Systems', title:`FO4 Cells`,                                     priority:26, content:formatFo4CellsNeuron(d), source:'scan'})],
+        ['fo4-placement-index', runFo4PlacementIndexScan, (d: any) => addBrainNeuron({ id:'fo4-placement-index', domain:'FO4 Game Systems', title:`FO4 Placement Index`,                                     priority:25, content:formatFo4PlacementIndexNeuron(d), source:'scan'})],
+        ['fo4-landscape-texture-layers', runFo4LandscapeTextureLayersScan, (d: any) => addBrainNeuron({ id:'fo4-landscape-texture-layers', domain:'FO4 Game Systems', title:`FO4 Landscape Texture Layers`,                                     priority:24, content:formatFo4LandscapeTextureLayersNeuron(d), source:'scan'})],
         ['f4ai-runtime',       runF4aiRuntimeScan,      (d: any) => addBrainNeuron({ id:'f4ai-runtime',        domain:'F4AI Bridge',           title:`F4AI Runtime (KoboldCPP: ${d.koboldcpp?.running?'online':'offline'})`,priority:89, content:formatF4aiRuntimeNeuron(d),       source:'scan'})],
         ['f4se-plugins',       runF4sePluginsScan,      (d: any) => addBrainNeuron({ id:'f4se-plugins',        domain:'F4SE & Script Extender',title:`F4SE Plugins (${d.total||0} installed)`,                           priority:86, content:formatF4sePluginsNeuron(d),       source:'scan'})],
         ['blender-workspace',  runBlenderWorkspaceScan, (d: any) => addBrainNeuron({ id:'blender-workspace',   domain:'Blender Workspace',     title:`Blender Workspace (${d.total_blend||0} .blend files)`,             priority:75, content:formatBlenderWorkspaceNeuron(d),   source:'scan'})],
@@ -28632,7 +32149,12 @@ print(json.dumps({
       candidates.push(path.join(`${drive}:\\`, 'SteamLibrary', 'steamapps', 'common', 'Fallout 4'));
       candidates.push(path.join(`${drive}:\\`, 'Fallout 4'));
     }
-    return candidates.find(p => fs.existsSync(p)) ?? null;
+    // Require Data\Fallout4.esm to actually be present, not just the folder
+    // name — a bare "<drive>:\Fallout 4" folder with no real install in it
+    // (a leftover backup dir, a shortcut target, an empty placeholder) used
+    // to match here first and get treated as the real game, which silently
+    // fed the scan scripts a Data folder with nothing to parse.
+    return candidates.find(p => fs.existsSync(path.join(p, 'Data', 'Fallout4.esm'))) ?? null;
   }
 
   /**
