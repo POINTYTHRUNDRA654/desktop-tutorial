@@ -49,6 +49,7 @@ _PERSISTENT_PREF_FIELDS = [
     "havok2fbx_path", "ckcmd_path", "ckcmd_skeleton_path",
     "nvtt_path", "ffmpeg_path", "texconv_path",
     "umodel_path", "rignet_path", "libigl_path",
+    "unwrap3d_exe_path", "packerio_exe_path",
     "tools_root", "instantngp_path", "torch_custom_path",
     "extra_python_paths", "knowledge_base_path",
     # Game asset paths
@@ -902,6 +903,30 @@ class FO4AddonPreferences(bpy.types.AddonPreferences):
             "Directory where UModel (UE Viewer) was downloaded. "
             "Set automatically on first download. "
             "Used to locate umodel.exe on every Blender startup."
+        ),
+        update=_pref_path_update,
+    )
+
+    unwrap3d_exe_path: bpy.props.StringProperty(
+        name="Ultimate Unwrap3D Path",
+        subtype="FILE_PATH",
+        default="",
+        description=(
+            "Path to unwrap3d_64.exe (Ultimate Unwrap3D Pro). Used by "
+            "'Open in Ultimate Unwrap3D' to hand off the active mesh for "
+            "UV editing outside Blender."
+        ),
+        update=_pref_path_update,
+    )
+
+    packerio_exe_path: bpy.props.StringProperty(
+        name="Packer-IO Path",
+        subtype="FILE_PATH",
+        default="",
+        description=(
+            "Path to Packer-IO.exe (3d-io UV-Packer standalone app). Used "
+            "by 'Open in Packer-IO' to hand off the active mesh's current "
+            "UVs for packing outside Blender."
         ),
         update=_pref_path_update,
     )

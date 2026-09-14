@@ -2517,13 +2517,76 @@ class FO4_OT_ShowMessage(Operator):
 
 # Mesh Operators
 
+# Personal fallback default for the "From Game Mesh File" browse path below,
+# used only when the user hasn't configured fo4_game_data_path in
+# preferences. Harmless on another machine -- it's just an initial directory
+# for the file browser, not a hard dependency.
+_CREATE_BASE_MESH_DEFAULT_DIR = r"F:\FO4 WORKING FLODER\Meshes"
+
+
 class FO4_OT_CreateBaseMesh(Operator):
-    """Create a base mesh for Fallout 4"""
+    """Create a base mesh for Fallout 4 -- either a blank primitive to model
+    from scratch, or import an already-extracted game mesh (NIF/FBX/OBJ/GLB)
+    to use as a starting point."""
     bl_idname = "fo4.create_base_mesh"
     bl_label = "Create Base Mesh"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
+    mesh_source: bpy.props.EnumProperty(
+        name="Source",
+        items=[
+            ('BLANK', "Blank Cube", "Start from an empty cube with a UV map"),
+            ('FILE', "From Game Mesh File", "Import an already-extracted game mesh (NIF/FBX/OBJ/GLB) as the starting point"),
+        ],
+        default='BLANK',
+    )
+    filepath: bpy.props.StringProperty(
+        name="Game Mesh File",
+        description="An extracted game mesh to import as the base -- NIF (via PyNifly), FBX, OBJ, or GLB/GLTF",
+        subtype='FILE_PATH',
+    )
+
+    def invoke(self, context, event):
+        if not self.filepath:
+            prefs = preferences.get_preferences() if preferences else None
+            game_data = (getattr(prefs, "fo4_game_data_path", "") or "") if prefs else ""
+            base_dir = bpy.path.abspath(game_data) if game_data else _CREATE_BASE_MESH_DEFAULT_DIR
+            import os
+            if base_dir and os.path.isdir(base_dir):
+                self.filepath = os.path.join(base_dir, "")
+        return context.window_manager.invoke_props_dialog(self, width=420)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "mesh_source", expand=True)
+        layout.separator(factor=0.5)
+        if self.mesh_source == 'FILE':
+            layout.prop(self, "filepath")
+            layout.label(
+                text="NIF import uses PyNifly and applies FO4 scale correction automatically.",
+                icon='INFO',
+            )
+        else:
+            layout.label(text="Empty cube with a UV map -- model from scratch.", icon='INFO')
+
     def execute(self, context):
+        if self.mesh_source == 'FILE':
+            if not self.filepath:
+                self.report({'ERROR'}, "No game mesh file selected")
+                return {'CANCELLED'}
+            import os
+            path = bpy.path.abspath(self.filepath)
+            if not os.path.isfile(path):
+                self.report({'ERROR'}, f"File not found: {path}")
+                return {'CANCELLED'}
+            # Delegate to the existing game-asset importer (PyNifly NIF import,
+            # FO4 scale correction, MO2-aware texture resolution, and
+            # fo4_source_nif/fo4_original_name tagging) rather than duplicating
+            # that logic here -- fo4.import_fo4_asset_file's execute() works
+            # standalone when filepath is already set, no invoke needed.
+            result = bpy.ops.fo4.import_fo4_asset_file(filepath=path)
+            return result if 'FINISHED' in result else {'CANCELLED'}
+
         try:
             obj = mesh_helpers.MeshHelpers.create_base_mesh()
             self.report({'INFO'}, f"Created base mesh: {obj.name}")
@@ -2536,7 +2599,7 @@ class FO4_OT_CreateBaseMesh(Operator):
                 f"Error creating mesh: {str(e)}", 'ERROR'
             )
             return {'CANCELLED'}
-        
+
         return {'FINISHED'}
 
 class FO4_OT_OptimizeMesh(Operator):
@@ -2641,6 +2704,17 @@ two halves of a vegetation mesh that need to merge into one FO4-ready asset."""
             self.apply_transforms = prefs.optimize_apply_transforms
             self.threshold = prefs.optimize_remove_doubles_threshold
             self.preserve_uvs = prefs.optimize_preserve_uvs
+        else:
+            # Addon preferences object unavailable (rare -- e.g. preferences
+            # failed to register). ui_panels.py's Optimize Settings box falls
+            # back to these same scene properties in that state; read them
+            # here too so that fallback UI isn't dead (previously this branch
+            # was skipped entirely and the operator silently used its own
+            # class defaults no matter what the scene fields showed).
+            scene = context.scene
+            self.apply_transforms = getattr(scene, "fo4_opt_apply_transforms", self.apply_transforms)
+            self.threshold = getattr(scene, "fo4_opt_doubles", self.threshold)
+            self.preserve_uvs = getattr(scene, "fo4_opt_preserve_uvs", self.preserve_uvs)
         # Auto-tick join if multiple meshes selected
         sel_meshes = [o for o in context.selected_objects if o.type == 'MESH']
         if len(sel_meshes) > 1:
@@ -2671,6 +2745,14 @@ two halves of a vegetation mesh that need to merge into one FO4-ready asset."""
             prefs.optimize_apply_transforms = self.apply_transforms
             prefs.optimize_remove_doubles_threshold = self.threshold
             prefs.optimize_preserve_uvs = self.preserve_uvs
+        else:
+            scene = context.scene
+            if hasattr(scene, "fo4_opt_apply_transforms"):
+                scene.fo4_opt_apply_transforms = self.apply_transforms
+            if hasattr(scene, "fo4_opt_doubles"):
+                scene.fo4_opt_doubles = self.threshold
+            if hasattr(scene, "fo4_opt_preserve_uvs"):
+                scene.fo4_opt_preserve_uvs = self.preserve_uvs
 
         success, message = mesh_helpers.MeshHelpers.optimize_mesh(
             obj,
@@ -4372,8 +4454,18 @@ class FO4_OT_ExportMeshWithCollision(Operator):
         # perform export which will automatically include any collision mesh found
         success, message = export_helpers.ExportHelpers.export_mesh_to_nif(obj, self.filepath)
         if success:
-            self.report({'INFO'}, message)
-            _notify(message, 'INFO')
+            if collision is not None and collision.get("fo4_collision_sealed_opening"):
+                message += (
+                    f" -- WARNING: '{obj.name}' has an opening cut into it "
+                    f"that this convex-hull collision sealed shut. Re-run "
+                    f"with 'Custom Collision (Exact Mesh)' instead if that "
+                    f"opening needs to stay open in-game."
+                )
+                self.report({'WARNING'}, message)
+                _notify(message, 'WARNING')
+            else:
+                self.report({'INFO'}, message)
+                _notify(message, 'INFO')
         else:
             self.report({'ERROR'}, message)
             _notify(message, 'ERROR')
@@ -5896,7 +5988,15 @@ class FO4_OT_GenerateLODAndCollision(Operator):
                         )
                         collision_source = obj.name
                     if collision_obj:
-                        results.append(f"{obj.name} Collision: {collision_obj.name} built from {collision_source}")
+                        note = ""
+                        if collision_obj.get("fo4_collision_sealed_opening"):
+                            note = (
+                                " -- WARNING: an opening in this mesh was "
+                                "sealed shut by the convex hull; use 'Custom "
+                                "Collision (Exact Mesh)' on it separately if "
+                                "that opening needs to stay open"
+                            )
+                        results.append(f"{obj.name} Collision: {collision_obj.name} built from {collision_source}{note}")
                     else:
                         results.append(f"{obj.name} Collision: skipped (type has no collision)")
                 except Exception as e:
@@ -6017,8 +6117,18 @@ class FO4_OT_CollisionFromLowestLOD(Operator):
 
             if collision_obj:
                 msg = f"Collision mesh '{collision_obj.name}' created from {source_label}"
-                self.report({'INFO'}, msg)
-                _notify(msg, 'INFO')
+                if collision_obj.get("fo4_collision_sealed_opening"):
+                    msg += (
+                        f" -- WARNING: '{source_label}' has an opening cut "
+                        f"into it and this convex hull sealed it shut. Use "
+                        f"'Custom Collision (Exact Mesh)' instead if that "
+                        f"opening needs to stay open in-game."
+                    )
+                    self.report({'WARNING'}, msg)
+                    _notify(msg, 'WARNING')
+                else:
+                    self.report({'INFO'}, msg)
+                    _notify(msg, 'INFO')
                 print(f"\n{'='*70}\nCOLLISION FROM LOD\n{'='*70}")
                 print(f"Source: {source_label}")
                 print(f"Collision: {collision_obj.name} "
@@ -6131,6 +6241,7 @@ class FO4_OT_BatchGenerateCollision(Operator):
         success_count = 0
         skip_count = 0
         fail_count = 0
+        sealed_openings = []
 
         for obj in selected_meshes:
             context.view_layer.objects.active = obj
@@ -6151,6 +6262,8 @@ class FO4_OT_BatchGenerateCollision(Operator):
                 )
                 if collision_obj:
                     success_count += 1
+                    if collision_obj.get("fo4_collision_sealed_opening"):
+                        sealed_openings.append(obj.name)
                 else:
                     skip_count += 1
             except Exception as e:
@@ -6162,8 +6275,19 @@ class FO4_OT_BatchGenerateCollision(Operator):
             msg += f", {skip_count} skipped (no-collision type)"
         if fail_count:
             msg += f", {fail_count} failed"
-        self.report({'INFO'}, msg)
-        _notify(msg, 'INFO')
+        if sealed_openings:
+            names = ", ".join(sealed_openings)
+            msg += (
+                f". WARNING: {len(sealed_openings)} object(s) have an "
+                f"opening cut into them that this convex-hull pass sealed "
+                f"shut -- {names}. Use 'Custom Collision (Exact Mesh)' "
+                f"individually on those instead if the opening needs to "
+                f"stay open in-game."
+            )
+            self.report({'WARNING'}, msg)
+        else:
+            self.report({'INFO'}, msg)
+        _notify(msg, 'WARNING' if sealed_openings else 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -7061,12 +7185,26 @@ class FO4_OT_HybridUnwrap(Operator):
                 return {'CANCELLED'}
 
             # Iterative relaxation - minimises stretch in every island.
-            try:
-                bpy.ops.uv.minimize_stretch(
-                    fill_holes=True, iterations=self.stretch_iterations
-                )
-            except Exception:
+            # Only swallow the "operator doesn't exist on this Blender build"
+            # case -- a real failure mid-relaxation (e.g. degenerate/
+            # non-manifold geometry) used to be caught by the same bare
+            # except and hidden behind the normal "complete" success message,
+            # so the UV quality would silently degrade with no indication
+            # anything went wrong.
+            if not hasattr(bpy.ops.uv, 'minimize_stretch'):
                 pass  # unavailable on older Blender builds
+            else:
+                try:
+                    bpy.ops.uv.minimize_stretch(
+                        fill_holes=True, iterations=self.stretch_iterations
+                    )
+                except Exception as _ms_err:
+                    self.report(
+                        {'WARNING'},
+                        f"Stretch-minimize pass failed ({_ms_err}) -- UVs are "
+                        f"unwrapped but not relaxed; check the mesh for "
+                        f"non-manifold geometry.",
+                    )
 
             # Pack islands into the 0–1 tile with rotation for tight fit.
             try:
@@ -7108,6 +7246,272 @@ class FO4_OT_HybridUnwrap(Operator):
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
+
+
+# ── External UV Tool Round-Trip (Ultimate Unwrap3D / Packer-IO) ────────────
+# Both are standalone GUI apps with no scripting/CLI API, so the hand-off is
+# file-based: export the mesh to FBX using the exact axis convention already
+# established elsewhere in this add-on's own FBX pipeline (see
+# FO4_OT_ExportHavokAnimation's export_scene.fbx call: axis_forward='-Z',
+# axis_up='Y') so the mesh arrives correctly oriented with no manual axis
+# fixing needed in either tool, then launch the tool pointed at that file.
+# Reimport reads the same path back after the user has edited and re-saved
+# it from inside the external tool, and replaces the object's mesh data
+# wholesale (not a per-vertex UV merge) -- simplest and most robust, since
+# neither tool guarantees preserving Blender's original vertex/face order.
+
+def _uv_exchange_dir():
+    """Folder used to hand mesh files to/from external UV tools. Kept next
+    to the .blend file when it's saved (so exchange files sit with the
+    project); falls back to the system temp folder for an unsaved file."""
+    import os
+    import tempfile
+    base = os.path.dirname(bpy.data.filepath) if bpy.data.filepath else tempfile.gettempdir()
+    d = os.path.join(base, "Mossy_UV_Exchange")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def _export_for_external_uv_tool(context, obj, suffix):
+    """Export *obj* to FBX for an external UV tool. Returns (fbx_path or
+    None, error message or None)."""
+    import os
+    fbx_path = os.path.join(_uv_exchange_dir(), f"{obj.name}_{suffix}.fbx")
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    context.view_layer.objects.active = obj
+    result = bpy.ops.export_scene.fbx(
+        filepath=fbx_path,
+        use_selection=True,
+        apply_scale_options='FBX_SCALE_ALL',
+        axis_forward='-Z',
+        axis_up='Y',
+        use_mesh_modifiers=True,
+        mesh_smooth_type='FACE',
+    )
+    if 'CANCELLED' in set(result) or not os.path.isfile(fbx_path):
+        return None, f"FBX export for {suffix} hand-off failed"
+    return fbx_path, None
+
+
+def _launch_external_uv_tool(exe_path, fbx_path):
+    """Launch *exe_path* with *fbx_path* as its argument (opens the file
+    directly, the same as double-clicking it in Explorer once the app is
+    associated -- both Unwrap3D and Packer-IO accept a file path on their
+    command line). Returns an error message, or None on success."""
+    import os
+    import subprocess
+    if not exe_path or not os.path.isfile(exe_path):
+        return "path not set (or file not found) -- set it in Add-on Preferences > Tool Paths"
+    try:
+        subprocess.Popen([exe_path, fbx_path])
+    except Exception as e:
+        return f"exported OK but failed to launch: {e}"
+    return None
+
+
+def _reimport_from_external_uv_tool(context, obj, tool_key, tool_label):
+    """Reimport the FBX previously handed to an external UV tool, replacing
+    *obj*'s mesh data with whatever geometry/UVs come back. Materials the
+    object had before are kept (FBX round-trips through a UV-only tool
+    don't carry Blender's own node-based materials back reliably)."""
+    import os
+
+    exchange_path = obj.get("fo4_uv_exchange_path")
+    exchange_tool = obj.get("fo4_uv_exchange_tool")
+    if not exchange_path:
+        return False, f"'{obj.name}' was never sent to {tool_label} -- run 'Open in {tool_label}' first."
+    if exchange_tool != tool_key:
+        return False, (
+            f"'{obj.name}' was last sent to a different external tool "
+            f"({exchange_tool or 'unknown'}), not {tool_label} -- run "
+            f"'Open in {tool_label}' first so the paths match."
+        )
+    if not os.path.isfile(exchange_path):
+        return False, f"Exchange file not found: {exchange_path} -- run 'Open in {tool_label}' again."
+
+    prev_materials = list(obj.data.materials)
+    prev_mesh_name = obj.data.name
+
+    existing_obj_names = {o.name for o in bpy.data.objects}
+    bpy.ops.object.select_all(action='DESELECT')
+    result = bpy.ops.import_scene.fbx(filepath=exchange_path)
+    if 'CANCELLED' in set(result):
+        return False, f"FBX reimport failed for {exchange_path}"
+
+    imported = [
+        o for o in context.selected_objects
+        if o.name not in existing_obj_names and o.type == 'MESH'
+    ]
+    if not imported:
+        return False, f"Reimport of {exchange_path} produced no mesh object"
+
+    imp_obj = imported[0]
+    new_mesh = imp_obj.data
+    new_mesh.name = prev_mesh_name
+    for mat in prev_materials:
+        new_mesh.materials.append(mat)
+
+    old_mesh = obj.data
+    obj.data = new_mesh
+    if old_mesh.users == 0:
+        bpy.data.meshes.remove(old_mesh)
+
+    for o in imported:
+        bpy.data.objects.remove(o, do_unlink=True)
+
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    context.view_layer.objects.active = obj
+
+    return True, f"Reimported geometry/UVs from {tool_label}: {exchange_path}"
+
+
+class FO4_OT_OpenInUnwrap3D(Operator):
+    """Export the active mesh and open it in Ultimate Unwrap3D for UV editing.
+
+    Exported with the same FBX axis convention already used elsewhere in
+    this add-on's pipeline (-Z forward, Y up), so the mesh arrives correctly
+    oriented -- no manual axis fixing needed in Unwrap3D. After editing UVs
+    there, use File > Export and overwrite the SAME file path, then run
+    'Reimport from Ultimate Unwrap3D' back in Blender."""
+    bl_idname = "fo4.open_in_unwrap3d"
+    bl_label = "Open in Ultimate Unwrap3D"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        prefs = preferences.get_preferences() if preferences else None
+        exe = (getattr(prefs, 'unwrap3d_exe_path', '') or '') if prefs else ''
+
+        fbx_path, err = _export_for_external_uv_tool(context, obj, "unwrap3d")
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+
+        launch_err = _launch_external_uv_tool(exe, fbx_path)
+        if launch_err:
+            self.report(
+                {'ERROR'},
+                f"Ultimate Unwrap3D {launch_err} (exported mesh is still at {fbx_path})",
+            )
+            return {'CANCELLED'}
+
+        obj["fo4_uv_exchange_path"] = fbx_path
+        obj["fo4_uv_exchange_tool"] = "UNWRAP3D"
+
+        msg = (
+            f"Opened in Ultimate Unwrap3D: {fbx_path}. Edit UVs, then File > "
+            f"Export back over the same file, then run 'Reimport from "
+            f"Ultimate Unwrap3D'."
+        )
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ReimportFromUnwrap3D(Operator):
+    """Bring the UV edits made in Ultimate Unwrap3D back into Blender.
+
+    Requires 'Open in Ultimate Unwrap3D' to have been run on this object
+    first, and the file saved from inside Unwrap3D back to the same path."""
+    bl_idname = "fo4.reimport_from_unwrap3d"
+    bl_label = "Reimport from Ultimate Unwrap3D"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        ok, msg = _reimport_from_external_uv_tool(context, obj, "UNWRAP3D", "Ultimate Unwrap3D")
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_OpenInPackerIO(Operator):
+    """Export the active mesh and open it in Packer-IO for UV packing.
+
+    Exported with the same FBX axis convention already used elsewhere in
+    this add-on's pipeline (-Z forward, Y up). After packing in Packer-IO,
+    export back over the SAME file path, then run 'Reimport from Packer-IO'
+    back in Blender.
+
+    Note: 3d-io also publish a free official Blender extension
+    ('UnwrellaConnect') that runs Packer-IO's packing directly inside
+    Blender without any file hand-off -- worth installing from the Blender
+    extensions repository if this round-trip feels clunky."""
+    bl_idname = "fo4.open_in_packerio"
+    bl_label = "Open in Packer-IO"
+    bl_options = {'REGISTER'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        prefs = preferences.get_preferences() if preferences else None
+        exe = (getattr(prefs, 'packerio_exe_path', '') or '') if prefs else ''
+
+        fbx_path, err = _export_for_external_uv_tool(context, obj, "packerio")
+        if err:
+            self.report({'ERROR'}, err)
+            return {'CANCELLED'}
+
+        launch_err = _launch_external_uv_tool(exe, fbx_path)
+        if launch_err:
+            self.report(
+                {'ERROR'},
+                f"Packer-IO {launch_err} (exported mesh is still at {fbx_path})",
+            )
+            return {'CANCELLED'}
+
+        obj["fo4_uv_exchange_path"] = fbx_path
+        obj["fo4_uv_exchange_tool"] = "PACKERIO"
+
+        msg = (
+            f"Opened in Packer-IO: {fbx_path}. Pack UVs, export back over "
+            f"the same file, then run 'Reimport from Packer-IO'."
+        )
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
+
+
+class FO4_OT_ReimportFromPackerIO(Operator):
+    """Bring the UV packing done in Packer-IO back into Blender.
+
+    Requires 'Open in Packer-IO' to have been run on this object first, and
+    the file saved from inside Packer-IO back to the same path."""
+    bl_idname = "fo4.reimport_from_packerio"
+    bl_label = "Reimport from Packer-IO"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        obj = context.active_object
+        if not obj or obj.type != 'MESH':
+            self.report({'ERROR'}, "Select a mesh object first")
+            return {'CANCELLED'}
+
+        ok, msg = _reimport_from_external_uv_tool(context, obj, "PACKERIO", "Packer-IO")
+        if not ok:
+            self.report({'ERROR'}, msg)
+            return {'CANCELLED'}
+
+        self.report({'INFO'}, msg)
+        _notify(msg, 'INFO')
+        return {'FINISHED'}
 
 
 class FO4_OT_RebakeTextureToNewUV(Operator):
@@ -7229,6 +7633,16 @@ class FO4_OT_RebakeTextureToNewUV(Operator):
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
 
+        # Rewiring src_tex_node's Vector input to force the bake-src UV
+        # would otherwise permanently destroy whatever was previously
+        # plugged into it (e.g. a Mapping node driving offset/tiling/scale)
+        # -- the old code just deleted the new nodes afterwards and never
+        # put the original link back. Save it so it can be restored below.
+        prev_vector_link_socket = None
+        vector_input = src_tex_node.inputs['Vector']
+        if vector_input.is_linked:
+            prev_vector_link_socket = vector_input.links[0].from_socket
+
         uv_map_node = nodes.new('ShaderNodeUVMap')
         uv_map_node.uv_map = 'UV_bake_src'
         uv_map_node.location = (src_tex_node.location[0] - 260,
@@ -7261,6 +7675,15 @@ class FO4_OT_RebakeTextureToNewUV(Operator):
             context.scene.cycles.samples = prev_samples
             nodes.remove(target_node)
             nodes.remove(uv_map_node)
+            # Restore whatever was driving the texture's Vector input before
+            # (e.g. a Mapping node) -- without this the offset/tiling/scale
+            # setup on this texture was silently lost every time this
+            # operator ran.
+            if prev_vector_link_socket is not None:
+                try:
+                    links.new(prev_vector_link_socket, src_tex_node.inputs['Vector'])
+                except Exception:
+                    pass
 
         if not bake_ok:
             return {'CANCELLED'}
@@ -7572,24 +7995,29 @@ class FO4_OT_WrapImageOntoMesh(Operator):
         # operator to re-project from a new angle) rather than piling up
         # duplicate '_WrappedTexture.001' images every click.
         canvas_img = bpy.data.images.get(canvas_name)
-        if canvas_img is None or tuple(canvas_img.size) != (size, size):
+        is_new_canvas = canvas_img is None or tuple(canvas_img.size) != (size, size)
+        if is_new_canvas:
             canvas_img = bpy.data.images.new(
                 canvas_name, width=size, height=size, alpha=True
             )
-        # Fully transparent start so anything the projection doesn't reach
-        # stays obviously blank -- a clear visual signal of what still
-        # needs a manual retouch pass, rather than silently leaving stale
-        # paint from a previous projection underneath the new one.
+        # Only blank the canvas when it's brand new. The docstring and the
+        # success message below both tell the user two valid ways to fill
+        # in what a single projection angle misses: hand-paint with
+        # 'Retouch Texture', OR rotate the view and run this operator
+        # again to project from a second angle. Wiping the canvas back to
+        # transparent on every run silently destroyed whichever of those
+        # two you'd already done before running Wrap Image a second time.
         # Built as a numpy array rather than a plain Python list -- at
         # 4096x4096 a Python list of size*size*4 float objects is on the
         # order of a gigabyte and needlessly slow; numpy stores it as packed
         # float32 (matches the pixel-buffer pattern already used elsewhere
         # in this file, e.g. the vegetation AO bake's diffuse multiply).
-        import numpy as np
-        canvas_img.generated_color = (0.0, 0.0, 0.0, 0.0)
-        blank_px = np.zeros(size * size * 4, dtype=np.float32)
-        canvas_img.pixels.foreach_set(blank_px)
-        canvas_img.update()
+        if is_new_canvas:
+            import numpy as np
+            canvas_img.generated_color = (0.0, 0.0, 0.0, 0.0)
+            blank_px = np.zeros(size * size * 4, dtype=np.float32)
+            canvas_img.pixels.foreach_set(blank_px)
+            canvas_img.update()
 
         # Ensure a FO4-compatible material with a "Diffuse" node exists,
         # then wire the blank canvas into it -- matches the same
@@ -7625,6 +8053,22 @@ class FO4_OT_WrapImageOntoMesh(Operator):
             context.view_layer.objects.active = prev_active
             return {'CANCELLED'}
 
+        # paint.project_image paints with whatever brush settings are
+        # currently active in the Image Paint tool -- a leftover reduced
+        # strength or non-default blend mode (e.g. "Add") from an earlier
+        # manual paint session would silently distort this projection with
+        # no diagnostic. Force a plain, full-strength, full-opacity mix so
+        # the projected photo lands as-is.
+        try:
+            ip = context.scene.tool_settings.image_paint
+            if ip.brush:
+                ip.brush.blend = 'MIX'
+                ip.brush.strength = 1.0
+            ip.unified_paint_settings.strength = 1.0
+            ip.unified_paint_settings.use_unified_strength = True
+        except Exception:
+            pass
+
         try:
             with context.temp_override(area=area, region=region):
                 bpy.ops.paint.project_image(image=source_img.name)
@@ -7641,11 +8085,35 @@ class FO4_OT_WrapImageOntoMesh(Operator):
         obj["fo4_wrap_canvas_image"] = canvas_img.name
         obj["fo4_wrap_source_image"] = source_img.name
 
+        # Persist the canvas to disk -- unlike Rebake Texture to New UV
+        # (which always calls .save()), this used to only exist as
+        # in-memory image data. use_fake_user keeps it from being purged,
+        # but it was never actually written anywhere: close Blender without
+        # manually saving/packing the .blend and the wrapped texture is
+        # gone, with no file to point the FO4 NIF export or DDS conversion
+        # step at. Save it next to the source photo (matching Rebake's own
+        # "next to the original" convention) so it survives on its own.
+        save_note = ""
+        try:
+            src_dir = os.path.dirname(self.filepath)
+            if src_dir and os.path.isdir(src_dir):
+                out_path = os.path.join(src_dir, f"{canvas_name}.png")
+            else:
+                import tempfile
+                out_path = os.path.join(tempfile.gettempdir(), f"{canvas_name}.png")
+            canvas_img.filepath_raw = out_path
+            canvas_img.file_format = 'PNG'
+            canvas_img.save()
+            save_note = f" Saved to {out_path}."
+        except Exception as exc:
+            save_note = f" (Could not save to disk yet: {exc} -- save/pack the .blend to keep it.)"
+
         msg = (
             f"Wrapped '{os.path.basename(self.filepath)}' onto {obj.name} "
-            f"({size}x{size} canvas) from the current view. Areas not "
-            "visible from this angle are still blank -- rotate the view and "
-            "run this again, or use 'Retouch Texture' to paint them by hand."
+            f"({size}x{size} canvas) from the current view.{save_note} Areas "
+            "not visible from this angle are still blank -- rotate the view "
+            "and run this again, or use 'Retouch Texture' to paint them by "
+            "hand."
         )
         self.report({'INFO'}, msg)
         _notify(msg, 'INFO')
@@ -7924,17 +8392,40 @@ class FO4_OT_FoliageUVUnwrap(Operator):
                 comp_bbox.append((min_u, min_v, max_u, max_v))
                 comp_real_area.append(real_area)
 
+            def _aspect_ratio(bbox):
+                min_u, min_v, max_u, max_v = bbox
+                w, h = max_u - min_u, max_v - min_v
+                if w <= 1e-9 or h <= 1e-9:
+                    return 1.0
+                # Always >= 1.0 so a long/thin stem (tall) and a same-shaped
+                # stem rotated 90 degrees still compare equal.
+                return max(w / h, h / w)
+
+            comp_aspect = [_aspect_ratio(b) for b in comp_bbox]
+
             groups = []  # list of lists of component indices
             duplicate_of = {}  # component index -> anchor component index
             if self.stack_similar:
                 order = sorted(range(total_components), key=lambda i: comp_real_area[i])
                 for ci in order:
                     area = comp_real_area[ci]
+                    aspect = comp_aspect[ci]
                     placed = False
                     for group in groups:
                         anchor_area = comp_real_area[group[0]]
+                        anchor_aspect = comp_aspect[group[0]]
                         tol = max(anchor_area, area) * self.stack_tolerance
-                        if abs(area - anchor_area) <= tol:
+                        aspect_tol = max(anchor_aspect, aspect) * self.stack_tolerance
+                        # Equal area alone isn't "similar" -- a long thin
+                        # stem and a round leaf can have the same surface
+                        # area but very different silhouettes. Stacking them
+                        # anyway forces the bbox-to-bbox remap in Step 6 to
+                        # apply a non-uniform rescale, visibly smearing a
+                        # shared texture across the mismatched shape. Require
+                        # the bbox aspect ratio to also match before treating
+                        # two components as the same "part".
+                        if (abs(area - anchor_area) <= tol
+                                and abs(aspect - anchor_aspect) <= aspect_tol):
                             group.append(ci)
                             duplicate_of[ci] = group[0]
                             placed = True
@@ -10037,10 +10528,15 @@ class FO4_OT_AutoFixCommonIssues(Operator):
         fixes_applied = []
         
         try:
-            # Fix 1: Apply unapplied transformations
-            if any([s != 1.0 for s in obj.scale]):
-                bpy.ops.object.transform_apply('EXEC_DEFAULT', location=False, rotation=False, scale=True)
-                fixes_applied.append("Applied scale")
+            # Fix 1: Apply unapplied transformations. Checks rotation too, not
+            # just scale -- a mesh with unapplied rotation but scale already
+            # at 1.0 used to pass through here reporting "no issues" while
+            # still carrying bad rotation into NIF export (every other
+            # operator in this pipeline -- Convert to Fallout 4, Prepare
+            # Third-Party Mesh -- already applies both).
+            if any([s != 1.0 for s in obj.scale]) or any([r != 0.0 for r in obj.rotation_euler]):
+                bpy.ops.object.transform_apply('EXEC_DEFAULT', location=False, rotation=True, scale=True)
+                fixes_applied.append("Applied scale/rotation")
 
             # Fix 2: Remove loose vertices
             bpy.ops.object.mode_set('EXEC_DEFAULT', mode='EDIT')
@@ -10126,17 +10622,37 @@ class FO4_OT_GenerateCollisionMesh(Operator):
             )
             if not collision_obj:
                 raise RuntimeError("helper failed to create collision mesh")
-            
-            self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
-            _notify(
-                f"Collision mesh generated: {collision_obj.name}", 'INFO'
-            )
+
+            if collision_obj.get("fo4_collision_sealed_opening"):
+                # add_collision_mesh always builds a convex hull, which seals
+                # any real opening in the source shut -- the source mesh had
+                # one (a doorway, window, cave mouth), so tell the user
+                # instead of reporting a plain success on a wall they can no
+                # longer walk through.
+                self.report(
+                    {'WARNING'},
+                    f"Created collision mesh: {collision_obj.name} -- but "
+                    f"'{obj.name}' has an opening cut into it, and a convex "
+                    f"hull always seals openings shut. If that opening needs "
+                    f"to stay open in-game, use 'Custom Collision (Exact "
+                    f"Mesh)' instead.",
+                )
+                _notify(
+                    f"Collision mesh generated: {collision_obj.name} -- "
+                    f"sealed an opening in '{obj.name}', see the report",
+                    'WARNING',
+                )
+            else:
+                self.report({'INFO'}, f"Created collision mesh: {collision_obj.name}")
+                _notify(
+                    f"Collision mesh generated: {collision_obj.name}", 'INFO'
+                )
             return {'FINISHED'}
-            
+
         except Exception as e:
             self.report({'ERROR'}, f"Failed to generate collision mesh: {str(e)}")
             return {'CANCELLED'}
-    
+
     def invoke(self, context, event):
         if mesh_helpers:
             obj = context.active_object
@@ -10195,9 +10711,15 @@ class FO4_OT_AddCustomCollision(Operator):
                     f"'{obj.name}' is too detailed for an exact-mesh "
                     f"collision (FO4's Havok mesh-shape limit is 255 "
                     f"verts) -- fell back to a sealed convex hull, so any "
-                    f"doors/windows/openings are now closed. For a "
-                    f"building with multiple openings, try 'Generate "
-                    f"Multi-Convex Collision' instead: {collision_obj.name} "
+                    f"doors/windows/openings are now closed. 'Generate "
+                    f"Multi-Convex Collision' will NOT reliably fix this on "
+                    f"its own -- it splits by spatial position, not by "
+                    f"where the openings are, so a piece can still seal one "
+                    f"shut. For a real fix, either decimate '{obj.name}' "
+                    f"further before running this again, or in Edit Mode "
+                    f"select the geometry on each side of every opening and "
+                    f"Separate by Selection into its own object first, then "
+                    f"run collision generation per piece: {collision_obj.name} "
                     f"({len(collision_obj.data.polygons)} tris)",
                 )
                 _notify(
@@ -14564,9 +15086,12 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
     add_vertex_colors: bpy.props.BoolProperty(
         name="Add Vertex Color Layer (Grass)",
         description=(
-            "Add a 'Col' vertex-color layer set to white so you can paint "
-            "darker areas to reduce wind intensity on those vertices.  "
-            "Has no effect on non-grass profiles."
+            "Add a 'VERTEX_COLOR' vertex-color layer set to white so you can "
+            "paint darker areas to reduce wind intensity on those vertices.  "
+            "Named to match what PyNifly actually exports (see the name note "
+            "on _ensure_vertex_color_layer below) so the wind data doesn't "
+            "silently get left out of the NIF.  Has no effect on non-grass "
+            "profiles."
         ),
         default=True,
     )
@@ -14647,22 +15172,42 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
                 pass
         return removed
 
-    @staticmethod
-    def _ensure_vertex_color_layer(obj):
-        """Ensure *obj* has at least one vertex-color attribute layer.
+    # PyNifly always exports the color attribute literally named
+    # "VERTEX_COLOR", not whichever layer happens to be active in Blender
+    # (confirmed in PyNifly V28.3.0's release notes, which added a warning
+    # for exactly this: "painting into a new attribute and making it active
+    # exports your old colors"). Before that warning existed this was an
+    # easy way to lose wind/flutter data silently, so we name our own
+    # layer to match rather than relying on Blender's "active" flag.
+    _PYNIFLY_VERTEX_COLOR_NAME = "VERTEX_COLOR"
+
+    @classmethod
+    def _ensure_vertex_color_layer(cls, obj):
+        """Ensure *obj* has a vertex-color attribute layer PyNifly will
+        actually export, and return its name.
 
         Uses ``color_attributes`` (Blender 3.3+) or the legacy
         ``vertex_colors`` API, initialising all colours to white.
+        Prefers an existing layer already named "VERTEX_COLOR" (what
+        PyNifly exports); otherwise falls back to any existing layer
+        (matches prior behavior for meshes that already have one under a
+        different name); otherwise creates a new one named "VERTEX_COLOR"
+        so a fresh grass mesh's wind data doesn't silently fail to export.
         """
         mesh = obj.data
+        name = cls._PYNIFLY_VERTEX_COLOR_NAME
         if mesh.color_attributes:
+            if name in mesh.color_attributes:
+                return mesh.color_attributes[name].name
             return mesh.color_attributes[0].name
         if mesh.vertex_colors:
+            if name in mesh.vertex_colors:
+                return mesh.vertex_colors[name].name
             return mesh.vertex_colors[0].name
         # Create a new layer
         try:
             layer = mesh.color_attributes.new(
-                name="Col", type='BYTE_COLOR', domain='CORNER'
+                name=name, type='BYTE_COLOR', domain='CORNER'
             )
             # Initialise to white so every vertex has max wind intensity by default.
             for c in layer.data:
@@ -14671,7 +15216,7 @@ class FO4_OT_SmartPrepareWindMesh(Operator):
         except Exception:
             # Blender < 3.3 fallback
             try:
-                layer = mesh.vertex_colors.new(name="Col")
+                layer = mesh.vertex_colors.new(name=name)
                 for c in layer.data:
                     c.color = (1.0, 1.0, 1.0, 1.0)
                 return layer.name
@@ -15561,11 +16106,7 @@ def _build_convex_piece(source_mesh, vert_indices, piece_name):
         return None
 
     result = _bm.ops.convex_hull(bm2, input=bm2.verts)
-    # Not guaranteed disjoint -- de-dupe before the BMVert filter (same
-    # fix as mesh_helpers.py's convex-hull collision paths; real crash:
-    # "geom: found the same (BMVert/BMEdge/BMFace) used multiple times").
-    geom_del = list(dict.fromkeys(
-        result.get('geom_interior', []) + result.get('geom_unused', [])))
+    geom_del = result.get('geom_interior', []) + result.get('geom_unused', [])
     v_del = [g for g in geom_del if isinstance(g, _bm.types.BMVert)]
     if v_del:
         _bm.ops.delete(bm2, geom=v_del, context='VERTS')
@@ -15592,8 +16133,7 @@ def _build_convex_piece(source_mesh, vert_indices, piece_name):
         if excess:
             _bm.ops.delete(bm2, geom=excess, context='VERTS')
         result2 = _bm.ops.convex_hull(bm2, input=bm2.verts)
-        g2 = list(dict.fromkeys(
-            result2.get('geom_interior', []) + result2.get('geom_unused', [])))
+        g2 = result2.get('geom_interior', []) + result2.get('geom_unused', [])
         v2 = [g for g in g2 if isinstance(g, _bm.types.BMVert)]
         if v2:
             _bm.ops.delete(bm2, geom=v2, context='VERTS')
@@ -15639,6 +16179,50 @@ def _find_islands(mesh_data) -> list:
         islands.append(island)
     bm.free()
     return islands
+
+
+def _find_boundary_loops(mesh_data) -> list:
+    """Return a list of vertex-index sets, one per connected boundary-edge
+    loop in *mesh_data* (edges with 0 or 1 linked faces), walked edge-to-edge
+    rather than just collected as a flat unordered set.
+
+    An open shell (a single flat panel, an un-capped tube) has exactly one
+    such loop -- its own outer silhouette, not an opening. A real hole cut
+    into an otherwise-continuous surface (a doorway or window in a wall)
+    produces its own *additional*, separate loop around the hole's rim. This
+    distinction is what lets callers tell "this is just the mesh's open
+    edge" apart from "this is an actual opening the user cut in on purpose",
+    which a flat set of boundary vertices alone can't do.
+    """
+    import bmesh as _bm
+
+    bm = _bm.new()
+    bm.from_mesh(mesh_data)
+    bm.edges.ensure_lookup_table()
+
+    boundary_edges = [e for e in bm.edges if len(e.link_faces) <= 1]
+    boundary_set = set(boundary_edges)
+    visited = set()
+    loops = []
+    for seed in boundary_edges:
+        if seed in visited:
+            continue
+        stack = [seed]
+        loop_verts = set()
+        while stack:
+            e = stack.pop()
+            if e in visited:
+                continue
+            visited.add(e)
+            loop_verts.add(e.verts[0].index)
+            loop_verts.add(e.verts[1].index)
+            for v in e.verts:
+                for e2 in v.link_edges:
+                    if e2 in boundary_set and e2 not in visited:
+                        stack.append(e2)
+        loops.append(loop_verts)
+    bm.free()
+    return loops
 
 
 def _kdtree_decompose(obj, max_pieces: int, min_verts_per_cell: int = 4) -> list:
@@ -15756,12 +16340,37 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
                     child.name.startswith(ucx_prefix):
                 bpy.data.objects.remove(child, do_unlink=True)
 
+        # Detect real openings up front so a piece that ends up sealing one
+        # can be caught and reported, instead of this operator claiming a
+        # plain success on a building whose doorway/window just vanished.
+        # A boundary loop (a connected chain of edges with 0-1 linked faces)
+        # is just the mesh's own open edge when there's only one of them --
+        # not a hole. A *second* loop is a real opening cut into an
+        # otherwise-continuous surface (see _find_boundary_loops). Any final
+        # piece whose vertex set fully contains one of those hole loops WILL
+        # seal it shut: a convex hull of a closed ring of points is that
+        # ring's filled interior, by definition -- there's no way for a
+        # single convex piece to keep a hole it fully encloses open.
+        all_loops = _find_boundary_loops(obj.data)
+        hole_loops = []
+        if len(all_loops) > 1:
+            outer = max(all_loops, key=len)
+            hole_loops = [l for l in all_loops if l is not outer]
+
         # Find disconnected islands
         islands = _find_islands(obj.data)
 
         # For single-island meshes, recursively split by vertex position
         # (see _kdtree_decompose's docstring for why a fixed bounding-box
         # grid produced one oversized hull on sparse/organic clusters).
+        # NOTE: this split is purely spatial (median vertex position) with
+        # no awareness of hole_loops above -- for a single continuous wall
+        # with a doorway cut into it, the split boundary generally will NOT
+        # line up with the doorway's rim, so a hull piece on either side can
+        # easily end up containing the whole rim and sealing it anyway. The
+        # per-piece check below after building pieces is what actually
+        # catches this, rather than this operator silently assuming the
+        # split solved it.
         if len(islands) == 1 and self.max_pieces > 1:
             islands = _kdtree_decompose(obj, self.max_pieces)
 
@@ -15770,6 +16379,7 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
             islands = sorted(islands, key=len, reverse=True)[:self.max_pieces]
 
         created = []
+        sealed_holes = 0
         collection = (
             obj.users_collection[0] if obj.users_collection
             else context.scene.collection
@@ -15782,6 +16392,9 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
             piece = _build_convex_piece(obj.data, vert_indices, piece_name)
             if piece is None:
                 continue
+
+            if hole_loops and any(loop <= vert_indices for loop in hole_loops):
+                sealed_holes += 1
 
             piece.parent = obj
             piece.matrix_parent_inverse = obj.matrix_world.inverted()
@@ -15816,8 +16429,28 @@ class FO4_OT_GenerateMultiConvexCollision(Operator):
             f"Generated {len(created)} UCX_ convex piece(s) for '{obj.name}' "
             f"(from {len(islands)} island(s))"
         )
-        self.report({'INFO'}, msg)
-        _notify(msg, 'INFO')
+        if sealed_holes:
+            self.report(
+                {'WARNING'},
+                f"{msg} -- but {sealed_holes} of {len(created)} piece(s) fully "
+                f"enclose an opening's rim and will seal it shut (a convex "
+                f"hull can't leave a hole it fully contains open). This "
+                f"decomposition splits by spatial position, not by where "
+                f"'{obj.name}''s doorways/windows actually are. For a "
+                f"reliable fix, in Edit Mode select the geometry on each "
+                f"side of the opening and Separate by Selection into its "
+                f"own object before running this again -- or use 'Custom "
+                f"Collision (Exact Mesh)' if the source is under the 255-vert "
+                f"Havok mesh-shape limit.",
+            )
+            _notify(
+                f"Multi-convex collision for {obj.name}: {sealed_holes} "
+                f"piece(s) sealed an opening -- see the report for details",
+                'WARNING',
+            )
+        else:
+            self.report({'INFO'}, msg)
+            _notify(msg, 'INFO')
         return {'FINISHED'}
 
     def invoke(self, context, event):
@@ -16743,6 +17376,11 @@ classes = (
     FO4_OT_ScanUVComplexity,
     FO4_OT_SmartSeamMark,
     FO4_OT_HybridUnwrap,
+    # External UV tool round-trip (Ultimate Unwrap3D / Packer-IO)
+    FO4_OT_OpenInUnwrap3D,
+    FO4_OT_ReimportFromUnwrap3D,
+    FO4_OT_OpenInPackerIO,
+    FO4_OT_ReimportFromPackerIO,
     FO4_OT_RebakeTextureToNewUV,
     FO4_OT_FoliageUVUnwrap,
     FO4_OT_VegetationAtlasUV,

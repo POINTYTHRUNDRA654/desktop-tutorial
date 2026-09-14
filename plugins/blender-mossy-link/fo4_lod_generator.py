@@ -342,7 +342,7 @@ def _lod_texture_output_dir(src_path: str, out_subdir: str = "LOD") -> str:
 
 
 def create_lod_textures(lod_objects: list, scale_factor: float = 0.25,
-                         out_subdir: str = "LOD") -> tuple:
+                         out_subdir: str = "LOD", shared_cache: dict = None) -> tuple:
     """Give every object in *lod_objects* a shared, downscaled copy of the
     source's textures instead of the full-resolution original.
 
@@ -372,7 +372,15 @@ def create_lod_textures(lod_objects: list, scale_factor: float = 0.25,
     if not lod_objects:
         return False, "No LOD objects provided"
 
-    shared_cache: dict = {}
+    # Callers that process multiple targets in sequence but want texture
+    # sharing/dedup to span all of them (see the LOD-export operator's own
+    # caller comment for why: it now downscales per-target, BEFORE that
+    # target's own NIF export, rather than in one batch after every NIF has
+    # already been written) pass their own dict in and reuse it across
+    # calls. Default to a fresh, call-local one so every other/older caller
+    # keeps its existing single-call behaviour unchanged.
+    if shared_cache is None:
+        shared_cache = {}
     processed = 0
     skipped = []
 
@@ -1086,6 +1094,13 @@ class FO4_OT_GenerateLODs(Operator):
         all_lod_objects = []
         processed_src_classes = []
         total_lod_count = 0
+        # Shared across every target so a texture reused by multiple targets
+        # (e.g. a common bark/atlas material) is only downscaled once, same
+        # sharing behaviour as the old single post-loop pass -- just done
+        # per-target now so it actually finishes before that target's own
+        # NIF export runs (see the call site below for why that ordering
+        # matters).
+        _lod_tex_cache: dict = {}
 
         for obj in targets:
             # ── Detect source mesh class ──────────────────────────────────────
@@ -1136,6 +1151,34 @@ class FO4_OT_GenerateLODs(Operator):
                     steps.append(msg)
                 except Exception as e:
                     self.report({'WARNING'}, f"LOD generation failed for {obj.name} {lod_key}: {e}")
+
+            # ── Downscale this target's LOD textures NOW, before its NIF export ──
+            # This used to run once, in one batch, AFTER every target in this
+            # whole operator had already been exported to NIF (see the old
+            # call further down, near the end of execute()). By the time it
+            # ran, every already-exported NIF's material/texture references
+            # had been baked from the material as it stood at THAT NIF's own
+            # export time -- still pointing at the full-resolution source
+            # texture, since the downscaled LOD copy didn't exist yet. The
+            # newly-created small texture then landed on disk in the right
+            # Textures/LOD/... folder, but nothing pointed at it: real LOD
+            # NIFs from this add-on were shipping full-resolution texture
+            # references despite create_lod_textures doing its job correctly
+            # -- the ordering, not the downscaling itself, was the bug.
+            # Running this per-target, right here (LOD mesh exists, NIF
+            # export hasn't happened yet), means the material each target's
+            # own NIF export reads from already has the downscaled image
+            # wired in. shared_cache is threaded across every target in this
+            # loop so a texture reused by more than one target still only
+            # gets downscaled once, same as the old single-pass behaviour.
+            if lod_objects:
+                try:
+                    _tex_ok, _tex_msg = create_lod_textures(
+                        lod_objects, scale_factor=0.25, shared_cache=_lod_tex_cache
+                    )
+                    steps.append(_tex_msg)
+                except Exception as e:
+                    self.report({'WARNING'}, f"LOD texture downscale failed for {obj.name}: {e}")
 
             # ── Collision from LOD3 ───────────────────────────────────────────────
             # Rules:
@@ -1393,18 +1436,15 @@ class FO4_OT_GenerateLODs(Operator):
             if lod_objects and not is_skinned:
                 all_lod_objects.extend(lod_objects)
 
-        # ── Downscale/share textures across every target's LOD objects ────────
-        # Real assets give their real-mesh LOD levels a dedicated, much
-        # smaller shared texture instead of the full-resolution hero one (see
-        # create_lod_textures's own docstring for the reference-asset
-        # evidence). One shared pass over every target's LOD objects together
-        # (not one pass per target) so pieces from the same NIF that
-        # reference the same source texture (e.g. a trunk and its vines both
-        # using the same bark diffuse) end up sharing one LOD atlas instead
-        # of each target separately downscaling its own copy.
-        if all_lod_objects:
-            _ok, tex_msg = create_lod_textures(all_lod_objects, scale_factor=0.25)
-            steps.append(tex_msg)
+        # NOTE: texture downscaling used to happen here, in one batch AFTER
+        # every target's NIF had already been exported above -- which meant
+        # the export always shipped full-resolution textures despite this
+        # function successfully creating the downscaled ones (see the new
+        # per-target call earlier in the loop, right after each target's LOD
+        # meshes are generated and before that target's own NIF export,
+        # which is what actually fixes this). Sharing across targets is
+        # still preserved via the _lod_tex_cache dict threaded through every
+        # per-target call above.
 
         # ── Texture / material info ───────────────────────────────────────────
         # Report which textures are confirmed on the LOD objects (now the

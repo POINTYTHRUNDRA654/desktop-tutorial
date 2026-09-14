@@ -134,7 +134,7 @@ def _replace_mesh(original_obj, new_obj) -> None:
 # ── Core processing functions ─────────────────────────────────────────────────
 
 def run_repair(obj, context,
-               close_holes: bool = True,
+               close_holes: bool = False,
                max_hole_size: int = 30,
                smooth_passes: int = 0) -> tuple[bool, str]:
     """
@@ -145,12 +145,31 @@ def run_repair(obj, context,
       4. Remove unreferenced vertices
       5. Optionally close holes up to max_hole_size edges
       6. Optionally apply mild Taubin smoothing (volume-preserving)
+
+    close_holes defaults to False. A doorway, window, vent, or any other
+    intentional opening in a custom mesh is topologically just a "hole" to
+    PyMeshLab's close-holes filter, and one small enough (<= max_hole_size
+    edges) gets silently sealed shut right along with actual defects --
+    there is no way to distinguish "the artist meant this gap" from "the
+    mesh is broken" by edge count alone. Opt in explicitly per-mesh instead
+    of trusting a default that can quietly destroy real geometry.
     """
     pml = None
     tmp_in = tmp_out = None
     try:
         pml = _require_pymeshlab()
         _setup_selection(context, obj)
+
+        # Detect real openings (doorways, windows, vents) before doing
+        # anything that could seal them -- reuses the same boundary-loop
+        # topology check the collision system uses for the same reason.
+        opening_detected = False
+        if close_holes:
+            try:
+                from .mesh_helpers import MeshHelpers
+                opening_detected = MeshHelpers.has_interior_opening(obj)
+            except Exception:
+                pass
 
         tmp_in = tempfile.NamedTemporaryFile(suffix=".obj", delete=False)
         tmp_in.close()
@@ -173,9 +192,11 @@ def run_repair(obj, context,
         ms.meshing_repair_non_manifold_vertices()
         ms.meshing_remove_unreferenced_vertices()
 
+        holes_closed = False
         if close_holes:
             try:
                 ms.meshing_close_holes(maxholesize=max_hole_size)
+                holes_closed = True
             except Exception:
                 pass
 
@@ -197,10 +218,18 @@ def run_repair(obj, context,
 
         dv = before_v - after_v
         df = before_f - after_f
-        return True, (
+        msg = (
             f"Repair complete: removed {dv} verts, {df} faces. "
             f"Result: {after_v:,} verts / {after_f:,} faces."
         )
+        if holes_closed and opening_detected:
+            msg = (
+                f"WARNING: this mesh has a real opening (doorway/window/vent) "
+                f"and Close Small Holes was ON (max {max_hole_size} edges) -- "
+                f"if that opening is smaller than the threshold it may now be "
+                f"sealed shut. Check it, and re-export/undo if needed. {msg}"
+            )
+        return True, msg
 
     except Exception as exc:
         return False, f"Repair failed: {exc}"
@@ -450,7 +479,16 @@ class FO4_OT_MeshLabRepair(Operator):
     bl_label = "Repair Mesh"
     bl_options = {"REGISTER", "UNDO"}
 
-    close_holes: BoolProperty(name="Close Small Holes", default=True)
+    close_holes: BoolProperty(
+        name="Close Small Holes",
+        description=(
+            "Seals gaps in the mesh up to Max Hole Size. Off by default -- "
+            "this can't tell a real defect from an intentional opening "
+            "(doorway, window, vent), so turn it on only when you know this "
+            "mesh shouldn't have any open boundaries"
+        ),
+        default=False,
+    )
     max_hole_size: IntProperty(name="Max Hole Size (edges)", default=30, min=3, max=200)
     smooth_passes: IntProperty(
         name="Taubin Smooth Passes",
@@ -470,7 +508,8 @@ class FO4_OT_MeshLabRepair(Operator):
             max_hole_size=self.max_hole_size,
             smooth_passes=self.smooth_passes,
         )
-        self.report({"INFO"} if ok else {"ERROR"}, msg)
+        severity = {"WARNING"} if (ok and msg.startswith("WARNING")) else ({"INFO"} if ok else {"ERROR"})
+        self.report(severity, msg)
         return {"FINISHED"} if ok else {"CANCELLED"}
 
     def invoke(self, context, event):
@@ -563,7 +602,16 @@ class FO4_OT_MeshLabCleanAndReduce(Operator):
     quality_threshold: FloatProperty(
         name="Quality Threshold", default=0.3, min=0.0, max=1.0,
     )
-    close_holes: BoolProperty(name="Close Small Holes", default=True)
+    close_holes: BoolProperty(
+        name="Close Small Holes",
+        description=(
+            "Seals gaps in the mesh up to Max Hole Size. Off by default -- "
+            "this can't tell a real defect from an intentional opening "
+            "(doorway, window, vent), so turn it on only when you know this "
+            "mesh shouldn't have any open boundaries"
+        ),
+        default=False,
+    )
     max_hole_size: IntProperty(name="Max Hole Size", default=30, min=3, max=200)
 
     @classmethod
@@ -587,10 +635,9 @@ class FO4_OT_MeshLabCleanAndReduce(Operator):
             target_faces=self.target_faces,
             quality_threshold=self.quality_threshold,
         )
-        self.report(
-            {"INFO"} if ok_d else {"ERROR"},
-            f"Repair: {msg_r}  |  Decimate: {msg_d}",
-        )
+        combined = f"Repair: {msg_r}  |  Decimate: {msg_d}"
+        severity = {"WARNING"} if (ok_d and msg_r.startswith("WARNING")) else ({"INFO"} if ok_d else {"ERROR"})
+        self.report(severity, combined)
         return {"FINISHED"} if ok_d else {"CANCELLED"}
 
     def invoke(self, context, event):

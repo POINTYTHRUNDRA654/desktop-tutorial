@@ -469,7 +469,19 @@ class TextureHelpers:
             if texture_type in ('NORMAL', 'SPECULAR', 'GLOW', 'EMISSIVE', 'ENVIRONMENT', 'ENV'):
                 img.colorspace_settings.name = 'Non-Color'
 
-            return True, f"Texture installed successfully: {texture_type}"
+            # Report the REAL on-disk destination, not just the texture type.
+            # _ensure_texture_in_data_folder above may have copied the file
+            # into Data\Textures\<Category>\<asset>\ under the "FO4 Data
+            # Folder" preference (fo4_game_data_path) -- a reference/resolver
+            # path the user configures separately from wherever they
+            # actually export their mod's own NIF to. Silently reporting
+            # just "Texture installed successfully" gave no way to notice
+            # when those two locations don't match -- the mesh exports fine,
+            # but the texture it references was never copied into the mod
+            # folder being shipped. Surfacing the actual path here lets the
+            # user catch that mismatch immediately instead of discovering it
+            # as "my texture doesn't show up in-game" later.
+            return True, f"Texture installed successfully: {texture_type} -> {texture_path}"
         except Exception as e:
             return False, f"Failed to load texture: {str(e)}"
 

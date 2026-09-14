@@ -1183,6 +1183,26 @@ class FO4_PT_MeshPanel(_FO4SubPanel):
                 icon='LIGHT_HEMI',
             )
 
+            # External UV tools (Ultimate Unwrap3D / Packer-IO round-trip)
+            uv_box.separator()
+            uv_box.label(text="External UV Tools (optional):", icon='FORWARD')
+            sub = uv_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="Sends the mesh out with FO4-correct FBX settings already", icon='INFO')
+            sub.label(text="applied -- edit UVs there, save over the same file, reimport.")
+            row = uv_box.row(align=True)
+            row.enabled = bool(has_mesh)
+            row.operator("fo4.open_in_unwrap3d", text="Open in Unwrap3D", icon='UV_DATA')
+            row.operator("fo4.reimport_from_unwrap3d", text="Reimport", icon='IMPORT')
+            row = uv_box.row(align=True)
+            row.enabled = bool(has_mesh)
+            row.operator("fo4.open_in_packerio", text="Open in Packer-IO", icon='UV_DATA')
+            row.operator("fo4.reimport_from_packerio", text="Reimport", icon='IMPORT')
+            sub = uv_box.column(align=True)
+            sub.scale_y = 0.75
+            sub.label(text="For mesh cleanup/repair (not UV), see the", icon='INFO')
+            sub.label(text="'Mesh Tools (PyMeshLab)' panel below -- no export needed.")
+
             # Wrap a reference photo onto the mesh, then hand-paint fixes
             uv_box.separator()
             uv_box.label(text="Wrap a Photo onto the Mesh:", icon='FORWARD')
@@ -4721,6 +4741,17 @@ class FO4_PT_SetupPanel(_FO4SubPanel):
             tool_paths_box.prop(prefs, "ffmpeg_path", text="ffmpeg / folder")
         else:
             tool_paths_box.prop(scene, "fo4_ffmpeg_path", text="ffmpeg / folder")
+
+        tool_paths_box.separator()
+        tool_paths_box.label(text="External UV Tools:", icon="MOD_UVPROJECT")
+        if prefs is not None:
+            tool_paths_box.prop(prefs, "unwrap3d_exe_path", text="Ultimate Unwrap3D (unwrap3d_64.exe)")
+            tool_paths_box.prop(prefs, "packerio_exe_path", text="Packer-IO (Packer-IO.exe)")
+        else:
+            tool_paths_box.label(
+                text="Add-on preferences unavailable -- restart Blender to set these",
+                icon="ERROR",
+            )
 
         # ── Auto-installation ─────────────────────────────────────────────────
         auto_box = layout.box()

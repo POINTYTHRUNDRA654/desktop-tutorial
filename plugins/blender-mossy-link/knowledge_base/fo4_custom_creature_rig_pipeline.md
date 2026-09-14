@@ -44,6 +44,15 @@ bpy.ops.armature.subdivide(number_cuts=2)
 This creates `Bone`, `Bone.001`, `Bone.002` as a connected chain and
 produces far more convincing reach/whip motion.
 
+**Do not use PyNifly's own "Create Bones" operator to build this
+armature.** Per PyNifly's own documented limitations (as of V28.3.0),
+"Create Bones" run against a non-human skeleton silently substitutes
+vanilla human bone positions, and its "Rename Bones" only renames some,
+not all, non-human bones — there's no error, it just produces a rig with
+the wrong bone placements for your creature. Use this add-on's own
+`fo4.build_*_rig` operators (or a correct reference skeleton, per
+PyNifly's own advice) instead, as described above.
+
 **Blender 5.2+ shortcuts for this step** (see
 `fo4_blender_5_2_new_features.md` for full details):
 - **Duplicate and Rename** (Armature menu) — build one limb/tentacle

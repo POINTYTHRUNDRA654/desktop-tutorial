@@ -369,6 +369,50 @@ class MeshHelpers:
         return fallback
 
     @staticmethod
+    def has_interior_opening(obj) -> bool:
+        """Return True if *obj*'s mesh has a real hole cut into an otherwise
+        continuous surface -- a doorway, a window, a cave mouth -- as
+        opposed to just the natural open edge of a flat/un-capped shell.
+
+        Walks the mesh's boundary edges (0-1 linked faces) into connected
+        loops. A single-sided open shell (a flat wall panel, an un-capped
+        tube) produces exactly one such loop: its own outer silhouette,
+        which isn't an opening. A *second* loop means something was cut
+        into the surface on purpose. This is a cheap, purely topological
+        check -- it doesn't know or care what the hole is *for*, only that
+        one exists, which is exactly what a convex hull can't preserve (a
+        hull of a closed ring of points is that ring's filled interior).
+        """
+        if obj is None or obj.type != 'MESH' or not obj.data.polygons:
+            return False
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        bm.edges.ensure_lookup_table()
+        boundary_edges = [e for e in bm.edges if len(e.link_faces) <= 1]
+        if not boundary_edges:
+            bm.free()
+            return False
+        boundary_set = set(boundary_edges)
+        visited = set()
+        loop_count = 0
+        for seed in boundary_edges:
+            if seed in visited:
+                continue
+            loop_count += 1
+            stack = [seed]
+            while stack:
+                e = stack.pop()
+                if e in visited:
+                    continue
+                visited.add(e)
+                for v in e.verts:
+                    for e2 in v.link_edges:
+                        if e2 in boundary_set and e2 not in visited:
+                            stack.append(e2)
+        bm.free()
+        return loop_count > 1
+
+    @staticmethod
     def create_base_mesh(mesh_type='CUBE'):
         """Create a base mesh optimized for Fallout 4"""
         bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
@@ -613,9 +657,20 @@ class MeshHelpers:
             return False, "Object is not a mesh"
 
         prefs = preferences.get_preferences()
-        apply_trans = prefs.optimize_apply_transforms if prefs else True
-        threshold = prefs.optimize_remove_doubles_threshold if prefs else 0.0001
-        preserve_uvs = prefs.optimize_preserve_uvs if prefs else True
+        if prefs:
+            apply_trans = prefs.optimize_apply_transforms
+            threshold = prefs.optimize_remove_doubles_threshold
+            preserve_uvs = prefs.optimize_preserve_uvs
+        else:
+            # Addon preferences object unavailable (rare -- e.g. preferences
+            # failed to register). The Optimize Settings panel falls back to
+            # these same scene properties in that state (see ui_panels.py);
+            # read them here too instead of silently ignoring whatever the
+            # user set there and using hardcoded literals regardless.
+            scene = bpy.context.scene
+            apply_trans = getattr(scene, "fo4_opt_apply_transforms", True)
+            threshold = getattr(scene, "fo4_opt_doubles", 0.0001)
+            preserve_uvs = getattr(scene, "fo4_opt_preserve_uvs", True)
 
         if bpy.context.mode != 'OBJECT':
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -1238,6 +1293,14 @@ class MeshHelpers:
         if simplify_ratio is None:
             simplify_ratio = MeshHelpers._TYPE_DEFAULT_RATIOS.get(collision_type, 0.25)
 
+        # A convex hull always seals every opening in the source mesh shut
+        # (a doorway, a window, a cave mouth) -- that's inherent to what a
+        # hull is, not a bug in the decimation below. Check now, on the
+        # untouched source geometry, so the caller can tell the user their
+        # opening just vanished instead of a silent "success" that only
+        # shows up later as a wall the player can't walk through.
+        source_has_opening = MeshHelpers.has_interior_opening(obj)
+
         # remove any previously generated collision mesh for this object so we
         # don't accumulate duplicates on repeated calls.
         # Check both parented children (new style) and scene siblings (old style).
@@ -1451,6 +1514,11 @@ class MeshHelpers:
         # shape instead of the usual see-through wire overlay.
         collision_obj.display_type = 'WIRE'
         collision_obj.hide_render = True
+
+        # Recorded so FO4_OT_GenerateCollisionMesh (and any other caller)
+        # can warn the user instead of reporting a plain success for a hull
+        # that just sealed a doorway/window/cave mouth shut.
+        collision_obj["fo4_collision_sealed_opening"] = source_has_opening
 
         # restore original object as active/selected
         bpy.context.view_layer.objects.active = obj
@@ -1673,6 +1741,12 @@ class MeshHelpers:
         if collision_type in ('NONE', 'GRASS', 'MUSHROOM'):
             return None
 
+        # Same caveat as add_collision_mesh: a convex hull built from the LOD
+        # geometry seals any opening in it just as surely as one built from
+        # the full-detail mesh would. Check the LOD source, since that's
+        # what actually gets hulled below.
+        source_has_opening = MeshHelpers.has_interior_opening(lod_obj)
+
         ucx_name = f"UCX_{source_obj.name}"
         legacy_name = f"{source_obj.name}_COLLISION"
 
@@ -1817,12 +1891,91 @@ class MeshHelpers:
         collision_obj.display_type = 'WIRE'
         collision_obj.hide_render = True
 
+        # See add_collision_mesh's matching comment: this hull can seal an
+        # opening in the LOD geometry shut just as easily as it can seal one
+        # in the full-detail mesh.
+        collision_obj["fo4_collision_sealed_opening"] = source_has_opening
+
         # Restore original object as active/selected.
         bpy.context.view_layer.objects.active = source_obj
         source_obj.select_set(True)
         collision_obj.select_set(False)
 
         return collision_obj
+
+    @staticmethod
+    def _spatial_split_faces(part, tri_limit: int, depth: int = 0, max_depth: int = 12):
+        """Recursively halve *part* by face-centroid position until every
+        resulting piece's triangulated face count is at or under
+        *tri_limit*, with no dependency on the mesh having separate islands
+        or multiple materials to split by -- both of which a single dense,
+        one-material blob (a rock, a sculpted organic prop) simply doesn't
+        have, which is exactly the case split_mesh_at_poly_limit's
+        LOOSE/MATERIAL passes can't do anything with.
+
+        Splits along whichever axis has the greatest spread of face
+        centroids, at the median face (balanced piece sizes regardless of
+        how unevenly the geometry fills its bounding box -- same reasoning
+        as _kdtree_decompose's own median-split, just operating on whole
+        faces instead of vertices so no new boundary geometry has to be
+        created; FO4 doesn't need adjoining split pieces to be watertight
+        against each other, only each individual piece to be a valid
+        BSTriShape under the triangle limit).
+
+        Returns a list of the resulting mesh objects (*part* itself is
+        always one of them, matching bpy.ops.mesh.separate's own convention
+        that the original object keeps one half rather than being replaced
+        outright -- the same convention split_mesh_at_poly_limit's LOOSE/
+        MATERIAL passes above already rely on).
+        """
+        tri_est = sum(max(1, len(p.vertices) - 2) for p in part.data.polygons)
+        if tri_est <= tri_limit or depth >= max_depth or len(part.data.polygons) < 2:
+            return [part]
+
+        bm = bmesh.new()
+        bm.from_mesh(part.data)
+        bm.faces.ensure_lookup_table()
+        centroids = [(f.index, f.calc_center_median().copy()) for f in bm.faces]
+        bm.free()
+
+        xs = [c.x for _, c in centroids]
+        ys = [c.y for _, c in centroids]
+        zs = [c.z for _, c in centroids]
+        spread = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+        axis = spread.index(max(spread))
+        centroids.sort(key=lambda t: t[1][axis])
+        mid = len(centroids) // 2
+        second_half = {idx for idx, _ in centroids[mid:]}
+
+        if not second_half or len(second_half) == len(centroids):
+            # Degenerate split (e.g. every face centroid coincides) -- give
+            # up rather than loop forever; caller still gets a mesh back,
+            # just one that couldn't be reduced further this way.
+            return [part]
+
+        bpy.ops.object.select_all(action='DESELECT')
+        part.select_set(True)
+        bpy.context.view_layer.objects.active = part
+        bpy.ops.object.mode_set(mode='EDIT')
+        bm_edit = bmesh.from_edit_mesh(part.data)
+        bm_edit.faces.ensure_lookup_table()
+        for f in bm_edit.faces:
+            f.select = f.index in second_half
+        bmesh.update_edit_mesh(part.data)
+        bpy.ops.mesh.separate(type='SELECTED')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+        new_pieces = [o for o in bpy.context.selected_objects
+                      if o.type == 'MESH' and o is not part]
+        if not new_pieces:
+            # separate() found nothing to move (shouldn't happen given the
+            # checks above, but never loop on a no-op split).
+            return [part]
+
+        result = []
+        for piece in [part] + new_pieces:
+            result.extend(MeshHelpers._spatial_split_faces(piece, tri_limit, depth + 1, max_depth))
+        return result
 
     @staticmethod
     def split_mesh_at_poly_limit(obj, tri_limit: int = 65535):
@@ -1884,7 +2037,22 @@ class MeshHelpers:
             bpy.ops.mesh.separate(type='MATERIAL')
             bpy.ops.object.mode_set(mode='OBJECT')
             mat_parts = [o for o in bpy.context.selected_objects if o.type == 'MESH']
-            final_parts.extend(mat_parts)
+
+            # A single connected island using only ONE material (the common
+            # case for a dense organic/architectural mesh) survives both
+            # splits above completely untouched -- LOOSE has nothing to
+            # separate (one island) and MATERIAL has nothing to separate
+            # (one material), so mat_parts is still just [part], still over
+            # tri_limit. This used to be returned as-is: the operator
+            # reported "Split into 1 part(s)" while handing back a single
+            # mesh that was STILL over FO4's hard 65,535-triangle NIF limit
+            # -- a false success. Fall back to a spatial bisection that
+            # doesn't depend on topology/materials at all: keeps recursively
+            # halving whichever piece is still over-limit by face centroid
+            # position, same technique already used for multi-convex
+            # collision decomposition, until every resulting piece fits.
+            for mp in mat_parts:
+                final_parts.extend(MeshHelpers._spatial_split_faces(mp, tri_limit))
 
         # Rename parts sequentially so they are easy to identify.
         base_name = obj.name
@@ -2082,12 +2250,13 @@ class MeshHelpers:
         # ------------------------------------------------------------------
         # 5. Bind the texture into the correct material slot
         # ------------------------------------------------------------------
+        install_msg = None
         if texture_path:
-            ok, msg = texture_helpers.TextureHelpers.install_texture(
+            ok, install_msg = texture_helpers.TextureHelpers.install_texture(
                 obj, texture_path, texture_type
             )
             if not ok:
-                return False, f"UV unwrap succeeded but texture binding failed: {msg}"
+                return False, f"UV unwrap succeeded but texture binding failed: {install_msg}"
 
         # ------------------------------------------------------------------
         # 6. Switch active viewport shading to Material Preview so the user
@@ -2101,10 +2270,10 @@ class MeshHelpers:
                 break
 
         uv_note = "(kept existing UVs)" if skip_unwrap else f"(unwrapped: {unwrap_method})"
-        tex_note = (
-            f", {texture_type} texture bound: {os.path.basename(texture_path)}"
-            if texture_path else ""
-        )
+        # Show the real destination install_texture reports (may differ from
+        # the file the user originally picked -- see install_texture's own
+        # comment on why that matters), not just the original filename.
+        tex_note = f", {install_msg}" if install_msg else ""
         return True, (
             f"UV map ready {uv_note}{tex_note}. "
             "Viewport switched to Material Preview. "
@@ -2373,9 +2542,15 @@ class SmartPresets:
         "then click this button again to import the real game mesh."
     )
 
-    # Stem keywords used when picking the 'best' NIF in a folder.
+    # Stem keywords used when picking the 'best' NIF in a folder, checked in
+    # order (first match wins). 'load' goes first: verified against a real
+    # extracted FO4 Data folder, Bethesda's own convention for the "fully
+    # assembled weapon as equipped" mesh is "<WeaponName>Load.nif" (e.g.
+    # AssaultRifleLoad.nif, 10mmLoad.nif, LaserLoad1.nif, PlasmaLoad.nif,
+    # MissileLauncherLoad.nif) -- that's a better starting mesh than a bare
+    # receiver (which is just the frame, missing barrel/stock/grip/etc.).
     NIF_PRIORITY_KEYWORDS: tuple = (
-        'receiver', 'body', 'torso', 'male', 'female', 'base',
+        'load', 'receiver', 'body', 'torso', 'male', 'female', 'base',
     )
 
     # Maps a preset-type key → (folder_relative_to_FO4_Data, [candidate_filenames])
@@ -2384,23 +2559,37 @@ class SmartPresets:
     # generic geometry is created.
     NIF_CATALOG: dict = {
         # ── Weapons ────────────────────────────────────────────────────────────
-        '10MM':           ('meshes/weapons/10mmpistol/',     ['10mmpistol_receiver.nif']),
-        '44':             ('meshes/weapons/44pistol/',        ['44pistol_receiver.nif']),
-        'DELIVERER':      ('meshes/weapons/deliverer/',       ['deliverer_receiver.nif']),
-        'PIPE':           ('meshes/weapons/pipe/',            ['pipe_pistol_receiver.nif', 'pipepistol_receiver.nif']),
-        'ASSAULT':        ('meshes/weapons/assaultrifle/',    ['assaultrifle_receiver.nif']),
-        'COMBAT_RIFLE':   ('meshes/weapons/combatrifle/',     ['combatrifle_receiver.nif']),
-        'SHOTGUN':        ('meshes/weapons/combatshotgun/',   ['combatshotgun_receiver.nif']),
-        'HUNTING':        ('meshes/weapons/huntingrifle/',    ['huntingrifle_receiver.nif']),
-        'LASER':          ('meshes/weapons/lasergun/',        ['lasergun_receiver.nif']),
-        'PLASMA':         ('meshes/weapons/plasmagun/',       ['plasmagun_receiver.nif']),
-        'SMG':            ('meshes/weapons/submachinegun/',   ['submachinegun_receiver.nif']),
-        'MINIGUN':        ('meshes/weapons/minigun/',         ['minigun_receiver.nif']),
-        'FATMAN':         ('meshes/weapons/fatman/',          ['fatman_receiver.nif']),
-        'FLAMER':         ('meshes/weapons/flamer/',          ['flamer_receiver.nif']),
-        'MISSILE':        ('meshes/weapons/misslelauncher/',  ['missilelauncher_receiver.nif']),
-        'GAUSS':          ('meshes/weapons/gaussrifle/',      ['gaussrifle_receiver.nif']),
-        'RAILWAY':        ('meshes/weapons/railwayrifle/',    ['railwayrifle_receiver.nif']),
+        # Weapon entries below were cross-checked against a real, fully
+        # extracted FO4 loose-asset folder (Billy's "FO4 WORKING FLODER").
+        # Several catalog folder paths and candidate filenames were wrong --
+        # Bethesda's real loose files use PascalCase with no underscores
+        # (e.g. "AssaultRifleLoad.nif"), not the "weaponname_receiver.nif"
+        # snake_case this catalog originally assumed, and a few entries
+        # pointed at folder names that don't exist at all in the real
+        # asset tree (combat rifle/SMG live under "MachineGun", laser under
+        # "LaserWeapons", plasma under "Plasma", pipe guns under
+        # "HandMade/Recievers" -- Bethesda's own misspelling, kept as-is).
+        '10MM':           ('meshes/weapons/10mmpistol/',     ['10mmload.nif', '10mmpistol.nif']),
+        '44':             ('meshes/weapons/44pistol/',        ['44pistolload.nif', '44pistol.nif']),
+        # Deliverer has no unique mesh in vanilla FO4 -- it's a reskinned
+        # 10mm Pistol (unique material only), so this points at that mesh.
+        'DELIVERER':      ('meshes/weapons/10mmpistol/',      ['10mmload.nif', '10mmpistol.nif']),
+        'PIPE':           ('meshes/weapons/handmade/recievers/', ['piperifleload.nif', 'piperifle.nif', 'piperifleboltaction.nif']),
+        'ASSAULT':        ('meshes/weapons/assaultrifle/',    ['assaultrifleload.nif', 'assaultrifle_receiver.nif']),
+        'COMBAT_RIFLE':   ('meshes/weapons/machinegun/',      ['machinegunreceiver.nif']),
+        'SHOTGUN':        ('meshes/weapons/combatshotgun/',   ['combatshotgunload.nif', 'combatshotgun_receiver.nif']),
+        'HUNTING':        ('meshes/weapons/huntingrifle/',    ['huntingrifleload.nif', 'huntingrifle_receiver.nif']),
+        'LASER':          ('meshes/weapons/laserweapons/',    ['laserload1.nif', 'laserreceiver.nif']),
+        'PLASMA':         ('meshes/weapons/plasma/',          ['plasmaload.nif', 'plasmareceiver.nif']),
+        # Submachine Gun is Nuka-World (DLC06) content -- not present unless
+        # that BA2 has been extracted into meshes/DLC06/weapons/ too.
+        'SMG':            ('meshes/dlc06/weapons/',           ['submachinegunload.nif', 'submachinegun_receiver.nif']),
+        'MINIGUN':        ('meshes/weapons/minigun/',         ['miniguload.nif', 'minigun_receiver.nif']),
+        'FATMAN':         ('meshes/weapons/fatman/',          ['fatmanload.nif', 'fatman_receiver.nif']),
+        'FLAMER':         ('meshes/weapons/flamer/',          ['flamerload.nif', 'flamer_receiver.nif']),
+        'MISSILE':        ('meshes/weapons/missilelauncher/', ['missilelauncherload.nif', 'missilelauncher.nif']),
+        'GAUSS':          ('meshes/weapons/gaussrifle/',      ['gaussrifleload.nif', 'gaussrifle_receiver.nif']),
+        'RAILWAY':        ('meshes/weapons/railwayrifle/',    ['railwayrifleload.nif', 'railwayrifle_receiver.nif']),
         # ── Armor ──────────────────────────────────────────────────────────────
         'ARMOR_LEATHER':  ('meshes/armor/leather/',      ['f_leather_armor_body_aa.nif', 'leather_armor_body_aa.nif']),
         'ARMOR_COMBAT':   ('meshes/armor/combat/',        ['f_combat_armor_body_aa.nif',  'combat_armor_body_aa.nif']),
