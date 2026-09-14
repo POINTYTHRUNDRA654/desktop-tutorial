@@ -304,7 +304,14 @@ class MeshHelpers:
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
             bm.verts.ensure_lookup_table()
             hull = bmesh.ops.convex_hull(bm, input=bm.verts)
-            to_del = hull.get('geom_interior', []) + hull.get('geom_unused', [])
+            # geom_interior and geom_unused are not guaranteed disjoint --
+            # confirmed via a real crash report ("geom: found the same
+            # (BMVert/BMEdge/BMFace) used multiple times") once an element
+            # showed up in both. dict.fromkeys() de-dupes while preserving
+            # order (BMesh elements are hashable by identity) before the
+            # BMVert filter, so bmesh.ops.delete never sees a repeat.
+            to_del = list(dict.fromkeys(
+                hull.get('geom_interior', []) + hull.get('geom_unused', [])))
             v_del = [g for g in to_del if isinstance(g, bmesh.types.BMVert)]
             if v_del:
                 bmesh.ops.delete(bm, geom=v_del, context='VERTS')
@@ -1331,7 +1338,13 @@ class MeshHelpers:
         # bmesh.ops.delete with context='VERTS' only processes BMVert objects
         # and silently ignores BMEdge/BMFace entries, so filter explicitly to
         # avoid leaving orphaned interior faces that would corrupt the shape.
-        geom_to_delete = result.get('geom_interior', []) + result.get('geom_unused', [])
+        # The two lists are not guaranteed disjoint -- confirmed via a real
+        # crash ("geom: found the same (BMVert/BMEdge/BMFace) used multiple
+        # times") once an element appeared in both -- so de-dupe with
+        # dict.fromkeys() (order-preserving, BMesh elements hash by
+        # identity) before filtering to BMVert.
+        geom_to_delete = list(dict.fromkeys(
+            result.get('geom_interior', []) + result.get('geom_unused', [])))
         verts_to_del = [g for g in geom_to_delete if isinstance(g, bmesh.types.BMVert)]
         if verts_to_del:
             bmesh.ops.delete(bm, geom=verts_to_del, context='VERTS')
@@ -1734,7 +1747,11 @@ class MeshHelpers:
 
         # Build convex hull – always produces a closed, manifold surface.
         result = bmesh.ops.convex_hull(bm, input=bm.verts)
-        geom_to_delete = result.get('geom_interior', []) + result.get('geom_unused', [])
+        # Not guaranteed disjoint -- de-dupe before the BMVert filter (see
+        # the matching fix/comment above) to avoid a real crash:
+        # "geom: found the same (BMVert/BMEdge/BMFace) used multiple times".
+        geom_to_delete = list(dict.fromkeys(
+            result.get('geom_interior', []) + result.get('geom_unused', [])))
         verts_to_del = [g for g in geom_to_delete if isinstance(g, bmesh.types.BMVert)]
         if verts_to_del:
             bmesh.ops.delete(bm, geom=verts_to_del, context='VERTS')
@@ -2295,7 +2312,12 @@ class MeshHelpers:
             bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.001)
             bm.verts.ensure_lookup_table()
             result = bmesh.ops.convex_hull(bm, input=bm.verts)
-            del_geom = result.get('geom_interior', []) + result.get('geom_unused', [])
+            # Not guaranteed disjoint -- de-dupe before the BMVert filter,
+            # same fix as the other convex-hull collision paths in this
+            # file (real crash: "geom: found the same (BMVert/BMEdge/
+            # BMFace) used multiple times").
+            del_geom = list(dict.fromkeys(
+                result.get('geom_interior', []) + result.get('geom_unused', [])))
             del_verts = [g for g in del_geom if isinstance(g, bmesh.types.BMVert)]
             if del_verts:
                 bmesh.ops.delete(bm, geom=del_verts, context='VERTS')

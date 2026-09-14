@@ -278,6 +278,101 @@ def create_vegetation_tutorial():
     ]
     return Tutorial("Vegetation & Landscaping", "Create performance-optimized vegetation for Fallout 4", steps)
 
+def create_creature_rig_tutorial():
+    """Tutorial for rigging and animating a brand-new custom creature from a
+    static, unrigged mesh (no existing skeleton) — e.g. a scavenged asset
+    with disjoint/non-manifold geometry that heat-weighting can't handle."""
+    steps = [
+        TutorialStep(
+            "Check the starting point",
+            "In the Scripting tab console, run: obj=bpy.context.object; print(len(obj.data.vertices), obj.vertex_groups[:], obj.find_armature()). "
+            "Zero vertex groups and no armature means you're starting from scratch.",
+        ),
+        TutorialStep(
+            "Build a starting armature",
+            "Use one of 'Build Flora Rig', 'Build Tentacle Rig', 'Build Quadruped Rig', or a body-plan-specific "
+            "builder as your starting skeleton, then rename/add bones to match your creature's real anatomy. "
+            "Creature bones don't need the 'NPC ' prefix biped bones require — name them for the anatomy "
+            "(e.g. Stem, Jaw_Upper, Tendril_L).",
+        ),
+        TutorialStep(
+            "(Blender 5.2+) Duplicate and Rename for mirrored/repeated chains",
+            "If you're building a limb/tentacle chain that repeats (front leg -> rear leg, "
+            "Tendril_L -> Tendril_R, or a deform chain that needs an MCH_ prefix copy), duplicate "
+            "it and use Armature menu > Duplicate and Rename instead of renaming Bone.001, Bone.002, "
+            "etc. by hand -- one Find/Replace pass renames the whole duplicated chain. Also worth "
+            "knowing: Shift+A's redo panel now has an 'Align to Axis' option for world-aligned new "
+            "bones, and Auto IK can now reach through a disconnected parent down the spine for quick "
+            "pose sanity-checks. See fo4_blender_5_2_new_features.md. Skip this step on Blender <5.2.",
+        ),
+        TutorialStep(
+            "Subdivide limbs meant to whip or reach",
+            "For any vine/tentacle/whip-like limb, select its bone in Edit Mode and use "
+            "Armature > Subdivide (2 cuts) BEFORE weight painting. A single rigid bone looks stiff; "
+            "a 3-segment chain animates far more convincingly.",
+        ),
+        TutorialStep(
+            "Try automatic (heat) weighting first",
+            "Select mesh, then armature, Ctrl+P > Armature Deform > With Automatic Weights. "
+            "If the console warns 'Bone Heat Weighting: failed to find solution for one or more bones' and "
+            "every vertex group ends up empty, your mesh is non-manifold/disjoint and heat weighting cannot "
+            "solve it — move to the next step instead of retrying it.",
+        ),
+        TutorialStep(
+            "Fall back to envelope weighting, then tighten radii",
+            "Re-parent with Ctrl+P > Armature Deform > With Envelope Weights. The default envelope radii are "
+            "far too large for small creature bones and will make one bone swallow most of the mesh — scale "
+            "each bone's envelope_distance/head_radius/tail_radius proportional to that bone's own length "
+            "(roughly 0.5x / 0.22x / 0.16x of bone length) rather than using one fixed value for all bones.",
+        ),
+        TutorialStep(
+            "Close remaining weight gaps",
+            "Even tuned envelopes usually miss some thin tips (spikes, small terminal bones) — check for "
+            "vertices with zero total weight and assign each one to its geometrically nearest bone at full "
+            "weight as a fallback pass. Confirm zero unweighted vertices before moving on.",
+        ),
+        TutorialStep(
+            "Verify deformation for real",
+            "Don't trust 'success' messages. Compare the mesh's evaluated (posed) vertex positions against "
+            "rest pose using bpy.context.evaluated_depsgraph_get() and obj.evaluated_get(depsgraph).to_mesh() "
+            "— if positions are identical, that part of the rig isn't actually deforming.",
+        ),
+        TutorialStep(
+            "Author animations as separate named actions",
+            "Create each animation (idle, attack, death, etc.) as its own bpy.data.actions.new(name) so clips "
+            "don't overwrite each other. If you reuse an existing animation-generator button, first check what "
+            "bone names it expects — a generator written for one naming convention (e.g. 'branch_*') will "
+            "silently do nothing on bones named differently, and can overwrite your active action in the process.",
+        ),
+        TutorialStep(
+            "Export FBX for conversion",
+            "Export two things: a skeleton-only FBX in bind pose (no baked animation), and one baked, "
+            "armature-only FBX per animation clip.",
+        ),
+        TutorialStep(
+            "Convert with ck-cmd — know the current limitation",
+            "The correct command for a brand-new creature is 'ck-cmd importrig <skeleton.fbx> -a <anim_folder> "
+            "-e <output_dir>' (NOT importanimation, which needs a skeleton.hkx that a new creature doesn't have "
+            "yet). As of this writing, importrig can crash on some fully custom skeletons when animations are "
+            "included. 'ck-cmd RetargetCreature' is NOT a fix for this — it's a Skyrim LE havok-project tool "
+            "bundled in this ck-cmd build and needs a Skyrim install folder, it doesn't apply to FO4 creatures. "
+            "If importrig crashes, the real fallback is rebuilding your rig on an EXISTING FO4 creature's "
+            "skeleton (which already has a working skeleton.hkx) instead of a from-scratch one.",
+        ),
+        TutorialStep(
+            "Scope the Creation Kit side separately",
+            "Getting a creature to actually fight/be killed/dropped loot in-game additionally needs a CK actor/race "
+            "record, a behavior graph wired to your exported animations, and Papyrus or keyword-based damage/loot "
+            "scripting — this is separate work from the Blender rig/animation pipeline above.",
+        ),
+    ]
+    return Tutorial(
+        "Custom Creature Rig (From Scratch)",
+        "Rig, weight-paint, and animate a brand-new creature mesh that has no existing skeleton",
+        steps,
+    )
+
+
 def initialize_tutorials():
     """Initialize all available tutorials (populate the TUTORIALS dict only)."""
     TUTORIALS['basic_mesh'] = create_basic_mesh_tutorial()
@@ -288,6 +383,7 @@ def initialize_tutorials():
     TUTORIALS['batch_workflow'] = create_batch_workflow_tutorial()
     TUTORIALS['troubleshooting'] = create_troubleshooting_tutorial()
     TUTORIALS['vegetation'] = create_vegetation_tutorial()
+    TUTORIALS['creature_rig'] = create_creature_rig_tutorial()
 
 def get_current_tutorial(context):
     """Get the currently active tutorial"""

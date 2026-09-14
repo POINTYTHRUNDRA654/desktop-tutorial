@@ -6,7 +6,7 @@ A comprehensive tutorial and helper system for creating Fallout 4 mods in Blende
 bl_info = {
     "name": "Mossy Industries blender addon",
     "author": "Mossy Industries",
-    "version": (5, 3, 3),
+    "version": (5, 3, 12),  # 5.3.12: corrected misleading comments claiming the ".\\lib" sys.path policy-violation caution flag was silenced by deferred_startup -- confirmed live it is NOT, warning is cosmetic-only, not a functional break
     "blender": (2, 90, 0),  # Compatible with Blender 2.90+ through 5.x
     "location": "View3D > Sidebar > Fallout 4",
     "description": (
@@ -406,12 +406,24 @@ def register():
     # though the packages were successfully installed in a previous session.
     #
     # _add_lib=False: we deliberately skip adding _PIP_LIB_DIR (.\lib) to
-    # sys.path here.  Blender 5's extension policy checker monitors sys.path
-    # changes that occur during register() and raises a "Policy violation with
-    # sys.path: .\lib" warning (visible as the caution triangle in the add-on
-    # list).  deferred_startup() adds _PIP_LIB_DIR two seconds after load —
-    # outside the register() window — so packages are still available while
-    # the warning is silenced.
+    # sys.path here.  Blender 5's extension policy checker raises a "Policy
+    # violation with sys.path: .\lib" warning (the caution triangle in the
+    # add-on list) whenever this add-on mutates sys.path with that path.
+    #
+    # CONFIRMED (2026-09-08) this does NOT actually silence the warning: the
+    # checker isn't scoped to register()'s call window the way this comment
+    # used to claim.  deferred_startup() adds _PIP_LIB_DIR to sys.path from a
+    # background thread ~5s after register() returns, and the warning still
+    # shows in Preferences > Add-ons for the rest of the session regardless.
+    # Packages ARE importable (verified live: trimesh/pypdf/numpy all import
+    # fine) -- the warning is cosmetic, not a functional break -- but do not
+    # re-add language claiming it's "silenced" without re-verifying live in
+    # Blender's own Python console (checking sys.path + the caution icon),
+    # since this exact wrong assumption is what led here. A real fix would
+    # mean moving these packages to blender_manifest.toml's `wheels =` list
+    # (Blender's own sanctioned dependency mechanism) instead of runtime pip
+    # + manual sys.path mutation -- a real architecture change, ask Billy
+    # before doing it.
     try:
         if tool_installers and hasattr(tool_installers, "_refresh_import_paths"):
             tool_installers._refresh_import_paths(_add_lib=False)

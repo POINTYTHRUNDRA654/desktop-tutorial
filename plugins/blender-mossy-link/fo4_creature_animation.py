@@ -576,6 +576,18 @@ def export_animations_hkx(arm_obj, actions: List[bpy.types.Action],
     except Exception:
         ckcmd = ''
 
+    # ckcmd_path in preferences is documented/used elsewhere as a folder
+    # (e.g. "D:\blender_tools\ck-cmd"), not the exe itself -- but ck-cmd
+    # below always did `if ckcmd and os.path.isfile(ckcmd)`, which is False
+    # for a directory. That silently disabled real HKX export forever even
+    # when ck-cmd was genuinely installed at the configured path, always
+    # falling through to the "FBX only" branch. Resolve a directory to the
+    # actual executable inside it before checking/using it.
+    if ckcmd and os.path.isdir(ckcmd):
+        _candidate = os.path.join(ckcmd, 'ck-cmd.exe')
+        if os.path.isfile(_candidate):
+            ckcmd = _candidate
+
     os.makedirs(output_dir, exist_ok=True)
 
     for action in actions:

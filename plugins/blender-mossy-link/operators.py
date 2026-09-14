@@ -15561,7 +15561,11 @@ def _build_convex_piece(source_mesh, vert_indices, piece_name):
         return None
 
     result = _bm.ops.convex_hull(bm2, input=bm2.verts)
-    geom_del = result.get('geom_interior', []) + result.get('geom_unused', [])
+    # Not guaranteed disjoint -- de-dupe before the BMVert filter (same
+    # fix as mesh_helpers.py's convex-hull collision paths; real crash:
+    # "geom: found the same (BMVert/BMEdge/BMFace) used multiple times").
+    geom_del = list(dict.fromkeys(
+        result.get('geom_interior', []) + result.get('geom_unused', [])))
     v_del = [g for g in geom_del if isinstance(g, _bm.types.BMVert)]
     if v_del:
         _bm.ops.delete(bm2, geom=v_del, context='VERTS')
@@ -15588,7 +15592,8 @@ def _build_convex_piece(source_mesh, vert_indices, piece_name):
         if excess:
             _bm.ops.delete(bm2, geom=excess, context='VERTS')
         result2 = _bm.ops.convex_hull(bm2, input=bm2.verts)
-        g2 = result2.get('geom_interior', []) + result2.get('geom_unused', [])
+        g2 = list(dict.fromkeys(
+            result2.get('geom_interior', []) + result2.get('geom_unused', [])))
         v2 = [g for g in g2 if isinstance(g, _bm.types.BMVert)]
         if v2:
             _bm.ops.delete(bm2, geom=v2, context='VERTS')

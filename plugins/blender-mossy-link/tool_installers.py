@@ -217,12 +217,21 @@ def _refresh_import_paths(*, _add_lib: bool = True) -> None:
          control, so we only need to add one predictable path rather than
          guessing between user-site, system-site, or sysconfig variants.
          Gated on ``_add_lib`` so that callers inside ``register()`` can pass
-         ``_add_lib=False`` to skip the ``sys.path`` mutation — Blender 5's
-         extension policy checker monitors ``sys.path`` changes that occur
-         during ``register()`` and raises "Policy violation with sys.path:
-         .\\lib" whenever ``_PIP_LIB_DIR`` is added there.  Moving the
-         mutation to ``deferred_startup()`` (which runs after ``register()``
-         returns) silences the warning.
+         ``_add_lib=False`` to skip the ``sys.path`` mutation during
+         ``register()`` itself — Blender 5's extension policy checker raises
+         "Policy violation with sys.path: .\\lib" whenever ``_PIP_LIB_DIR`` is
+         added to ``sys.path``.
+         CONFIRMED (2026-09-08) this ``_add_lib`` gate does NOT actually make
+         the warning go away: ``deferred_startup()`` still adds this same
+         path from a background thread a few seconds later, and the caution
+         triangle still shows in Preferences > Add-ons for the rest of the
+         session regardless of when the mutation happens. Packages remain
+         importable either way (verified live) -- this is a cosmetic-only
+         warning given the current architecture, not something ``_add_lib``
+         or timing tricks can suppress. The only real fix is moving these
+         packages to ``wheels =`` in blender_manifest.toml instead of runtime
+         pip + manual sys.path mutation, which is an architecture change --
+         don't do it without checking with Billy first.
       3. Packages landing in the user site directory when installed without
          ``--target`` (pre-fix installs).  We still add the user site via
          ``site.addsitedir()`` as a backward-compat fallback.
