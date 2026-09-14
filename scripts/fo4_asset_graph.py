@@ -100,201 +100,180 @@ def _edid(subs_dict: dict[bytes, bytes]) -> str | None:
 # OMOD DATA preamble parser
 # Extracts:
 #   property_count  — number of property changes this mod makes
-#   parent_formid   — the primary parent item FormID from the preamble
-#   parent_rectype  — "WEAP", "ARMO", etc.
+#   attach_point    — the Keyword FormID for the slot this mod occupies
+#   parent_rectype  — "WEAP", "ARMO", or "NPC_" (which item Form Type this
+#                      mod's Property IDs should be interpreted against —
+#                      see the note on _parse_omod_properties below)
+#
+# CORRECTED (verified against wbDefinitionsFO4.pas — the field this scanner
+# was calling "parent_formid" was a heuristic ASCII-scan guess with no
+# real backing struct field; OMOD's DATA struct has no single "parent item
+# FormID" at all. The real, named, directly-locatable fields are:
+#   Include Count:u32@0, Property Count:u32@4, Unused:2@8,
+#   Form Type:u32@10 (stores the target record's own 4-byte ASCII
+#     signature, e.g. "WEAP"/"ARMO"/"NPC_"/"NONE" — readable directly,
+#     no scanning needed), Unused:2@14, Attach Point (Keyword formid):
+#     u32@16, then variable-length arrays (Attach Parent Slots, legacy
+#     Items, Includes) whose combined size isn't independently computable
+#     from this struct alone — but that's fine, because Properties is the
+#     LAST field, so its start is found by counting backward from the end
+#     of the subrecord using property_count, which is exactly what this
+#     scanner already did and remains correct.
 # ---------------------------------------------------------------------------
 
 def _parse_omod_preamble(d: bytes) -> dict:
-    """
-    OMOD DATA binary layout (empirically determined):
-      uint32:  include_count (usually 0)
-      uint32:  property_count
-      Preamble block (fixed content regardless of include_count):
-        uint16: 0
-        char[4]: record type ("ARMO", "WEAP", etc.)
-        uint16: 0
-        uint32: primary parent FormID
-        [possibly more uint32s before properties start]
-      Then property_count × 24-byte property entries
-    """
-    result = {"property_count": 0, "parent_formid": None, "parent_rectype": None}
-    if len(d) < 8:
+    result = {"property_count": 0, "attach_point": None, "parent_rectype": None}
+    if len(d) < 14:
         return result
 
     try:
-        include_count   = struct.unpack_from("<I", d, 0)[0]
-        property_count  = struct.unpack_from("<I", d, 4)[0]
+        property_count = struct.unpack_from("<I", d, 4)[0]
         result["property_count"] = property_count if property_count < 200 else 0
+        form_type_raw = d[10:14]
+        rectype = form_type_raw.decode("ascii", errors="replace")
+        if rectype in ("ARMO", "WEAP", "NPC_"):
+            result["parent_rectype"] = rectype
+        if len(d) >= 20:
+            attach_fid = struct.unpack_from("<I", d, 16)[0]
+            if attach_fid:
+                result["attach_point"] = f"0x{attach_fid:08X}"
     except struct.error:
-        return result
-
-    # Scan for 4-byte ASCII record type ("ARMO", "WEAP", "NPC_", etc.) in preamble
-    preamble_end = max(8, len(d) - result["property_count"] * 24)
-    preamble     = d[8:preamble_end + 4]
-    KNOWN_TYPES  = {b"ARMO", b"WEAP", b"NPC_", b"MISC", b"ALCH", b"AMMO", b"BOOK"}
-
-    for i in range(0, len(preamble) - 8):
-        chunk = preamble[i:i+4]
-        if chunk in KNOWN_TYPES:
-            result["parent_rectype"] = chunk.decode("ascii", errors="replace")
-            # FormID is 4 bytes after a 2-byte gap after the type marker
-            fid_offset = i + 4 + 2
-            if fid_offset + 4 <= len(preamble):
-                fid = struct.unpack_from("<I", preamble, fid_offset)[0]
-                if fid and fid != 0xFFFFFFFF:
-                    result["parent_formid"] = f"0x{fid:08X}"
-            break
+        pass
 
     return result
 
 
 # ---------------------------------------------------------------------------
 # OMOD property entry parser (24-byte entries)
-# layout per entry:
-#   [0-3]  uint32 = valueType group (1=float, 4=formId, etc.)
-#   [4-7]  uint32 = funcType (1=Set, 2=Add, 3=Multiply)
-#   [8-11] uint32 = propertyEnum
-#   [12-15] float/int = value
-#   [16-19] float = step (often 0)
-#   [20-23] uint32 = flags / modIndex / padding
+#
+# CORRECTED (verified against wbDefinitionsFO4.pas's wbObjectModProperties):
+# every field width in this struct was wrong in the previous version — it
+# assumed four packed uint32s before Value, when the real struct is
+# Value Type:u8@0, Unused:3@1, Function Type:u8@4, Unused:3@5,
+# Property:u16@8, Unused:2@10, Value 1:4@12, Value 2:4@16, Step:f32@20.
+# Property@8 and Value1@12 happened to read correctly before by luck
+# (their extra "unused" padding bytes are usually zero, so a wider u32
+# read coincidentally matched), but Step was being read from Value 2's
+# bytes (offset 16) instead of its real offset (20), and there was no
+# "flags" field at offset 20 as previously assumed — that's Step.
+#
+# The Property ID table is ALSO corrected: xEdit resolves it via three
+# entirely separate enums depending on which record type the OMOD
+# targets (ARMO/WEAP/NPC_, from Form Type) — the previous single flat
+# 0-80 table was neither of the three real tables and was wrong for
+# virtually every property on virtually every mod.
 # ---------------------------------------------------------------------------
 
-OMOD_PROP_NAMES = {
-    0:  "Value (ActorValue)",
-    1:  "Value Multiplier",
-    2:  "Article Effect",
-    3:  "Male Model",
-    4:  "Female Model",
-    5:  "Icon",
-    6:  "Message",
-    7:  "Colors",
-    8:  "Colors Inverse",
-    9:  "Sort Order",
-    10: "Color Remapping Index",
-    11: "Decal",
-    12: "Animation Sound",
-    13: "Animation Sound Event",
-    14: "Animation Sound Level",
-    15: "Unknown15",
-    16: "Unknown16",
-    17: "Alternate Block Material",
-    18: "Keywords",
-    19: "Zoom Data",
-    20: "Clip Rounds",
-    21: "Current Clip Rounds",
-    22: "Num Projectiles",
-    23: "Embedded Weapon",
-    24: "Detachable Weapon",
-    25: "Gun Damage",
-    26: "Gun Range",
-    27: "Gun Fire Rate",
-    28: "Gun Reload Speed",
-    29: "Gun Speed",
-    30: "Gun Reach",
-    31: "Crit Multiplier",
-    32: "Limb Damage",
-    33: "VATS Damage",
-    34: "Skill",
-    35: "Resistance",
-    36: "Weight",
-    37: "Value (Currency)",
-    38: "Description",
-    39: "Full Name",
-    40: "VATS Chance",
-    41: "Enchantments",
-    42: "Attack Animations",
-    43: "Body Part",
-    44: "Actor Values",
-    45: "Damage Types",
-    46: "Impact Set",
-    47: "Sound Level",
-    48: "Aim Model",
-    49: "Bash Impact Set",
-    50: "Block Bash Impact",
-    51: "Alternate Block Material2",
-    52: "Block Parry Data",
-    53: "Aim Down Sight Model",
-    54: "Has Scope View",
-    55: "Full Power Seconds",
-    56: "Min Power Per Shot",
-    57: "Attack Failed Sound",
-    58: "Loop Sound",
-    59: "NPC Ammo List",
-    60: "Reload Speed",
-    61: "Unknown61",
-    62: "Unknown62",
-    63: "Unknown63",
-    64: "Limb Damage2",
-    65: "VATS AP",
-    66: "VATS AP (secondary)",
-    67: "Aim FOV",
-    68: "HasScopeZoom",
-    69: "Inertia X",
-    70: "Inertia Y",
-    71: "Inertia Z",
-    72: "Inertia Multiplier",
-    73: "Recoil Spring Force",
-    74: "Recoil Dim Spring Force",
-    75: "Recoil Hip Mul",
-    76: "Runaway Recoil Shots",
-    77: "Recoil ADS",
-    78: "Recoil ADS Dim",
-    79: "Unknown79",
-    80: "Unknown80",
+OMOD_PROP_NAMES_ARMO = {
+    0: "Enchantments", 1: "BashImpactDataSet", 2: "BlockMaterial", 3: "Keywords",
+    4: "Weight", 5: "Value", 6: "Rating", 7: "AddonIndex", 8: "BodyPart",
+    9: "DamageTypeValue", 10: "ActorValues", 11: "Health",
+    12: "ColorRemappingIndex", 13: "MaterialSwaps",
 }
-FUNC_TYPE_NAMES = {1: "SET", 2: "ADD", 3: "MULTIPLY"}
+OMOD_PROP_NAMES_NPC = {
+    0: "Keywords", 1: "ForcedInventory", 2: "XPOffset", 3: "Enchantments",
+    4: "ColorRemappingIndex", 5: "MaterialSwaps",
+}
+OMOD_PROP_NAMES_WEAP = {
+    0: "Speed", 1: "Reach", 2: "MinRange", 3: "MaxRange", 4: "AttackDelaySec",
+    6: "OutOfRangeDamageMult", 7: "SecondaryDamage", 8: "CriticalChargeBonus",
+    9: "HitBehaviour", 10: "Rank", 12: "AmmoCapacity", 15: "Type",
+    16: "IsPlayerOnly", 17: "NPCsUseAmmo", 18: "HasChargingReload",
+    19: "IsMinorCrime", 20: "IsFixedRange", 21: "HasEffectOnDeath",
+    22: "HasAlternateRumble", 23: "IsNonHostile", 24: "IgnoreResist",
+    25: "IsAutomatic", 26: "CantDrop", 27: "IsNonPlayable", 28: "AttackDamage",
+    29: "Value", 30: "Weight", 31: "Keywords", 32: "AimModel",
+    33: "AimModelMinConeDegrees", 34: "AimModelMaxConeDegrees",
+    35: "AimModelConeIncreasePerShot", 36: "AimModelConeDecreasePerSec",
+    37: "AimModelConeDecreaseDelayMs", 38: "AimModelConeSneakMultiplier",
+    39: "AimModelRecoilDiminishSpringForce", 40: "AimModelRecoilDiminishSightsMult",
+    41: "AimModelRecoilMaxDegPerShot", 42: "AimModelRecoilMinDegPerShot",
+    43: "AimModelRecoilHipMult", 44: "AimModelRecoilShotsForRunaway",
+    45: "AimModelRecoilArcDeg", 46: "AimModelRecoilArcRotateDeg",
+    47: "AimModelConeIronSightsMultiplier", 48: "HasScope", 49: "ZoomDataFOVMult",
+    50: "FireSeconds", 51: "NumProjectiles", 52: "AttackSound",
+    53: "AttackSound2D", 54: "AttackLoop", 55: "AttackFailSound",
+    56: "IdleSound", 57: "EquipSound", 58: "UnEquipSound", 59: "SoundLevel",
+    61: "Ammo", 62: "CritEffect", 63: "BashImpactDataSet", 64: "BlockMaterial",
+    65: "Enchantments", 66: "AimModelBaseStability", 67: "ZoomData",
+    68: "ZoomDataOverlay", 69: "ZoomDataImageSpace", 70: "ZoomDataCameraOffsetX",
+    71: "ZoomDataCameraOffsetY", 72: "ZoomDataCameraOffsetZ", 73: "EquipSlot",
+    74: "SoundLevelMult", 75: "NPCAmmoList", 76: "ReloadSpeed",
+    77: "DamageTypeValues", 78: "AccuracyBonus", 79: "AttackActionPointCost",
+    80: "OverrideProjectile", 81: "HasBoltAction", 82: "StaggerValue",
+    83: "SightedTransitionSeconds", 84: "FullPowerSeconds",
+    85: "HoldInputToPower", 86: "HasRepeatableSingleFire", 87: "MinPowerPerShot",
+    88: "ColorRemappingIndex", 89: "MaterialSwaps", 90: "CriticalDamageMult",
+    91: "FastEquipSound", 92: "DisableShells", 93: "HasChargingAttack",
+    94: "ActorValues",
+}
+OMOD_PROP_TABLES = {"ARMO": OMOD_PROP_NAMES_ARMO, "NPC_": OMOD_PROP_NAMES_NPC, "WEAP": OMOD_PROP_NAMES_WEAP}
+
+VALUE_TYPE_NAMES = {0: "Int", 1: "Float", 2: "Bool", 4: "FormID,Int", 5: "Enum", 6: "FormID,Float"}
+# Function Type's own meaning depends on Value Type (verified from source):
+# Float→SET/MUL+ADD/ADD, Bool→SET/AND/OR, Enum→SET, FormID→SET/REM/ADD.
+FUNC_TYPE_NAMES_FLOAT  = {0: "SET", 1: "MUL+ADD", 2: "ADD"}
+FUNC_TYPE_NAMES_BOOL   = {0: "SET", 1: "AND", 2: "OR"}
+FUNC_TYPE_NAMES_FORMID = {0: "SET", 1: "REM", 2: "ADD"}
 
 
-def _parse_omod_properties(d: bytes, property_count: int) -> list[dict]:
-    """Parse property entries from OMOD DATA. Each entry is 24 bytes."""
+def _parse_omod_properties(d: bytes, property_count: int, parent_rectype: str | None) -> list[dict]:
+    """Parse property entries from OMOD DATA. Each entry is 24 bytes; the
+    Properties array is always the LAST field in the struct, so its start
+    is found by counting back from the end of the subrecord using
+    property_count — sound regardless of the variable-length arrays that
+    precede it (Attach Parent Slots / legacy Items / Includes)."""
     ENTRY_SIZE = 24
-    props      = []
-    # Properties start at: 8 (header) + preamble_size
-    # We can't know preamble_size exactly, so compute from total size:
-    # data_size = 8 + preamble_size + property_count * 24
-    # preamble_size = data_size - 8 - property_count * 24
-    preamble_size = len(d) - 8 - property_count * ENTRY_SIZE
-    if preamble_size < 0:
+    props: list[dict] = []
+    prop_start = len(d) - property_count * ENTRY_SIZE
+    if prop_start < 8:
         return []
-    prop_start = 8 + preamble_size
+
+    prop_names = OMOD_PROP_TABLES.get(parent_rectype or "", {})
 
     for i in range(property_count):
         base = prop_start + i * ENTRY_SIZE
         if base + ENTRY_SIZE > len(d):
             break
         try:
-            vtype   = struct.unpack_from("<I", d, base)[0]      # value type group
-            ftype   = struct.unpack_from("<I", d, base + 4)[0]  # function type
-            prop_id = struct.unpack_from("<I", d, base + 8)[0]  # property enum
+            vtype   = d[base]
+            ftype   = d[base + 4]
+            prop_id = struct.unpack_from("<H", d, base + 8)[0]
 
-            # Value is at base+12 (4 bytes)
-            val_raw = d[base + 12:base + 16]
-            val_f   = round(struct.unpack_from("<f", val_raw)[0], 4)
-            val_i   = struct.unpack_from("<i", val_raw)[0]
-            val_u   = struct.unpack_from("<I", val_raw)[0]
+            val1_raw = d[base + 12:base + 16]
+            val_f    = round(struct.unpack_from("<f", val1_raw)[0], 4)
+            val_i    = struct.unpack_from("<i", val1_raw)[0]
+            val_u    = struct.unpack_from("<I", val1_raw)[0]
+            step     = round(struct.unpack_from("<f", d, base + 20)[0], 4)
 
-            prop_name = OMOD_PROP_NAMES.get(prop_id, f"Property_{prop_id}")
-            func_name = FUNC_TYPE_NAMES.get(ftype, f"fn{ftype}")
+            prop_name = prop_names.get(prop_id, f"Property_{prop_id}")
+            vtype_name = VALUE_TYPE_NAMES.get(vtype, f"vtype_{vtype}")
 
-            # Pick best value representation
-            if vtype == 4 and val_u:    # FormID
-                value = f"FormID:0x{val_u:08X}"
+            if vtype in (4, 6):         # FormID,Int or FormID,Float
+                value = f"FormID:0x{val_u:08X}" if val_u else None
+                func_name = FUNC_TYPE_NAMES_FORMID.get(ftype, f"fn{ftype}")
             elif vtype == 1:            # Float
                 value = val_f
+                func_name = FUNC_TYPE_NAMES_FLOAT.get(ftype, f"fn{ftype}")
             elif vtype == 2:            # Bool
                 value = bool(val_i)
+                func_name = FUNC_TYPE_NAMES_BOOL.get(ftype, f"fn{ftype}")
             elif vtype == 0:            # Int
                 value = val_i
+                func_name = f"fn{ftype}"
             else:
-                value = val_f if abs(val_f) < 1e10 else val_i
+                value = val_f
+                func_name = f"fn{ftype}"
 
             props.append({
-                "property":   prop_name,
+                "property":    prop_name,
                 "property_id": prop_id,
-                "function":   func_name,
-                "value":      value,
+                "value_type":  vtype_name,
+                "function":    func_name,
+                "value":       value,
+                "step":        step if step else None,
             })
-        except struct.error:
+        except (struct.error, IndexError):
             break
 
     return props
@@ -308,7 +287,7 @@ def extract_assets(esm_path: Path) -> dict:
     """
     Walk the ESM and extract:
       model_paths:    {formId: {"nif_m": path, "nif_f": path, "icon": path}}
-      omod_data:      {formId: {parent_formid, parent_rectype, filter_keywords,
+      omod_data:      {formId: {attach_point, parent_rectype, filter_keywords,
                                 loose_item, property_count, properties, nif}}
       arma_by_race:   {formId: {race, nif_m, nif_f, nif_m1p, nif_f1p}}
       armo_addons:    {armo_formId: [arma_formId, ...]}
@@ -418,11 +397,11 @@ def extract_assets(esm_path: Path) -> dict:
                         preamble = _parse_omod_preamble(ddata)
                         if preamble.get("property_count", 0) > 0:
                             properties = _parse_omod_properties(
-                                ddata, preamble["property_count"]
+                                ddata, preamble["property_count"], preamble.get("parent_rectype")
                             )
 
                     omod_data[fid_str] = {
-                        "parent_formid":    preamble.get("parent_formid"),
+                        "attach_point":     preamble.get("attach_point"),
                         "parent_rectype":   preamble.get("parent_rectype"),
                         "property_count":   preamble.get("property_count", 0),
                         "properties":       properties,
@@ -548,7 +527,7 @@ def inject_vault(
     for fid, od in sorted(assets["omod_data"].items(),
                           key=lambda x: node_names.get(x[0], assets["edid_index"].get(x[0], x[0]))):
         omod_label  = label(fid)
-        parent_fid  = od.get("parent_formid", "")
+        attach_pt   = od.get("attach_point", "")
         parent_type = od.get("parent_rectype", "")
         nif         = od.get("nif", "")
         loose       = od.get("loose_item", "")
@@ -557,8 +536,8 @@ def inject_vault(
         pc          = od.get("property_count", 0)
 
         omod_lines.append(f"OMOD: {omod_label}")
-        if parent_fid:
-            omod_lines.append(f"  Parent ({parent_type}): {label(parent_fid)}")
+        if parent_type:
+            omod_lines.append(f"  Applies to: {parent_type}" + (f" (attach point: {label(attach_pt)})" if attach_pt else ""))
         if kws:
             kw_labels = [label(k) for k in kws[:4]]
             omod_lines.append(f"  Filter Keywords: {', '.join(kw_labels)}")
@@ -737,7 +716,7 @@ def main():
     omod_count  = len(assets["omod_data"])
     arma_count  = len(assets["arma_info"])
 
-    omod_with_parent = sum(1 for od in assets["omod_data"].values() if od.get("parent_formid"))
+    omod_with_parent = sum(1 for od in assets["omod_data"].values() if od.get("parent_rectype"))
     omod_with_props  = sum(1 for od in assets["omod_data"].values() if od.get("properties"))
     omod_with_kws    = sum(1 for od in assets["omod_data"].values() if od.get("filter_keywords"))
 

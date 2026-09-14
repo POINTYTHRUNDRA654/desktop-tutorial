@@ -369,77 +369,64 @@ def parse_spel_effects(subs: list[tuple[bytes, bytes]]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # MGEF DATA parser — extract effect type, casting, delivery
 # ---------------------------------------------------------------------------
-
-# MGEF DATA is ~232 bytes in FO4. The first 4 bytes are flags.
-# Offset 84 (approximately): effect type
-# We'll parse conservatively just enough to categorize the effect.
+#
+# CORRECTED (verified against the authoritative xEdit/FO4Edit Pascal
+# source, wbDefinitionsFO4.pas, during the year-long "every drop of
+# information" pass): the previous offsets (104/108/112/116) and the
+# previous archetype table were both wrong — that offset region actually
+# falls inside "Skill Usage Multiplier"/"Dual Casting" further down the
+# struct, and the old table was Skyrim's MGEF archetype list (e.g.
+# "Currency"/"Detect"/"Werewolf Feed"), not FO4's real one (which has
+# "Cure Disease"/"Absorb"/"Stimpack"/"Jetpack"/"Chameleon" in different
+# slots entirely). This means every MGEF's effect_type/casting_type/
+# delivery/actor_value this scanner ever reported was wrong. Fixed by
+# hand-computing every field's byte offset from the real MGEF DATA
+# struct definition (Flags u32@0, Base Cost float@4, Assoc.Item union@8,
+# Magic Skill unused@12, Resist Value formid@16, Counter Effect count
+# u16@20, Unused@22, Casting Light formid@24, Taper Weight float@28,
+# Hit Shader formid@32, Enchant Shader formid@36, Minimum Skill Level
+# u32@40, Spellmaking{Area u32, Casting Time float}@44 (8 bytes), Taper
+# Curve float@52, Taper Duration float@56, Second AV Weight float@60,
+# Archetype u32@64, Actor Value (primary, AVIF formid)@68, Projectile
+# formid@72, Explosion formid@76, Casting Type u32@80, Delivery u32@84,
+# ...) — Archetype is the real "effect type" field, at offset 64, not 104.
 MGEF_EFFECT_TYPES = {
-    0: "Value Modifier",
-    1: "Script",
-    2: "Dispel",
-    3: "Currency",
-    4: "Detect",
-    5: "Calm",
-    6: "Frenzy",
-    7: "Disarm",
-    8: "Command Summoned",
-    9: "Invisibility",
-    10: "Lock",
-    11: "Open",
-    12: "Bound Weapon",
-    13: "Summon Creature",
-    14: "Detect Life",
-    15: "Telekinesis",
-    16: "Paralysis",
-    17: "Reanimate",
-    18: "Soul Trap",
-    19: "Turn Undead",
-    20: "Guide",
-    21: "Werewolf Feed",
-    22: "Cure Addiction",
-    23: "Cure Poison",
-    24: "Concussion",
-    25: "Value and Parts",
-    26: "Accumulate Magnitude",
-    27: "Stagger",
-    28: "Peak Value Modifier",
-    29: "Clone Actor",
-    30: "Slow Time",
-    31: "Rally",
-    32: "Enhance Weapon",
-    33: "Spawn Hazard",
-    34: "Etherealize",
-    35: "Banish",
-    36: "Spell Effect Handler",
-    37: "Activate",
-    38: "Invisible (imod)",
-    39: "Wastelander's Friend",
+    0: "Value Modifier", 1: "Script", 2: "Dispel", 3: "Cure Disease",
+    4: "Absorb", 5: "Dual Value Modifier", 6: "Calm", 7: "Demoralize",
+    8: "Frenzy", 9: "Disarm", 10: "Command Summoned", 11: "Invisibility",
+    12: "Light", 13: "Darkness", 14: "Nighteye", 15: "Lock", 16: "Open",
+    17: "Bound Weapon", 18: "Summon Creature", 19: "Detect Life",
+    20: "Telekinesis", 21: "Paralysis", 22: "Reanimate", 23: "Soul Trap",
+    24: "Turn Undead", 25: "Guide", 26: "Unknown 26", 27: "Cure Paralysis",
+    28: "Cure Addiction", 29: "Cure Poison", 30: "Concussion", 31: "Stimpack",
+    32: "Accumulate Magnitude", 33: "Stagger", 34: "Peak Value Modifier",
+    35: "Cloak", 36: "Unknown 36", 37: "Slow Time", 38: "Rally",
+    39: "Enhance Weapon", 40: "Spawn Hazard", 41: "Etherealize", 42: "Banish",
+    43: "Spawn Scripted Ref", 44: "Disguise", 45: "Damage", 46: "Immunity",
+    47: "Permanent Reanimate", 48: "Jetpack", 49: "Chameleon",
 }
-MGEF_CASTING = {0: "Constant Effect", 1: "Fire and Forget", 2: "Concentration"}
-MGEF_DELIVERY = {0: "Self", 1: "Contact", 2: "Aimed", 3: "Target Actor", 4: "Target Location"}
+MGEF_CASTING = {0: "Constant Effect", 1: "Fire and Forget", 2: "Concentration", 3: "Scroll"}
+MGEF_DELIVERY = {0: "Self", 1: "Touch", 2: "Aimed", 3: "Target Actor", 4: "Target Location"}
 
 
 def parse_mgef_data(d: bytes) -> dict:
     """Parse MGEF DATA subrecord for effect type, casting type, delivery."""
     result = {}
-    if len(d) < 148:
+    if len(d) < 88:
         return result
     try:
-        # Flags at offset 0
         flags = struct.unpack_from("<I", d, 0)[0]
-        # Effect type at offset 104 (verified against xEdit format)
-        effect_type_idx = struct.unpack_from("<I", d, 104)[0]
+        effect_type_idx = struct.unpack_from("<I", d, 64)[0]
         result["effect_type"] = MGEF_EFFECT_TYPES.get(effect_type_idx, f"type_{effect_type_idx}")
-        # Casting type at offset 108
-        casting_idx = struct.unpack_from("<I", d, 108)[0]
+        actor_value_fid = struct.unpack_from("<I", d, 68)[0]
+        result["actor_value_form_id"] = f"0x{actor_value_fid:08X}" if actor_value_fid else None
+        casting_idx = struct.unpack_from("<I", d, 80)[0]
         result["casting_type"] = MGEF_CASTING.get(casting_idx, f"cast_{casting_idx}")
-        # Delivery at offset 112
-        delivery_idx = struct.unpack_from("<I", d, 112)[0]
+        delivery_idx = struct.unpack_from("<I", d, 84)[0]
         result["delivery"] = MGEF_DELIVERY.get(delivery_idx, f"deliv_{delivery_idx}")
-        # Actor value (primary) at offset 116
-        result["actor_value_index"] = struct.unpack_from("<I", d, 116)[0]
         result["hostile"] = bool(flags & 0x00000001)
         result["recover"] = bool(flags & 0x00000002)
+        result["detrimental"] = bool(flags & 0x00000004)
     except struct.error:
         pass
     return result
