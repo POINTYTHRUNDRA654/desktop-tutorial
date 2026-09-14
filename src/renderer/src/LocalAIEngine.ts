@@ -1505,7 +1505,14 @@ export const LocalAIEngine = {
     // in src/electron/main.ts (web-search handler). Update both if you change it.
     const fo4TermsRenderer = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|vault|wasteland|commonwealth|nexus|xedit|nifskope|bodyslide/i;
     const lowerQuery = query.toLowerCase();
-    const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw));
+    // Standalone-word fallback: 'internet' and 'online' are unambiguous enough on
+    // their own (unlike 'update'/'recent'/'latest' above) that phrasing like
+    // "go on to the internet and check for updates" or "is there anything new
+    // online" should still trigger a search even though it doesn't match any of
+    // the exact multi-word phrases above. Word-boundary so it doesn't fire on
+    // substrings like "internets" being part of something unrelated.
+    const standaloneWebWords = /\b(internet|online)\b/i;
+    const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw)) || standaloneWebWords.test(query);
     // Cached result from the initial web search — reused by the response guard to
     // avoid a redundant second network call when the guard retry is triggered.
     let cachedWebSearchResult: WebSearchResult | null = null;

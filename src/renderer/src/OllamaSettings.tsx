@@ -286,9 +286,33 @@ export const OllamaSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         </button>
       </div>
 
+      {/* NVIDIA PAIR — automatic multi-GPU/multi-PC routing */}
+      <div className="rounded-md border border-emerald-700/30 bg-emerald-900/10 p-4 space-y-2">
+        <div className="font-semibold text-emerald-300 text-xs">Simpler: NVIDIA PAIR (Automatic Multi-GPU Routing)</div>
+        <p className="text-xs text-slate-400">
+          NVIDIA's free Personal AI Router (announced IFA 2026) auto-discovers Ollama/LM Studio installs on your
+          network and routes requests to whichever GPU has capacity — no manual <code className="font-mono bg-black/30 px-1 rounded">CUDA_VISIBLE_DEVICES</code>/
+          port juggling needed. It's a drop-in replacement: it takes over Ollama's normal port (11434) and any tool
+          already pointed there — including Mossy's Base URL above — keeps working with no settings change. If you're
+          doing the manual two-terminal setup below to split models across two cards, try this first.
+        </p>
+        <a
+          href="https://www.nvidia.com/en-us/ai-on-rtx/personal-ai-router/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block underline text-emerald-300 hover:text-emerald-200 text-xs"
+          onClick={(e) => {
+            const bridge = (window as any).electron?.api || (window as any).electronAPI;
+            if (bridge?.openExternal) { e.preventDefault(); void bridge.openExternal('https://www.nvidia.com/en-us/ai-on-rtx/personal-ai-router/'); }
+          }}
+        >
+          Get NVIDIA PAIR
+        </a>
+      </div>
+
       {/* Two-GPU Guide */}
       <div className="rounded-md border border-amber-700/30 bg-amber-900/10 p-4 space-y-3">
-        <div className="font-semibold text-amber-300 text-xs">Two-GPU Setup (Advanced)</div>
+        <div className="font-semibold text-amber-300 text-xs">Two-GPU Setup (Manual / Advanced)</div>
         <p className="text-xs text-slate-400">
           Run two Ollama instances simultaneously — one per RTX 2070 — so both models stay loaded
           and respond without swapping. Open two terminals:

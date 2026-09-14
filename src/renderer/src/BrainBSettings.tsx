@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Play, AlertCircle, Check, Loader, Save, Database, Download, Square, HardDrive, ShieldCheck } from 'lucide-react';
+import { Play, AlertCircle, Check, Loader, Save, Database, Download, Square, HardDrive, ShieldCheck, RefreshCw, Brain } from 'lucide-react';
 
 interface BrainBHealth {
   status?: string;
@@ -210,8 +210,107 @@ export const BrainBSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
   const needsInstall = scan ? !scan.installed : false;
   const upToDate = scan?.installed && manifest && scan.installedVersion === manifest.version;
 
+  // ── Game Data Scans (Brain Neurons) ──
+  // A completely separate system from Brain B above: these are the actual FO4
+  // game/mod scans (form graph, asset graph, world strings, Papyrus API, mesh
+  // and texture catalogs, load order, etc.) that get injected into every chat
+  // turn as "brain neurons". The trigger for this was fully implemented in
+  // main.ts (scan:run-all) but had no UI wired to it at all — restored
+  // 2026-09-10. forceRefresh:true is required or a scan less than 7 days old
+  // is silently reused instead of actually re-scanning.
+  const [neuronCount, setNeuronCount] = useState<number | null>(null);
+  const [rescanning, setRescanning] = useState(false);
+  const [rescanResult, setRescanResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const refreshNeuronCount = useCallback(async () => {
+    try {
+      const result = await api?.brain?.listNeurons?.();
+      if (result?.success && Array.isArray(result.neurons)) setNeuronCount(result.neurons.length);
+    } catch { /* leave count null — UI shows a fallback state */ }
+  }, [api]);
+
+  useEffect(() => {
+    void refreshNeuronCount();
+  }, [refreshNeuronCount]);
+
+  const handleRescanGameData = useCallback(async () => {
+    setRescanning(true);
+    setRescanResult(null);
+    try {
+      const result = await api?.brain?.runAllScans?.(3, true);
+      if (result?.success) {
+        const entries = Object.entries(result.results || {});
+        const failed = entries.filter(([, r]: [string, any]) => !r?.success);
+        setRescanResult({
+          ok: failed.length === 0,
+          message: failed.length === 0
+            ? `Rescanned everything — ${result.neuronCount ?? entries.length} knowledge modules active.`
+            : `Rescanned with ${failed.length} of ${entries.length} scan(s) failing: ${failed.map(([name]) => name.replace('scan:', '')).join(', ')}`,
+        });
+        toast[failed.length === 0 ? 'success' : 'error'](
+          failed.length === 0 ? 'Game data rescanned' : `${failed.length} scan(s) failed`
+        );
+        void refreshNeuronCount();
+      } else {
+        setRescanResult({ ok: false, message: result?.error || 'Rescan failed' });
+        toast.error(result?.error || 'Rescan failed');
+      }
+    } catch (e: any) {
+      setRescanResult({ ok: false, message: e?.message || 'Rescan failed' });
+      toast.error(e?.message || 'Rescan failed');
+    } finally {
+      setRescanning(false);
+    }
+  }, [api, refreshNeuronCount]);
+
   return (
     <div className={'space-y-4 ' + (embedded ? 'text-sm' : 'text-base')}>
+      {/* Game Data Scans (Brain Neurons) — separate from Brain B below */}
+      <div className="rounded-md border border-emerald-700/30 bg-emerald-900/10 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Brain className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-semibold text-emerald-200 text-xs">Game Data Scans (Mossy's Brain Neurons)</span>
+        </div>
+        <p className="text-xs text-slate-300">
+          The actual scanned Fallout 4 game/mod knowledge (form graph, asset graph, world strings,
+          Papyrus API, mesh/texture catalogs, load order, and more) that gets injected into chat as
+          knowledge modules — separate from Brain B's RAG lookup below. Runs automatically at
+          startup using cached results up to 7 days old; use this after installing new mods, updating
+          FO4, or if Mossy seems to be missing something she should already know.
+        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => void handleRescanGameData()}
+            disabled={rescanning}
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold text-xs transition-colors"
+          >
+            {rescanning ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            {rescanning ? 'Rescanning…' : 'Rescan Game Data'}
+          </button>
+          <span className="text-xs text-slate-400">
+            {neuronCount === null ? '' : `${neuronCount} knowledge modules currently active`}
+          </span>
+        </div>
+        {rescanResult && (
+          <div
+            className={
+              'rounded p-2.5 text-xs flex items-start gap-2 ' +
+              (rescanResult.ok
+                ? 'border border-emerald-600/50 bg-emerald-900/20 text-emerald-200'
+                : 'border border-amber-600/50 bg-amber-900/20 text-amber-200')
+            }
+          >
+            {rescanResult.ok ? (
+              <Check className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+            )}
+            <span>{rescanResult.message}</span>
+          </div>
+        )}
+      </div>
+
       {/* Info Banner */}
       <div className="p-3 rounded-md border border-violet-700/30 bg-violet-900/10 text-violet-200 text-xs space-y-1">
         <div className="font-semibold flex items-center gap-2">
