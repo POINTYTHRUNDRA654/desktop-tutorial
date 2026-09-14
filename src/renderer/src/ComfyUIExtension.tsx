@@ -144,24 +144,116 @@ async function fetchCheckpointModels(): Promise<string[]> {
   } catch { return []; }
 }
 
-function buildWorkflowPayload(wf: ComfyWorkflow, promptText: string, negText: string, model: string) {
-  return {
+interface WorkflowOptions {
+  /** ComfyUI-side filename from textures:comfyui-upload-image — when set,
+   *  this becomes a real img2img generation (LoadImage -> VAEEncode feeds the
+   *  sampler's latent) instead of the previous behavior, which silently
+   *  ignored any reference image and always generated from EmptyLatentImage
+   *  even when the "Image to Image" workflow category was selected. */
+  referenceImageName?: string;
+  /** How much the sampler is allowed to deviate from the reference (0 = keep
+   *  the reference exactly, 1 = ignore it entirely, same denoise scale as
+   *  every other ComfyUI img2img workflow in this codebase). Only used when
+   *  referenceImageName is set. */
+  denoise?: number;
+  /** Optional Tile ControlNet lock so the sampler stays anchored to the
+   *  reference's existing layout/silhouette instead of drifting — same
+   *  approach as buildComfyImg2ImgWorkflow's controlNetName param in
+   *  main.ts, using core ComfyUI's own ControlNetLoader/ControlNetApplyAdvanced
+   *  nodes (ship with every install, no custom node required). Only used
+   *  when referenceImageName is set. */
+  controlNetName?: string;
+  controlNetStrength?: number;
+  /** Routes the model through LayeredDiffusionApply and decodes via
+   *  LayeredDiffusionDecodeRGBA for a real alpha channel (same nodes as
+   *  buildComfyTxt2ImgTransparentWorkflow in main.ts) — only meaningful for
+   *  a pure txt2img generation on an SDXL checkpoint, so this is ignored
+   *  whenever referenceImageName is also set. */
+  transparent?: boolean;
+}
+
+function buildWorkflowPayload(wf: ComfyWorkflow, promptText: string, negText: string, model: string, opts: WorkflowOptions = {}) {
+  const workflow: Record<string, unknown> = {
     '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: model } },
     '2': { class_type: 'CLIPTextEncode',         inputs: { text: promptText, clip: ['1', 1] } },
     '3': { class_type: 'CLIPTextEncode',         inputs: { text: negText, clip: ['1', 1] } },
-    '4': { class_type: 'EmptyLatentImage',        inputs: { width: wf.width, height: wf.height, batch_size: 1 } },
-    '5': {
-      class_type: 'KSampler',
-      inputs: {
-        seed: Math.floor(Math.random() * 2 ** 32),
-        steps: wf.steps, cfg: wf.cfg, sampler_name: wf.sampler,
-        scheduler: 'normal', denoise: 1.0,
-        model: ['1', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['4', 0],
-      },
-    },
-    '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
-    '7': { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy-fo4', images: ['6', 0] } },
   };
+
+  let modelRef: [string, number] = ['1', 0];
+  let positiveRef: [string, number] = ['2', 0];
+  let negativeRef: [string, number] = ['3', 0];
+  let latentRef: [string, number];
+  let denoise = 1.0;
+
+  if (opts.referenceImageName) {
+    // Real img2img: load the actual reference, encode it into latent space,
+    // and sample from THAT instead of noise.
+    workflow['ref']    = { class_type: 'LoadImage', inputs: { image: opts.referenceImageName } };
+    workflow['refvae'] = { class_type: 'VAEEncode', inputs: { pixels: ['ref', 0], vae: ['1', 2] } };
+    latentRef = ['refvae', 0];
+    denoise = opts.denoise ?? 0.6;
+
+    if (opts.controlNetName) {
+      workflow['cn'] = { class_type: 'ControlNetLoader', inputs: { control_net_name: opts.controlNetName } };
+      workflow['cnapply'] = {
+        class_type: 'ControlNetApplyAdvanced',
+        inputs: {
+          positive: ['2', 0], negative: ['3', 0], control_net: ['cn', 0], image: ['ref', 0],
+          strength: opts.controlNetStrength ?? 0.6, start_percent: 0, end_percent: 1,
+        },
+      };
+      positiveRef = ['cnapply', 0];
+      negativeRef = ['cnapply', 1];
+    }
+  } else {
+    workflow['4'] = { class_type: 'EmptyLatentImage', inputs: { width: wf.width, height: wf.height, batch_size: 1 } };
+    latentRef = ['4', 0];
+
+    if (opts.transparent) {
+      workflow['ld'] = { class_type: 'LayeredDiffusionApply', inputs: { model: ['1', 0], config: 'SDXL, Conv Injection', weight: 1.0 } };
+      modelRef = ['ld', 0];
+    }
+  }
+
+  workflow['5'] = {
+    class_type: 'KSampler',
+    inputs: {
+      seed: Math.floor(Math.random() * 2 ** 32),
+      steps: wf.steps, cfg: wf.cfg, sampler_name: wf.sampler,
+      scheduler: 'karras', denoise,
+      model: modelRef, positive: positiveRef, negative: negativeRef, latent_image: latentRef,
+    },
+  };
+  workflow['6'] = { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } };
+
+  if (!opts.referenceImageName && opts.transparent) {
+    workflow['ldrgba'] = { class_type: 'LayeredDiffusionDecodeRGBA', inputs: { samples: ['5', 0], images: ['6', 0], sd_version: 'SDXL', sub_batch_size: 16 } };
+    workflow['7'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy-fo4', images: ['ldrgba', 0] } };
+  } else {
+    workflow['7'] = { class_type: 'SaveImage', inputs: { filename_prefix: 'mossy-fo4', images: ['6', 0] } };
+  }
+
+  return workflow;
+}
+
+async function uploadReferenceImage(dataUrl: string, filename: string): Promise<string | null> {
+  try {
+    const bridge: any = (window as any).electron?.api;
+    const [header, base64] = dataUrl.split(',');
+    const mimeMatch = /data:([^;]+);base64/.exec(header);
+    const mimeType = mimeMatch?.[1] || 'image/png';
+    const res = await bridge?.invoke?.('textures:comfyui-upload-image', { base64, filename, mimeType }).catch(() => null);
+    return res?.success ? res.name : null;
+  } catch { return null; }
+}
+
+async function fetchControlNetModels(): Promise<string[]> {
+  try {
+    const bridge: any = (window as any).electron?.api;
+    const res = await bridge?.invoke?.('textures:comfyui-controlnets').catch(() => null);
+    const models = res?.models;
+    return Array.isArray(models) ? models : [];
+  } catch { return []; }
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -186,6 +278,15 @@ export const ComfyUIExtension: React.FC = () => {
   const [pathInput,        setPathInput]        = useState('');
   const [editingPath,      setEditingPath]      = useState(false);
   const [launching,        setLaunching]        = useState(false);
+
+  // ─── Reference image (real img2img) ───────────────────────────────────────
+  const [referenceImage,     setReferenceImage]     = useState<{ dataUrl: string; filename: string } | null>(null);
+  const [denoiseStrength,    setDenoiseStrength]    = useState(0.6);
+  const [transparentBg,      setTransparentBg]      = useState(false);
+  const [controlNetModels,   setControlNetModels]   = useState<string[]>([]);
+  const [useControlNet,      setUseControlNet]      = useState(false);
+  const [selectedControlNet, setSelectedControlNet] = useState('');
+  const [controlNetStrength, setControlNetStrength] = useState(0.6);
 
   // ─── Load saved install path ──────────────────────────────────────────────
 
@@ -221,6 +322,9 @@ export const ComfyUIExtension: React.FC = () => {
             }
           } catch { /* ignore */ }
         }
+        const cnModels = await fetchControlNetModels();
+        setControlNetModels(cnModels);
+        if (cnModels.length > 0) setSelectedControlNet((cur) => cur || cnModels[0]);
       } else {
         // Fallback: check Neural Link
         try {
@@ -264,9 +368,23 @@ export const ComfyUIExtension: React.FC = () => {
           setQueue((prev) => prev.map((j) => j.id === jobId && j.progress < 85 ? { ...j, progress: j.progress + 5 } : j));
         }, 2000);
         try {
-          const result = await bridge.invoke('textures:comfyui-run-workflow', {
-            workflow: buildWorkflowPayload(wf, prompt, negText, selectedModel),
+          // If a reference image is attached, upload it to ComfyUI first --
+          // this is what makes it a real img2img generation instead of the
+          // reference being silently ignored (previous behavior: this
+          // component always built EmptyLatentImage regardless of category).
+          let referenceImageName: string | undefined;
+          if (referenceImage) {
+            referenceImageName = await uploadReferenceImage(referenceImage.dataUrl, referenceImage.filename) ?? undefined;
+            if (!referenceImageName) throw new Error('Failed to upload reference image to ComfyUI.');
+          }
+          const workflow = buildWorkflowPayload(wf, prompt, negText, selectedModel, {
+            referenceImageName,
+            denoise: referenceImageName ? denoiseStrength : undefined,
+            controlNetName: referenceImageName && useControlNet ? selectedControlNet : undefined,
+            controlNetStrength: referenceImageName && useControlNet ? controlNetStrength : undefined,
+            transparent: !referenceImageName && transparentBg,
           });
+          const result = await bridge.invoke('textures:comfyui-run-workflow', { workflow });
           if (!result?.success || !result.imageData) throw new Error(result?.error || 'ComfyUI generation failed');
           setQueue((prev) => prev.map((j) => j.id === jobId ? { ...j, status: 'complete', progress: 100, imageUrl: result.imageData } : j));
           return;
@@ -498,6 +616,78 @@ export const ComfyUIExtension: React.FC = () => {
                   : <textarea value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)}
                       placeholder="What to avoid…" className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-white text-xs min-h-[48px] resize-none" />
                 }
+              </div>
+
+              {/* Reference image — real img2img */}
+              <div className="px-3 py-3 bg-slate-900/40 rounded-lg border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-slate-300">Reference Image (optional — img2img)</label>
+                  {referenceImage && (
+                    <button onClick={() => setReferenceImage(null)} className="text-[10px] text-slate-500 hover:text-red-300 transition-colors">Remove</button>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Attach one of your own reference textures (e.g. a Nano Banana / Krea output) and Mossy will run real
+                  img2img against it instead of generating from scratch — this is what keeps a new variant looking
+                  like it belongs with the rest of your set.
+                </p>
+                {referenceImage ? (
+                  <div className="flex items-center gap-3">
+                    <img src={referenceImage.dataUrl} alt="Reference" className="w-16 h-16 rounded object-cover border border-slate-700 flex-shrink-0" />
+                    <span className="text-xs text-slate-400 truncate">{referenceImage.filename}</span>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 px-3 py-4 border border-dashed border-slate-700 rounded-lg text-xs text-slate-500 hover:border-pink-500/40 hover:text-slate-300 cursor-pointer transition-colors">
+                    <Image className="w-4 h-4" /> Click to choose an image…
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setReferenceImage({ dataUrl: String(reader.result), filename: file.name });
+                      reader.readAsDataURL(file);
+                    }} />
+                  </label>
+                )}
+
+                {referenceImage && (
+                  <>
+                    <div>
+                      <label className="text-xs text-slate-400 mb-1 block">
+                        Denoise strength — {denoiseStrength.toFixed(2)} (lower keeps more of the reference, higher lets it drift further)
+                      </label>
+                      <input type="range" min={0.1} max={0.95} step={0.05} value={denoiseStrength}
+                        onChange={(e) => setDenoiseStrength(Number(e.target.value))} className="w-full" />
+                    </div>
+
+                    {controlNetModels.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs text-slate-400 flex items-center gap-1.5">
+                            <input type="checkbox" checked={useControlNet} onChange={(e) => setUseControlNet(e.target.checked)} />
+                            Lock structure with ControlNet (keeps the reference's layout/silhouette fixed)
+                          </label>
+                        </div>
+                        {useControlNet && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <select value={selectedControlNet} onChange={(e) => setSelectedControlNet(e.target.value)}
+                              className="px-2.5 py-1.5 bg-slate-900/70 border border-slate-700 rounded text-white text-xs">
+                              {controlNetModels.map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <input type="range" min={0.1} max={1} step={0.05} value={controlNetStrength}
+                              onChange={(e) => setControlNetStrength(Number(e.target.value))} title={`Strength ${controlNetStrength.toFixed(2)}`} />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {!referenceImage && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <input type="checkbox" checked={transparentBg} onChange={(e) => setTransparentBg(e.target.checked)} />
+                    Transparent background (SDXL checkpoints only — real alpha channel, no separate background removal step)
+                  </label>
+                )}
               </div>
 
               {/* Advanced */}

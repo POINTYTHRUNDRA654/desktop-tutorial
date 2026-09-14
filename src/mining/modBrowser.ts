@@ -95,6 +95,24 @@ export class ModBrowserEngine {
     }
   }
 
+  /**
+   * Restore a previously-validated Nexus API key (e.g. settings.nexusAuthToken)
+   * into this in-memory engine without a network round-trip. authenticateNexus()
+   * only ever set this.nexusApiKey for the lifetime of the running process — on
+   * every app restart it went back to null even though a valid token was sitting
+   * in settings.json the whole time, so every mod-browser/trending call silently
+   * failed with "Authenticate first" until the user re-entered their API key by
+   * hand. Call this once at startup (main.ts) with the persisted token, if any.
+   * Does not itself validate the key against Nexus — a bad/revoked token will
+   * simply surface as a real 401 on the next actual API call, same as before.
+   */
+  restoreNexusAuth(apiKey: string): void {
+    const trimmed = (apiKey || '').trim();
+    if (!trimmed) return;
+    this.nexusApiKey = trimmed;
+    this.apiCache.clear();
+  }
+
   private extractNexusModId(modId: string): number {
     if (!modId) throw new Error('Missing mod id');
     const normalized = String(modId).trim();

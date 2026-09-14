@@ -4127,6 +4127,16 @@ const electronAPI = {
   brain: {
     getFullBrain: (): Promise<any> =>
       ipcRenderer.invoke('brain:get-full-brain'),
+    // Restored 2026-09-10 — these scan triggers (and the neuron list) were fully
+    // implemented in main.ts but had no bridge exposure at all, so the "rescan"
+    // button that used to call them had nothing left to call. runAllScans is the
+    // one to wire a "Rescan Game Data" button to; pass forceRefresh:true or it
+    // will silently reuse up-to-7-day-old cached scans instead of actually
+    // rescanning.
+    listNeurons: (): Promise<any> =>
+      ipcRenderer.invoke('brain:list-neurons'),
+    runAllScans: (tier?: 1 | 2 | 3, forceRefresh?: boolean): Promise<any> =>
+      ipcRenderer.invoke('scan:run-all', tier, forceRefresh),
   },
 
   // Panel Data Persistence API
@@ -4303,10 +4313,13 @@ const electronAPI = {
   // Screen Awareness (Phase 2 "Seeing") -- see BridgeServer.ts's
   // startScreenAwareness() for the real focus-gated capture loop, and
   // main.ts's 'screen-awareness:*' handlers for what these actually call.
-  startScreenAwareness: (program?: string): Promise<{ ok: boolean; program?: string }> =>
-    ipcRenderer.invoke('screen-awareness:start', program),
+  // GENERALIZED from Blender-only: `tools` optionally names a subset of
+  // BridgeServer.KNOWN_MODDING_TOOLS' keys to watch; omitted watches all.
+  startScreenAwareness: (tools?: string[]): Promise<{ ok: boolean; watching: string[] }> =>
+    ipcRenderer.invoke('screen-awareness:start', tools),
   stopScreenAwareness: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('screen-awareness:stop'),
-  screenAwarenessStatus: (): Promise<{ active: boolean; program: string }> => ipcRenderer.invoke('screen-awareness:status'),
+  screenAwarenessStatus: (): Promise<{ active: boolean; watching: string[]; currentProgram: string | null }> =>
+    ipcRenderer.invoke('screen-awareness:status'),
   /** Fires once per real, focus-gated capture -- see BridgeServer.ts's
    *  startScreenAwareness() for the 5s poll / gating logic. Returns an
    *  unsubscribe function, same convention as onBrainBServerStatus above. */
