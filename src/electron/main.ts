@@ -13760,7 +13760,54 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Mod Browser IPC handlers (renderer -> main)
-  const { modBrowser: modBrowserEngine } = require('../mining/modBrowser');
+  // Gate for the legacy Nexus personal-API-key auth path (modBrowser.ts's
+  // authenticateNexus()/apiRequest(), the "apikey:" header scheme). Nexus's
+  // own API Acceptable Use Policy (help.nexusmods.com/article/114) disallows
+  // shipping a public-facing app that uses a user's personal API key rather
+  // than a registered SSO/OAuth flow -- this is what nexusAuth.ts's OAuth+PKCE
+  // implementation exists to replace, but that can't go live until Nexus
+  // issues Mossy a client_id (see NEXUS_OAUTH_SETUP.md). Until then, the
+  // personal-API-key path is fully removed -- not just disabled -- from the
+  // build channel used for Nexus-bound release packages
+  // (`npm run package:win:*:nexus-release`, which sets
+  // mossyReleaseChannel=nexus-release via electron-builder's extraMetadata
+  // AND runs scripts/strip-nexus-legacy-auth.mjs to delete the compiled
+  // dist-electron/mining/modBrowser.js before packaging, so the file itself
+  // never reaches the shipped asar) while staying fully available in every
+  // normal dev/desktop run, where mossyReleaseChannel reads 'dev' straight
+  // from package.json and modBrowser.ts compiles and ships normally.
+  // Reads the app's OWN package.json (via getAppPath()) rather than a
+  // hardcoded constant so a packaged release genuinely carries whatever
+  // electron-builder baked in, not just what the source tree says.
+  const isNexusReleaseBuild = (() => {
+    let cached: boolean | null = null;
+    return () => {
+      if (cached !== null) return cached;
+      try {
+        const pkg = require(path.join(app.getAppPath(), 'package.json'));
+        cached = pkg?.mossyReleaseChannel === 'nexus-release';
+      } catch {
+        cached = false;
+      }
+      return cached;
+    };
+  })();
+  // In the nexus-release channel the compiled modBrowser.js file has been
+  // deleted from the package before this ever runs (see comment above), so
+  // requiring it here would throw "Cannot find module" and crash startup --
+  // this is intentionally never reached in that channel. modBrowserEngine
+  // instead becomes a Proxy whose every property access returns a function
+  // that throws a clear error; every mod-browser:* handler below already
+  // wraps its call in try/catch and returns { success:false, error }, so
+  // this makes ALL of them (not just authenticate-nexus) fail cleanly with
+  // one honest message instead of needing each handler edited individually.
+  const modBrowserEngine: any = isNexusReleaseBuild()
+    ? new Proxy({}, {
+        get: () => () => {
+          throw new Error('Nexus Mod Browser is not available in this build (personal API key auth was removed for the Nexus release channel).');
+        }
+      })
+    : require('../mining/modBrowser').modBrowser;
   // Restore a previously-validated Nexus API key on startup. authenticateNexus()
   // persists the token to settings.json but the engine's in-memory key was never
   // read back from it -- meaning every restart quietly lost Nexus auth, and every
@@ -13769,7 +13816,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   // user manually re-entered their key. Same forked-state/silent-degradation shape
   // as other recurring bugs in this codebase -- fixed at the source instead of
   // patched per-symptom.
-  {
+  if (isNexusReleaseBuild()) {
+    console.log('[ModBrowser] Nexus-release build channel -- personal Nexus API key auth disabled, not restoring any persisted token');
+  } else {
     const persistedNexusToken = String(loadSettings()?.nexusAuthToken || '').trim();
     if (persistedNexusToken) {
       modBrowserEngine.restoreNexusAuth(persistedNexusToken);
@@ -13895,6 +13944,12 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   registerHandler('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
     const startTime = Date.now();
+    if (isNexusReleaseBuild()) {
+      // Personal Nexus API key auth is disabled in the nexus-release channel
+      // -- see the isNexusReleaseBuild() comment above for why. Fails loudly
+      // and honestly rather than silently no-op'ing.
+      return { success: false, error: 'Nexus API key sign-in is not available in this build. Sign in with your Nexus account instead (Settings).' };
+    }
     try {
       const result = await modBrowserEngine.authenticateNexus(apiKey);
       if (result?.success) {
