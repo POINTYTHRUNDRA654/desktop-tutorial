@@ -26,5 +26,6 @@
     "**/release": true,
     "**/release-test": true,
     "**/tmp-release": true
-  }
+  },
+  "cmake.sourceDirectory": "D:/Projects/desktop-tutorial/plugins/fo4-advanced-ai/f4se_plugin"
 }
