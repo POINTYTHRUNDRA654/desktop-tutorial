@@ -363,6 +363,58 @@ KNOWLEDGE_ENTRIES: list[dict] = [
         "tags": ["papyrus", "compiler", "error", "debugging", "log"],
     },
 
+    {
+        "id": "perk-001",
+        "title": "PERK Records: Native Entry Points vs Papyrus Scripts",
+        "content": (
+            "Many perk effects are NOT Papyrus at all -- they are native 'Entry Point' functions the game "
+            "engine itself checks, stored directly in the PERK record's PRKE/DATA/EPFT/EPFD subrecords "
+            "(visible in xEdit/CK as Perk 'Effects'). Each Effect has: an Entry Point (engine hook name, e.g. "
+            "'Mod Player Explosion Damage', 'Show Grenade Trajectory'), a Function (Set Value / Add Value / "
+            "Multiply Value / Add Range / etc.), Function Parameters (EPFT/EPFD -- the numeric value passed), "
+            "and optional Perk Conditions (PRKC, a list of CTDA conditions gating whether that specific effect "
+            "applies). This is a completely separate mechanism from a Papyrus script attached via VMAD -- a "
+            "perk can have Entry Point effects, a VMAD script, both, or neither. "
+            "Practical rule: before assuming a perk behavior is scripted (and going looking for a .psc/VMAD), "
+            "dump the PERK record's full field tree in xEdit and check the Effects list first -- a huge amount "
+            "of vanilla perk behavior (damage multipliers, UI toggles like grenade trajectory display, unlocking "
+            "recipes, etc.) is pure native Entry Point data with zero Papyrus involved. "
+            "To make a native Entry Point effect conditional (e.g. suppress it while a specific item is worn), "
+            "add a Perk Condition (CTDA) to that specific Effect -- e.g. WornHasKeyword / GetEquippedItemType / "
+            "GetItemCount evaluated 'Run On: Subject' -- rather than looking for a script to edit. See "
+            "perk-002 for a fully verified worked example (Demolition Expert / grenade trajectory indicator)."
+        ),
+        "category": "papyrus",
+        "tags": ["perk", "entry-point", "papyrus", "xedit", "vmad", "prke", "ctda"],
+    },
+    {
+        "id": "perk-002",
+        "title": "Case Study: Demolition Expert Rank 2 & the Grenade Trajectory Indicator",
+        "content": (
+            "Verified by dumping the live PERK records in xEdit (not guessed): Demolition Expert is 4 separate "
+            "PERK records chained via NNAM (Next Perk) -- DemolitionExpert01 [PERK:0004C923] (rank 1, Level 0), "
+            "DemolitionExpert02 [PERK:0004C924] (rank 2, Level 10), DemolitionExpert03 [PERK:0004C925] "
+            "(rank 3), DemolitionExpert04 [PERK:00065E13] (rank 4). "
+            "Rank 1 has exactly one Effect: Entry Point 'Mod Player Explosion Damage', Function 'Multiply "
+            "Value', value 1.25 (the +25% explosive damage), gated by a Perk Condition HasPerk(DemolitionExpert02) "
+            "== false so it stops applying once rank 2 is owned (ranks don't stack, they replace). "
+            "Rank 2 adds a SECOND Effect on top of the same damage-multiply pattern (now 1.5x, gated off once "
+            "rank 3 is owned): Entry Point 'Show Grenade Trajectory', Function 'Set Value', value 1.0, with "
+            "ZERO Perk Conditions attached -- meaning it is unconditional native engine behavior, not a script. "
+            "This is the grenade throwing-arc indicator. It first appears at rank 2 exactly as players observe, "
+            "and it is entirely native PERK Entry Point data -- there is no Papyrus script anywhere in this "
+            "perk chain (no VMAD on any of the 4 records). "
+            "Actionable answer for 'how do I stop the grenade arc showing while X is equipped': do NOT look "
+            "for a script to edit. Instead add a Perk Condition (CTDA) to the 'Show Grenade Trajectory' Effect "
+            "on DemolitionExpert02 (in xEdit: right-click that PRKE effect's Perk Conditions node -> New -> "
+            "add a CTDA, e.g. WornHasKeyword != YourItemKeyword, Run On: Subject) so the engine skips that "
+            "effect while the condition fails. This generalizes to any 'why does perk X do Y' question -- "
+            "dump the record, read the Effects list, don't assume a script exists."
+        ),
+        "category": "papyrus",
+        "tags": ["perk", "demolition-expert", "grenade", "entry-point", "case-study", "xedit"],
+    },
+
     # ── LOOT METADATA ────────────────────────────────────────────────────────
     {
         "id": "loot-001",
