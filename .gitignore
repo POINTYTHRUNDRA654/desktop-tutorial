@@ -245,3 +245,5 @@ composite_uv_cluster_photographic.py
 make_4k_uv_base.py
 prepare_uv_cluster.py
 uv_locked_material_transfer.py
+
+plugins/blender-mossy-link/
