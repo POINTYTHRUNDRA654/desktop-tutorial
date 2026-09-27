@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for previs. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "previs",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "previs-mistake-9106c34b",
+      "whatToLookFor": "When a plugin edits exterior cells, the previs/precombine advice says \"search Nexus for a previs patch\", even when the person asking is the mod's own author working on their own mod.",
+      "correction": "If the user is the author of the mod, tell them to regenerate precombines and previs for the edited cells themselves (Creation Kit, or a PJM-style xEdit workflow) as a normal release step. Only suggest looking for a third-party previs patch when they're using someone else's mod.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790456186-2baaa016",
+      "reviewerNote": null
+    }
+  ]
+}

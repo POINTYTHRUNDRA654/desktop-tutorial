@@ -92,6 +92,9 @@ def main():
     print("[0/3] Copying shared retrieval_tuning.py...")
     print("=" * 70)
     shutil.copyfile(NEXUS_DIR.parent / "retrieval_tuning.py", NEXUS_DIR / "retrieval_tuning.py")
+    # Same single-source-of-truth copy for ChangeGate (lesson review + approved
+    # lessons in /enrich). Gitignored build artifact; never hand-edit it here.
+    shutil.copyfile(NEXUS_DIR.parent / "change_gate.py", NEXUS_DIR / "change_gate.py")
 
     # 1. Build the knowledge pack (fastembed-embedded — see build_knowledge_db_nexus.py's
     #    own docstring for why this must stay in sync with brain_b_slim.py's embed()).
@@ -125,6 +128,7 @@ def main():
         "--hidden-import=fastembed",
         "--hidden-import=knowledge_manifest",
         "--hidden-import=retrieval_tuning",
+        "--hidden-import=change_gate",
         "--hidden-import=bootstrap_fallout4_knowledge",
         "--collect-all", "chromadb",
         "--collect-all", "chromadb_rust_bindings",
@@ -149,6 +153,13 @@ def main():
     shutil.copytree(NEXUS_DIR / "build" / "data" / "chroma_curated",
                      DIST_PACKAGE / "knowledge" / "chroma_curated")
     shutil.copytree(NEXUS_DIR / "build" / "models", DIST_PACKAGE / "embed-model")
+    # Approved lessons (ChangeGate pattern files) ship with the package so every
+    # user's Mossy starts with everything learned so far. main.ts points
+    # MOSSY_LESSONS_DIR at knowledge/lessons.
+    lessons_dir = DIST_PACKAGE / "knowledge" / "lessons"
+    lessons_dir.mkdir(parents=True, exist_ok=True)
+    for pattern_file in (NEXUS_DIR.parent / "knowledge").glob("*_mistake_patterns.json"):
+        shutil.copy2(pattern_file, lessons_dir / pattern_file.name)
 
     def dir_size_mb(p: Path) -> float:
         return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) / 1e6

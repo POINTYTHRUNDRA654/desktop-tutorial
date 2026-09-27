@@ -2310,9 +2310,20 @@ def enrich():
     # in the first ten seconds. A conversational turn that's ALSO scene- or
     # game-data-related still gets grounded normally by those fields, since
     # all six classify_and_diagnose() dimensions are independent.
+    # Approved ChangeGate lessons that match this question (see
+    # change_gate.relevant_lessons). They count as real grounding: each one
+    # was verified and approved by a human before it got here.
+    try:
+        learned_lessons = change_gate.relevant_lessons(question)
+    except Exception as e:
+        log.warning("relevant_lessons failed (non-fatal): %s", e)
+        learned_lessons = []
+    lessons_available = bool(learned_lessons)
+
     has_grounding = (
         (retrieval_tier != "abstain") or scene_context_available
         or game_data_has_results or ck_diagnosis_available or not needs_grounding
+        or lessons_available
     )
 
     if not has_grounding:
@@ -2429,7 +2440,8 @@ def enrich():
                     f"{session_line}{plugin_line}): no precombine-ownership conflicts found.\n"
                 )
 
-    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}{ck_ctx}"
+    lessons_ctx = change_gate.format_lessons(learned_lessons)
+    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}{ck_ctx}{lessons_ctx}"
 
     # Scene context, not the KB match, is the grounding for a scene-related
     # question when it's available — mirrors the inverted abstain rule
@@ -2446,7 +2458,8 @@ def enrich():
     # until later phases) still hedges normally on the wiki match instead of
     # silently suppressing a disclaimer that's actually warranted there.
     hedged = (retrieval_tier == "hedge" and not scene_context_available
-              and not game_data_has_results and not ck_diagnosis_available)
+              and not game_data_has_results and not ck_diagnosis_available
+              and not lessons_available)
     hedge_prefix = None
     if hedged and probe:
         top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
@@ -2477,6 +2490,7 @@ def enrich():
         "action_related": action_related,
         "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
         "retrieval_tier": retrieval_tier,
+        "learned_lessons_used": [l.get("id") for l in learned_lessons],
     })
 
 

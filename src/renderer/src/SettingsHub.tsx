@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database, Eye,
+  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -15,6 +15,7 @@ import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
 import BrainBSettings from './BrainBSettings';
 import ScreenAwarenessSettings from './ScreenAwarenessSettings';
+import LessonsReviewSettings from './LessonsReviewSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
 import { SettingsImportExport } from './SettingsImportExport';
 import TutorialResetSettings from './TutorialResetSettings';
@@ -431,6 +432,13 @@ const SettingsHub: React.FC = () => {
       content: <BrainBSettings embedded />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-violet-900/40 border-violet-700/40 text-violet-300',
+    },
+    {
+      id: 'lessons',
+      title: t('settings.hub.stepLessons.title', 'Step 5b: Lessons Review — What Mossy Is Learning'),
+      description: t('settings.hub.stepLessons.desc', 'Approve or reject lessons proposed while you work. Approved lessons shape her chat and voice answers.'),
+      icon: GraduationCap,
+      content: <LessonsReviewSettings embedded />,
     },
     {
       id: 'screenAwareness',

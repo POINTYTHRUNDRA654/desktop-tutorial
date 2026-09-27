@@ -37324,6 +37324,13 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
         // function is scoped inside a different enclosing closure than this
         // one, not reachable from here.
         GAME_SCAN_CACHE_PATH: path.join(app.getPath('userData'), 'game-scan-cache'),
+        // ChangeGate lessons (see brain-b/change_gate.py). Approved lessons
+        // ship inside the package at knowledge/lessons; the review queue lives
+        // in runtime-data. MOSSY_LESSONS_DIR can be pre-set in the environment
+        // (a developer pointing approvals straight at brain-b/knowledge in
+        // their checkout so they're committed with the code).
+        MOSSY_LESSONS_DIR: process.env.MOSSY_LESSONS_DIR || path.join(destDir, 'knowledge', 'lessons'),
+        MOSSY_LESSONS_PENDING_PATH: path.join(runtimeDataDir, 'pending_lessons.json'),
       },
     });
     _brainBProcess.on('exit', () => { _brainBProcess = null; });

@@ -1869,7 +1869,10 @@ Check your Downloads folder or the location where files are saved.`;
                 if (!project || !stats) {
                     result = `❌ Project not found.`;
                 } else {
-                    result = `📊 **${project.name} - Project Status**\n\n**Progress:** ${project.completionPercentage}% complete\n**Status:** ${project.status}\n**Version:** ${project.version}\n\n**Steps:**\n- Total: ${stats.totalSteps}\n- Completed: ${stats.completedSteps}\n- In Progress: ${stats.inProgressSteps}\n- Pending: ${stats.pendingSteps}\n- Blocked: ${stats.blockedSteps}\n\n**Time:**\n- Estimated: ${Math.round(stats.totalEstimatedHours)} hours\n- Actual: ${Math.round(stats.totalActualHours)} hours`;
+                    const stepLines = (project.steps || []).map(st =>
+                        `- [${st.status}] ${st.title} (${st.priority}) — step ID: ${st.id}`
+                    ).join('\n');
+                    result = `📊 **${project.name} - Project Status**\n\n**Project ID:** ${project.id}\n**Progress:** ${project.completionPercentage}% complete\n**Status:** ${project.status}\n**Version:** ${project.version}\n\n**Steps:**\n- Total: ${stats.totalSteps}\n- Completed: ${stats.completedSteps}\n- In Progress: ${stats.inProgressSteps}\n- Pending: ${stats.pendingSteps}\n- Blocked: ${stats.blockedSteps}\n\n**Time:**\n- Estimated: ${Math.round(stats.totalEstimatedHours)} hours\n- Actual: ${Math.round(stats.totalActualHours)} hours${stepLines ? `\n\n**Step list:**\n${stepLines}` : ''}`;
                 }
             }
         } catch (e) {
@@ -1881,8 +1884,9 @@ Check your Downloads folder or the location where files are saved.`;
             if (projects.length === 0) {
                 result = `📦 **No mod projects yet.** Use 'create_mod_project' to start your first mod!`;
             } else {
+                const activeId = ModProjectStorage.getCurrentModId();
                 const projectList = projects.map(p => 
-                    `• **${p.name}** (${p.type}) - v${p.version}\n  Status: ${p.status} | Progress: ${p.completionPercentage}% | Steps: ${p.completedStepCount}/${p.stepCount}`
+                    `• **${p.name}** (${p.type}) - v${p.version}${p.id === activeId ? ' — ACTIVE' : ''}\n  ID: ${p.id}\n  Status: ${p.status} | Progress: ${p.completionPercentage}% | Steps: ${p.completedStepCount}/${p.stepCount}`
                 ).join('\n');
                 result = `📦 **Your Mod Projects:**\n\n${projectList}`;
             }

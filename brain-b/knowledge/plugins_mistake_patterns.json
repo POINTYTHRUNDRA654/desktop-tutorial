@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for plugins. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "plugins",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "plugins-mistake-1d34c540",
+      "whatToLookFor": "Plugin scan reports vanilla Fallout 4 scripts such as workshopobjectscript as a \"missing .pex\" risk just because an object in the plugin uses them.",
+      "correction": "Vanilla scripts (workshopobjectscript and the rest of the base game's scripts) already ship with Fallout 4, so a mod never needs to include their .pex files. Only warn about missing .pex for scripts that aren't part of the base game or DLC.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790456184-6b18f198",
+      "reviewerNote": null
+    }
+  ]
+}

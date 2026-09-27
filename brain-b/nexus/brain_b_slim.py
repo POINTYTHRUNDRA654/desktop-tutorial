@@ -104,7 +104,26 @@ def _load_retrieval_tuning():
     return module
 
 
+def _load_change_gate():
+    """
+    Same single-source-of-truth pattern as _load_retrieval_tuning() above:
+    from source, load ../change_gate.py directly; frozen, use the copy that
+    build_nexus_package.py bundles (gitignored build artifact).
+    """
+    if not getattr(sys, 'frozen', False):
+        source_of_truth = Path(__file__).resolve().parent.parent / "change_gate.py"
+        if source_of_truth.exists():
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("change_gate", source_of_truth)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+    import change_gate as module
+    return module
+
+
 _retrieval_tuning = _load_retrieval_tuning()
+change_gate = _load_change_gate()
 MIN_RETRIEVAL_AGREEMENT = _retrieval_tuning.MIN_RETRIEVAL_AGREEMENT  # noqa: F401 (referenced in comments elsewhere)
 classify_retrieval = _retrieval_tuning.classify_retrieval
 
@@ -1915,9 +1934,19 @@ def enrich():
     # in the first ten seconds. A conversational turn that's ALSO scene- or
     # game-data-related still gets grounded normally by those fields, since
     # all six classify_and_diagnose() dimensions are independent.
+    # Approved ChangeGate lessons that match this question -- see
+    # change_gate.relevant_lessons. Human-approved, so they count as grounding.
+    try:
+        learned_lessons = change_gate.relevant_lessons(question)
+    except Exception as e:
+        log.warning("relevant_lessons failed (non-fatal): %s", e)
+        learned_lessons = []
+    lessons_available = bool(learned_lessons)
+
     has_grounding = (
         (retrieval_tier != "abstain") or scene_context_available
         or game_data_has_results or ck_diagnosis_available or not needs_grounding
+        or lessons_available
     )
 
     if not has_grounding:
@@ -2034,7 +2063,8 @@ def enrich():
                     f"{session_line}{plugin_line}): no precombine-ownership conflicts found.\n"
                 )
 
-    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}{ck_ctx}"
+    lessons_ctx = change_gate.format_lessons(learned_lessons)
+    retrieved_context = f"KNOWLEDGE BASE CONTEXT:\n{ctx}\n{episode_ctx}{diagnosis_ctx}{level_ctx}{scene_ctx}{game_data_ctx}{ck_ctx}{lessons_ctx}"
 
     # Scene context, not the KB match, is the grounding for a scene-related
     # question when it's available — mirrors the inverted abstain rule
@@ -2051,7 +2081,8 @@ def enrich():
     # until later phases) still hedges normally on the wiki match instead of
     # silently suppressing a disclaimer that's actually warranted there.
     hedged = (retrieval_tier == "hedge" and not scene_context_available
-              and not game_data_has_results and not ck_diagnosis_available)
+              and not game_data_has_results and not ck_diagnosis_available
+              and not lessons_available)
     hedge_prefix = None
     if hedged and probe:
         top_title = (probe[0].get("metadata") or {}).get("title") or probe[0].get("id", "this")
@@ -2082,6 +2113,7 @@ def enrich():
         "action_related": action_related,
         "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
         "retrieval_tier": retrieval_tier,
+        "learned_lessons_used": [l.get("id") for l in learned_lessons],
     })
 
 
@@ -2447,6 +2479,70 @@ def knowledge_count():
         "curated_count": get_curated_collection().count(),
         "runtime_count": get_runtime_collection().count(),
     })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHANGE GATE — lesson review queue (same routes as gemma_service_enhanced.py).
+# Proposed lessons stay pending until approved; approved ones feed /enrich.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/change-gate/patterns", methods=["GET"])
+def change_gate_patterns():
+    program = request.args.get("program", "")
+    if not program:
+        return jsonify({"error": "program is required"}), 400
+    try:
+        patterns = change_gate.get_known_patterns(program)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"program": program, "patterns": patterns})
+
+
+@app.route("/change-gate/propose", methods=["POST"])
+def change_gate_propose():
+    data = request.get_json(force=True)
+    program = data.get("program", "")
+    observation = data.get("observation", "")
+    if not program or not observation:
+        return jsonify({"error": "program and observation are required"}), 400
+    try:
+        proposal_id = change_gate.propose_change(
+            program, observation, data.get("suggestedCorrection"), data.get("sourceContext") or {}
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "proposed", "id": proposal_id})
+
+
+@app.route("/change-gate/pending", methods=["GET"])
+def change_gate_pending():
+    return jsonify({"pending": change_gate.list_pending(request.args.get("program"))})
+
+
+@app.route("/change-gate/approve", methods=["POST"])
+def change_gate_approve():
+    data = request.get_json(force=True)
+    proposal_id = data.get("id", "")
+    if not proposal_id:
+        return jsonify({"error": "id is required"}), 400
+    try:
+        result = change_gate.approve(proposal_id, data.get("reviewerNote"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "approved", **result})
+
+
+@app.route("/change-gate/reject", methods=["POST"])
+def change_gate_reject():
+    data = request.get_json(force=True)
+    proposal_id = data.get("id", "")
+    if not proposal_id:
+        return jsonify({"error": "id is required"}), 400
+    try:
+        change_gate.reject(proposal_id, data.get("reviewerNote"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"status": "rejected", "id": proposal_id})
 
 
 @app.route("/episodes", methods=["GET"])

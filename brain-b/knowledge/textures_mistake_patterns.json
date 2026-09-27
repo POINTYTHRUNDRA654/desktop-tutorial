@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for textures. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "textures",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "textures-mistake-1d6774a0",
+      "whatToLookFor": "Recommending BC3/DXT5 for Fallout 4 normal (_n) and specular (_s) maps, e.g. \"BC3 is the best DXT5 setting for Fallout 4\" in NVIDIA Texture Tools Exporter.",
+      "correction": "Use BC5 (two-channel) for _n normal and _s specular maps. Both maps only use red and green; BC5 stores exactly those two channels at full precision for the same file size as BC3 (8 bits per pixel), while BC3 squeezes them into a 5/6-bit colour block and wastes its alpha. BC7 is a good choice for _d diffuse. BC3 normals/speculars still load in game, so existing ones aren't broken, just lower quality.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790460132-2841f809",
+      "reviewerNote": null
+    }
+  ]
+}

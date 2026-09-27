@@ -28,26 +28,69 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-BASE_DIR = Path(__file__).resolve().parent
-PENDING_PATH = BASE_DIR / "data" / "pending_screen_proposals.json"
-KNOWLEDGE_DIR = BASE_DIR / "knowledge"
+import os
 
-# Real, narrow, explicit mapping -- one pattern file per program. Matches
-# Screen Awareness's own first-slice scope (Blender only). Extend this dict
-# when Creation Kit / xEdit patterns get added later; don't invent a second
-# path convention elsewhere.
-_PATTERN_FILES = {
-    "blender": KNOWLEDGE_DIR / "blender_mistake_patterns.json",
+BASE_DIR = Path(__file__).resolve().parent
+# Both overridable so the packaged Brain B (brain_b_slim.exe, whose bundle is
+# not a sensible place to write) can keep lessons in a real folder: main.ts
+# passes MOSSY_LESSONS_DIR / MOSSY_LESSONS_PENDING_PATH when it spawns it.
+# Defaults are the dev layout: brain-b/knowledge (git-tracked, ships in the
+# next commit) and brain-b/data (gitignored).
+PENDING_PATH = Path(os.environ.get("MOSSY_LESSONS_PENDING_PATH") or (BASE_DIR / "data" / "pending_screen_proposals.json"))
+KNOWLEDGE_DIR = Path(os.environ.get("MOSSY_LESSONS_DIR") or (BASE_DIR / "knowledge"))
+
+# One pattern file per program/topic, created on first approval. Originally
+# Blender-only (Screen Awareness's first slice); generalized 2026-09-26 so
+# Mossy can learn from everything she touches -- textures, meshes, plugins,
+# previs, every modding tool -- not just Blender. KNOWN_PROGRAMS is the
+# suggested vocabulary (keeps names consistent so lessons about the same
+# thing land in the same file); any other safe slug is also accepted.
+import re
+
+KNOWN_PROGRAMS = (
+    "blender", "creation-kit", "xedit", "nifskope", "textures", "materials",
+    "meshes", "collision", "previs", "plugins", "papyrus", "archive2",
+    "mod-organizer", "bodyslide", "outfit-studio", "gimp", "comfyui",
+)
+
+_ALIASES = {
+    "ck": "creation-kit", "creationkit": "creation-kit",
+    "fo4edit": "xedit", "sseedit": "xedit",
+    "texture": "textures", "dds": "textures", "bgsm": "materials", "bgem": "materials",
+    "mesh": "meshes", "nif": "meshes", "precombines": "previs", "precombine": "previs",
+    "plugin": "plugins", "esp": "plugins", "esm": "plugins", "esl": "plugins", "plugin-scan": "plugins",
+    "script": "papyrus", "scripts": "papyrus", "mo2": "mod-organizer", "ba2": "archive2",
 }
+
+_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,39}$")
+
+
+def normalize_program(program: str) -> str:
+    slug = re.sub(r"[\s_]+", "-", str(program or "").strip().lower())
+    return _ALIASES.get(slug, slug)
 
 
 def _pattern_file_for(program: str) -> Path:
-    if program not in _PATTERN_FILES:
+    slug = normalize_program(program)
+    if not _SLUG_RE.match(slug):
         raise ValueError(
-            f"No known pattern file for program {program!r} -- add one to "
-            f"change_gate._PATTERN_FILES before proposing changes for it."
+            f"Invalid program/topic {program!r} -- use a short name like "
+            f"{', '.join(KNOWN_PROGRAMS[:6])}, ..."
         )
-    return _PATTERN_FILES[program]
+    return KNOWLEDGE_DIR / f"{slug.replace('-', '_')}_mistake_patterns.json"
+
+
+def _new_pattern_file(program: str) -> dict:
+    return {
+        "_meta": {
+            "description": f"Known mistakes/lessons for {program}. New entries only get added via "
+                           "ChangeGate's approve() (change_gate.py) -- never edited by hand as a "
+                           "shortcut around review.",
+            "program": program,
+            "schemaVersion": 1,
+        },
+        "patterns": [],
+    }
 
 
 def _load_pending() -> list[dict]:
@@ -70,10 +113,11 @@ def propose_change(program: str, observation: str, suggested_correction: Optiona
     Persists a real candidate pattern -- something the recognition pass saw
     that didn't match anything in the program's known-pattern file.
     Real validation: raises immediately (before writing anything) if
-    `program` isn't a program Screen Awareness actually has a pattern file
-    for, rather than silently accepting a proposal that could never be
-    approved later.
+    `program` isn't a safe program/topic slug. Any program or topic is
+    accepted (see KNOWN_PROGRAMS for the suggested names); its pattern file
+    is created on first approval.
     """
+    program = normalize_program(program)
     _pattern_file_for(program)
     proposal_id = f"proposal-{int(time.time())}-{uuid.uuid4().hex[:8]}"
     items = _load_pending()
@@ -93,6 +137,7 @@ def propose_change(program: str, observation: str, suggested_correction: Optiona
 def list_pending(program: Optional[str] = None) -> list[dict]:
     items = [p for p in _load_pending() if p.get("status") == "pending"]
     if program:
+        program = normalize_program(program)
         items = [p for p in items if p.get("program") == program]
     return items
 
@@ -115,7 +160,11 @@ def approve(proposal_id: str, reviewer_note: Optional[str] = None) -> dict:
         raise ValueError(f"Proposal {proposal_id!r} is already {match['status']!r}, not pending")
 
     pattern_file = _pattern_file_for(match["program"])
-    data = json.loads(pattern_file.read_text(encoding="utf-8"))
+    if pattern_file.exists():
+        data = json.loads(pattern_file.read_text(encoding="utf-8"))
+    else:
+        data = _new_pattern_file(normalize_program(match["program"]))
+        pattern_file.parent.mkdir(parents=True, exist_ok=True)
     new_id = f"{match['program']}-mistake-{uuid.uuid4().hex[:8]}"
     data["patterns"].append({
         "id": new_id,
@@ -161,3 +210,69 @@ def reject(proposal_id: str, reviewer_note: Optional[str] = None) -> None:
     match["rejectedAt"] = time.time()
     match["reviewerNote"] = reviewer_note
     _save_pending(items)
+
+
+# ── Approved lessons -> chat/voice answers ──────────────────────────────────
+# Approved patterns used to be read only by Screen Awareness's vision pass.
+# relevant_lessons() lets /enrich fold the ones that match a question into
+# every chat/voice turn, so an approved lesson actually changes what Mossy
+# says. Cheap keyword scoring over small local files -- no embeddings needed.
+
+_STOPWORDS = set("""
+the and for with that this from what when where which your you are was were how why can
+does into have has not but all any its it's use using should would could about there their
+them then than just like make made get got need needs want mod mods file files fallout
+""".split())
+
+
+def _words(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9_]{3,}", str(text or "").lower()) if w not in _STOPWORDS}
+
+
+def _program_terms(program: str) -> set:
+    terms = {program, program.replace("-", " "), program.replace("-", "")}
+    terms.update(alias for alias, target in _ALIASES.items() if target == program)
+    return {t for t in terms if t}
+
+
+def relevant_lessons(question: str, limit: int = 6, min_score: int = 2) -> list[dict]:
+    """
+    Approved lessons that plausibly apply to `question`, best first. Score:
+    +3 if the question names the lesson's program/topic (or an alias of it),
+    +1 per meaningful word shared with the lesson text. Only lessons scoring
+    at least `min_score` are returned, so an unrelated question pulls none.
+    """
+    q_lower = str(question or "").lower()
+    q_words = _words(q_lower)
+    if not q_words or not KNOWLEDGE_DIR.exists():
+        return []
+    scored = []
+    for pattern_file in KNOWLEDGE_DIR.glob("*_mistake_patterns.json"):
+        try:
+            data = json.loads(pattern_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        program = normalize_program((data.get("_meta") or {}).get("program")
+                                    or pattern_file.name.replace("_mistake_patterns.json", ""))
+        named = any(re.search(rf"\b{re.escape(t)}\b", q_lower) for t in _program_terms(program))
+        for pat in data.get("patterns", []):
+            text = f"{pat.get('whatToLookFor', '')} {pat.get('correction', '')}"
+            score = (3 if named else 0) + len(q_words & _words(text))
+            if score >= min_score:
+                scored.append((score, {"program": program, **pat}))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [p for _, p in scored[:limit]]
+
+
+def format_lessons(lessons: list[dict]) -> str:
+    if not lessons:
+        return ""
+    lines = [
+        f"- [{l['program']}] Watch for: {l.get('whatToLookFor', '').strip()} "
+        f"Correct approach: {str(l.get('correction', '')).strip()}"
+        for l in lessons
+    ]
+    return (
+        "\nLESSONS MOSSY HAS LEARNED (verified and approved in review -- when one applies, "
+        "follow it over general knowledge and say so):\n" + "\n".join(lines) + "\n"
+    )

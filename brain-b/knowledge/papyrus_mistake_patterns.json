@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for papyrus. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "papyrus",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "papyrus-mistake-a87d7380",
+      "whatToLookFor": "Tells the user to check for a vanilla script's .pex as a loose file in Data\\Scripts (e.g. Data\\Scripts\\WorkshopObjectScript.pex) and, if it's not there, to verify game files or reinstall Fallout 4.",
+      "correction": "Vanilla .pex files are packed inside the base game archive \"Fallout4 - Misc.ba2\", not loose in Data\\Scripts, so on a normal install they will never appear there and that is not a problem. Loose .pex files in Data\\Scripts come from mods. Only suggest verifying or reinstalling the game if the BA2 archive itself is missing or damaged; never tell the user a vanilla script is missing just because no loose copy exists.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790456712-ffe366a1",
+      "reviewerNote": null
+    }
+  ]
+}

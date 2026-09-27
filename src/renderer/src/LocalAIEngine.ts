@@ -468,9 +468,16 @@ interface EnrichmentResult {
  * no scene data to answer from. 6s keeps voice's worst case (6s enrich +
  * 90s cold generation = 96s) safely under the 120s watchdog while giving
  * the common case room to actually finish instead of racing it.
+ *
+ * Raised 6s -> 10s (2026-09-26): ai-diagnostics.log showed warm voice turns
+ * landing at 2-5s but a real share overshooting to just past 6s (6.04s,
+ * 6.05s, 6.12s) -- including the first question after a Brain B restart --
+ * and every one of those silently dropped Brain B's context, which now
+ * includes the approved ChangeGate lessons. 10s + 90s cold generation =
+ * 100s still sits under the 120s watchdog.
  */
 const ENRICH_TIMEOUT_MS_CHAT = 15_000;
-const ENRICH_TIMEOUT_MS_VOICE = 6_000;
+const ENRICH_TIMEOUT_MS_VOICE = 10_000;
 
 /**
  * One record per generateResponse() call — the "turn trace" the AI Pipeline
