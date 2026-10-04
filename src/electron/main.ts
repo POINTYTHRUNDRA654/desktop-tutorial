@@ -3689,7 +3689,7 @@ function setupIpcHandlers() {
     // AI provider (your configured API key)" confirm() dialog before EVERY
     // cloud call whenever the "Require Key Confirmation" privacy toggle was
     // on -- including the default zero-config path, where ai-chat-groq
-    // actually goes through the bundled Render backend (mossy.onrender.com)
+    // actually goes through a cloud backend (none exists in this edition)
     // using Mossy's own server-side key, not anything the user configured.
     // getBackendConfig() in this file falls back to that Render URL even
     // with no env var set, so it's non-null for virtually every install --
@@ -10923,7 +10923,7 @@ end.
             console.error('[AI Chat Groq] Backend connection failed and no local Groq API key fallback available');
             console.error('[AI Chat Groq] Backend URL:', backendConfig.baseUrl);
             console.error('[AI Chat Groq] Backend token present:', !!backendConfig.token);
-            return { success: false, error: 'Groq cloud chat unavailable: Backend connection failed. Please check: 1. Backend service is running (https://mossy.onrender.com/health). 2. Internet connection. 3. Backend token is correct in Settings.' };
+            return { success: false, error: 'Cloud chat is not available in this edition of Mossy. Use local AI (Ollama).' };
           }
         }
         const { default: Groq } = await import('groq-sdk');
