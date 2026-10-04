@@ -251,3 +251,8 @@ plugins/blender-mossy-link/
 
 # Never bundle or commit secrets (provider keys / shared tokens)
 .env.encrypted
+
+# Local desktop-only developer modules (Claude <-> Mossy MCP bridge). Never commit.
+localDev/
+src/electron/localDev/
+src/renderer/src/localDev/

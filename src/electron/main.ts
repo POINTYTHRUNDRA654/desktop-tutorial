@@ -35432,6 +35432,15 @@ app.whenReady().then(() => {
     });
   }
 
+  // Optional local-only developer module (gitignored, never in a GitHub
+  // checkout or a release build). When it isn't present this is a no-op.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('./localDev/mcpBridge').start({ getWindow: () => mainWindow });
+  } catch (e: any) {
+    if (e?.code !== 'MODULE_NOT_FOUND') console.error('[Main] localDev module failed to start:', e?.message || e);
+  }
+
   // ── Version Migration & Data Preservation ──────────────────────────────────
   // Check if app version has changed; if so, preserve user data (scan results,
   // projects, settings, etc.) across the update. Only onboarding flags are cleared
