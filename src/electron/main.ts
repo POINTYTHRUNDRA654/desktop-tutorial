@@ -139,76 +139,35 @@ app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 const findEnvFile = (candidates: string[]): string =>
   candidates.find(p => fs.existsSync(p)) ?? candidates[0];
 
+// Packaged builds load NO bundled env file: the installer ships no secrets of any
+// kind (no provider keys, no shared backend token). Users add their own keys in
+// Settings. Only a developer's local, gitignored .env files are read, and only
+// when running unpackaged.
 const envPath = app.isPackaged
-  ? findEnvFile([
-    path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
-    path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
-    path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
-    path.join(process.cwd(), '.env.encrypted'),               // last resort
-  ])
+  ? ''
   : findEnvFile([
     path.join(process.cwd(), '.env.local'),
     path.join(app.getAppPath(), '.env.local'),
-    path.join(process.cwd(), '.env.encrypted'),
-    path.join(app.getAppPath(), '.env.encrypted'),
     path.join(process.cwd(), '.env'),
     path.join(app.getAppPath(), '.env'),
   ]);
 
 console.log('[Main] Loading .env from:', envPath);
-console.log('[Main] File exists:', fs.existsSync(envPath));
+console.log('[Main] File exists:', envPath ? fs.existsSync(envPath) : false);
 console.log('[Main] Current working directory:', process.cwd());
 console.log('[Main] __dirname:', __dirname);
 console.log('[Main] app.getAppPath():', app.getAppPath());
 console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execPath));
 // Suppress dotenv's own startup logs (keeps dev console readable).
 // dotenv@17 supports { quiet: true }.
-const result = dotenv.config({ path: envPath, quiet: true });
+const result = envPath ? dotenv.config({ path: envPath, quiet: true }) : { parsed: {} };
 console.log('[Main] dotenv result:', result);
 
-const decryptEnvVar = (key: string) => {
-  const value = process.env[key];
-  if (!value || !value.startsWith('enc:')) return;
 
-  try {
-    const encrypted = value.slice('enc:'.length);
-    const parts = encrypted.split(':');
-    if (parts.length === 2) {
-      const iv = Buffer.from(parts[0], 'hex');
-      const encryptedText = parts[1];
-      const cryptoKey = crypto.scryptSync('mossy-2026-packaging-key-change-in-production', 'salt', 32);
-      const decipher = crypto.createDecipheriv('aes-256-cbc', cryptoKey, iv);
-      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      process.env[key] = decrypted;
-      console.log(`[Main] ✓ Decrypted ${key}`);
-    }
-  } catch (e) {
-    console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
-  }
-};
+// Nexus release: Mossy is self-contained. There is no default cloud backend, no
+// API key of any kind, and nothing is contacted unless the user runs a local
+// service themselves (Ollama, Whisper, etc.).
 
-// Decrypt encrypted secrets whenever they are present, regardless of build mode.
-decryptEnvVar('OPENAI_API_KEY');
-decryptEnvVar('GROQ_API_KEY');
-decryptEnvVar('DEEPGRAM_API_KEY');
-decryptEnvVar('MOSSY_BACKEND_TOKEN');
-decryptEnvVar('MOSSY_BRIDGE_TOKEN');
-
-if (!process.env.MOSSY_BACKEND_URL) {
-  process.env.MOSSY_BACKEND_URL = 'https://mossy.onrender.com';
-  console.log('[Main] ℹ️  Setting default MOSSY_BACKEND_URL');
-}
-
-if (app.isPackaged) {
-  console.log('[Main] Packaged build detected - checking for encrypted env vars...');
-  // Log which keys are loaded (for debugging)
-  if (process.env.MOSSY_BACKEND_TOKEN) {
-    console.log('[Main] ✓ MOSSY_BACKEND_TOKEN loaded from environment (length:', process.env.MOSSY_BACKEND_TOKEN.length, ')');
-  } else {
-    console.warn('[Main] ⚠️  MOSSY_BACKEND_TOKEN is not set in environment');
-  }
-};
 
 /**
  * Send diagnostics to renderer process
@@ -217,8 +176,7 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
   if (!webContents) return;
   
   const diagnostics = {
-    backendTokenLoaded: !!process.env.MOSSY_BACKEND_TOKEN,
-    backendTokenLength: process.env.MOSSY_BACKEND_TOKEN ? process.env.MOSSY_BACKEND_TOKEN.length : 0,
+    backendTokenLoaded: !!getSecretValue(loadSettings(), 'backendToken'),
     backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
   }
 // --- Persistent Whisper transcription IPC handler ---
@@ -471,36 +429,13 @@ let pendingFreshInstall = false;
 type BackendConfig = { baseUrl: string; token?: string };
 
 const getBackendConfig = (): BackendConfig | null => {
-  const rawUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
-  if (!rawUrl) return null;
-  const baseUrl = rawUrl.replace(/\/+$/, '');
-  const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-  return { baseUrl, token: tokenRaw || undefined };
+  // Nexus release: no cloud backend is configured, ever.
+  return null;
 };
 
 const backendJoin = (cfg: BackendConfig, pathname: string): string => {
   const p = String(pathname || '').startsWith('/') ? String(pathname) : `/${pathname}`;
   return `${cfg.baseUrl}${p}`;
-};
-
-const pingBackendHealth = async (cfg: BackendConfig): Promise<void> => {
-  try {
-    const healthUrl = backendJoin(cfg, '/health');
-    console.log('[Main] Pinging backend health:', healthUrl);
-    const response = await fetch(healthUrl, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-    if (response.ok) {
-      const data = await response.json();
-      console.log('[Main] Backend health check successful:', data);
-    } else {
-      console.warn('[Main] Backend health check failed with status:', response.status);
-    }
-  } catch (error) {
-    console.warn('[Main] Backend health check error:', error instanceof Error ? error.message : error);
-  }
 };
 
 const postFormData = async (
@@ -1688,25 +1623,9 @@ const decryptSecretFromStorage = (stored: any): string => {
 
   const encrypted = raw.slice('enc:'.length);
 
-  // Try packaged encryption format first (iv:encrypted)
-  if (encrypted.includes(':')) {
-    try {
-      const crypto = require('crypto');
-      const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
-      const parts = encrypted.split(':');
-      if (parts.length === 2) {
-        const iv = Buffer.from(parts[0], 'hex');
-        const encryptedText = parts[1];
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-      }
-    } catch (e) {
-      console.warn('[Settings] packaged decryption failed, trying safeStorage:', e);
-    }
-  }
+  // Only the OS-keychain (safeStorage) format is supported. The old "packaged"
+  // iv:ciphertext format used a key hard-coded in the app and is no longer read.
+  if (encrypted.includes(':')) return '';
 
   // Fall back to safeStorage format (base64 only)
   const b64 = encrypted;
@@ -1767,25 +1686,9 @@ const seedSecretFromEnv = (settings: any, field: SecretField, envName: string): 
   return true;
 };
 
-const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
-  const encKey = secretEncKey(field);
-  const fromEnc = decryptSecretFromStorage(settings?.[encKey]);
-  if (fromEnc) return fromEnc;
-
-  const fromPlain = String(settings?.[field] || '').trim();
-  if (fromPlain) return fromPlain;
-
-  // Check environment variables (now potentially encrypted)
-  if (envName) {
-    const envValue = String((process.env as any)?.[envName] || '').trim();
-    if (envValue) {
-      // If it starts with enc:, decrypt it
-      if (envValue.startsWith('enc:')) {
-        return decryptSecretFromStorage(envValue);
-      }
-      return envValue;
-    }
-  }
+const getSecretValue = (_settings: any, _field: SecretField, _envName?: string): string => {
+  // Nexus release: Mossy uses no API keys or tokens. Stored or environment values
+  // are never read, so nothing can be sent anywhere.
   return '';
 };
 
@@ -1821,26 +1724,22 @@ const loadSettings = (): any => {
         delete (next as any).deepgramApiKeyEnc;
         cleaned = true;
       }
-      
-      // CRITICAL: Always refresh backend token from process.env (packaged .env.encrypted)
-      // to avoid stale placeholder tokens in settings DB
-      const backendTokenFromEnv = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-      let forcedBackendTokenUpdate = false;
-      if (backendTokenFromEnv) {
-        const encKey = secretEncKey('backendToken');
-        const currentStored = String(next?.[encKey] || next?.backendToken || '').trim();
-        if (!currentStored || currentStored !== backendTokenFromEnv) {
-          // Update stored token to match environment token
-          next[encKey] = backendTokenFromEnv.startsWith('enc:') 
-            ? backendTokenFromEnv 
-            : encryptSecretForStorage(backendTokenFromEnv);
-          next.backendToken = '';
-          forcedBackendTokenUpdate = true;
-          console.log('[Settings] Refreshed backend token from process.env');
-        }
-      }
 
-      const backendBaseUrlFromEnv = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
+      // One-time purge: earlier builds force-wrote the bundled shared backend token
+      // into every install's settings. Mossy no longer ships or uses a shared
+      // token, so clear it once in packaged builds only (a developer's own unpackaged
+      // setup is left exactly as it is); a user-entered token set afterwards is kept.
+      if (app.isPackaged && !(next as any).sharedBackendTokenPurged) {
+        if (next.backendToken || next[secretEncKey('backendToken')]) {
+          next.backendToken = '';
+          next[secretEncKey('backendToken')] = '';
+        }
+        (next as any).sharedBackendTokenPurged = true;
+        cleaned = true;
+      }
+      
+
+      const backendBaseUrlFromEnv = '';
       let forcedBackendUrlUpdate = false;
       if (backendBaseUrlFromEnv) {
         const currentBackendBaseUrl = String(next?.backendBaseUrl || '').trim();
@@ -1899,7 +1798,7 @@ const loadSettings = (): any => {
         }
       }
 
-      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate || protectedCreatorsSeeded) {
+      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendUrlUpdate || protectedCreatorsSeeded) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
           if (migrated) {
@@ -1941,9 +1840,7 @@ const loadSettings = (): any => {
     }
   }
   // Return comprehensive default settings with all tool paths
-  const defaultBackendBaseUrl = String(
-    process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'
-  ).trim();
+  const defaultBackendBaseUrl = '';
 
   const defaults: Record<string, unknown> = {
     // UI + Voice language
@@ -2071,10 +1968,9 @@ const loadSettings = (): any => {
     anythingllmEnabled: false,
   };
 
-  // Seed API keys from .env.encrypted into settings.json on first launch so that
-  // the app works out of the box without any user configuration.
+  // Seed keys from a developer's own local environment (unpackaged runs only);
+  // packaged builds contain no keys, so this is a no-op for end users.
   const seeded =
-    seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
     seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
     seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
     seedSecretFromEnv(defaults, 'githubToken', 'GITHUB_TOKEN') ||
@@ -2670,12 +2566,9 @@ function setupIpcHandlers() {
   // ============================================================================
 
   safeHandle('app:get-diagnostics', async () => {
-    const token = process.env.MOSSY_BACKEND_TOKEN;
     const diagnostics = {
       backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
-      backendTokenLoaded: !!token,
-      backendTokenLength: token ? token.length : 0,
-      backendTokenPreview: token ? token.substring(0, 30) + '...' : 'not set',
+      backendTokenLoaded: !!getSecretValue(loadSettings(), 'backendToken'),
       nodeEnv: process.env.NODE_ENV,
       electronVersion: process.version,
       timestamp: new Date().toISOString(),
@@ -2872,14 +2765,14 @@ function setupIpcHandlers() {
 
       // If a backend proxy is configured, try it. Backend-only architecture - no fallbacks.
       const backendBaseUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || '').trim();
-      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
+      const backendToken = getSecretValue(s, 'backendToken');
       const backend = backendBaseUrl
         ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
         : null;
       const backendConfigured = Boolean(backend?.baseUrl);
       const backendTokenConfigured = Boolean(backendToken);
       if (!backend) {
-        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
+        return { success: false, error: 'Backend service not configured. Add your own backend URL and token in Settings, or use a local transcription provider.' };
       }
 
       try {
@@ -2940,7 +2833,7 @@ function setupIpcHandlers() {
         if (resp.status === 401 || resp.status === 403) {
           return {
             success: false,
-            error: `Backend token rejected (HTTP ${resp.status} at ${backend.baseUrl}/v1/transcribe). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`,
+            error: `Backend token rejected (HTTP ${resp.status} at ${backend.baseUrl}/v1/transcribe). Check the backend token you entered in Settings.`,
           };
         }
         if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
@@ -3066,7 +2959,6 @@ function setupIpcHandlers() {
       console.error('🎤 [TRANSCRIBE-AUDIO] backendConfigured:', backendConfigured);
       console.error('🎤 [TRANSCRIBE-AUDIO] hasLocalProviders:', hasLocalProviders);
       console.error('🎤 [TRANSCRIBE-AUDIO] process.env.MOSSY_BACKEND_URL:', process.env.MOSSY_BACKEND_URL);
-      console.error('🎤 [TRANSCRIBE-AUDIO] process.env.MOSSY_BACKEND_TOKEN exists:', !!process.env.MOSSY_BACKEND_TOKEN, 'length:', process.env.MOSSY_BACKEND_TOKEN?.length || 0);
 
       const buf = Buffer.from(arrayBuffer);
       const mt = String(mimeType || '').toLowerCase();
@@ -3122,9 +3014,8 @@ function setupIpcHandlers() {
       // ── 2. Backend proxy ─────────────────────────────────────────────────────
       // If a backend proxy is configured, try it next. This enables "works on
       // download" flows (server holds provider keys; client holds none).
-      // NOTE: Always use process.env.MOSSY_BACKEND_TOKEN (from .env.encrypted) directly,
-      // NOT from settings storage, to avoid stale placeholder tokens in the DB.
-      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
+      // Only a token the user entered in Settings is used; none ships with the app.
+      const backendToken = getSecretValue(loadSettings(), 'backendToken');
       const backend = backendBaseUrl
         ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
         : null;
@@ -3138,25 +3029,14 @@ function setupIpcHandlers() {
           };
 
           logToRenderer('[Transcription] Backend base URL: ' + backend.baseUrl);
-          logToRenderer('[Transcription] Backend token available: ' + (backend.token ? `true (length: ${backend.token.length})` : 'false (empty)'));
-          if (backend.token) {
-            const tokenPreview = backend.token.substring(0, 20);
-            logToRenderer('[Transcription] Token preview (first 20 chars): ' + tokenPreview);
-            const tokenEnd = backend.token.substring(Math.max(0, backend.token.length - 10));
-            logToRenderer('[Transcription] Token end (last 10 chars): ' + tokenEnd);
-            logToRenderer('[Transcription] Full token length: ' + backend.token.length);
-            logToRenderer('[Transcription] Full token (PRIVATE): ' + backend.token);
-          }
+          logToRenderer('[Transcription] Backend token available: ' + (backend.token ? 'true' : 'false'));
 
           const extraHeaders: Record<string, string> = {};
           if (backend.token) {
             extraHeaders.Authorization = `Bearer ${backend.token}`;
-            logToRenderer('[Transcription] ✓ Authorization header set with Bearer token');
-            logToRenderer('[Transcription] Header value starts with: Bearer ' + backend.token.substring(0, 15) + ' ...');
-            logToRenderer('[Transcription] Full auth header: ' + extraHeaders.Authorization);
+            logToRenderer('[Transcription] Authorization header set');
           } else {
-            logToRenderer('[Transcription] ⚠️  Backend token is MISSING or EMPTY!');
-            logToRenderer('[Transcription] Checking environment: MOSSY_BACKEND_TOKEN = ' + (process.env.MOSSY_BACKEND_TOKEN ? 'exists' : 'NOT SET'));
+            logToRenderer('[Transcription] No backend token configured');
           }
 
           const tryBackendTranscribe = async (fieldName: 'audio' | 'file') => {
@@ -3207,8 +3087,7 @@ function setupIpcHandlers() {
               error: msg,
               debug: {
                 backendUrl: backend?.baseUrl,
-                backendTokenLength: backend?.token?.length || 0,
-                backendTokenPreview: backend?.token?.substring(0, 10) + '...',
+                backendTokenConfigured: Boolean(backend?.token),
                 responseStatus: resp.status,
                 responseHeaders: resp.json,
                 responseText: resp.text?.substring(0, 200),
@@ -3802,8 +3681,8 @@ function setupIpcHandlers() {
         lastSyncAt: push.ok ? Date.now() : syncState?.lastSyncAt,
       });
     }
-    const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
-    const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+    const backendBaseUrl = '';
+    const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken'));
     const githubTokenConfigured = Boolean(getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN'));
     // Added 2026-08-26 (API-key-confirmation-dialog fix): the AI Chat cloud
     // path (LocalAIEngine.ts) used to show a "Mossy is about to use a cloud
@@ -4069,12 +3948,8 @@ function setupIpcHandlers() {
   // This shadows the file-scope helper so IPC handlers (defined in this function scope)
   // can use per-user settings without exposing secrets to the renderer.
   const getBackendConfig = (): BackendConfig | null => {
-    const s = loadSettings();
-    const rawUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || 'https://mossy.onrender.com').trim();
-    if (!rawUrl) return null;
-    const baseUrl = rawUrl.replace(/\/+$/, '');
-    const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-    return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
+    // Nexus release: no cloud backend is configured, ever.
+    return null;
   };
 
 
@@ -10690,7 +10565,7 @@ end.
             const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
             console.warn('[AI Chat OpenAI] Backend proxy failed:', msg);
             if (res.status === 401 || res.status === 403) {
-              backendError = `Backend token rejected (HTTP ${res.status} at ${backendChatUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
+              backendError = `Backend token rejected (HTTP ${res.status} at ${backendChatUrl}). Check the backend token you entered in Settings.`;
             } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
               backendError = 'Render backend OpenAI key is invalid or missing (server-side OPENAI_API_KEY). This is not your Mossy backend token.';
             } else {
@@ -11006,7 +10881,7 @@ end.
             console.warn('[AI Chat Groq] ❌ Backend proxy failed:', msg);
             console.warn('[AI Chat Groq] Response body:', JSON.stringify(json).substring(0, 200));
             if (res.status === 401 || res.status === 403) {
-              backendError = `Backend token rejected (HTTP ${res.status} at ${backendUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
+              backendError = `Backend token rejected (HTTP ${res.status} at ${backendUrl}). Check the backend token you entered in Settings.`;
             } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
               backendError = 'Render backend provider key is invalid or missing (server-side GROQ_API_KEY/OPENAI_API_KEY). This is not your Mossy backend token.';
             } else {
@@ -11127,7 +11002,7 @@ end.
       const s = loadSettings();
       const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
       const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
-      const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
+      const backendToken = Boolean(getSecretValue(s, 'backendToken'));
       console.log('[Main] secret-status: openai=%s, groq=%s, backendToken=%s', openai, groq, backendToken);
       return { ok: true, openai, groq, backendToken };
     } catch (e: any) {
@@ -13760,71 +13635,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Mod Browser IPC handlers (renderer -> main)
-  // Gate for the legacy Nexus personal-API-key auth path (modBrowser.ts's
-  // authenticateNexus()/apiRequest(), the "apikey:" header scheme). Nexus's
-  // own API Acceptable Use Policy (help.nexusmods.com/article/114) disallows
-  // shipping a public-facing app that uses a user's personal API key rather
-  // than a registered SSO/OAuth flow -- this is what nexusAuth.ts's OAuth+PKCE
-  // implementation exists to replace, but that can't go live until Nexus
-  // issues Mossy a client_id (see NEXUS_OAUTH_SETUP.md). Until then, the
-  // personal-API-key path is fully removed -- not just disabled -- from the
-  // build channel used for Nexus-bound release packages
-  // (`npm run package:win:*:nexus-release`, which sets
-  // mossyReleaseChannel=nexus-release via electron-builder's extraMetadata
-  // AND runs scripts/strip-nexus-legacy-auth.mjs to delete the compiled
-  // dist-electron/mining/modBrowser.js before packaging, so the file itself
-  // never reaches the shipped asar) while staying fully available in every
-  // normal dev/desktop run, where mossyReleaseChannel reads 'dev' straight
-  // from package.json and modBrowser.ts compiles and ships normally.
-  // Reads the app's OWN package.json (via getAppPath()) rather than a
-  // hardcoded constant so a packaged release genuinely carries whatever
-  // electron-builder baked in, not just what the source tree says.
-  const isNexusReleaseBuild = (() => {
-    let cached: boolean | null = null;
-    return () => {
-      if (cached !== null) return cached;
-      try {
-        const pkg = require(path.join(app.getAppPath(), 'package.json'));
-        cached = pkg?.mossyReleaseChannel === 'nexus-release';
-      } catch {
-        cached = false;
-      }
-      return cached;
-    };
-  })();
-  // In the nexus-release channel the compiled modBrowser.js file has been
-  // deleted from the package before this ever runs (see comment above), so
-  // requiring it here would throw "Cannot find module" and crash startup --
-  // this is intentionally never reached in that channel. modBrowserEngine
-  // instead becomes a Proxy whose every property access returns a function
-  // that throws a clear error; every mod-browser:* handler below already
-  // wraps its call in try/catch and returns { success:false, error }, so
-  // this makes ALL of them (not just authenticate-nexus) fail cleanly with
-  // one honest message instead of needing each handler edited individually.
-  const modBrowserEngine: any = isNexusReleaseBuild()
-    ? new Proxy({}, {
-        get: () => () => {
-          throw new Error('Nexus Mod Browser is not available in this build (personal API key auth was removed for the Nexus release channel).');
-        }
-      })
-    : require('../mining/modBrowser').modBrowser;
-  // Restore a previously-validated Nexus API key on startup. authenticateNexus()
-  // persists the token to settings.json but the engine's in-memory key was never
-  // read back from it -- meaning every restart quietly lost Nexus auth, and every
-  // mod-browser/trending call (including the ones that feed Mossy's own knowledge
-  // vault from "what's new" queries) failed with "Authenticate first" until the
-  // user manually re-entered their key. Same forked-state/silent-degradation shape
-  // as other recurring bugs in this codebase -- fixed at the source instead of
-  // patched per-symptom.
-  if (isNexusReleaseBuild()) {
-    console.log('[ModBrowser] Nexus-release build channel -- personal Nexus API key auth disabled, not restoring any persisted token');
-  } else {
-    const persistedNexusToken = String(loadSettings()?.nexusAuthToken || '').trim();
-    if (persistedNexusToken) {
-      modBrowserEngine.restoreNexusAuth(persistedNexusToken);
-      console.log('[ModBrowser] Restored persisted Nexus API key from settings');
-    }
-  }
+  // Nexus access is OAuth-only (see nexusAuth.ts). Mossy does not accept, store
+  // or send a personal Nexus API key. The engine asks nexusAuthService for the
+  // signed-in user's access token on each request; until the app is registered
+  // with Nexus and the user signs in, Mod Browser calls return a clear
+  // "sign in" error instead of making unauthenticated requests.
+  const modBrowserEngine: any = require('../mining/modBrowser').modBrowser;
+  modBrowserEngine.setAccessTokenProvider(() => nexusAuthService.getAccessToken());
 
   registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
     const startTime = Date.now();
@@ -13937,45 +13754,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         duration: Date.now() - startTime,
         error: errMsg,
         details: { modId, rating }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
-    const startTime = Date.now();
-    if (isNexusReleaseBuild()) {
-      // Personal Nexus API key auth is disabled in the nexus-release channel
-      // -- see the isNexusReleaseBuild() comment above for why. Fails loudly
-      // and honestly rather than silently no-op'ing.
-      return { success: false, error: 'Nexus API key sign-in is not available in this build. Sign in with your Nexus account instead (Settings).' };
-    }
-    try {
-      const result = await modBrowserEngine.authenticateNexus(apiKey);
-      if (result?.success) {
-        const currentSettings = loadSettings();
-        currentSettings.nexusAuthToken = result.token;
-        saveSettings(currentSettings);
-      }
-      auditLogger.log({
-        operation: 'mod-browser-authentication',
-        tool: 'mod-browser',
-        action: 'authenticate-nexus',
-        status: result?.success ? 'success' : 'error',
-        duration: Date.now() - startTime,
-        result: { success: result?.success, provider: result?.provider }
-      });
-      return result;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:authenticate-nexus error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-authentication',
-        tool: 'mod-browser',
-        action: 'authenticate-nexus',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
       });
       return { success: false, error: errMsg };
     }
@@ -38132,7 +37910,7 @@ app.whenReady().then(() => {
             const ollamaBase  = String(cfg?.ollamaBaseUrl || 'http://127.0.0.1:11434');
             const ollamaModel = String(cfg?.ollamaModel   || 'gemma2:9b');
             const backendToken = getSecretValue(cfg, 'backendToken');
-            const backendUrl  = String(cfg?.backendBaseUrl || 'https://mossy.onrender.com');
+            const backendUrl  = '';
 
             let dialogue = '';
 
@@ -38513,12 +38291,6 @@ app.whenReady().then(() => {
   // button could opt back in without touching main-process code again.
   if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
-  }
-
-  // Ping backend health to wake up sleeping service (e.g., Render free tier)
-  const backendCfg = getBackendConfig();
-  if (backendCfg) {
-    pingBackendHealth(backendCfg).catch(err => console.error('[Main] Backend ping failed:', err));
   }
 
   // Try to create desktop shortcut on first run

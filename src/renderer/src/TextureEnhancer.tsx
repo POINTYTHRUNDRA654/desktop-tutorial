@@ -1108,21 +1108,9 @@ export default function TextureEnhancer() {
               {/* AI Detail Synthesis — runs first, generates new fine surface detail via
                   ComfyUI before every classical stage below derives from the result. */}
               <div className="bg-slate-800 border border-purple-700/50 rounded-lg p-3 space-y-2">
-                <StageHeader icon={<Zap size={12} />} title="AI Detail Synthesis" subtitle="Generates new fine detail via ComfyUI or Gemini (not classical sharpening)"
+                <StageHeader icon={<Zap size={12} />} title="AI Detail Synthesis" subtitle="Generates new fine detail via local ComfyUI (not classical sharpening)"
                   enabled={pipeline.aiDetail.enabled} expanded={expandedStages.has('aiDetail')}
                   onToggleEnabled={() => toggleStageEnabled('aiDetail')} onToggleExpanded={() => toggleStageExpand('aiDetail')} />
-                {pipeline.aiDetail.enabled && (
-                  <div className="flex gap-1 px-0.5">
-                    <button onClick={() => updateStage('aiDetail', { backend: 'comfyui' })}
-                      className={`flex-1 text-xs py-1 rounded transition-colors ${pipeline.aiDetail.backend !== 'gemini' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
-                      ComfyUI (local)
-                    </button>
-                    <button onClick={() => updateStage('aiDetail', { backend: 'gemini' })}
-                      className={`flex-1 text-xs py-1 rounded transition-colors ${pipeline.aiDetail.backend === 'gemini' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>
-                      Gemini / Nano Banana (cloud)
-                    </button>
-                  </div>
-                )}
                 {pipeline.aiDetail.enabled && pipeline.aiDetail.backend !== 'gemini' && comfyStatus === 'offline' && (
                   <p className="text-xs text-red-300/80">ComfyUI not running at 127.0.0.1:8188 — start it in AI Image Studio or External Integrations Hub first.</p>
                 )}
@@ -1143,51 +1131,6 @@ export default function TextureEnhancer() {
                         </p>
                       </>
                     )}
-                  </div>
-                )}
-                {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && pipeline.aiDetail.backend === 'gemini' && (
-                  <div className="pt-2 space-y-2 border-t border-slate-700">
-                    <p className="text-xs text-slate-500">
-                      Calls Google's Gemini image models directly ("Nano Banana") for cloud-quality editing —
-                      the closest local match to results from Krea/AI Studio. Costs API usage per image; see{' '}
-                      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-purple-400 underline">Google AI Studio</a> for a key and current pricing.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-400 w-36">Model</span>
-                      <select value={pipeline.aiDetail.geminiModel} onChange={e => updateStage('aiDetail', { geminiModel: e.target.value })}
-                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500">
-                        {GEMINI_IMAGE_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                      </select>
-                    </div>
-                    {geminiKeyConfigured ? (
-                      <p className="text-xs text-green-400/80">Gemini API key configured.</p>
-                    ) : (
-                      <div className="space-y-1">
-                        <span className="text-xs text-amber-300/90">No Gemini API key configured yet — required for this backend.</span>
-                        <div className="flex gap-1.5">
-                          <input type="password" value={geminiKeyInput} onChange={e => setGeminiKeyInput(e.target.value)}
-                            placeholder="Paste your Gemini API key"
-                            className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500" />
-                          <button onClick={saveGeminiApiKey} disabled={!geminiKeyInput.trim() || geminiKeySaving}
-                            className="px-2 py-1 rounded text-xs bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50">
-                            {geminiKeySaving ? 'Saving…' : 'Save'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs text-slate-600 -mt-0.5">
-                      Output is force-resized back to the source's exact resolution afterward so it still maps onto the existing UVs — Gemini itself doesn't guarantee matching dimensions.
-                    </p>
-                    <div className="space-y-1">
-                      <span className="text-xs text-slate-400">Prompt (locked workflow goes here)</span>
-                      <textarea
-                        value={pipeline.aiDetail.promptOverride}
-                        onChange={e => updateStage('aiDetail', { promptOverride: e.target.value })}
-                        placeholder={`Leave empty to auto-build from the Material Surface (${SURFACE_PRESETS[surface].label})`}
-                        rows={5}
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-200 outline-none focus:border-green-500 resize-none"
-                      />
-                    </div>
                   </div>
                 )}
                 {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && pipeline.aiDetail.backend !== 'gemini' && (

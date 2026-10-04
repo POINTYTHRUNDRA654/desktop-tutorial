@@ -693,13 +693,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
               placeholder="branch"
               className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
             />
-            <input
-              type="password"
-              value={settings.githubToken || ''}
-              onChange={(e) => saveSettings({ githubToken: e.target.value })}
-              placeholder="GitHub token (repo content write)"
-              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100"
-            />
             <div className="text-xs text-slate-400">
               Last sync: {listSyncStatus.lastSyncAt ? new Date(listSyncStatus.lastSyncAt).toLocaleString() : 'never'}{listSyncStatus.pendingPush ? ' • pending retry' : ''}
               {listSyncStatus.lastError ? ` • Error: ${listSyncStatus.lastError}` : ''}

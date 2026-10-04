@@ -35,7 +35,6 @@ Section "!Mossy Core Application" SEC_CORE
     ; Copy all Electron app files
     File /r "dist\*.*"
     File /r "dist-electron\*.*"
-    File ".env.encrypted"
     File "nemotron_api.py"
     File "nemotron_service.py"
     File "requirements-docker.txt"

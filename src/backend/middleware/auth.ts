@@ -22,9 +22,9 @@ function extractBearerToken(req: Request): string {
  * a *wrong* token while silently letting an absent token through — meaning
  * anyone who found the public URL could call /v1/chat and /v1/transcribe
  * with no token at all and consume the operator's own Groq/OpenAI quota and
- * billing. The Electron client always sends MOSSY_BACKEND_TOKEN (decrypted
- * from the packaged .env.encrypted at startup) once it's set server-side, so
- * enforcing it here does not break the legitimate desktop client.
+ * billing. The desktop client ships no shared token: it only sends a
+ * token the user entered themselves in Settings. Operators set MOSSY_API_TOKEN
+ * here and hand out tokens to the users they trust.
  */
 export function requireApiToken(req: Request, res: Response, next: NextFunction) {
   const expected = String(process.env.MOSSY_API_TOKEN || '').trim();

@@ -2577,7 +2577,7 @@ const electronAPI = {
 
       // IPC handler is not registered – call the Render backend directly.
       // The preload runs in Node context so process.env is available.
-      const backendUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').replace(/\/+$/, '');
+      const backendUrl = ''; // Nexus release: no cloud backend
 
       if (!backendUrl) {
         console.warn('[Preload] aiChatGroq: no backend URL configured');
@@ -3612,8 +3612,6 @@ const electronAPI = {
       ipcRenderer.invoke('mod-browser:download', modId, destination),
     rateMod: (modId: string, rating: number, review: string): Promise<void> =>
       ipcRenderer.invoke('mod-browser:rate', modId, rating, review),
-    authenticateNexus: (apiKey: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:authenticate-nexus', apiKey),
     getModReviews: (modId: string): Promise<any[]> =>
       ipcRenderer.invoke('mod-browser:get-reviews', modId),
     createCollection: (name: string, items: any[], description?: string): Promise<any> =>
@@ -4377,7 +4375,7 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 ipcRenderer.on('main:diagnostics', (_event, diagnostics) => {
   console.log('[Main Process Diagnostics]', diagnostics);
   if (diagnostics.backendTokenLoaded) {
-    console.log('[✓] Backend token loaded (length:', diagnostics.backendTokenLength, ')');
+    console.log('[✓] Backend token configured');
   } else {
     console.warn('[✗] Backend token NOT loaded');
   }

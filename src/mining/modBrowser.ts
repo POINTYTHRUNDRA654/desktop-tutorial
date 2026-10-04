@@ -1,4 +1,4 @@
-import type { ModListing, ModDetails, SearchFilters, DownloadResult, Review, Collection, CollectionItem, AuthResult, ModFile } from '../shared/types';
+import type { ModListing, ModDetails, SearchFilters, DownloadResult, Review, Collection, CollectionItem, ModFile } from '../shared/types';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
@@ -40,7 +40,7 @@ interface NexusModFileResponse {
 
 /**
  * ModBrowserEngine - Real Nexus Mods API Integration
- * - Requires explicit Nexus API authentication
+ * - Requires a signed-in Nexus account (OAuth access token); no personal API key is accepted or stored
  * - Reads live mod metadata from Nexus
  * - Performs real file downloads for selected mods
  */
@@ -50,7 +50,7 @@ export class ModBrowserEngine {
   private reviews: Record<string, Review[]> = {};
   private collections: Record<string, Collection> = {};
   private tracked: Set<string> = new Set();
-  private nexusApiKey: string | null = null;
+  private accessTokenProvider: (() => Promise<string | null>) | null = null;
   private apiCache: Map<string, { data: any; timestamp: number }> = new Map();
   private cacheExpiry = 1000 * 60 * 5;
   private apiBaseUrl = 'api.nexusmods.com';
@@ -89,28 +89,23 @@ export class ModBrowserEngine {
     }
   }
 
-  private ensureAuthenticated() {
-    if (!this.nexusApiKey) {
-      throw new Error('Nexus Mods API key is required. Authenticate first.');
-    }
+  /** Supplies the signed-in user's OAuth access token (set once by main.ts). */
+  setAccessTokenProvider(provider: () => Promise<string | null>): void {
+    this.accessTokenProvider = provider;
+    this.apiCache.clear();
   }
 
-  /**
-   * Restore a previously-validated Nexus API key (e.g. settings.nexusAuthToken)
-   * into this in-memory engine without a network round-trip. authenticateNexus()
-   * only ever set this.nexusApiKey for the lifetime of the running process — on
-   * every app restart it went back to null even though a valid token was sitting
-   * in settings.json the whole time, so every mod-browser/trending call silently
-   * failed with "Authenticate first" until the user re-entered their API key by
-   * hand. Call this once at startup (main.ts) with the persisted token, if any.
-   * Does not itself validate the key against Nexus — a bad/revoked token will
-   * simply surface as a real 401 on the next actual API call, same as before.
-   */
-  restoreNexusAuth(apiKey: string): void {
-    const trimmed = (apiKey || '').trim();
-    if (!trimmed) return;
-    this.nexusApiKey = trimmed;
-    this.apiCache.clear();
+  private async ensureAuthenticated(): Promise<string> {
+    let token: string | null = null;
+    try {
+      token = this.accessTokenProvider ? await this.accessTokenProvider() : null;
+    } catch {
+      token = null;
+    }
+    if (!token) {
+      throw new Error('Sign in with your Nexus account to use the Mod Browser.');
+    }
+    return token;
   }
 
   private extractNexusModId(modId: string): number {
@@ -127,9 +122,9 @@ export class ModBrowserEngine {
   }
 
   private async apiRequest<T>(endpoint: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
-    this.ensureAuthenticated();
+    const accessToken = await this.ensureAuthenticated();
 
-    const cacheKey = `${this.nexusApiKey}:${method}:${endpoint}`;
+    const cacheKey = `${method}:${endpoint}`;
     if (method === 'GET') {
       const cached = this.apiCache.get(cacheKey);
       if (cached && now() - cached.timestamp < this.cacheExpiry) {
@@ -149,7 +144,7 @@ export class ModBrowserEngine {
           method,
           timeout: 10000,
           headers: {
-            apikey: this.nexusApiKey as string,
+            authorization: `Bearer ${accessToken}`,
             accept: 'application/json',
             // Nexus Mods AUP requires registered apps to identify themselves via these two
             // headers on every request (see https://help.nexusmods.com/article/114-api-acceptable-use-policy).
@@ -218,7 +213,7 @@ export class ModBrowserEngine {
   }
 
   async searchMods(query: string, filters: SearchFilters = { game: 'fallout4', sortBy: 'trending', nsfw: false }): Promise<ModListing[]> {
-    this.ensureAuthenticated();
+    await this.ensureAuthenticated();
 
     const game = filters.game === 'skyrim' ? 'skyrimspecialedition' : 'fallout4';
     const sortMap: Record<string, string> = {
@@ -254,7 +249,7 @@ export class ModBrowserEngine {
   }
 
   async getModDetails(modId: string): Promise<ModDetails> {
-    this.ensureAuthenticated();
+    await this.ensureAuthenticated();
 
     if (this.details[modId]) {
       return cloneDeep(this.details[modId]);
@@ -300,7 +295,7 @@ export class ModBrowserEngine {
   }
 
   private async getDownloadLink(modId: string, fileId: string): Promise<string> {
-    this.ensureAuthenticated();
+    await this.ensureAuthenticated();
 
     const game = 'fallout4';
     const nexusModId = this.extractNexusModId(modId);
@@ -322,7 +317,7 @@ export class ModBrowserEngine {
   }
 
   async downloadMod(modId: string, destination: string): Promise<DownloadResult> {
-    this.ensureAuthenticated();
+    await this.ensureAuthenticated();
 
     const startedAt = now();
     const details = await this.getModDetails(modId);
@@ -447,38 +442,8 @@ export class ModBrowserEngine {
     return { success: true, exportPath };
   }
 
-  async authenticateNexus(apiKey: string): Promise<AuthResult> {
-    if (!apiKey || !apiKey.trim()) {
-      return { success: false, error: 'Invalid API key' };
-    }
-
-    this.nexusApiKey = apiKey.trim();
-    this.apiCache.clear();
-
-    try {
-      const validation = await this.apiRequest<{ user_id: number }>('/v1/users/validate.json');
-      if (!validation?.user_id) {
-        this.nexusApiKey = null;
-        return { success: false, error: 'Nexus API key validation failed' };
-      }
-
-      return {
-        success: true,
-        provider: 'nexusmods',
-        token: this.nexusApiKey,
-        expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
-      };
-    } catch (error) {
-      this.nexusApiKey = null;
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Nexus authentication failed',
-      };
-    }
-  }
-
   async endorseMod(modId: string): Promise<void> {
-    this.ensureAuthenticated();
+    await this.ensureAuthenticated();
     const game = 'fallout4';
     const nexusModId = this.extractNexusModId(modId);
     // Nexus's endorse endpoint requires POST — a GET here gets rejected by their API.

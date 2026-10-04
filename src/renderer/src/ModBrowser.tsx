@@ -20,10 +20,10 @@ type ModBrowserBridge = {
     createCollection: (name: string, items: CollectionItem[], description?: string) => Promise<Collection>;
     shareCollection: (collectionId: string) => Promise<{ success: boolean; exportPath?: string; error?: string }>;
     revealCollection: (exportPath: string) => Promise<{ success: boolean; error?: string }>;
-    authenticateNexus: (apiKey: string) => Promise<any>;
     endorseMod: (id: string) => Promise<void>;
   };
   openExternal?: (url: string) => Promise<any>;
+  nexusSignIn?: () => Promise<{ success: boolean; identity?: any; error?: string }>;
 };
 
 const bridge = ((window as any).electron?.api || (window as any).electronAPI) as ModBrowserBridge;
@@ -49,7 +49,6 @@ const ModBrowser: React.FC = () => {
   const [shareConsent, setShareConsent] = useState(false);
   const [communityRepo, setCommunityRepo] = useState('');
   const [downloadDest, setDownloadDest] = useState('');
-  const [nexusKey, setNexusKey] = useState('');
   const [nexusStatus, setNexusStatus] = useState<string | null>(null);
   const [installGuideOpen, setInstallGuideOpen] = useState(false);
 
@@ -199,11 +198,13 @@ const ModBrowser: React.FC = () => {
     }
   };
 
+  // Nexus sign-in is OAuth only: the button opens Nexus's own sign-in page in the
+  // browser. Mossy never asks for, stores or sends a personal Nexus API key.
   const handleNexusLogin = async () => {
     try {
-      const r = await bridge?.modBrowser?.authenticateNexus(nexusKey);
+      const r = await bridge?.nexusSignIn?.();
       if (r?.success) setNexusStatus('Connected');
-      else setNexusStatus(`Failed: ${r?.error || 'unknown'}`);
+      else setNexusStatus(`Sign-in unavailable: ${r?.error || 'unknown'}`);
     } catch (err) {
       console.error(err);
       setNexusStatus('Error');
@@ -351,8 +352,7 @@ const ModBrowser: React.FC = () => {
           <div className="col-span-1 space-y-4">
             <div className="p-3 border border-slate-800 rounded bg-[#0a0e0a]">
               <div className="text-sm font-semibold mb-2">Nexus Mods</div>
-              <input className="w-full p-2 bg-black/10 border border-slate-800 rounded text-sm mb-2" placeholder="API Key" value={nexusKey} onChange={e => setNexusKey(e.target.value)} />
-              <button className="w-full px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={handleNexusLogin}>Login</button>
+              <button className="w-full px-3 py-2 bg-emerald-700/10 rounded text-sm" onClick={handleNexusLogin}>Sign in with Nexus</button>
               {nexusStatus && <div className="mt-2 text-xs text-slate-400">{nexusStatus}</div>}
             </div>
 

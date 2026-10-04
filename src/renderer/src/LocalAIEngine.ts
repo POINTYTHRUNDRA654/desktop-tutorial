@@ -1254,7 +1254,7 @@ export const LocalAIEngine = {
         return await api?.getSettings?.();
       } catch { return null; }
     })();
-    const backendBaseUrl = String(settings?.backendBaseUrl || 'https://mossy.onrender.com').replace(/\/$/, '');
+    const backendBaseUrl = '';
     const cloudBackendConfigured = !!settings?.backendTokenConfigured;
     const provider: { localProvider: string | null; localModel: string | null; cloudBackendConfigured: boolean; cloudReachable: boolean | null; cloudLatencyMs: number | null; cloudState: 'warm' | 'cold' | 'unreachable' | 'not-configured' | null; activeChoiceForChatVoice: string } =
       { localProvider: null, localModel: null, cloudBackendConfigured, cloudReachable: null, cloudLatencyMs: null, cloudState: null, activeChoiceForChatVoice: '' };

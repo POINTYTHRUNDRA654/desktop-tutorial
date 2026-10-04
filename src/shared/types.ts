@@ -738,7 +738,6 @@ export interface Settings {
   whatsNewDismissedVersions?: string[];
 
   // Platform 8: Mod Browser
-  nexusAuthToken?: string;
   modBrowserCollections?: Collection[];
 
   // Platform 9: Load Order Management
@@ -4474,7 +4473,6 @@ export interface ElectronAPI {
     getModDetails: (modId: string) => Promise<ModDetails>;
     downloadMod: (modId: string, destination: string) => Promise<DownloadResult>;
     rateMod: (modId: string, rating: number, review: string) => Promise<void>;
-    authenticateNexus: (apiKey: string) => Promise<AuthResult>;
     getModReviews: (modId: string) => Promise<Review[]>;
     createCollection: (name: string, items: CollectionItem[], description?: string) => Promise<Collection>;
     shareCollection: (collectionId: string) => Promise<{ success: boolean; exportPath?: string; error?: string }>;
