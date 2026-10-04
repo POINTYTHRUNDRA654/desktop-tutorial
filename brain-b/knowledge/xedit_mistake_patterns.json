@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for xedit. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "xedit",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "xedit-mistake-38a4df5e",
+      "whatToLookFor": "Trying to run FO4Edit (xFOEdit64.exe) unattended with -autoload -script ... -autoexit: it still opened a modal window and sat idle (2 s CPU, never ran the script), so an overnight or scripted check never finishes.",
+      "correction": "For headless validation use xDump64.exe from the same xEdit folder: `xDump64.exe -FO4 -D:<data folder>\\ -check MyPlugin.esp` prints every record error and exits; without -check it dumps every field decoded, which is a good way to confirm hand-built records (VMAD, quest stages/objectives, placed refs) decode as intended. Point -D at a temp folder holding Fallout4.esm + Strings\\Fallout4_en.* + the plugin when the plugin lives in an MO2 mod folder.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790671054-d1e87808",
+      "reviewerNote": null
+    }
+  ]
+}

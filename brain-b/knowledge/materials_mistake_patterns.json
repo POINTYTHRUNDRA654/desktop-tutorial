@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for materials. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "materials",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "materials-mistake-fbb8de70",
+      "whatToLookFor": "Swaying FO4 foliage (including underwater kelp/seaweed) exported with vertex-alpha wind weights and a BSLeafAnimNode root, but a BGSM with the Tree flag off. Without Tree the wind vertex shader never runs, so the plant stands still in game.",
+      "correction": "Any plant that should sway needs Tree = true in its BGSM (vanilla does this for all animated foliage). The Blender add-on's Vegetation Wind / Kelp / Soft Coral buttons now set it on the object's materials automatically; No Wind clears it.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790668280-17f2d65a",
+      "reviewerNote": null
+    },
+    {
+      "id": "materials-mistake-3339519b",
+      "whatToLookFor": "BGSM texture paths written as 'Textures\\...\\name_d.png' (the Blender source image path). FO4 BGSMs store paths relative to Data\\Textures with no 'Textures\\' prefix and always as .dds, so the material points at a file that never ships.",
+      "correction": "Write BGSM texture slots like vanilla: 'Landscape/Plants/kelp_d.dds' style -- no Textures prefix, .dds extension, and always fill normal (_n) and smooth-spec (_s) slots. The add-on's BGSM export now does the prefix/extension conversion; also check exported DDS aren't nested twice (Textures\\A\\B\\A\\B\\x.dds), which the add-on's texture copy used to do.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790668284-3a7a581c",
+      "reviewerNote": null
+    }
+  ]
+}

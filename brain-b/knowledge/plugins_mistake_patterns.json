@@ -12,6 +12,22 @@
       "severity": "unreviewed",
       "approvedFrom": "proposal-1790456184-6b18f198",
       "reviewerNote": null
+    },
+    {
+      "id": "plugins-mistake-e1eb49a1",
+      "whatToLookFor": "Copying records out of Fallout4.esm into a new non-localized plugin and keeping FULL/DESC/SHRT as-is. Fallout4.esm is localized, so those subrecords are 4-byte string-table IDs, not text; in a normal ESP they show as garbage names.",
+      "correction": "When cloning a vanilla record into a non-localized plugin, replace FULL (and SHRT) with a null-terminated text string and drop or rewrite DESC. Clear the compressed record flag (0x40000) if you write the body uncompressed.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790640796-ae65eece",
+      "reviewerNote": null
+    },
+    {
+      "id": "plugins-mistake-2f056b25",
+      "whatToLookFor": "Needing a creature that stays rooted in place (plants, hazards) but copying a mobile vanilla creature NPC, so it walks or slides after the player.",
+      "correction": "Set the SpeedMult actor value (AVIF 0x000002DA) to 0 in the NPC_ PRPS list. It keeps its turning, idle and attack animations but can't walk.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790640797-28bc1ffd",
+      "reviewerNote": null
     }
   ]
 }

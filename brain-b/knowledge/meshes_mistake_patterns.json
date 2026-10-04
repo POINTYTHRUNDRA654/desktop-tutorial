@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for meshes. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "meshes",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "meshes-mistake-ad1d17bc",
+      "whatToLookFor": "Using a static plant/prop NIF (BSTriShape with bhkNPCollisionObject, exported as 'PE Static Art') directly as a creature or armor-addon body. Static meshes have no skin instance, so they cannot follow a skeleton.",
+      "correction": "Re-export the geometry as skinned shapes: add every skeleton bone the verts use (names must exactly match the target skeleton, e.g. Root, Hub, Tail1-Tail7 for the radscorpion), set skin-to-bone = inverse of each bone's rest global transform, normalise weights per vertex, set the SLSF1 Skinned shader flag, and drop the static collision object (the race supplies actor collision).",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790640794-b5dce315",
+      "reviewerNote": null
+    }
+  ]
+}

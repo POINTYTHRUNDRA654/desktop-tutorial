@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Known mistakes/lessons for creation-kit. New entries only get added via ChangeGate's approve() (change_gate.py) -- never edited by hand as a shortcut around review.",
+    "program": "creation-kit",
+    "schemaVersion": 1
+  },
+  "patterns": [
+    {
+      "id": "creation-kit-mistake-170d37eb",
+      "whatToLookFor": "Trying to build a brand-new creature skeleton and behaviour project for Fallout 4 with ck-cmd (e.g. 'ck-cmd retargetcreature' or FBX->HKX conversion). ck-cmd only targets Skyrim LE Havok projects; on a FO4 skeleton FBX it crashes ('Illegal cast to string; type is actually empty', RC 3221226505) and produces nothing.",
+      "correction": "For a new FO4 creature, reuse a vanilla race's skeleton, behaviour graph and animations, and only supply a new body mesh skinned to that skeleton's bone names. The body mesh is attached through the NPC's skin: NPC_ WNAM -> ARMO (skin) -> ARMA MOD2/MOD3 with RNAM = the vanilla race. No new RACE or HKX is needed for a first working version.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790640793-cbc2ef5e",
+      "reviewerNote": null
+    }
+  ]
+}

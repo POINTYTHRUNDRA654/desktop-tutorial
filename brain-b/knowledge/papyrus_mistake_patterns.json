@@ -12,6 +12,14 @@
       "severity": "unreviewed",
       "approvedFrom": "proposal-1790456712-ffe366a1",
       "reviewerNote": null
+    },
+    {
+      "id": "papyrus-mistake-53b8aab3",
+      "whatToLookFor": "Building a small scripted quest and reaching for quest aliases and stage fragments (QF_ scripts), which need the Creation Kit to generate and are easy to break when records are made any other way.",
+      "correction": "For simple quests, put scripts on the base forms instead: Actor OnDeath on the NPC_ base, OnRead on the BOOK, OnContainerChanged on the MISC, OnTriggerEnter/OnActivate on ACTIs, and drive objectives from one quest script's OnStageSet. Use ModObjectiveGlobal with QTGL text-display globals for kill counters. Compile with: PapyrusCompiler.exe <src> -f=Institute_Papyrus_Flags.flg -i=<src>;<Data\\Scripts\\Source\\Base> -o=<mod>\\Scripts -all.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790671059-34cec4f3",
+      "reviewerNote": null
     }
   ]
 }
