@@ -3632,8 +3632,6 @@ const electronAPI = {
       ipcRenderer.invoke('bg-remover:check-status'),
     install: (): Promise<any> =>
       ipcRenderer.invoke('bg-remover:install'),
-    setHfToken: (token: string): Promise<any> =>
-      ipcRenderer.invoke('bg-remover:set-hf-token', token),
     removeBackground: (imagePaths: string[]): Promise<any> =>
       ipcRenderer.invoke('bg-remover:remove-background', imagePaths),
     pickImages: (): Promise<any> =>

@@ -212,12 +212,10 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
 
 ipcMain.handle('bg-remover:check-status', async () => {
   const s = loadSettings();
-  const hfTokenSet = !!(s?.huggingFaceToken as string | undefined);
   const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
   const installed = !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath));
   if (installed && !rmbgServer.hasPythonPath) rmbgServer.setPythonPath(rmbgPythonPath);
-  if (hfTokenSet) rmbgServer.setHfToken(s.huggingFaceToken as string);
-  return { installed, hfTokenSet, ready: rmbgServer.isReady, device: rmbgServer.device };
+  return { installed, ready: rmbgServer.isReady, device: rmbgServer.device };
 });
 
 ipcMain.handle('bg-remover:install', async (_event) => {
@@ -226,16 +224,6 @@ ipcMain.handle('bg-remover:install', async (_event) => {
     const s = loadSettings();
     const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
     return { success: !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath)) };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
-});
-
-ipcMain.handle('bg-remover:set-hf-token', async (_event, token: string) => {
-  try {
-    saveSettings({ ...loadSettings(), huggingFaceToken: token || '' });
-    rmbgServer.setHfToken(token || '');
-    return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -1249,7 +1237,7 @@ async function runRmbgAutoInstall(win: BrowserWindow | null) {
     // ── 4. Save and activate ──────────────────────────────────────────────────
     saveSettings({ ...loadSettings(), rmbgPythonPath: pythonExe });
     rmbgServer.setPythonPath(pythonExe);
-    sendProgress('✅ Background Remover dependencies installed. Add your HuggingFace token next to finish setup.');
+    sendProgress('✅ Background Remover dependencies installed. The RMBG-2.0 model must already be on your computer (see huggingface.co/briaai/RMBG-2.0).');
 
   } catch (err: any) {
     sendProgress(`❌ Background Remover auto-setup error: ${err?.message || String(err)}`);

@@ -48,12 +48,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   private detectConfig(): LLMConfig {
     // Check for environment variables (works in Electron main process)
     if (typeof process !== 'undefined' && process.env) {
-      if (process.env.OPENAI_API_KEY) {
-        return { provider: 'openai', apiKey: process.env.OPENAI_API_KEY, model: 'gpt-4-turbo' };
-      }
-      if (process.env.GROQ_API_KEY) {
-        return { provider: 'groq', apiKey: process.env.GROQ_API_KEY, model: 'openai/gpt-oss-120b' };
-      }
+      // Nexus release: no cloud providers and no API keys; local Ollama only.
       // Check for local Ollama
       if (process.env.OLLAMA_ENABLED === 'true') {
         return { provider: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: 'mistral' };

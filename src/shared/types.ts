@@ -625,7 +625,6 @@ export interface Settings {
 
   // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, own Python env
   // (independent of pytorchPath, which is forced CPU-only for Blender compatibility).
-  huggingFaceToken?: string;
   rmbgPythonPath?: string;
 
   // Community Sharing
