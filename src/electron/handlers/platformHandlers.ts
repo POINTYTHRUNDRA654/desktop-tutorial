@@ -88,34 +88,40 @@ async function getDdsConverter() {
 }
 
 // ---------------------------------------------------------------------------
-// AI helper: delegate to Groq with a system prompt + user message
+// AI helper: local Ollama only (this build has no cloud AI providers)
 // ---------------------------------------------------------------------------
-async function callGroqAI(systemPrompt: string, userMessage: string): Promise<string> {
-  const { default: Groq } = await import('groq-sdk') as any;
-  // Read API key from persisted settings file or environment
-  let apiKey = process.env.GROQ_API_KEY || '';
-  if (!apiKey) {
-    try {
-      const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-      if (fs.existsSync(settingsPath)) {
-        const stored = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        apiKey = stored?.groqApiKey || stored?.groqApiKeyEnc || '';
-      }
-    } catch { /* ignore */ }
+async function callLocalAI(systemPrompt: string, userMessage: string): Promise<string> {
+  let base = 'http://127.0.0.1:11434';
+  let model = 'gemma2:9b';
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const stored = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      if (stored?.ollamaBaseUrl) base = String(stored.ollamaBaseUrl).replace(/\/$/, '');
+      if (stored?.ollamaModel) model = String(stored.ollamaModel);
+    }
+  } catch { /* use defaults */ }
+  let res: Response;
+  try {
+    res = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    throw new Error('Local AI is not running. Start Ollama (Settings → AI Engine) and try again.');
   }
-  if (!apiKey) {
-    throw new Error('No Groq API key configured. Add one in Settings → AI.');
-  }
-
-  const client = new Groq({ apiKey });
-  const response = await client.chat.completions.create({
-    model: 'qwen/qwen3.6-27b',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userMessage }
-    ]
-  });
-  return response.choices?.[0]?.message?.content ?? '';
+  if (!res.ok) throw new Error('Local AI is not running. Start Ollama (Settings → AI Engine) and try again.');
+  const j: any = await res.json().catch(() => ({}));
+  return String(j?.message?.content || '');
 }
 
 // ---------------------------------------------------------------------------
@@ -128,7 +134,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
   // =========================================================================
   safeHandle('ai:plan-workflow', async (_event, request: any) => {
     const prompt = typeof request === 'string' ? request : JSON.stringify(request);
-    const result = await callGroqAI(
+    const result = await callLocalAI(
       'You are Mossy, a Fallout 4 modding assistant. Generate a clear, actionable workflow plan for the user request. Return a JSON object with steps array.',
       prompt
     );
@@ -137,7 +143,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('ai:explain', async (_event, request: any) => {
     const prompt = typeof request === 'string' ? request : JSON.stringify(request);
-    const result = await callGroqAI(
+    const result = await callLocalAI(
       'You are Mossy, a Fallout 4 modding expert. Explain the concept or error clearly and concisely for a modder.',
       prompt
     );
@@ -146,7 +152,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('ai:diagnose-error', async (_event, context: any) => {
     const prompt = typeof context === 'string' ? context : JSON.stringify(context);
-    const result = await callGroqAI(
+    const result = await callLocalAI(
       'You are Mossy, a Fallout 4 modding crash and error diagnostics expert. Diagnose the error, explain the root cause, and provide step-by-step fix instructions. Return a JSON object with: cause, explanation, steps, and severity.',
       prompt
     );
@@ -155,7 +161,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('ai:suggest-names', async (_event, context: any) => {
     const prompt = typeof context === 'string' ? context : JSON.stringify(context);
-    const result = await callGroqAI(
+    const result = await callLocalAI(
       'You are Mossy, a creative Fallout 4 mod naming expert. Suggest 5-10 fitting, lore-friendly names. Return a JSON array of name strings.',
       prompt
     );
@@ -164,7 +170,7 @@ export function registerPlatformHandlers(safeHandle: SafeHandleFn): void {
 
   safeHandle('ai:generate-script-body', async (_event, context: any) => {
     const prompt = typeof context === 'string' ? context : JSON.stringify(context);
-    const result = await callGroqAI(
+    const result = await callLocalAI(
       'You are Mossy, a Papyrus scripting expert for Fallout 4. Write a complete, working Papyrus script body based on the user description. Include all necessary imports and event handlers.',
       prompt
     );

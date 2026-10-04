@@ -204,7 +204,6 @@ const IPC_CHANNELS = {
   TRAINING_DATA_CLEAR: 'training-data-clear',
 
   // Secrets presence-only status
-  SECRET_STATUS: 'secret-status',
 
   // Speech-to-text (main process handles keys)
   TRANSCRIBE_AUDIO: 'transcribe-audio',
@@ -432,7 +431,6 @@ const isNoHandlerRegisteredError = (error: unknown): boolean => {
 };
 
 const OPTIONAL_IPC_CHANNELS = {
-  SECRET_STATUS: IPC_CHANNELS.SECRET_STATUS,
   WHATS_NEW_GET_CURRENT: IPC_CHANNELS.WHATS_NEW_GET_CURRENT,
   UPDATE_STATUS: 'get-update-status',
   PLUGIN_LIST_INSTALLED: 'plugin-manager:list-installed',
@@ -447,9 +445,6 @@ const invokeWithFallback = async <T = unknown>(channel: string, ...args: unknown
     }
 
     switch (channel) {
-      case OPTIONAL_IPC_CHANNELS.SECRET_STATUS:
-        console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
-        return { ok: false, error: 'Secret status unavailable' } as T;
       case OPTIONAL_IPC_CHANNELS.WHATS_NEW_GET_CURRENT:
         console.debug(`[Preload] IPC handler for '${channel}' not yet ready, using fallback`);
         return { ok: false, entry: null, error: 'What\'s New service unavailable' } as T;
@@ -2796,16 +2791,6 @@ const electronAPI = {
   },
 
   /**
-   * Secrets status (presence only). Never returns actual key values.
-   */
-  getSecretStatus: (): Promise<
-    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
-    | { ok: false; error: string }
-  > => {
-    return invokeWithFallback(IPC_CHANNELS.SECRET_STATUS);
-  },
-
-  /**
    * Reveal the app settings.json file in the OS file manager.
    */
   revealSettingsFile: (): Promise<{ success: boolean; error?: string }> => {
@@ -4372,12 +4357,6 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
  */
 ipcRenderer.on('main:diagnostics', (_event, diagnostics) => {
   console.log('[Main Process Diagnostics]', diagnostics);
-  if (diagnostics.backendTokenLoaded) {
-    console.log('[✓] Backend token configured');
-  } else {
-    console.warn('[✗] Backend token NOT loaded');
-  }
-  console.log('[Backend URL]', diagnostics.backendUrl);
 });
 
 /**

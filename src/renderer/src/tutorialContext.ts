@@ -1513,7 +1513,6 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I export a diagnostics snapshot? (show steps)',
       'Why does the Desktop Bridge show Inactive?',
       'How do I verify microphone and TTS voice availability?',
-      'What does the secret-status check look for?',
       'How do I run the detectPrograms test?',
     ],
   },

@@ -109,9 +109,8 @@ interface HeightStage extends PipelineStage {
 }
 
 interface AiDetailStage extends PipelineStage {
-  backend: 'comfyui' | 'gemini'; // which engine runs this stage
+  backend: 'comfyui'; // which engine runs this stage (local only)
   model: string;                // ComfyUI checkpoint name (backend: 'comfyui')
-  geminiModel: string;          // Gemini model id (backend: 'gemini') -- see GEMINI_IMAGE_MODELS below
   denoise: number;              // 0–1: how much of the source to redraw (higher = more new detail, less fidelity to original) -- ComfyUI only
   steps: number;                // ComfyUI only
   cfg: number;                  // ComfyUI only
@@ -424,7 +423,7 @@ const SURFACE_PRESETS: Record<MaterialSurface, SurfacePreset> = {
 const DEFAULT_PIPELINE: Pipeline = {
   // Off by default — opt-in since it requires ComfyUI running and takes real
   // generation time, unlike every classical stage below which is instant.
-  aiDetail:  { enabled: false, backend: 'comfyui', model: '', geminiModel: 'gemini-3.1-flash-image', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '', removeBackground: false, bgRemovalModel: 'BEN2', useControlNet: false, controlNetModel: '', controlNetStrength: 0.6 },
+  aiDetail:  { enabled: false, backend: 'comfyui', model: '', denoise: 0.45, steps: 30, cfg: 6, promptOverride: '', removeBackground: false, bgRemovalModel: 'BEN2', useControlNet: false, controlNetModel: '', controlNetStrength: 0.6 },
   albedo:    { enabled: true,  deLighting: true, deLight_strength: 0.5, detailBoost: 1.0, colorCalibrate: true, seamless: false, seamlessBlend: 0.1 },
   normal:    { enabled: true,  method: 'scharr', strength: 1.5, fineDetail: true, invertY: false, smoothing: 0.4 },
   roughness: { enabled: true,  base: 0.7, luminanceInfluence: 0.5, variation: 0.15, invert: false },
@@ -631,18 +630,6 @@ function JobCard({ job, onRate }: JobCardProps) {
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Google's current Gemini image-editing model lineup ("Nano Banana" family) --
-// confirmed 2026-09-02. gemini-3.1-flash-image is the current recommended
-// default (production-scale, matches the modern "Nano Banana 2"); Billy's
-// reference images were made with the original gemini-2.5-flash-image, kept
-// here as an option in case he wants to match that exact model instead.
-const GEMINI_IMAGE_MODELS: { id: string; label: string }[] = [
-  { id: 'gemini-3.1-flash-image', label: 'Nano Banana 2 (recommended)' },
-  { id: 'gemini-3-pro-image', label: 'Nano Banana Pro (highest quality, up to 4K, slower)' },
-  { id: 'gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite (fastest/cheapest, 1K cap)' },
-  { id: 'gemini-2.5-flash-image', label: 'Nano Banana (original)' },
-];
-
 // Same three permissively-licensed ComfyUI-RMBG models the standalone
 // Background Remover panel offers (BackgroundRemover.tsx) -- kept identical
 // here for consistency. All MIT-licensed, verified against their real repos;
@@ -767,32 +754,6 @@ export default function TextureEnhancer() {
 
   const downloadCheckpoint = () => downloadRecommendedModel(RECOMMENDED_TEXTURE_CHECKPOINT, 'checkpoints', setCheckpointDl, setCheckpointDlError);
   const downloadControlNet = () => downloadRecommendedModel(RECOMMENDED_TILE_CONTROLNET, 'controlnet', setControlNetDl, setControlNetDlError);
-
-  // ── AI Detail Synthesis (Gemini / "Nano Banana") ────────────
-  const [geminiKeyConfigured, setGeminiKeyConfigured] = useState(false);
-  const [geminiKeyInput, setGeminiKeyInput] = useState('');
-  const [geminiKeySaving, setGeminiKeySaving] = useState(false);
-
-  useEffect(() => {
-    const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    (async () => {
-      const s = await api?.getSettings?.().catch(() => null);
-      setGeminiKeyConfigured(Boolean(s?.geminiApiKeyEnc));
-    })();
-  }, []);
-
-  const saveGeminiApiKey = async () => {
-    const api = (window as any).electron?.api ?? (window as any).electronAPI;
-    if (!geminiKeyInput.trim() || !api?.setSettings) return;
-    setGeminiKeySaving(true);
-    try {
-      await api.setSettings({ geminiApiKey: geminiKeyInput.trim() });
-      setGeminiKeyConfigured(true);
-      setGeminiKeyInput('');
-    } finally {
-      setGeminiKeySaving(false);
-    }
-  };
 
   // ── UI state ─────────────────────────────────────────────────────────────
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set(['albedo', 'normal']));
@@ -1111,7 +1072,7 @@ export default function TextureEnhancer() {
                 <StageHeader icon={<Zap size={12} />} title="AI Detail Synthesis" subtitle="Generates new fine detail via local ComfyUI (not classical sharpening)"
                   enabled={pipeline.aiDetail.enabled} expanded={expandedStages.has('aiDetail')}
                   onToggleEnabled={() => toggleStageEnabled('aiDetail')} onToggleExpanded={() => toggleStageExpand('aiDetail')} />
-                {pipeline.aiDetail.enabled && pipeline.aiDetail.backend !== 'gemini' && comfyStatus === 'offline' && (
+                {pipeline.aiDetail.enabled && comfyStatus === 'offline' && (
                   <p className="text-xs text-red-300/80">ComfyUI not running at 127.0.0.1:8188 — start it in AI Image Studio or External Integrations Hub first.</p>
                 )}
                 {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && (
@@ -1133,7 +1094,7 @@ export default function TextureEnhancer() {
                     )}
                   </div>
                 )}
-                {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && pipeline.aiDetail.backend !== 'gemini' && (
+                {expandedStages.has('aiDetail') && pipeline.aiDetail.enabled && (
                   <div className="pt-2 space-y-2 border-t border-slate-700">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400 w-36">Checkpoint</span>

@@ -237,10 +237,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
       const data = {
         settings: {
           ...settings,
-          // Remove sensitive data from export
-          openaiApiKey: undefined,
-          groqApiKey: undefined,
-          backendToken: undefined
         },
         exportDate: new Date().toISOString(),
         version: '1.0'
@@ -523,27 +519,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
   ];
 
   const securitySettingGroups = [
-    {
-      title: 'API Key Management',
-      description: 'Control how API keys are managed and secured',
-      icon: <Key className="w-5 h-5" />,
-      settings: [
-        {
-          id: 'apiKeyRotationEnabled' as keyof Settings['securitySettings'],
-          label: 'Enable API Key Rotation',
-          description: 'Automatically rotate API keys periodically for enhanced security.',
-          hint: 'Reduces risk if a key is compromised',
-          icon: <RefreshCw className="w-5 h-5" />
-        },
-        {
-          id: 'requireApiKeyConfirmation' as keyof Settings['securitySettings'],
-          label: 'Require Key Confirmation',
-          description: 'Require confirmation before using API keys for sensitive operations.',
-          hint: 'Extra verification for key usage',
-          icon: <CheckCircle2 className="w-5 h-5" />
-        }
-      ]
-    },
     {
       title: 'Access Control',
       description: 'Control network access and domain restrictions',
@@ -909,30 +884,6 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                   })}
                 </div>
 
-                {group.title === 'API Key Management' && settings.securitySettings.apiKeyRotationEnabled && (
-                  <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Key Age</p>
-                    {(['groqApiKey', 'openaiApiKey', 'inklingApiKey', 'githubToken'] as const)
-                      .filter((field) => (settings as any)[`${field}Enc`] || (settings as any).apiKeySetAt?.[field])
-                      .map((field) => {
-                        const setAt = (settings as any).apiKeySetAt?.[field];
-                        const ageDays = setAt ? Math.floor((Date.now() - setAt) / 86400000) : null;
-                        const rotationDays = settings.securitySettings.apiKeyRotationDays || 90;
-                        const due = ageDays !== null && ageDays >= rotationDays;
-                        return (
-                          <div key={field} className="flex items-center justify-between text-sm">
-                            <span className="text-slate-300">{field.replace('ApiKey', ' API Key').replace('githubToken', 'GitHub Token')}</span>
-                            <span className={due ? 'text-amber-400 font-semibold' : 'text-slate-500'}>
-                              {ageDays === null ? 'Unknown age' : `${ageDays}d old${due ? ' — rotation due' : ''}`}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    {!(['groqApiKey', 'openaiApiKey', 'inklingApiKey', 'githubToken'] as const).some((field) => (settings as any)[`${field}Enc`]) && (
-                      <p className="text-xs text-slate-500 italic">No API keys configured yet.</p>
-                    )}
-                  </div>
-                )}
               </div>
             ))}
           </div>

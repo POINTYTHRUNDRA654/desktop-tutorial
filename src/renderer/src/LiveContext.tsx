@@ -1138,13 +1138,7 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     const hasBrowserStt = typeof window !== 'undefined' && (!!window.SpeechRecognition || !!window.webkitSpeechRecognition);
-    let hasOpenAI = false;
-    if (typeof api?.getSecretStatus === 'function') {
-      const status = await api.getSecretStatus();
-      hasOpenAI = Boolean(status?.ok && status.openai);
-    }
-
-    if (!hasOpenAI && !hasBrowserStt) {
+    if (!hasBrowserStt) {
       throw new Error(
         'No voice provider available. ' +
         'Local speech recognition (faster-whisper) may still be installing — ' +

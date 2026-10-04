@@ -1495,7 +1495,7 @@ export const ChatInterface: React.FC = () => {
                 try {
                     const api = (window as any).electron?.api || (window as any).electronAPI;
                     if (!api?.transcribeAudio) {
-                        console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
+                        console.warn('[VoiceInput] transcribeAudio IPC not available - check that local speech recognition is set up');
                         toast.error('Voice transcription is not available in this edition.');
                         return;
                     } else {

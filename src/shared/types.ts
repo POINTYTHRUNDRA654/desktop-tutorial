@@ -505,12 +505,8 @@ export interface SandboxConfig { timeoutMs?: number; memoryLimitMb?: number; cpu
  * Application settings stored persistently
  */
 export interface Settings {
-  // Secure API keys for backend TTS/STT (main process only)
-  openaiApiKey?: string;
-  groqApiKey?: string;
   // Backend configuration
   backendBaseUrl?: string;
-  backendTokenConfigured?: boolean;
   // LLM Configuration
   llmApiEndpoint: string;
   llmApiKey?: string;
@@ -631,9 +627,6 @@ export interface Settings {
   communityRepo?: string; // GitHub repo in the form "owner/repo"
   communityContributorName?: string;
   communityContributorLink?: string;
-  githubToken?: string; // encrypted in main process
-  /** When each API key field was last set (ms epoch) — backs "Enable API Key Rotation". */
-  apiKeySetAt?: Record<string, number>;
   listSyncEnabled?: boolean;
   listSyncRepo?: string;
   listSyncBranch?: string;
@@ -1089,7 +1082,6 @@ export const DEFAULT_SETTINGS: Settings = {
   communityRepo: '',
   communityContributorName: '',
   communityContributorLink: '',
-  githubToken: '',
   listSyncEnabled: false,
   listSyncRepo: '',
   listSyncBranch: 'main',
@@ -1257,7 +1249,6 @@ export const IPC_CHANNELS = {
   LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
 
   // Secrets
-  SECRET_STATUS: 'secret-status',
 
   // STT/Transcription
   TRANSCRIBE_AUDIO: 'transcribe-audio',

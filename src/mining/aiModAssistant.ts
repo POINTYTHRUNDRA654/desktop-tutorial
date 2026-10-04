@@ -18,11 +18,10 @@ import type {
 function now() { return Date.now(); }
 function makeId(prefix = 'ia') { return `${prefix}_${Math.floor(Math.random() * 90000) + 10000}`; }
 
-type LLMProvider = 'openai' | 'groq' | 'ollama' | 'none';
+type LLMProvider = 'ollama' | 'none';
 
 interface LLMConfig {
   provider: LLMProvider;
-  apiKey?: string;
   baseUrl?: string;
   model?: string;
 }
@@ -63,10 +62,6 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   private async callLLM(systemPrompt: string, userMessage: string): Promise<string | null> {
     try {
       switch (this.llmConfig.provider) {
-        case 'openai':
-          return await this.callOpenAI(systemPrompt, userMessage);
-        case 'groq':
-          return await this.callGroq(systemPrompt, userMessage);
         case 'ollama':
           return await this.callOllama(systemPrompt, userMessage);
         default:
@@ -74,64 +69,6 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
       }
     } catch (error) {
       console.warn('[AI] LLM call failed:', error);
-      return null;
-    }
-  }
-
-  private async callOpenAI(systemPrompt: string, userMessage: string): Promise<string | null> {
-    if (!this.llmConfig.apiKey) return null;
-    const url = 'https://api.openai.com/v1/chat/completions';
-    const body = {
-      model: this.llmConfig.model || 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
-      ],
-      temperature: 0.7,
-      max_tokens: 1024,
-    };
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.llmConfig.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) return null;
-      const data = await response.json() as any;
-      return data.choices?.[0]?.message?.content || null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async callGroq(systemPrompt: string, userMessage: string): Promise<string | null> {
-    if (!this.llmConfig.apiKey) return null;
-    const url = 'https://api.groq.com/openai/v1/chat/completions';
-    const body = {
-      model: this.llmConfig.model || 'openai/gpt-oss-120b',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
-      ],
-      temperature: 0.7,
-      max_tokens: 1024,
-    };
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.llmConfig.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) return null;
-      const data = await response.json() as any;
-      return data.choices?.[0]?.message?.content || null;
-    } catch {
       return null;
     }
   }

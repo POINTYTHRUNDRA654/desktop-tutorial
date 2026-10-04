@@ -283,7 +283,6 @@ export const IPC_CHANNELS = {
   TRAINING_DATA_CLEAR: 'training-data-clear',
 
   // Secrets presence-only status
-  SECRET_STATUS: 'secret-status',
 
   // Settings helpers
   REVEAL_SETTINGS_FILE: 'reveal-settings-file',
@@ -675,11 +674,6 @@ export interface ElectronAPI {
   // Window controls
   minimizeWindow: () => void;
   closeWindow: () => void;
-
-  getSecretStatus: () => Promise<
-    | { ok: true; openai: boolean; groq: boolean; backendToken: boolean }
-    | { ok: false; error: string }
-  >;
 
   transcribeAudio: (arrayBuffer: ArrayBuffer, mimeType?: string) => Promise<{ success: boolean; text?: string; error?: string }>;
   saveVoiceHistory: (line: string) => Promise<{ success: boolean; error?: string }>;
