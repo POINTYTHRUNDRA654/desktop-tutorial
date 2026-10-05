@@ -35196,6 +35196,9 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
       env: {
         ...process.env,
         MOSSY_PORT: String(BRAINB_PORT),
+        // Local AI for Brain B's generation (no cloud, no keys).
+        MOSSY_OLLAMA_URL: String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434'),
+        MOSSY_OLLAMA_MODEL: String(loadSettings()?.ollamaModel || 'gemma2:9b'),
         // Real auth (2026-08-22): Brain B had zero inbound authentication on
         // any route -- reuses the exact same bridgeAuthToken BridgeServer.ts
         // already generates/stores (see get-bridge-connection above), rather

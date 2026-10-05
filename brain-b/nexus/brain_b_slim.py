@@ -7,14 +7,14 @@ The CPU-only, no-GPU, no-local-model sibling of brain-b/gemma_service_enhanced.p
 what ships). This file IS what ships to Nexus users: retrieval, mode routing,
 need-diagnosis, and the tutoring contract (check_question, learner_signal) all run
 locally on CPU; ALL generation (long-form answers and the small JSON calls) goes
-through Mossy's shared Render backend (mossy.onrender.com/v1/chat — the same proxy
-the Electron app itself calls, which holds the real Groq key server-side).
+to the user's own local AI (Ollama on this computer). No API keys, tokens or cloud
+AI services are used anywhere in this file.
 
 No local language model of any kind is loaded by this file — no torch, no
 transformers, no LangGraph. That's deliberate, not a placeholder: the GPU build's
 own local Gemma checkpoint proved unreliable even on trivial prompts (see its
-docstring), so there's no local model worth the weight of bundling one here. If the
-backend is unreachable, this returns an honest "temporarily unavailable" message —
+docstring), so there's no local model worth the weight of bundling one here. Ollama
+is the user's own install. If it isn't running, this returns an honest "unavailable" message —
 retrieval and citations still work, generation just doesn't, rather than serving
 degraded/incoherent output.
 
@@ -28,10 +28,9 @@ Environment variables:
   EMBED_MODELS_PATH   – sentence-transformers cache dir (default alongside this script)
   MOSSY_PORT   – Server port (default 8766 — 8765 is already used by the Electron
                  F4AI NPC-dialogue relay in src/electron/main.ts)
-  MOSSY_BACKEND_URL   – Shared Render backend base URL (default https://mossy.onrender.com)
-  MOSSY_BACKEND_TOKEN – Required for real answers. Provided automatically by the
-                 Electron app when it launches this process (see main.ts's Brain B
-                 lifecycle wiring) — not something an end user configures by hand.
+  MOSSY_OLLAMA_URL    – Local Ollama base URL (default http://127.0.0.1:11434). Set
+                 automatically by the Electron app when it launches this process.
+  MOSSY_OLLAMA_MODEL  – Local Ollama model name (default gemma2:9b). Also set by Electron.
 """
 
 from __future__ import annotations
@@ -128,8 +127,8 @@ MIN_RETRIEVAL_AGREEMENT = _retrieval_tuning.MIN_RETRIEVAL_AGREEMENT  # noqa: F40
 classify_retrieval = _retrieval_tuning.classify_retrieval
 
 # Loads a .env file from the current working directory if one exists (silently does
-# nothing otherwise) — lets MOSSY_BACKEND_TOKEN persist across restarts without having
-# to re-set an env var by hand each time. See .env.example; never commit a real .env.
+# nothing otherwise) — lets optional local settings persist across restarts without having
+# to re-set an env var by hand each time. Never commit a real .env.
 load_dotenv()
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -175,15 +174,10 @@ PORT           = int(os.environ.get("MOSSY_PORT", 8766))
 MAX_EPISODES   = 500
 
 # ALL generation (long-form answers AND classify_mode/diagnose/contract_fields) goes
-# through Mossy's shared Render backend (src/backend/routes/chat.ts, deployed at
-# mossy.onrender.com) — this build has no local model to fall back to. That backend
-# already holds the real Groq API key server-side and is exactly what the Electron
-# app itself calls (main.ts); this process needs a shared AUTH TOKEN, not a second
-# copy of a provider API key. Electron sets MOSSY_BACKEND_TOKEN when it spawns this
-# process — see main.ts's Brain B lifecycle wiring. It must match MOSSY_API_TOKEN
-# configured on the Render service (src/backend/middleware/auth.ts).
-MOSSY_BACKEND_URL   = os.environ.get("MOSSY_BACKEND_URL", "https://mossy.onrender.com")
-MOSSY_BACKEND_TOKEN = os.environ.get("MOSSY_BACKEND_TOKEN", "")
+# to the user's own local Ollama. Electron sets these when it spawns this process.
+# There are no API keys, tokens or cloud services involved.
+OLLAMA_URL   = os.environ.get("MOSSY_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL = os.environ.get("MOSSY_OLLAMA_MODEL", "gemma2:9b")
 
 # Self-reported build version, surfaced on /health. Bump this whenever this
 # file's shipped behavior changes meaningfully. Existing purely so a stale
@@ -196,9 +190,9 @@ MOSSY_BACKEND_TOKEN = os.environ.get("MOSSY_BACKEND_TOKEN", "")
 # took hours to trace.
 NEXUS_BUILD_VERSION = "1.1.0"
 BACKEND_UNAVAILABLE_MESSAGE = (
-    "I can't reach Mossy's AI service right now, so I can't generate a full answer — "
-    "this needs an internet connection. Retrieval and citations below still work; "
-    "try again once you're back online."
+    "I can't reach your local AI (Ollama) right now, so I can't generate a full answer. "
+    "Start Ollama and make sure a model is installed. Retrieval and citations below still "
+    "work; try again once Ollama is running."
 )
 
 # MIN_RETRIEVAL_AGREEMENT and the abstain/hedge/confident decision itself
@@ -399,76 +393,49 @@ def init_db():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GENERATION — cloud only, no local model in this build
+# GENERATION — the user's own local Ollama (no cloud, no keys)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def generate_text_backend(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
-    """Long-form generation via Mossy's shared Render backend (src/backend/routes/chat.ts),
-    the same proxy the Electron app itself calls — NOT a direct Groq API call. Mirrors its
-    exact contract: POST /v1/chat, {"messages":[...], "maxTokens":..., "temperature":...},
-    Authorization: Bearer <MOSSY_BACKEND_TOKEN>, response {"ok":true,"text":"...",...} or
-    {"ok":false,"error":...,"message":...}. The backend itself already owns Groq's
-    primary/fallback model selection and rate-limit retry — this function doesn't
-    duplicate that logic, just calls through.
-
-    Render's free tier cold-starts after idling (30-60s) — timeout is generous to survive
-    that rather than fail a request that would have succeeded 20s later. Raises on
-    failure; callers (generate_answer()) decide the fallback, this function doesn't hide
-    errors.
-
-    max_new_tokens here is NOT a 1:1 token budget for the visible answer — the backend's
-    default model (openai/gpt-oss-120b) is a reasoning model requested at high reasoning
-    effort (see chat.ts's reasoningEffortFor()), and reasoning tokens count against the
-    same maxTokens budget as the final answer. Verified directly against the live
-    backend: a 50-token budget produced 48 reasoning tokens and an EMPTY answer; 512
-    produced 385 reasoning tokens and a real (if short) answer. Callers pass the budget
-    they want for the actual ANSWER; this pads it with headroom for reasoning tokens so
-    that budget doesn't silently starve to zero on harder questions with more context.
-    """
-    if not MOSSY_BACKEND_TOKEN:
-        raise RuntimeError("MOSSY_BACKEND_TOKEN not set")
-    reasoning_headroom = 1536
+    """Long-form generation through the user's local Ollama (POST /api/chat, non-streaming).
+    Nothing leaves this computer. Raises on failure; generate_answer() decides the
+    fallback, this function doesn't hide errors."""
     resp = requests.post(
-        f"{MOSSY_BACKEND_URL}/v1/chat",
-        headers={"Authorization": f"Bearer {MOSSY_BACKEND_TOKEN}", "Content-Type": "application/json"},
+        f"{OLLAMA_URL}/api/chat",
         json={
+            "model": OLLAMA_MODEL,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,
-            "maxTokens": max_new_tokens + reasoning_headroom,
+            "stream": False,
+            "options": {"temperature": temperature, "num_predict": int(max_new_tokens)},
         },
-        timeout=90,
+        timeout=180,
     )
     resp.raise_for_status()
     data = resp.json()
-    if not data.get("ok"):
-        raise RuntimeError(f"backend chat failed: {data.get('message') or data.get('error') or data}")
-    text = (data.get("text") or "").strip()
-    if not text:
-        usage = data.get("usage") or {}
-        log.warning("Backend returned empty text despite ok:true — likely reasoning-token "
-                    "budget exhaustion even with headroom. usage=%s", usage)
-    return text
+    return ((data.get("message") or {}).get("content") or "").strip()
+
+
+def ollama_reachable() -> bool:
+    """Quick local check used by /health. Never raises."""
+    try:
+        return requests.get(f"{OLLAMA_URL}/api/tags", timeout=1.5).ok
+    except Exception:
+        return False
 
 
 def generate_answer(prompt: str, max_new_tokens: int = 512, temperature: float = 0.7) -> str:
     """The one entry point for ALL generation in this service — long-form answers
     and the small JSON calls (classify_mode, diagnose, contract_fields, via
-    _generate_json()) alike. No local fallback: this build has no local model at all
-    (see module docstring for why — the GPU dev build's local checkpoint proved
-    unreliable even on trivial prompts, so there's nothing worth bundling here).
-    Retrieval and citations work regardless of backend reachability; only generation
-    depends on it. Returns BACKEND_UNAVAILABLE_MESSAGE on any failure — a clear
-    "can't answer right now" beats a wrong-but-confident answer."""
-    if not MOSSY_BACKEND_TOKEN:
-        log.error("MOSSY_BACKEND_TOKEN not set — cannot generate.")
-        return BACKEND_UNAVAILABLE_MESSAGE
+    _generate_json()) alike. Retrieval and citations work regardless of Ollama;
+    only generation depends on it. Returns BACKEND_UNAVAILABLE_MESSAGE on any
+    failure — a clear "can't answer right now" beats a wrong-but-confident answer."""
     try:
         text = generate_text_backend(prompt, max_new_tokens, temperature)
         if text:
             return text
-        log.warning("Backend returned empty text.")
+        log.warning("Ollama returned empty text.")
     except Exception as e:
-        log.warning("Backend generation failed: %s", e)
+        log.warning("Local generation failed: %s", e)
     return BACKEND_UNAVAILABLE_MESSAGE
 
 
@@ -2568,12 +2535,14 @@ def health():
     })
     return jsonify({
         "status": "ok",
-        "edition": "nexus-slim",  # CPU-only, cloud-generation build — distinguishes
+        "edition": "nexus-slim",  # CPU-only, local-Ollama-generation build — distinguishes
                                    # this from the dev GPU build's /health shape
         "version": NEXUS_BUILD_VERSION,
         "routes": routes,
         "embedding_model": EMBEDDING_MODEL_NAME,
-        "backend_configured": bool(MOSSY_BACKEND_TOKEN),
+        "generation": "ollama-local",
+        "ollama_model": OLLAMA_MODEL,
+        "ollama_reachable": ollama_reachable(),
         "curated_docs": get_curated_collection().count(),
         "runtime_docs": get_runtime_collection().count(),
         # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at
@@ -2589,11 +2558,11 @@ def health():
 
 if __name__ == "__main__":
     log.info("=" * 60)
-    log.info("Mossy Brain B (Nexus edition) — CPU-only, cloud generation")
+    log.info("Mossy Brain B (Nexus edition) — CPU-only, local Ollama generation")
     log.info("Curated ChromaDB: %s", CHROMA_CURATED_PATH)
     log.info("Runtime ChromaDB: %s", CHROMA_RUNTIME_PATH)
     log.info("Port: %d", PORT)
-    log.info("Backend token configured: %s", bool(MOSSY_BACKEND_TOKEN))
+    log.info("Local AI (Ollama): %s model=%s", OLLAMA_URL, OLLAMA_MODEL)
     log.info("=" * 60)
 
     # Initialize database

@@ -1,4 +1,4 @@
-# Mossy Brain B — Nexus edition (CPU-only, cloud generation)
+# Mossy Brain B — Nexus edition (CPU-only, local Ollama generation)
 # Deliberately minimal — no torch, no transformers, no unsloth, no langgraph.
 # See brain_b_slim.py's module docstring for why.
 #
