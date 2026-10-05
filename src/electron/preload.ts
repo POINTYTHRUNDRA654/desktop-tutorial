@@ -2576,7 +2576,7 @@ const electronAPI = {
 
       if (!backendUrl) {
         console.warn('[Preload] aiChatGroq: no backend URL configured');
-        return { success: false, error: 'No backend URL configured. Set MOSSY_BACKEND_URL.' };
+        return { success: false, error: 'Cloud AI is not available in this edition. Use local AI (Ollama).' };
       }
 
       try {
