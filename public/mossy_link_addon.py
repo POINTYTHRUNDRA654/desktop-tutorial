@@ -1051,7 +1051,7 @@ class MossyLinkServer:
             "success": True,
             "capabilities": {
                 "ai": {
-                    "models": ["gpt-4", "gpt-4-turbo", "groq-mixtral", "groq-llama2", "local-ollama"],
+                    "models": ["local-ollama"],
                     "features": ["real-time-guidance", "mesh-analysis", "texture-recommendations"]
                 },
                 "tools": {
