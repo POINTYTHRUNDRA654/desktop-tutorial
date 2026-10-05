@@ -1,9 +1,9 @@
-name: Release Build and Upload
+name: Nexus Edition Release (nexus-release only)
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'nexus-v*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -42,7 +42,7 @@ jobs:
           if [ "${{ github.event.inputs.version }}" != "" ]; then
             VERSION="${{ github.event.inputs.version }}"
           elif [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
+            VERSION=${GITHUB_REF#refs/tags/nexus-v}
           else
             VERSION=$(jq -r '.version' < package.json)
           fi
@@ -76,7 +76,7 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
           cat > /tmp/release-notes.md << EOF
-          # Mossy Desktop v${VERSION}
+          # Mossy Desktop v${VERSION} - Nexus Edition
 
           ## What's New
           - Professional Fallout 4 modding assistant with AI
@@ -104,8 +104,10 @@ jobs:
           ## Documentation
           See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
           EOF
-          gh release create "v${VERSION}" \
-            --title "Mossy v${VERSION}" \
+          gh release create "nexus-v${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --latest=false \
+            --title "Mossy v${VERSION} (Nexus Edition)" \
             --notes-file /tmp/release-notes.md \
             $DRAFT_FLAG $PRERELEASE_FLAG
         env:
@@ -160,12 +162,19 @@ jobs:
             Write-Host "  $($_.Name) - $sizeMB MB"
           }
 
+      - name: Mark installers as Nexus edition
+        shell: pwsh
+        run: |
+          Get-ChildItem release/*.exe | Where-Object { $_.BaseName -notlike '*Nexus*' } | ForEach-Object {
+            Rename-Item $_.FullName ($_.BaseName + '-Nexus' + $_.Extension)
+          }
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ needs.create-release.outputs.version }}
+          tag_name: nexus-v${{ needs.create-release.outputs.version }}
           files: release/*.exe
-          make_latest: true
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -225,12 +234,19 @@ jobs:
             Write-Host "  $($_.Name) - $sizeMB MB"
           }
 
+      - name: Mark installers as Nexus edition
+        shell: pwsh
+        run: |
+          Get-ChildItem release/*.exe | Where-Object { $_.BaseName -notlike '*Nexus*' } | ForEach-Object {
+            Rename-Item $_.FullName ($_.BaseName + '-Nexus' + $_.Extension)
+          }
+
       - name: Upload release assets
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ needs.create-release.outputs.version }}
+          tag_name: nexus-v${{ needs.create-release.outputs.version }}
           files: release/*.exe
-          make_latest: true
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
