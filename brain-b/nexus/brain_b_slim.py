@@ -991,7 +991,7 @@ def classify_mode(question: str) -> tuple[str, bool]:
 
     Uses Brain B's OWN already-loaded model via the same small-JSON-with-retry
     pattern as diagnose()/contract_fields() (_generate_json), not a separate
-    Qwen2.5-Coder/Ollama call or a new Groq client threaded into this Python
+    Qwen2.5-Coder/Ollama call or a new cloud client threaded into this Python
     process — both of those are real options but are a second untested
     integration path and a new dependency (a specific local model already
     pulled, or a new credential surface) for what's a 3-way classification
@@ -1122,8 +1122,8 @@ def _is_action_related_keywords(question: str) -> bool:
     """Keyword fallback for action_related, mirroring _is_game_data_related_keywords
     -- used only when the LLM classification call above fails to parse. Real
     trigger for this flag: LiveContext.tsx/ChatInterface.tsx's own live testing
-    (2026-08-22) found that native Groq tool-calling, correctly wired with real
-    tools and tool_choice='auto', still let openai/gpt-oss-120b hedge into
+    (2026-08-22) found that native cloud tool-calling, correctly wired with real
+    tools and tool_choice='auto', still let a cloud model hedge into
     "I can't access your files, here's how to do it manually, shall I?" instead
     of actually calling a tool for a clear action request -- tool_choice='auto'
     genuinely leaves the choice to the model, and high reasoning_effort seemed
@@ -1524,8 +1524,8 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
     unconditionally, the same shape of problem app_help_related's comment
     above already describes for the platform catalog — except an order of
     magnitude larger, and the direct cause of the 50s->120s watchdog change
-    LiveContext.tsx documents (Groq processing ~40K tokens of neuron dump
-    before it can start answering, not Render cold-start alone). Gates the
+    LiveContext.tsx documents (a cloud model processing ~40K tokens of neuron dump
+    before it can start answering, not cold-start alone). Gates the
     same way: the client only asks main.ts to inject the neuron block when
     this is true.
 
@@ -1546,7 +1546,7 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
 
     Extended a seventh time with action_related: real live testing
     (2026-08-22, see _is_action_related_keywords's docstring for the full
-    incident) found that native Groq tool-calling with tool_choice='auto'
+    incident) found that native cloud tool-calling with tool_choice='auto'
     still let the model hedge into explaining a manual workaround instead of
     calling an available, obviously-relevant tool for a clear action
     request. This field lets the client force tool_choice='required' only on
