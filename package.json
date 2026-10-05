@@ -91,7 +91,6 @@
     "@types/sqlite3": "3.1.11",
     "@types/three": "0.185.1",
     "@types/uuid": "10.0.0",
-    "@upstash/workflow-agents": "^0.1.4",
     "adm-zip": "0.5.17",
     "ag-psd": "17.0.6",
     "archiver": "7.0.1",
