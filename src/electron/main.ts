@@ -35154,7 +35154,7 @@ let _koboldProcess: import('child_process').ChildProcess | null = null;
 let _brainBProcess: import('child_process').ChildProcess | null = null;
 const BRAINB_PORT = 8766; // matches BrainBSettings.tsx's default base URL and brain_b_slim.py's MOSSY_PORT default
 const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
-const BRAINB_VERSION = '1.0.0'; // bump when a new Nexus package version is released
+const BRAINB_VERSION = '1.1.0'; // bump when a new Nexus package version is released (1.1.0 = local Ollama generation, no cloud backend)
 const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
 const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
 
