@@ -79,7 +79,6 @@ jobs:
           # Mossy Desktop v${VERSION} - Nexus Release
 
           > **This is the Nexus Mods release** (installers end in -Nexus). It runs on local AI only, with no API keys, tokens or cloud AI.
-          > The GitHub release is a separate build: [v${VERSION}](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/tag/v${VERSION}).
 
           ## What's New
           - Professional Fallout 4 modding assistant with AI
@@ -103,9 +102,6 @@ jobs:
           - 5GB free disk space
           - .NET Runtime 8.0+
           - Visual C++ Redistributables
-
-          ## Documentation
-          See the [README](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/blob/master/README.md) for full documentation.
           EOF
           gh release create "nexus-v${VERSION}" \
             --target "${GITHUB_SHA}" \
