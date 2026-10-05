@@ -423,7 +423,7 @@ export const PLATFORM_CATALOG: PlatformEntry[] = [
     route: '/creative-director',
     mainFile: 'plugin_creative_director/CreativeDirectorPanel.tsx',
     summary:
-      'Local-only, never shipped to Nexus/public release. A 9-tab hub for FO4 narrative/quest design — five tabs ping an external backend not in this repo and fall back to local templates/manual entry when offline; the AI Team tab runs entirely on-device instead (Groq or local KoboldCpp, no external server dependency).',
+      'Local-only, never shipped to Nexus/public release. A 9-tab hub for FO4 narrative/quest design — five tabs ping an external backend not in this repo and fall back to local templates/manual entry when offline; the AI Team tab runs entirely on-device instead (local KoboldCpp, no external server dependency).',
     features: [
       { name: 'Quest Builder', description: 'Stage/objective editor with rewards; generates a real Papyrus quest script skeleton (AI-enhanced online, deterministic template offline).' },
       { name: 'Dialogue Writer', description: 'Player/NPC dialogue tree with conditions and FO4 voice-type selection; AI line generation only when the backend is online; exports as a CK-import text file.' },

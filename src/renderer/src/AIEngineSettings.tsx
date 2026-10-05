@@ -171,7 +171,7 @@ const AIEngineSettings: React.FC<AIEngineSettingsProps> = ({ embedded = false })
               </div>
             </div>
           </label>
-          <p className="text-[11px] text-slate-600">Both are on by default. Each adds one extra fast Groq call, only for substantive answers — trivial one-liners skip both.</p>
+          <p className="text-[11px] text-slate-600">Both are on by default. Each adds one extra local AI call, only for substantive answers — trivial one-liners skip both.</p>
         </div>
 
         {/* Save Button */}

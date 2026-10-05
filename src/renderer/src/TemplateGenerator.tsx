@@ -1106,7 +1106,7 @@ export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded =
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <ToolsInstallVerifyPanel
             accentClassName="text-emerald-300"
-            description="Uses Mossy AI (Groq) to generate custom Papyrus scripts from plain English. Falls back to 17 built-in templates when AI is unavailable."
+            description="Uses Mossy AI (local) to generate custom Papyrus scripts from plain English. Falls back to 17 built-in templates when AI is unavailable."
             verify={[
               'Type a description and click Generate — AI result shows a ✦ AI badge.',
               'Pick any template from the left sidebar for instant local generation.',
@@ -1117,7 +1117,7 @@ export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded =
               'Confirm CK / compiler path is set in External Tools Settings.',
             ]}
             troubleshooting={[
-              'No AI badge? Groq API key may not be set — check Mossy Settings.',
+              'No AI badge? Local AI (Ollama) may not be running — start Ollama and try again.',
               'If Generate does nothing, ensure the description field is not empty.',
               'If download is blocked, allow pop-ups / downloads in your environment.',
             ]}
@@ -1194,7 +1194,7 @@ export const TemplateGenerator: React.FC<TemplateGeneratorProps> = ({ embedded =
           <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-3">
             <h4 className="font-bold text-blue-300 mb-1 text-xs">How generation works</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Mossy AI (Groq) generates custom scripts from your description when online.
+              Mossy AI (local) generates custom scripts from your description when Ollama is running.
               If AI is unavailable, keywords are scored against{' '}
               <span className="text-white">{PATTERNS.length - 1} local patterns</span> as fallback.
               AI results are marked with a{' '}
