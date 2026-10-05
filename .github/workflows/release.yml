@@ -1,4 +1,4 @@
-name: Nexus Edition Release (nexus-release only)
+name: Nexus Release (nexus-release only)
 
 on:
   push:
@@ -76,7 +76,10 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
           cat > /tmp/release-notes.md << EOF
-          # Mossy Desktop v${VERSION} - Nexus Edition
+          # Mossy Desktop v${VERSION} - Nexus Release
+
+          > **This is the Nexus Mods release** (installers end in -Nexus). It runs on local AI only, with no API keys, tokens or cloud AI.
+          > The GitHub release is a separate build: [v${VERSION}](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/tag/v${VERSION}).
 
           ## What's New
           - Professional Fallout 4 modding assistant with AI
@@ -107,7 +110,7 @@ jobs:
           gh release create "nexus-v${VERSION}" \
             --target "${GITHUB_SHA}" \
             --latest=false \
-            --title "Mossy v${VERSION} (Nexus Edition)" \
+            --title "Mossy v${VERSION} - Nexus Release" \
             --notes-file /tmp/release-notes.md \
             $DRAFT_FLAG $PRERELEASE_FLAG
         env:
