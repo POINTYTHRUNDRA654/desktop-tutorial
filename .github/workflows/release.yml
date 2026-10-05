@@ -67,6 +67,16 @@ jobs:
       - name: Create Release
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
+          # Refuse to run twice for one version: a second run makes a duplicate draft and the
+          # upload then fails against the older one (run 37260345607). Delete the old release/tag first.
+          if gh api "repos/${GITHUB_REPOSITORY}/releases" --paginate --jq '.[].tag_name' | grep -qx "nexus-v${VERSION}"; then
+            echo "❌ A release for nexus-v${VERSION} already exists (possibly a draft). Delete it on GitHub, or bump the version, then re-run."
+            exit 1
+          fi
+          if [[ $GITHUB_REF != refs/tags/* ]] && git ls-remote --exit-code --tags origin "refs/tags/nexus-v${VERSION}" >/dev/null; then
+            echo "❌ Tag nexus-v${VERSION} already exists. Delete it on GitHub, or bump the version, then re-run."
+            exit 1
+          fi
           DRAFT_FLAG=""
           PRERELEASE_FLAG=""
           if [ "${{ github.event.inputs.draft }}" != "false" ]; then
