@@ -175,6 +175,8 @@ jobs:
           tag_name: nexus-v${{ needs.create-release.outputs.version }}
           files: release/*.exe
           make_latest: false
+          # Without this the action defaults draft to false and publishes the draft on upload.
+          draft: ${{ github.event.inputs.draft != 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -247,6 +249,8 @@ jobs:
           tag_name: nexus-v${{ needs.create-release.outputs.version }}
           files: release/*.exe
           make_latest: false
+          # Without this the action defaults draft to false and publishes the draft on upload.
+          draft: ${{ github.event.inputs.draft != 'false' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
