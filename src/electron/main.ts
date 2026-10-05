@@ -99,7 +99,6 @@ import {
   systemMetricsGet,
 } from './mossyBrainFeatures';
 import FormData from 'form-data';
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { File as NodeFile } from 'node:buffer';
 import { MiningPipelineOrchestrator } from '../mining/mining-pipeline';
