@@ -732,7 +732,7 @@ Request: "Generate a Papyrus script that gives the player 100 caps when they act
 
 **⚠️ Important:** Voice chat requires:
 - A working microphone
-- Internet connection (for cloud AI services)
+- Internet connection (optional — only for downloads and web search)
 - Microphone permissions granted to Mossy
 
 ### What You'll See
@@ -798,17 +798,7 @@ When you click Settings, you'll see:
    - **When to use:** Best option for most users — set `Local Whisper Server URL` in Settings → Privacy/API
    - **Setup:** `pip install faster-whisper-server` then run it on port 8000
 
-2. **Whisper (OpenAI Cloud)**
-   - **Pros:** Accurate, handles noise well, no local setup
-   - **Cons:** Requires OpenAI API key, costs money per minute
-   - **When to use:** If you don't want to run a local server
-
-3. **Backend Proxy**
-   - **Pros:** Server holds the keys; client needs no API key
-   - **Cons:** Requires a configured backend service
-   - **When to use:** Shared/hosted deployments
-
-4. **Browser (Built-in)**
+2. **Browser (Built-in)**
    - **Pros:** Free, no API key needed, works offline
    - **Cons:** Less accurate, limited language support
    - **When to use:** Fallback / testing
@@ -826,17 +816,7 @@ When you click Settings, you'll see:
    - **Cons:** Voice quality depends on installed Windows voices
    - **When to use:** Default — installs additional Windows voices for better quality
 
-2. **OpenAI TTS**
-   - **Pros:** Very natural sounding, good voices
-   - **Cons:** Requires OpenAI API key and credits
-   - **When to use:** Want the best quality voice
-
-2. **ElevenLabs**
-   - **Pros:** Extremely realistic voices, emotional range
-   - **Cons:** Requires ElevenLabs account and credits
-   - **When to use:** Want the most realistic AI voice
-
-3. **Browser (Built-in)**
+2. **Browser (Built-in)**
    - **Pros:** Free, no setup, works offline
    - **Cons:** Robotic sound, limited voices
    - **When to use:** Testing or no API keys available
@@ -1001,7 +981,7 @@ When you click Settings, you'll see:
 
 **Solution:** 
 - Open Settings (⚙️)
-- Change TTS Provider to OpenAI or ElevenLabs
+- Change the voice in Settings
 - Note: Requires API key and may cost money
 - See settings guide above for details
 
@@ -1014,7 +994,7 @@ When you click Settings, you'll see:
 **Solutions:**
 1. Check your internet speed
 2. Try switching STT provider in Settings
-3. If using cloud providers (Deepgram, OpenAI), try Browser (local processing)
+3. Try the Browser provider (local processing)
 4. Close other programs using internet
 
 ---

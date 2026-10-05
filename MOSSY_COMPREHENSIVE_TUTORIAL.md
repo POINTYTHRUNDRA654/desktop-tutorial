@@ -30,7 +30,7 @@ Mossy is a production-ready Electron desktop application designed specifically f
 
 ### Key Features
 
-- **Hybrid AI Integration** - Choose between cloud AI (OpenAI/Groq) or local Ollama for privacy
+- **Local AI Integration** - Runs on your own computer with local Ollama for privacy
 - **Memory Vault (RAG)** - Upload your own tutorials to train Mossy on your specific needs
 - **Neural Link** - Real-time monitoring of your modding tools (Blender, Creation Kit, xEdit)
 - **Asset Analysis** - Real binary format reading for NIF/DDS/ESP files
@@ -613,7 +613,7 @@ The sidebar is your primary navigation tool in Mossy.
 - Update notifications
 
 **2. AI & Voice**
-- AI provider (OpenAI, Groq, Ollama)
+- AI provider (local Ollama)
 - API keys (secure storage)
 - Model selection
 - STT/TTS providers
@@ -1197,13 +1197,13 @@ For full details see [`scripts/blender/README_BLENDER_ADDONS.md`](scripts/blende
 ### General Questions
 
 **Q: Is Mossy free to use?**
-A: Yes, Mossy is free and open source under the MIT license. However, some AI features require API keys from third-party services (OpenAI, Groq, etc.) which may have costs.
+A: Yes, Mossy is free and open source under the MIT license. The Nexus edition uses only local AI (Ollama), so no API keys or paid services are needed.
 
 **Q: Does Mossy work with Skyrim or other games?**
 A: Mossy is specifically designed for Fallout 4 modding. While some tools might work with other games, it's not officially supported.
 
 **Q: Can I use Mossy offline?**
-A: Partially. Many features work offline, but AI assistance requires either an internet connection (for cloud AI) or a local Ollama installation.
+A: Mostly. Everything runs on your own PC; AI assistance needs a local Ollama installation.
 
 **Q: How do I update Mossy?**
 A: Mossy checks for updates automatically. When an update is available, you'll see a notification. Click to download and install.
@@ -1222,7 +1222,7 @@ A: Yes. Go to Settings → Privacy → Delete All Local Data. This removes every
 ### AI & Voice
 
 **Q: Which AI provider should I use?**
-A: For privacy: Local Ollama. For speed: Groq. For quality: OpenAI GPT-4. For cost: OpenAI GPT-3.5.
+A: Local Ollama. The Nexus edition uses local AI only.
 
 **Q: Why isn't voice chat working?**
 A: Check microphone permissions, verify your STT/TTS provider settings, and ensure you have an active internet connection (for cloud providers).

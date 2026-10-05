@@ -107,7 +107,7 @@ Everything by default stays on your computer in local storage:
 - Personal notes
 - Sensitive information
 
-If you enable cloud AI or cloud speech-to-text providers, your prompts/audio may be sent to that provider to fulfill the request.
+This edition uses local AI only. Your prompts and audio stay on your computer.
 
 ### Optional Shared Data
 If you enable sharing, **anonymized patterns** are sent to improve Mossy for everyone:

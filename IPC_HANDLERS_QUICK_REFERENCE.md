@@ -152,7 +152,7 @@ ipcMain.handle('ai-assistant:*') ← IPC Handler
      ↓
 AIAssistantEngineImpl ← Engine Implementation
      ↓
-LLM Provider (OpenAI/Groq/Ollama)
+LLM Provider (local Ollama)
 ```
 
 ## 🔐 Error Handling
