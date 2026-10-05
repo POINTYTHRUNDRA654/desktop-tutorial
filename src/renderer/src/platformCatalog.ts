@@ -405,7 +405,7 @@ export const PLATFORM_CATALOG: PlatformEntry[] = [
     features: [
       { name: 'Privacy & Security', description: 'App-lock password, memory storage folder, mod whitelist/blacklists, list-sync status, data-storage info.' },
       { name: 'Language', description: 'UI language selection, translation-request link, browser TTS voice selection/testing.' },
-      { name: 'AI Engine', description: 'Provider selector (Auto/Ollama-only/Off), Inkling API config for Creative Director\'s AI Team, deliberate-reasoning and self-critique toggles.' },
+      { name: 'AI Engine', description: 'Local AI provider selector (Ollama-only/Off), deliberate-reasoning and self-critique toggles.' },
       { name: 'Ollama', description: 'Base URL, chat/code model pickers curated for 8GB VRAM, model download, live status.' },
       { name: 'Brain B', description: 'Install/lifecycle manager for the local retrieval-and-tutoring enrichment service — versioned download, disk-space check, start/stop, health check.' },
       { name: 'AnythingLLM', description: 'Connects to a local AnythingLLM server, reports status, lists/creates/deletes workspaces, restart control.' },

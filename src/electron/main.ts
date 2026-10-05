@@ -10759,8 +10759,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   /**
    * Generate a roadmap tailored to the user's actual prompt via the same
-   * multi-tier LLM chain used by the Creative Director (Inkling → Ollama →
-   * Groq → local KoboldCpp — see cdCallAgent()). Only falls back to the
+   * local-AI chain used by the Creative Director (Ollama →
+   * local KoboldCpp — see cdCallAgent()). Only falls back to the
    * static template below if every provider is unreachable, and reports
    * that honestly via `aiGenerated: false` rather than pretending.
    */
@@ -17686,7 +17686,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   /**
    * "Require HTTPS" (Privacy Settings) — checked against user-configurable
-   * endpoint URLs (Inkling/backend base URLs) before connecting. Localhost is
+   * endpoint URLs before connecting. Localhost is
    * always exempt (that's where Ollama/KoboldCpp run — those are never
    * remote, so there is nothing plaintext to intercept), matching how
    * browsers already treat localhost as a secure context.
@@ -17789,7 +17789,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   }
 
   // High-quality agent call — skips local Ollama (small model) and routes directly
-  // to Inkling (if configured) or Groq cloud. Used by all specialist build roles where
+  // to the best local model available. Used by all specialist build roles where
   // output quality determines whether the files are usable.
   async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string, maxTokens = 8192): Promise<string> {
     const s = loadSettings();

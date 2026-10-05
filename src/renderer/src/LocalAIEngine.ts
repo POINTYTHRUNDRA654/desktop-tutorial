@@ -81,7 +81,7 @@ export interface AIResponse {
    *  ```tool marker convention LiveContext.tsx used to parse out of prose.
    *  Populated only on the cloud/Groq path when `tools` was passed into
    *  generateResponse's localOptions; empty/undefined everywhere else
-   *  (local providers, Inkling, and any turn where the model didn't call
+   *  (local providers, and any turn where the model didn't call
    *  a tool). `args` mirrors Groq's real shape: parsed JSON when the
    *  model's arguments string parses cleanly, the raw string otherwise. */
   toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> | string }>;

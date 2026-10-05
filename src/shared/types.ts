@@ -1003,7 +1003,7 @@ export interface ScriptBundle {
  * Default settings
  */
 export const DEFAULT_SETTINGS: Settings = {
-  llmApiEndpoint: 'https://api.openai.com/v1/chat/completions',
+  llmApiEndpoint: '',
   llmModel: 'gpt-3.5-turbo',
   localAiPreferredProvider: 'auto',
   ollamaBaseUrl: 'http://127.0.0.1:11434',
