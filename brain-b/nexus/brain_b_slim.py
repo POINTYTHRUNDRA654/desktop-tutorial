@@ -55,6 +55,7 @@ from typing import Any, Optional
 from knowledge_manifest import EMBEDDING_MODEL_NAME
 import game_data_index
 import screen_filter
+import log_patterns
 
 import networkx as nx
 import numpy as np
@@ -2471,6 +2472,25 @@ def screen_check():
         judge_fn=lambda p: generate_text_backend(p, max_new_tokens=40, temperature=0.0),
     )
     return jsonify(result)
+
+
+@app.route("/logs/cluster", methods=["POST"])
+def logs_cluster():
+    """Group log lines into repeating patterns (Drain3) and flag ones not seen in earlier scans. Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    paths = data.get("paths")
+    if not isinstance(paths, list) or not paths or len(paths) > 5:
+        return jsonify({"error": "paths (1-5 log files) is required"}), 400
+    lines: list[str] = []
+    for p in paths:
+        try:
+            lines.extend(log_patterns.read_tail_lines(str(p)))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except OSError as e:
+            return jsonify({"error": f"could not read {os.path.basename(str(p))}: {e.strerror or type(e).__name__}"}), 404
+    miner = log_patterns.LogPatternMiner(BASE_DIR / "data" / "log-patterns", str(data.get("label") or "log"))
+    return jsonify(miner.mine(lines))
 
 
 @app.route("/change-gate/patterns", methods=["GET"])

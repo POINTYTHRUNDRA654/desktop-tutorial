@@ -8,6 +8,7 @@
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { Shield, Wrench, BookOpen, ChevronRight, AlertTriangle, CheckCircle, Info, Scroll, Activity, Save, Monitor, Link, Search, ClipboardList, Settings, Package, FileCode, Cpu, Zap, XCircle, HelpCircle, RefreshCw, Hammer, Terminal, GitMerge, FolderOpen, ChevronDown, Loader2, CheckCircle2, FilePlus, Skull, Code2 } from 'lucide-react';
 import { bridgeFetch } from './lib/bridgeClient';
+import { brainBFetch } from './lib/brainBClient';
 
 const CKCrashPrevention = React.lazy(() => import('./CKCrashPrevention'));
 const CKExtension = React.lazy(() =>
@@ -245,6 +246,7 @@ const PluginInspectorPanel: React.FC = () => {
   const [ckpeStatus, setCkpeStatus] = useState<any>(null);
   const [ckpeCrash, setCkpeCrash] = useState<any>(null);
   const [ckpeBusy, setCkpeBusy] = useState(false);
+  const [logPatterns, setLogPatterns] = useState<any>(null);
   const [ckpeErr, setCkpeErr] = useState('');
   const [lastSeenCrashMtime, setLastSeenCrashMtime] = useState<string>(() =>
     localStorage.getItem('ck_last_seen_crash_mtime') || ''
@@ -257,8 +259,17 @@ const PluginInspectorPanel: React.FC = () => {
         bridgeFetch('/ck/precombine-status', { method: 'GET' }),
         bridgeFetch('/ck/crash-status', { method: 'GET' }),
       ]);
-      setCkpeStatus(await logRes.json());
+      const status = await logRes.json();
+      setCkpeStatus(status);
       setCkpeCrash(await crashRes.json());
+      // Group the CKPE log into repeating patterns (Brain B, local). Optional: the check still works without it.
+      setLogPatterns(null);
+      if (status?.detected && status?.logPath) {
+        try {
+          const pr = await brainBFetch('/logs/cluster', { method: 'POST', body: JSON.stringify({ label: 'ckpe', paths: [status.logPath] }) }, 60000);
+          if (pr.ok) setLogPatterns(await pr.json());
+        } catch { /* Brain B not running or too old -- skip the patterns panel */ }
+      }
     } catch (e: any) {
       setCkpeErr(e?.message ?? 'Could not reach the Desktop Bridge — make sure it is running (Runtime Hub → Desktop Bridge).');
     } finally {
@@ -1008,6 +1019,34 @@ const PluginInspectorPanel: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Repeating log patterns (Drain3 via Brain B, all local) */}
+          {logPatterns && logPatterns.patterns?.length > 0 && (
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+              <p className="text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5 text-sky-400" />Log patterns ({logPatterns.total_lines} lines grouped into {logPatterns.pattern_count})
+              </p>
+              <p className="text-[11px] text-slate-500 mb-2">
+                {logPatterns.baseline
+                  ? 'First scan of this log. Mossy remembers these patterns, so next time anything new is flagged.'
+                  : logPatterns.new_count > 0
+                    ? `${logPatterns.new_count} pattern${logPatterns.new_count !== 1 ? 's' : ''} not seen in earlier scans.`
+                    : 'Nothing new since the last scan.'}
+              </p>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {logPatterns.patterns.slice(0, 12).map((p: any) => (
+                  <div key={p.id} className="rounded border border-slate-700 px-2 py-1.5 text-xs flex items-start gap-2">
+                    <span className={`flex-shrink-0 font-semibold ${p.severity === 'error' ? 'text-red-300' : p.severity === 'warning' ? 'text-amber-300' : 'text-slate-400'}`}>
+                      {p.severity}
+                    </span>
+                    <span className="flex-1 font-mono break-all text-slate-300">{p.template}</span>
+                    {p.new && <span className="flex-shrink-0 rounded bg-sky-900/60 px-1.5 text-[10px] font-bold text-sky-300">NEW</span>}
+                    <span className="flex-shrink-0 text-slate-500">&times;{p.count}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

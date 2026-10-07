@@ -130,6 +130,8 @@ def main():
         "--hidden-import=retrieval_tuning",
         "--hidden-import=change_gate",
         "--hidden-import=screen_filter",
+        "--hidden-import=log_patterns",
+        "--collect-all", "drain3",
         "--hidden-import=bootstrap_fallout4_knowledge",
         "--collect-all", "chromadb",
         "--collect-all", "chromadb_rust_bindings",
