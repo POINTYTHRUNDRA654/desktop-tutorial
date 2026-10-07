@@ -561,7 +561,7 @@ Settings is where you configure everything that affects how Mossy behaves across
 **What you will find here**
 - Step 1: Privacy & Security — analytics opt-out, data-sharing toggles, and security defaults
 - Step 2: Language — UI language selection and translation contribution link
-- Step 3: AI Engine — Groq model selector (Llama 3.1 8B, Llama 3.3 70B, DeepSeek R1, Gemma 2, Mixtral), max response tokens (512–4096), self-critique loop toggle
+- Step 3: AI Engine — local model selector (Ollama), max response tokens (512–4096), self-critique loop toggle
 - Step 3b: Local LLM — Ollama endpoint configuration for fully offline AI assistance
 - Step 4: External Tools — browse/test-launch paths for xEdit (FO4Edit), Creation Kit, Fallout 4 game root, Papyrus compiler, F4SE, Archive2, LOOT, Mod Organizer 2, Wrye Bash, NifSkope, Blender, BodySlide, Upscayl, GIMP, and more
 - Step 5: Backup & Restore — export or import a full settings snapshot as JSON

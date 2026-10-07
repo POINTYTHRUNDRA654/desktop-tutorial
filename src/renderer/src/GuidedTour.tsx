@@ -314,7 +314,7 @@ const GuidedTour: React.FC<GuidedTourProps> = ({ isOpen, onClose, tourType, targ
                   <div>Execute exactly one action (generate text or analyze a file) and confirm the output is usable.</div>
 
                   <div className="mt-3 font-semibold">Troubleshooting</div>
-                  <div>If responses fail, check Settings for API key/model configuration.</div>
+                  <div>If responses fail, check that local AI (Ollama) is running.</div>
                   <div>If desktop actions fail, confirm Desktop Bridge/Electron API is available.</div>
                 </div>
 

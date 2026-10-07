@@ -10,8 +10,8 @@
  *   LICENSE file and HuggingFace model card, not assumed. Only appropriate
  *   here because MOSSY.SPACE is and will remain free/non-commercial; revisit
  *   if that ever changes. The model is also GATED on HuggingFace — the user
- *   must personally log in, accept BRIA's license, and generate their own
- *   access token. Nothing here bypasses that consent step.
+ *   must personally log in and accept BRIA's license, and obtain the model
+ *   themselves. Mossy handles no accounts or tokens and bypasses nothing.
  *
  * BACKEND 2 — "ComfyUI" (1038lab/ComfyUI-RMBG custom node, GPL-3.0):
  *   Calls the user's own separately-installed, separately-running ComfyUI
@@ -29,7 +29,7 @@ import toast from 'react-hot-toast';
 import { Scissors, ExternalLink, Loader2, CheckCircle2, XCircle, Trash2, ImageDown, ShieldAlert } from 'lucide-react';
 
 type Backend = 'local' | 'comfyui';
-type SetupStep = 'checking' | 'needs-install' | 'needs-token' | 'ready';
+type SetupStep = 'checking' | 'needs-install' | 'ready';
 
 // RMBG-2.0 is deliberately NOT offered here: this node pulls it from an unofficial
 // third-party mirror and labels it Apache-2.0, which contradicts BRIA's own
@@ -62,8 +62,6 @@ const BackgroundRemover: React.FC = () => {
   const [device, setDevice] = useState<string>('');
   const [installLog, setInstallLog] = useState<string[]>([]);
   const [installing, setInstalling] = useState(false);
-  const [tokenInput, setTokenInput] = useState('');
-  const [savingToken, setSavingToken] = useState(false);
 
   // ComfyUI backend state
   const [comfyOnline, setComfyOnline] = useState<boolean | null>(null);
@@ -79,7 +77,6 @@ const BackgroundRemover: React.FC = () => {
     const status = await bridge?.bgRemover?.checkStatus();
     setDevice(status?.device || '');
     if (!status?.installed) setStep('needs-install');
-    else if (!status?.hfTokenSet) setStep('needs-token');
     else setStep('ready');
   }, []);
 
@@ -118,29 +115,6 @@ const BackgroundRemover: React.FC = () => {
       toast.error(`Install error: ${error}`);
     } finally {
       setInstalling(false);
-    }
-  };
-
-  const handleSaveToken = async () => {
-    if (!tokenInput.trim()) {
-      toast.error('Paste your HuggingFace access token first.');
-      return;
-    }
-    setSavingToken(true);
-    try {
-      const bridge = getBridge();
-      const result = await bridge?.bgRemover?.setHfToken(tokenInput.trim());
-      if (result?.success) {
-        toast.success('HuggingFace token saved.');
-        setTokenInput('');
-        await refreshLocalStatus();
-      } else {
-        toast.error(result?.error || 'Failed to save token.');
-      }
-    } catch (error) {
-      toast.error(`Error saving token: ${error}`);
-    } finally {
-      setSavingToken(false);
     }
   };
 
@@ -271,45 +245,21 @@ const BackgroundRemover: React.FC = () => {
             </div>
           )}
 
-          {step === 'needs-token' && (
-            <div className="bg-gray-800 rounded-lg p-4 space-y-3">
-              <h3 className="text-white font-medium">Step 2: HuggingFace Access Token</h3>
-              <p className="text-gray-400 text-sm">
-                RMBG-2.0 is a gated model — you must personally accept BRIA's license before it can be
-                downloaded. This can't be automated:
+          {step === 'ready' && (
+            <div className="bg-gray-800 rounded-lg p-4 space-y-2 text-sm text-gray-300">
+              <h3 className="text-white font-medium">About the RMBG-2.0 model</h3>
+              <p>
+                RMBG-2.0 is a gated model: you have to accept BRIA's license with your own
+                HuggingFace account. Mossy does not handle accounts or access tokens, so it can
+                only use the model if you have already downloaded it to this computer.
               </p>
-              <ol className="text-gray-300 text-sm list-decimal list-inside space-y-1">
-                <li>
-                  Log into HuggingFace and open{' '}
-                  <a href="https://huggingface.co/briaai/RMBG-2.0" target="_blank" rel="noreferrer" className="text-purple-400 underline inline-flex items-center gap-1">
-                    huggingface.co/briaai/RMBG-2.0 <ExternalLink className="w-3 h-3" />
-                  </a>
-                </li>
-                <li>Click through and accept BRIA's license conditions on that page.</li>
-                <li>
-                  Generate an access token at{' '}
-                  <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" className="text-purple-400 underline inline-flex items-center gap-1">
-                    Settings → Access Tokens <ExternalLink className="w-3 h-3" />
-                  </a>
-                </li>
-                <li>Paste that token below.</li>
-              </ol>
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="hf_..."
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
-                />
-                <button
-                  onClick={handleSaveToken}
-                  disabled={savingToken || !tokenInput.trim()}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-4 py-2 rounded text-sm whitespace-nowrap"
-                >
-                  {savingToken ? 'Saving…' : 'Save Token'}
-                </button>
-              </div>
+              <p>
+                Find it yourself at{' '}
+                <a href="https://huggingface.co/briaai/RMBG-2.0" target="_blank" rel="noreferrer" className="text-purple-400 underline inline-flex items-center gap-1">
+                  huggingface.co/briaai/RMBG-2.0 <ExternalLink className="w-3 h-3" />
+                </a>
+                . No account? Switch to the ComfyUI backend (BEN2), which needs none.
+              </p>
             </div>
           )}
 

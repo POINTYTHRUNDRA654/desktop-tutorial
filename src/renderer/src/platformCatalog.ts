@@ -405,7 +405,7 @@ export const PLATFORM_CATALOG: PlatformEntry[] = [
     features: [
       { name: 'Privacy & Security', description: 'App-lock password, memory storage folder, mod whitelist/blacklists, list-sync status, data-storage info.' },
       { name: 'Language', description: 'UI language selection, translation-request link, browser TTS voice selection/testing.' },
-      { name: 'AI Engine', description: 'Provider selector (Auto/Ollama-only/Off), Inkling API config for Creative Director\'s AI Team, deliberate-reasoning and self-critique toggles.' },
+      { name: 'AI Engine', description: 'Local AI provider selector (Ollama-only/Off), deliberate-reasoning and self-critique toggles.' },
       { name: 'Ollama', description: 'Base URL, chat/code model pickers curated for 8GB VRAM, model download, live status.' },
       { name: 'Brain B', description: 'Install/lifecycle manager for the local retrieval-and-tutoring enrichment service — versioned download, disk-space check, start/stop, health check.' },
       { name: 'AnythingLLM', description: 'Connects to a local AnythingLLM server, reports status, lists/creates/deletes workspaces, restart control.' },
@@ -423,7 +423,7 @@ export const PLATFORM_CATALOG: PlatformEntry[] = [
     route: '/creative-director',
     mainFile: 'plugin_creative_director/CreativeDirectorPanel.tsx',
     summary:
-      'Local-only, never shipped to Nexus/public release. A 9-tab hub for FO4 narrative/quest design — five tabs ping an external backend not in this repo and fall back to local templates/manual entry when offline; the AI Team tab runs entirely on-device instead (Groq or local KoboldCpp, no external server dependency).',
+      'Local-only, never shipped to Nexus/public release. A 9-tab hub for FO4 narrative/quest design — five tabs ping an external backend not in this repo and fall back to local templates/manual entry when offline; the AI Team tab runs entirely on-device instead (local KoboldCpp, no external server dependency).',
     features: [
       { name: 'Quest Builder', description: 'Stage/objective editor with rewards; generates a real Papyrus quest script skeleton (AI-enhanced online, deterministic template offline).' },
       { name: 'Dialogue Writer', description: 'Player/NPC dialogue tree with conditions and FO4 voice-type selection; AI line generation only when the backend is online; exports as a CK-import text file.' },

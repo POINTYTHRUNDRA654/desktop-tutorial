@@ -46,7 +46,7 @@ torch>=2.3.0                  # Must match your CUDA version — see pytorch.org
 torchvision>=0.18.0
 tqdm>=4.66.0
 psutil>=5.9.0
-python-dotenv>=1.0.0          # loads MOSSY_BACKEND_TOKEN from a local .env — see .env.example
+python-dotenv>=1.0.0          # loads optional local settings from a .env file
 
 # ── Retrieval, routing, diagnosis, and the tutoring contract above are FREE and ─
 # open-source, fully local — no API key needed for any of it, ever.
@@ -54,7 +54,5 @@ python-dotenv>=1.0.0          # loads MOSSY_BACKEND_TOKEN from a local .env — 
 # handles those roles. Model weights download from HuggingFace on first run (free,
 # ~5–15GB per model). DuckDuckGo search is rate-limited to ~100 queries/hour (free tier).
 #
-# Long-form answer generation is a separate concern: on 8GB cards it routes to Mossy's
-# shared Render backend by default (MOSSY_BACKEND_TOKEN required for full quality — see
-# .env.example), which holds the real Groq key server-side. The local model is a
-# capped/degraded offline fallback. See README.md.
+# Long-form answer generation uses the user's own local Ollama. No API keys, tokens
+# or cloud services are involved anywhere. See README.md.

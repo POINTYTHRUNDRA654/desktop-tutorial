@@ -6,7 +6,8 @@ interface BrainBHealth {
   status?: string;
   curated_docs?: number;
   runtime_docs?: number;
-  backend_configured?: boolean;
+  ollama_model?: string;
+  ollama_reachable?: boolean;
   edition?: string;
   /** "waitress" (production) or "flask-dev" (fallback used when waitress isn't installed —
    *  see gemma_service_enhanced.py's __main__). Surfaced here specifically because a log line
@@ -485,7 +486,7 @@ export const BrainBSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
                       {typeof status.health?.runtime_docs === 'number' && `, ${status.health.runtime_docs} runtime`}
                     </div>
                     <div>
-                      <strong>Cloud generation:</strong> {status.health?.backend_configured ? 'configured' : 'not configured'}
+                      <strong>Local AI (Ollama):</strong> {status.health?.ollama_reachable ? `connected (${status.health?.ollama_model ?? 'model'})` : 'not running — start Ollama'}
                     </div>
                   </div>
                   {status.health?.server === 'flask-dev' && (

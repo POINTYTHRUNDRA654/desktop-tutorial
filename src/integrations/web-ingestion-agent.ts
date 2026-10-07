@@ -15,7 +15,7 @@ export interface TutorialSource {
 
 // NOTE: nexusmods.com and forums.nexusmods.com URLs are intentionally excluded.
 // Scraping Nexus Mods HTML violates their Terms of Service (no text/data mining or
-// web scraping). Use the official Nexus Mods API (nexus-mods-integration.ts) instead.
+// web scraping). Use the Mod Browser (official Nexus OAuth API) instead.
 const SOURCES = [
     'https://www.creationkit.com/fallout4/index.php',
     'https://www.reddit.com/r/FalloutMods/',

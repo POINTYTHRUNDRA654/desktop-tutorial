@@ -99,7 +99,6 @@ import {
   systemMetricsGet,
 } from './mossyBrainFeatures';
 import FormData from 'form-data';
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { File as NodeFile } from 'node:buffer';
 import { MiningPipelineOrchestrator } from '../mining/mining-pipeline';
@@ -139,76 +138,35 @@ app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
 const findEnvFile = (candidates: string[]): string =>
   candidates.find(p => fs.existsSync(p)) ?? candidates[0];
 
+// Packaged builds load NO bundled env file: the installer ships no secrets of any
+// kind (no provider keys, no shared backend token). Users add their own keys in
+// Settings. Only a developer's local, gitignored .env files are read, and only
+// when running unpackaged.
 const envPath = app.isPackaged
-  ? findEnvFile([
-    path.join(app.getAppPath(), '.env.encrypted'),           // inside asar (primary)
-    path.join(process.resourcesPath, '.env.encrypted'),       // resources folder
-    path.join(path.dirname(process.execPath), '.env.encrypted'), // next to executable
-    path.join(process.cwd(), '.env.encrypted'),               // last resort
-  ])
+  ? ''
   : findEnvFile([
     path.join(process.cwd(), '.env.local'),
     path.join(app.getAppPath(), '.env.local'),
-    path.join(process.cwd(), '.env.encrypted'),
-    path.join(app.getAppPath(), '.env.encrypted'),
     path.join(process.cwd(), '.env'),
     path.join(app.getAppPath(), '.env'),
   ]);
 
 console.log('[Main] Loading .env from:', envPath);
-console.log('[Main] File exists:', fs.existsSync(envPath));
+console.log('[Main] File exists:', envPath ? fs.existsSync(envPath) : false);
 console.log('[Main] Current working directory:', process.cwd());
 console.log('[Main] __dirname:', __dirname);
 console.log('[Main] app.getAppPath():', app.getAppPath());
 console.log('[Main] path.dirname(process.execPath):', path.dirname(process.execPath));
 // Suppress dotenv's own startup logs (keeps dev console readable).
 // dotenv@17 supports { quiet: true }.
-const result = dotenv.config({ path: envPath, quiet: true });
+const result = envPath ? dotenv.config({ path: envPath, quiet: true }) : { parsed: {} };
 console.log('[Main] dotenv result:', result);
 
-const decryptEnvVar = (key: string) => {
-  const value = process.env[key];
-  if (!value || !value.startsWith('enc:')) return;
 
-  try {
-    const encrypted = value.slice('enc:'.length);
-    const parts = encrypted.split(':');
-    if (parts.length === 2) {
-      const iv = Buffer.from(parts[0], 'hex');
-      const encryptedText = parts[1];
-      const cryptoKey = crypto.scryptSync('mossy-2026-packaging-key-change-in-production', 'salt', 32);
-      const decipher = crypto.createDecipheriv('aes-256-cbc', cryptoKey, iv);
-      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
-      process.env[key] = decrypted;
-      console.log(`[Main] ✓ Decrypted ${key}`);
-    }
-  } catch (e) {
-    console.error(`[Main] ✗ Failed to decrypt ${key}:`, e instanceof Error ? e.message : e);
-  }
-};
+// Nexus release: Mossy is self-contained. There is no default cloud backend, no
+// API key of any kind, and nothing is contacted unless the user runs a local
+// service themselves (Ollama, Whisper, etc.).
 
-// Decrypt encrypted secrets whenever they are present, regardless of build mode.
-decryptEnvVar('OPENAI_API_KEY');
-decryptEnvVar('GROQ_API_KEY');
-decryptEnvVar('DEEPGRAM_API_KEY');
-decryptEnvVar('MOSSY_BACKEND_TOKEN');
-decryptEnvVar('MOSSY_BRIDGE_TOKEN');
-
-if (!process.env.MOSSY_BACKEND_URL) {
-  process.env.MOSSY_BACKEND_URL = 'https://mossy.onrender.com';
-  console.log('[Main] ℹ️  Setting default MOSSY_BACKEND_URL');
-}
-
-if (app.isPackaged) {
-  console.log('[Main] Packaged build detected - checking for encrypted env vars...');
-  // Log which keys are loaded (for debugging)
-  if (process.env.MOSSY_BACKEND_TOKEN) {
-    console.log('[Main] ✓ MOSSY_BACKEND_TOKEN loaded from environment (length:', process.env.MOSSY_BACKEND_TOKEN.length, ')');
-  } else {
-    console.warn('[Main] ⚠️  MOSSY_BACKEND_TOKEN is not set in environment');
-  }
-};
 
 /**
  * Send diagnostics to renderer process
@@ -217,9 +175,6 @@ const sendDiagnosticsToRenderer = (webContents: any) => {
   if (!webContents) return;
   
   const diagnostics = {
-    backendTokenLoaded: !!process.env.MOSSY_BACKEND_TOKEN,
-    backendTokenLength: process.env.MOSSY_BACKEND_TOKEN ? process.env.MOSSY_BACKEND_TOKEN.length : 0,
-    backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
   }
 // --- Persistent Whisper transcription IPC handler ---
 // Uses whisperServerManager: model is loaded ONCE at startup and stays in memory.
@@ -254,12 +209,10 @@ ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, async (_event, arrayBuffer: ArrayB
 
 ipcMain.handle('bg-remover:check-status', async () => {
   const s = loadSettings();
-  const hfTokenSet = !!(s?.huggingFaceToken as string | undefined);
   const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
   const installed = !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath));
   if (installed && !rmbgServer.hasPythonPath) rmbgServer.setPythonPath(rmbgPythonPath);
-  if (hfTokenSet) rmbgServer.setHfToken(s.huggingFaceToken as string);
-  return { installed, hfTokenSet, ready: rmbgServer.isReady, device: rmbgServer.device };
+  return { installed, ready: rmbgServer.isReady, device: rmbgServer.device };
 });
 
 ipcMain.handle('bg-remover:install', async (_event) => {
@@ -268,16 +221,6 @@ ipcMain.handle('bg-remover:install', async (_event) => {
     const s = loadSettings();
     const rmbgPythonPath = (s?.rmbgPythonPath as string | undefined) || '';
     return { success: !!(rmbgPythonPath && fs.existsSync(rmbgPythonPath)) };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
-  }
-});
-
-ipcMain.handle('bg-remover:set-hf-token', async (_event, token: string) => {
-  try {
-    saveSettings({ ...loadSettings(), huggingFaceToken: token || '' });
-    rmbgServer.setHfToken(token || '');
-    return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
@@ -413,9 +356,6 @@ const getDdsConversionPresets = () => [
   }
 ];
 
-console.log('[Main] OPENAI_API_KEY loaded:', !!process.env.OPENAI_API_KEY);
-console.log('[Main] GROQ_API_KEY loaded:', !!process.env.GROQ_API_KEY);
-console.log('[Main] MOSSY_BACKEND_URL:', process.env.MOSSY_BACKEND_URL || '(not set)');
 console.log('[Main] Environment file loaded from:', envPath);
 console.log('[Main] Is packaged build:', app.isPackaged);
 // Never log API keys (even presence-only for renderer-exposed vars).
@@ -467,99 +407,6 @@ const f4aiBridge  = new F4AIBridgeServer();
 // createWindow() reads this to append ?freshInstall=true to the production file URL so the
 // renderer can synchronously clear stale onboarding flags before state initialisers run.
 let pendingFreshInstall = false;
-
-type BackendConfig = { baseUrl: string; token?: string };
-
-const getBackendConfig = (): BackendConfig | null => {
-  const rawUrl = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
-  if (!rawUrl) return null;
-  const baseUrl = rawUrl.replace(/\/+$/, '');
-  const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-  return { baseUrl, token: tokenRaw || undefined };
-};
-
-const backendJoin = (cfg: BackendConfig, pathname: string): string => {
-  const p = String(pathname || '').startsWith('/') ? String(pathname) : `/${pathname}`;
-  return `${cfg.baseUrl}${p}`;
-};
-
-const pingBackendHealth = async (cfg: BackendConfig): Promise<void> => {
-  try {
-    const healthUrl = backendJoin(cfg, '/health');
-    console.log('[Main] Pinging backend health:', healthUrl);
-    const response = await fetch(healthUrl, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(10000), // 10 second timeout
-    });
-    if (response.ok) {
-      const data = await response.json();
-      console.log('[Main] Backend health check successful:', data);
-    } else {
-      console.warn('[Main] Backend health check failed with status:', response.status);
-    }
-  } catch (error) {
-    console.warn('[Main] Backend health check error:', error instanceof Error ? error.message : error);
-  }
-};
-
-const postFormData = async (
-  urlStr: string,
-  formData: FormData,
-  headers: Record<string, string> = {},
-  timeoutMs = 30000
-): Promise<{ ok: boolean; status: number; json?: any; text?: string }> => {
-  const url = new URL(urlStr);
-  const isHttps = url.protocol === 'https:';
-  const client = isHttps ? https : http;
-
-  const reqHeaders: Record<string, string> = {
-    ...formData.getHeaders(),
-    ...headers,
-  };
-  try {
-    const length = formData.getLengthSync();
-    if (Number.isFinite(length) && length > 0) {
-      reqHeaders['Content-Length'] = String(length);
-    }
-  } catch {
-    // Some streams don't report length; allow chunked transfer.
-  }
-
-  return await new Promise((resolve, reject) => {
-    const req = client.request(
-      {
-        method: 'POST',
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: `${url.pathname}${url.search}`,
-        headers: reqHeaders,
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          let json: any | undefined;
-          try {
-            json = data ? JSON.parse(data) : undefined;
-          } catch {
-            json = undefined;
-          }
-          const status = res.statusCode || 0;
-          resolve({ ok: status >= 200 && status < 300, status, json, text: data });
-        });
-      }
-    );
-
-    req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error('Request timeout'));
-    });
-    req.on('error', reject);
-    formData.pipe(req);
-  });
-};
 
 // Duplicate Finder state
 const dedupeScanStates = new Map<string, DedupeScanState>();
@@ -1314,7 +1161,7 @@ async function runRmbgAutoInstall(win: BrowserWindow | null) {
     // ── 4. Save and activate ──────────────────────────────────────────────────
     saveSettings({ ...loadSettings(), rmbgPythonPath: pythonExe });
     rmbgServer.setPythonPath(pythonExe);
-    sendProgress('✅ Background Remover dependencies installed. Add your HuggingFace token next to finish setup.');
+    sendProgress('✅ Background Remover dependencies installed. The RMBG-2.0 model must already be on your computer (see huggingface.co/briaai/RMBG-2.0).');
 
   } catch (err: any) {
     sendProgress(`❌ Background Remover auto-setup error: ${err?.message || String(err)}`);
@@ -1662,132 +1509,34 @@ const settingsPath = (() => {
   }
 })();
 
-type SecretField = 'openaiApiKey' | 'groqApiKey' | 'backendToken' | 'githubToken' | 'inklingApiKey' | 'geminiApiKey';
-const secretEncKey = (k: SecretField) => `${k}Enc` as const;
+/** Local-only chat via Ollama. The Nexus build has no cloud AI providers. Returns '' if Ollama isn't reachable. */
+async function localOllamaChat(
+  messages: Array<{ role: string; content: string }>,
+  opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
+): Promise<string> {
+  try {
+    const cfg: any = loadSettings();
+    const base = String(cfg?.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
+    const model = String(cfg?.ollamaModel || 'gemma2:9b');
+    const res = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, stream: false, options: { num_predict: opts.maxTokens ?? 1500, temperature: opts.temperature ?? 0.7 } }),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+    });
+    if (!res.ok) return '';
+    const j: any = await res.json().catch(() => ({}));
+    return String(j?.message?.content || j?.response || '').trim();
+  } catch { return ''; }
+}
+
+// Nexus release: Mossy uses no API keys, tokens or cloud accounts. These legacy setting names
+// (written by older versions) are never read, never written, and never sent to the renderer.
+const LEGACY_SECRET_KEYS = [
+  'openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey',
+  'openaiApiKeyEnc', 'groqApiKeyEnc', 'backendTokenEnc', 'githubTokenEnc', 'inklingApiKeyEnc', 'geminiApiKeyEnc',
+] as const;
 const hasOwn = (obj: any, key: string) => Object.prototype.hasOwnProperty.call(obj, key);
-
-const encryptSecretForStorage = (plain: string): string => {
-  const v = String(plain || '').trim();
-  if (!v) return '';
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      const buf = safeStorage.encryptString(v);
-      return `enc:${buf.toString('base64')}`;
-    }
-  } catch (e) {
-    console.warn('[Settings] safeStorage encryption failed; storing as plain marker:', e);
-  }
-  return `plain:${v}`;
-};
-
-const decryptSecretFromStorage = (stored: any): string => {
-  const raw = String(stored || '').trim();
-  if (!raw) return '';
-  if (raw.startsWith('plain:')) return raw.slice('plain:'.length);
-  if (!raw.startsWith('enc:')) return '';
-
-  const encrypted = raw.slice('enc:'.length);
-
-  // Try packaged encryption format first (iv:encrypted)
-  if (encrypted.includes(':')) {
-    try {
-      const crypto = require('crypto');
-      const ENCRYPTION_KEY = 'mossy-2026-packaging-key-change-in-production';
-      const parts = encrypted.split(':');
-      if (parts.length === 2) {
-        const iv = Buffer.from(parts[0], 'hex');
-        const encryptedText = parts[1];
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-      }
-    } catch (e) {
-      console.warn('[Settings] packaged decryption failed, trying safeStorage:', e);
-    }
-  }
-
-  // Fall back to safeStorage format (base64 only)
-  const b64 = encrypted;
-  try {
-    if (!safeStorage.isEncryptionAvailable()) return '';
-    return safeStorage.decryptString(Buffer.from(b64, 'base64'));
-  } catch (e) {
-    console.warn('[Settings] safeStorage decryption failed:', e);
-    return '';
-  }
-};
-
-const migratePlainSecretsToEncrypted = (settings: any): { next: any; migrated: boolean } => {
-  if (!settings || typeof settings !== 'object') return { next: settings, migrated: false };
-  const next = { ...settings };
-  let migrated = false;
-
-  const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey'];
-  for (const field of fields) {
-    const encKey = secretEncKey(field);
-    const plain = String(next?.[field] || '').trim();
-    const enc = String(next?.[encKey] || '').trim();
-
-    if (plain && !enc) {
-      next[encKey] = encryptSecretForStorage(plain);
-      next[field] = '';
-      migrated = true;
-      continue;
-    }
-
-    if (enc && plain) {
-      next[field] = '';
-      migrated = true;
-    }
-  }
-
-  return { next, migrated };
-};
-
-const seedSecretFromEnv = (settings: any, field: SecretField, envName: string): boolean => {
-  const next = settings;
-  const encKey = secretEncKey(field);
-  const hasEnc = String(next?.[encKey] || '').trim();
-  const hasPlain = String(next?.[field] || '').trim();
-  if (hasEnc || hasPlain) return false;
-
-  const envValue = String((process.env as any)?.[envName] || '').trim();
-  if (!envValue) return false;
-
-  const isEnc = envValue.startsWith('enc:');
-  if (!isEnc && !safeStorage.isEncryptionAvailable()) {
-    console.warn(`[Settings] safeStorage unavailable; skipping persist for ${field} (env will be used in-memory).`);
-    return false;
-  }
-
-  next[encKey] = isEnc ? envValue : encryptSecretForStorage(envValue);
-  next[field] = '';
-  return true;
-};
-
-const getSecretValue = (settings: any, field: SecretField, envName?: string): string => {
-  const encKey = secretEncKey(field);
-  const fromEnc = decryptSecretFromStorage(settings?.[encKey]);
-  if (fromEnc) return fromEnc;
-
-  const fromPlain = String(settings?.[field] || '').trim();
-  if (fromPlain) return fromPlain;
-
-  // Check environment variables (now potentially encrypted)
-  if (envName) {
-    const envValue = String((process.env as any)?.[envName] || '').trim();
-    if (envValue) {
-      // If it starts with enc:, decrypt it
-      if (envValue.startsWith('enc:')) {
-        return decryptSecretFromStorage(envValue);
-      }
-      return envValue;
-    }
-  }
-  return '';
-};
 
 // Mod authors who've asked to be fully opted out of anything Mossy does --
 // never mentioned, referenced, used as examples, or otherwise touched. Ships
@@ -1811,7 +1560,7 @@ const loadSettings = (): any => {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf-8');
       const parsed = JSON.parse(data);
-      const { next, migrated } = migratePlainSecretsToEncrypted(parsed);
+      const next: any = { ...parsed };
       let cleaned = false;
       if (hasOwn(next, 'deepgramApiKey')) {
         delete (next as any).deepgramApiKey;
@@ -1821,26 +1570,8 @@ const loadSettings = (): any => {
         delete (next as any).deepgramApiKeyEnc;
         cleaned = true;
       }
-      
-      // CRITICAL: Always refresh backend token from process.env (packaged .env.encrypted)
-      // to avoid stale placeholder tokens in settings DB
-      const backendTokenFromEnv = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-      let forcedBackendTokenUpdate = false;
-      if (backendTokenFromEnv) {
-        const encKey = secretEncKey('backendToken');
-        const currentStored = String(next?.[encKey] || next?.backendToken || '').trim();
-        if (!currentStored || currentStored !== backendTokenFromEnv) {
-          // Update stored token to match environment token
-          next[encKey] = backendTokenFromEnv.startsWith('enc:') 
-            ? backendTokenFromEnv 
-            : encryptSecretForStorage(backendTokenFromEnv);
-          next.backendToken = '';
-          forcedBackendTokenUpdate = true;
-          console.log('[Settings] Refreshed backend token from process.env');
-        }
-      }
 
-      const backendBaseUrlFromEnv = String(process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
+      const backendBaseUrlFromEnv = '';
       let forcedBackendUrlUpdate = false;
       if (backendBaseUrlFromEnv) {
         const currentBackendBaseUrl = String(next?.backendBaseUrl || '').trim();
@@ -1851,11 +1582,6 @@ const loadSettings = (): any => {
         }
       }
       
-      const seeded =
-        seedSecretFromEnv(next, 'openaiApiKey', 'OPENAI_API_KEY') ||
-        seedSecretFromEnv(next, 'groqApiKey', 'GROQ_API_KEY') ||
-        seedSecretFromEnv(next, 'githubToken', 'GITHUB_TOKEN');
-
       // Initialize Blender token on first run
       let tokenInitialized = false;
       if (!next.blenderLinkToken) {
@@ -1899,15 +1625,9 @@ const loadSettings = (): any => {
         }
       }
 
-      if (migrated || seeded || cleaned || tokenInitialized || forcedBackendTokenUpdate || forcedBackendUrlUpdate || protectedCreatorsSeeded) {
+      if (cleaned || tokenInitialized || forcedBackendUrlUpdate || protectedCreatorsSeeded) {
         try {
           fs.writeFileSync(settingsPath, JSON.stringify(next, null, 2), 'utf-8');
-          if (migrated) {
-            console.log('[Settings] Migrated plaintext secrets to encrypted storage');
-          }
-          if (seeded) {
-            console.log('[Settings] Seeded secrets from environment');
-          }
           if (cleaned) {
             console.log('[Settings] Removed legacy Deepgram secrets');
           }
@@ -1941,9 +1661,7 @@ const loadSettings = (): any => {
     }
   }
   // Return comprehensive default settings with all tool paths
-  const defaultBackendBaseUrl = String(
-    process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com'
-  ).trim();
+  const defaultBackendBaseUrl = '';
 
   const defaults: Record<string, unknown> = {
     // UI + Voice language
@@ -2021,8 +1739,6 @@ const loadSettings = (): any => {
     listSyncBranch: 'main',
     listSyncLastSyncAt: undefined,
     listSyncLastError: '',
-    githubToken: '',
-    githubTokenEnc: '',
 
     // Workflow Runner
     workflowRunnerWorkflows: [],
@@ -2033,29 +1749,9 @@ const loadSettings = (): any => {
 
     // Optional backend proxy (server holds provider keys)
     backendBaseUrl: defaultBackendBaseUrl,
-    backendToken: '',
-    backendTokenEnc: '',
     userPreferredName: 'Vault Dweller',
     memoryStorageMode: 'userData',
     memoryStoragePath: '',
-
-    // Cloud API keys (stored locally; never exposed to renderer)
-    openaiApiKey: '',
-    openaiApiKeyEnc: '',
-    groqApiKey: '',
-    groqApiKeyEnc: '',
-
-    // Google Gemini API key -- used by the AI Detail Synthesis stage's
-    // "Gemini / Nano Banana" backend in Texture Enhancer (cloud image editing,
-    // as an alternative to local ComfyUI). Never used for anything else.
-    geminiApiKey: '',
-    geminiApiKeyEnc: '',
-
-    // Inkling (Thinking Machines) — OpenAI-compatible API
-    inklingApiKey: '',
-    inklingApiKeyEnc: '',
-    inklingBaseUrl: 'https://api.tinker.thinkingmachines.ai/v1',
-    inklingModel: 'thinkingmachines/Inkling',
 
     // Blender Link security token
     blenderLinkToken: crypto.randomBytes(16).toString('hex'),
@@ -2071,42 +1767,14 @@ const loadSettings = (): any => {
     anythingllmEnabled: false,
   };
 
-  // Seed API keys from .env.encrypted into settings.json on first launch so that
-  // the app works out of the box without any user configuration.
-  const seeded =
-    seedSecretFromEnv(defaults, 'backendToken', 'MOSSY_BACKEND_TOKEN') ||
-    seedSecretFromEnv(defaults, 'openaiApiKey', 'OPENAI_API_KEY') ||
-    seedSecretFromEnv(defaults, 'groqApiKey', 'GROQ_API_KEY') ||
-    seedSecretFromEnv(defaults, 'githubToken', 'GITHUB_TOKEN') ||
-    seedSecretFromEnv(defaults, 'geminiApiKey', 'GEMINI_API_KEY');
-  if (seeded) {
-    try {
-      fs.writeFileSync(settingsPath, JSON.stringify(defaults, null, 2), 'utf-8');
-      console.log('[Settings] First-run: seeded API keys from environment into settings.json');
-    } catch (e) {
-      console.warn('[Settings] First-run: could not persist seeded settings:', e);
-    }
-  }
-
   return defaults;
 };
 
 const redactSettingsForRenderer = (settings: any): any => {
   if (!settings || typeof settings !== 'object') return settings;
   const clone: any = { ...settings };
-  // Never expose secrets to the renderer.
-  if (clone.backendToken) clone.backendToken = '';
-  if (clone.backendTokenEnc) clone.backendTokenEnc = '';
-  if (clone.openaiApiKey) clone.openaiApiKey = '';
-  if (clone.openaiApiKeyEnc) clone.openaiApiKeyEnc = '';
-  if (clone.groqApiKey) clone.groqApiKey = '';
-  if (clone.groqApiKeyEnc) clone.groqApiKeyEnc = '';
-  if (clone.inklingApiKey) clone.inklingApiKey = '';
-  if (clone.inklingApiKeyEnc) clone.inklingApiKeyEnc = '';
-  if (clone.geminiApiKey) clone.geminiApiKey = '';
-  if (clone.geminiApiKeyEnc) clone.geminiApiKeyEnc = '';
-  if (clone.githubToken) clone.githubToken = '';
-  if (clone.githubTokenEnc) clone.githubTokenEnc = '';
+  // Never expose any legacy secret fields to the renderer.
+  for (const k of LEGACY_SECRET_KEYS) { if (k in clone) delete clone[k]; }
   if (clone.privacySettings) {
     clone.privacySettings = { ...clone.privacySettings };
     // The renderer only ever needs to know a password IS set, never the hash/salt.
@@ -2242,92 +1910,11 @@ const saveListSyncState = (state: any): void => {
 const LISTS_REMOTE_PATH = '.mossy/privacy-lists.json';
 let listSyncPullAttempted = false;
 
-const githubRequest = async (url: string, init: RequestInit, token: string): Promise<Response> => {
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    Authorization: `Bearer ${token}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Content-Type': 'application/json',
-    ...(init.headers || {}),
-  };
-  return fetch(url, { ...init, headers });
-};
 
-const syncListsToGitHub = async (settings: any): Promise<{ ok: boolean; error?: string }> => {
-  try {
-    if (!settings?.listSyncEnabled) return { ok: true };
-    const repo = parseGitHubRepo(settings?.listSyncRepo || settings?.communityRepo);
-    if (!repo) return { ok: false, error: 'Set listSyncRepo to owner/repo.' };
-    const token = getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN');
-    if (!token) return { ok: false, error: 'GitHub token is not configured.' };
-    const branch = String(settings?.listSyncBranch || 'main').trim() || 'main';
-    const payload = buildListsPayloadFromSettings(settings);
-    const bodyText = JSON.stringify(payload, null, 2);
-    const bodyB64 = Buffer.from(bodyText, 'utf-8').toString('base64');
-    const baseUrl = `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(LISTS_REMOTE_PATH)}`;
+// GitHub list sync is not part of this build (it required a personal access token).
+const syncListsToGitHub = async (_settings: any): Promise<{ ok: boolean; error?: string }> => ({ ok: true });
 
-    let sha: string | undefined;
-    const existing = await githubRequest(`${baseUrl}?ref=${encodeURIComponent(branch)}`, { method: 'GET' }, token);
-    if (existing.ok) {
-      const json = await existing.json();
-      sha = json?.sha;
-    }
-
-    const putResp = await githubRequest(baseUrl, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: `Mossy: sync privacy lists (${new Date().toISOString()})`,
-        content: bodyB64,
-        branch,
-        sha,
-      }),
-    }, token);
-
-    if (!putResp.ok) {
-      const t = await putResp.text();
-      return { ok: false, error: `GitHub push failed (${putResp.status}): ${t.slice(0, 240)}` };
-    }
-    return { ok: true };
-  } catch (error: any) {
-    return { ok: false, error: String(error?.message || error) };
-  }
-};
-
-const syncListsFromGitHub = async (settings: any): Promise<{ ok: boolean; updated?: boolean; error?: string }> => {
-  try {
-    if (!settings?.listSyncEnabled) return { ok: true, updated: false };
-    const repo = parseGitHubRepo(settings?.listSyncRepo || settings?.communityRepo);
-    if (!repo) return { ok: false, error: 'Set listSyncRepo to owner/repo.' };
-    const token = getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN');
-    if (!token) return { ok: false, error: 'GitHub token is not configured.' };
-    const branch = String(settings?.listSyncBranch || 'main').trim() || 'main';
-    const url = `https://api.github.com/repos/${repo.owner}/${repo.repo}/contents/${encodeURIComponent(LISTS_REMOTE_PATH)}?ref=${encodeURIComponent(branch)}`;
-    const resp = await githubRequest(url, { method: 'GET' }, token);
-    if (resp.status === 404) return { ok: true, updated: false };
-    if (!resp.ok) {
-      const t = await resp.text();
-      return { ok: false, error: `GitHub pull failed (${resp.status}): ${t.slice(0, 240)}` };
-    }
-
-    const json = await resp.json();
-    const content = String(json?.content || '').replace(/\n/g, '');
-    if (!content) return { ok: true, updated: false };
-    const decoded = Buffer.from(content, 'base64').toString('utf-8');
-    const parsed = JSON.parse(decoded) as Partial<ListsPayload>;
-    const nextPrivacy = {
-      ...(settings?.privacySettings || {}),
-      modContentWhitelist: Array.isArray(parsed?.whitelist) ? parsed.whitelist.map(normalizeListName).filter(Boolean) : (settings?.privacySettings?.modContentWhitelist || []),
-      modContentBlacklist: Array.isArray(parsed?.modBlacklist) ? parsed.modBlacklist.map((e: any) => ({ name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) })).filter((e: any) => e.name) : (settings?.privacySettings?.modContentBlacklist || []),
-      programBlacklist: Array.isArray(parsed?.programBlacklist) ? parsed.programBlacklist.map((e: any) => ({ name: normalizeListName(e?.name), reason: normalizeReason(e?.reason) })).filter((e: any) => e.name) : (settings?.privacySettings?.programBlacklist || []),
-    };
-
-    const updatedSettings = { ...settings, privacySettings: nextPrivacy };
-    saveSettings(updatedSettings);
-    return { ok: true, updated: true };
-  } catch (error: any) {
-    return { ok: false, error: String(error?.message || error) };
-  }
-};
+const syncListsFromGitHub = async (_settings: any): Promise<{ ok: boolean; updated?: boolean; error?: string }> => ({ ok: true, updated: false });
 
 const updateListSyncState = (patch: any): void => {
   const current = loadListSyncState();
@@ -2670,12 +2257,7 @@ function setupIpcHandlers() {
   // ============================================================================
 
   safeHandle('app:get-diagnostics', async () => {
-    const token = process.env.MOSSY_BACKEND_TOKEN;
     const diagnostics = {
-      backendUrl: process.env.MOSSY_BACKEND_URL || 'not set',
-      backendTokenLoaded: !!token,
-      backendTokenLength: token ? token.length : 0,
-      backendTokenPreview: token ? token.substring(0, 30) + '...' : 'not set',
       nodeEnv: process.env.NODE_ENV,
       electronVersion: process.version,
       timestamp: new Date().toISOString(),
@@ -2813,452 +2395,12 @@ function setupIpcHandlers() {
     }
   });
 
-  // Video transcription handler (runs in main process with Node.js)
-  // NOTE: For security, the renderer should NOT pass API keys. This handler prefers
-  // main-process stored secrets (safeStorage-encrypted settings) and env vars.
-  // Back-compat: older renderers passed (apiKey, filename, projectId?, organizationId?).
-  registerHandler('transcribe-video', async (_event, arrayBuffer: ArrayBuffer, ...args: any[]) => {
-    let tempVideoPath: string | null = null;
-    let tempAudioPath: string | null = null;
-
-    try {
-      const looksLikeFilename = (v: any): boolean => {
-        const s = String(v || '').trim();
-        if (!s) return false;
-        return /\.(mp4|webm|mov|avi|mkv|flv)$/i.test(s) || /\.[a-z0-9]{2,5}$/i.test(s);
-      };
-
-      const isNewSignature = looksLikeFilename(args?.[0]);
-      const filename = String((isNewSignature ? args?.[0] : args?.[1]) || '').trim();
-      const apiKeyFromRenderer = String((isNewSignature ? '' : args?.[0]) || '').trim();
-      const projectId = isNewSignature ? args?.[1] : args?.[2];
-      const organizationId = isNewSignature ? args?.[2] : args?.[3];
-
-      const s = loadSettings();
-      const storedKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      const apiKey = storedKey || apiKeyFromRenderer;
-
-      // Save video to temp file
-      const buffer = Buffer.from(arrayBuffer);
-      const ext = path.extname(filename) || '.mp4';
-      tempVideoPath = path.join(os.tmpdir(), `mossy-video-${Date.now()}${ext}`);
-      tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}.mp3`);
-
-      fs.writeFileSync(tempVideoPath, buffer);
-      console.log('[Transcription] Video saved to temp:', tempVideoPath);
-
-      // Extract audio using ffmpeg
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg(tempVideoPath!)
-          .output(tempAudioPath!)
-          .audioCodec('libmp3lame')
-          .audioBitrate('128k')
-          .on('end', () => {
-            console.log('Audio extracted successfully');
-            resolve();
-          })
-          .on('error', (err: Error) => {
-            console.error('FFmpeg error:', err);
-            reject(err);
-          })
-          .run();
-      });
-
-      // Read audio file
-      const audioBuffer = fs.readFileSync(tempAudioPath);
-      console.log('[Transcription] Audio file size:', audioBuffer.length, 'bytes');
-
-      let transcription = '';
-
-      // If a backend proxy is configured, try it. Backend-only architecture - no fallbacks.
-      const backendBaseUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || '').trim();
-      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-      const backend = backendBaseUrl
-        ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
-        : null;
-      const backendConfigured = Boolean(backend?.baseUrl);
-      const backendTokenConfigured = Boolean(backendToken);
-      if (!backend) {
-        return { success: false, error: 'Backend service not configured. Please set MOSSY_BACKEND_URL and MOSSY_BACKEND_TOKEN environment variables.' };
-      }
-
-      try {
-        const sttLang = (() => {
-          const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
-          if (!raw || raw === 'auto') return '';
-          return raw.split('-')[0] || raw;
-        })();
-
-        const extraHeaders: Record<string, string> = {};
-        if (backend.token) extraHeaders.Authorization = `Bearer ${backend.token}`;
-
-        const tryBackendTranscribe = async (fieldName: 'audio' | 'file', authHeaders: Record<string, string>) => {
-          const form = new FormData();
-          form.append(fieldName, audioBuffer, {
-            filename: 'audio.mp3',
-            contentType: 'audio/mpeg',
-          });
-          form.append('model', 'whisper-1');
-          if (sttLang) form.append('language', sttLang);
-          return postFormData(backendJoin(backend, '/v1/transcribe'), form, authHeaders, 60000);
-        };
-
-        let resp = await tryBackendTranscribe('audio', extraHeaders);
-        if (!resp.ok) {
-          const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
-          const shouldRetry =
-            (resp.status === 400 || resp.status === 422) &&
-            (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
-          if (shouldRetry) {
-            resp = await tryBackendTranscribe('file', extraHeaders);
-          }
-        }
-
-        // Some backends are configured for optional/no auth and reject arbitrary Bearer headers.
-        // If that happens, retry once without Authorization.
-        if (!resp.ok && resp.status === 401 && Boolean(extraHeaders.Authorization)) {
-          console.warn('[Transcription] Backend rejected Authorization header; retrying without auth header once');
-          resp = await tryBackendTranscribe('audio', {});
-          if (!resp.ok) {
-            const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
-            const shouldRetry =
-              (resp.status === 400 || resp.status === 422) &&
-              (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
-            if (shouldRetry) {
-              resp = await tryBackendTranscribe('file', {});
-            }
-          }
-        }
-
-        if (resp.ok && resp.json?.ok) {
-          transcription = String(resp.json?.text || '').trim();
-          return { success: true, text: transcription };
-        }
-
-        const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
-        console.error('[Transcription] Backend proxy failed:', msg);
-        if (resp.status === 401 || resp.status === 403) {
-          return {
-            success: false,
-            error: `Backend token rejected (HTTP ${resp.status} at ${backend.baseUrl}/v1/transcribe). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`,
-          };
-        }
-        if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
-          return {
-            success: false,
-            error: 'Render backend provider key is invalid or missing (server-side OPENAI_API_KEY). This is not your Mossy backend token.',
-          };
-        }
-        return { success: false, error: msg };
-      } catch (e: any) {
-        console.error('[Transcription] Backend proxy error:', e?.message || e);
-        return { success: false, error: e?.message || 'Backend service unavailable' };
-      }
-
-      try {
-        console.log('[Transcription] Attempting SDK transcription...');
-        const client = new OpenAI({
-          apiKey,
-          organization: organizationId,
-          project: projectId,
-        });
-        const result = await client.audio.transcriptions.create({
-          file: fs.createReadStream(tempAudioPath!),
-          model: 'whisper-1',
-        });
-        transcription = (result as any)?.text ?? '';
-        console.log('[Transcription] ✓ Success via SDK:', transcription.substring(0, 100));
-        return { success: true, text: transcription };
-      } catch (sdkErr: any) {
-        const msg = sdkErr?.message || '';
-        console.warn('[Transcription] SDK failed:', msg);
-        if (/401|Incorrect API key/i.test(msg)) {
-          console.log('[Transcription] Backend authentication failed - no fallback available');
-          return { success: false, error: 'Backend authentication failed. Please check your backend token.' };
-        }
-
-        // If SDK failed for other reasons, try HTTP as a last resort
-        try {
-          console.warn('[Transcription] Trying HTTP fallback...');
-          const formData = new FormData();
-          formData.append('file', audioBuffer, {
-            filename: 'audio.mp3',
-            contentType: 'audio/mpeg',
-          });
-          formData.append('model', 'whisper-1');
-
-          transcription = await new Promise<string>((resolve, reject) => {
-            const options = {
-              hostname: 'api.openai.com',
-              path: '/v1/audio/transcriptions',
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                ...formData.getHeaders(),
-              },
-            };
-
-            const req = https.request(options, (res) => {
-              let data = '';
-              res.on('data', (chunk) => { data += chunk; });
-              res.on('end', () => {
-                try {
-                  const json = JSON.parse(data);
-                  if (json.error) {
-                    const status = res.statusCode || 0;
-                    const errMsg: string = json.error.message || 'Transcription failed';
-                    const maskedMsg = errMsg.replace(/(sk-[a-z0-9_-]{10,})/gi, (m) => m.slice(0, 10) + '…');
-                    const enriched = `[${status}] ${maskedMsg}`;
-                    reject(new Error(enriched));
-                  } else {
-                    resolve(json.text);
-                  }
-                } catch (e) {
-                  reject(new Error('Failed to parse API response'));
-                }
-              });
-            });
-
-            req.on('error', reject);
-            formData.pipe(req);
-          });
-
-          return { success: true, text: transcription };
-        } catch (httpErr: any) {
-          // HTTP also failed, no fallback available
-          console.warn('[Transcription] HTTP also failed - no fallback available');
-          return { success: false, error: 'Backend transcription failed. Please check your backend configuration.' };
-        }
-      }
-    } catch (error: any) {
-      console.error('Video transcription error:', error);
-      return { success: false, error: error.message || 'Failed to transcribe video' };
-    } finally {
-      // Clean up temp files
-      if (tempVideoPath && fs.existsSync(tempVideoPath)) {
-        try { fs.unlinkSync(tempVideoPath); } catch (e) { console.warn('Failed to delete temp video:', e); }
-      }
-      if (tempAudioPath && fs.existsSync(tempAudioPath)) {
-        try { fs.unlinkSync(tempAudioPath); } catch (e) { console.warn('Failed to delete temp audio:', e); }
-      }
-    }
-  });
-
-  // NOTE: 'transcribe-audio' IPC is handled by the persistent WhisperServerManager
-  // registered at the top of this file (ipcMain.handle(IPC_CHANNELS.TRANSCRIBE_AUDIO, ...)).
-  // The handler below is intentionally removed to avoid duplicate-channel errors.
-  // Legacy cloud/backend fallback paths (OpenAI, backend proxy) remain available
-  // via Settings → STT Provider if the user configures them.
-  if (false) // eslint-disable-line no-constant-condition
-  registerHandler('transcribe-audio--DISABLED', async (_event, arrayBuffer: ArrayBuffer, mimeType?: string) => {
-    console.error('🎤 [TRANSCRIBE-AUDIO] Handler called with arrayBuffer length:', arrayBuffer?.byteLength || 0, 'mimeType:', mimeType);
-    let tempAudioPath: string | null = null;
-
-    try {
-      const s = loadSettings();
-      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      // If backend is configured, it's the primary provider; don't use OpenAI as fallback
-      const backendBaseUrl = String(s?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || '').trim();
-      const backendConfigured = !!backendBaseUrl;
-      const hasLocalProviders = Boolean(openaiKey) && !backendConfigured;
-      
-      console.error('🎤 [TRANSCRIBE-AUDIO] backendBaseUrl:', backendBaseUrl);
-      console.error('🎤 [TRANSCRIBE-AUDIO] backendConfigured:', backendConfigured);
-      console.error('🎤 [TRANSCRIBE-AUDIO] hasLocalProviders:', hasLocalProviders);
-      console.error('🎤 [TRANSCRIBE-AUDIO] process.env.MOSSY_BACKEND_URL:', process.env.MOSSY_BACKEND_URL);
-      console.error('🎤 [TRANSCRIBE-AUDIO] process.env.MOSSY_BACKEND_TOKEN exists:', !!process.env.MOSSY_BACKEND_TOKEN, 'length:', process.env.MOSSY_BACKEND_TOKEN?.length || 0);
-
-      const buf = Buffer.from(arrayBuffer);
-      const mt = String(mimeType || '').toLowerCase();
-      const ext = mt.includes('webm') ? '.webm' : mt.includes('wav') ? '.wav' : mt.includes('ogg') ? '.ogg' : '.mp3';
-
-      const sttLang = (() => {
-        const raw = String(s?.sttLanguage || s?.uiLanguage || '').trim().toLowerCase();
-        if (!raw || raw === 'auto') return '';
-        return raw.split('-')[0] || raw;
-      })();
-
-      // ── 1. Local Whisper server (FREE, private) ──────────────────────────────
-      // Try a locally-running Whisper-compatible HTTP server first. This avoids
-      // any cloud cost and keeps audio 100% on-device.
-      // Supports faster-whisper-server (OpenAI-compatible /v1/audio/transcriptions)
-      // and simple single-endpoint servers at /transcribe or /transcriptions.
-      const whisperLocalUrl = String(s?.whisperLocalUrl ?? process.env.WHISPER_LOCAL_URL ?? '').trim().replace(/\/+$/, '');
-      if (whisperLocalUrl) {
-        try {
-          console.log('[Transcription] Trying local Whisper server:', whisperLocalUrl);
-
-          const buildWhisperForm = () => {
-            const form = new FormData();
-            form.append('file', buf, {
-              filename: `audio${ext}`,
-              contentType: mt || 'application/octet-stream',
-            });
-            form.append('model', 'whisper-1');
-            if (sttLang) form.append('language', sttLang);
-            return form;
-          };
-
-          // Try OpenAI-compatible endpoint first, then simpler /transcribe path.
-          // Timeout is 8 s per endpoint (fast enough for a healthy local server;
-          // short enough to fall through to the cloud provider quickly when the
-          // local server is configured but not running).
-          const endpoints = [`${whisperLocalUrl}/v1/audio/transcriptions`, `${whisperLocalUrl}/transcribe`];
-          for (const endpoint of endpoints) {
-            console.log('[Transcription] Trying local Whisper endpoint:', endpoint);
-            const resp = await postFormData(endpoint, buildWhisperForm(), {}, 8000);
-            if (resp.ok) {
-              const text = String(resp.json?.text || '').trim();
-              console.log('[Transcription] ✓ Local Whisper success:', text.substring(0, 80));
-              return { success: true, text };
-            }
-          }
-          console.warn('[Transcription] Local Whisper server responded but returned no text; falling back');
-        } catch (e: any) {
-          console.warn('[Transcription] Local Whisper server unavailable; falling back:', e?.message || e);
-        }
-      }
-
-      // ── 2. Backend proxy ─────────────────────────────────────────────────────
-      // If a backend proxy is configured, try it next. This enables "works on
-      // download" flows (server holds provider keys; client holds none).
-      // NOTE: Always use process.env.MOSSY_BACKEND_TOKEN (from .env.encrypted) directly,
-      // NOT from settings storage, to avoid stale placeholder tokens in the DB.
-      const backendToken = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-      const backend = backendBaseUrl
-        ? { baseUrl: backendBaseUrl.replace(/\/+$/, ''), token: backendToken || undefined }
-        : null;
-      if (backend) {
-        console.error('🎤 [BACKEND] Entering backend proxy block');
-        try {
-          const logToRenderer = (msg: string, data?: any) => {
-            const fullMsg = data !== undefined ? `${msg} ${JSON.stringify(data)}` : msg;
-            console.error('🎤 [BACKEND-LOG]', fullMsg);
-            mainWindow?.webContents?.send('transcription-log', { msg: fullMsg, timestamp: Date.now() });
-          };
-
-          logToRenderer('[Transcription] Backend base URL: ' + backend.baseUrl);
-          logToRenderer('[Transcription] Backend token available: ' + (backend.token ? `true (length: ${backend.token.length})` : 'false (empty)'));
-          if (backend.token) {
-            const tokenPreview = backend.token.substring(0, 20);
-            logToRenderer('[Transcription] Token preview (first 20 chars): ' + tokenPreview);
-            const tokenEnd = backend.token.substring(Math.max(0, backend.token.length - 10));
-            logToRenderer('[Transcription] Token end (last 10 chars): ' + tokenEnd);
-            logToRenderer('[Transcription] Full token length: ' + backend.token.length);
-            logToRenderer('[Transcription] Full token (PRIVATE): ' + backend.token);
-          }
-
-          const extraHeaders: Record<string, string> = {};
-          if (backend.token) {
-            extraHeaders.Authorization = `Bearer ${backend.token}`;
-            logToRenderer('[Transcription] ✓ Authorization header set with Bearer token');
-            logToRenderer('[Transcription] Header value starts with: Bearer ' + backend.token.substring(0, 15) + ' ...');
-            logToRenderer('[Transcription] Full auth header: ' + extraHeaders.Authorization);
-          } else {
-            logToRenderer('[Transcription] ⚠️  Backend token is MISSING or EMPTY!');
-            logToRenderer('[Transcription] Checking environment: MOSSY_BACKEND_TOKEN = ' + (process.env.MOSSY_BACKEND_TOKEN ? 'exists' : 'NOT SET'));
-          }
-
-          const tryBackendTranscribe = async (fieldName: 'audio' | 'file') => {
-            const form = new FormData();
-            form.append(fieldName, buf, {
-              filename: `audio${ext}`,
-              contentType: mt || 'application/octet-stream',
-            });
-            form.append('model', 'whisper-1');
-            if (sttLang) form.append('language', sttLang);
-            const endpoint = backendJoin(backend, '/v1/transcribe');
-            logToRenderer('[Transcription] Calling endpoint: ' + endpoint);
-            logToRenderer('[Transcription] With headers: ' + JSON.stringify(extraHeaders));
-            const resp = await postFormData(endpoint, form, extraHeaders, 45000);
-            logToRenderer('[Transcription] Response status: ' + resp.status);
-            logToRenderer('[Transcription] Response ok: ' + resp.ok);
-            logToRenderer('[Transcription] Response json: ' + JSON.stringify(resp.json));
-            logToRenderer('[Transcription] Response text: ' + resp.text);
-            return resp;
-          };
-
-          let resp = await tryBackendTranscribe('audio');
-          if (!resp.ok) {
-            const msg = String(resp.json?.message || resp.json?.error || resp.text || '');
-            const shouldRetry =
-              (resp.status === 400 || resp.status === 422) &&
-              (/missing/i.test(msg) && /file/i.test(msg) || /body',\s*'file'/.test(msg));
-            if (shouldRetry) {
-              resp = await tryBackendTranscribe('file');
-            }
-          }
-
-          if (resp.ok && resp.json?.ok) {
-            return { success: true, text: String(resp.json?.text || '').trim() };
-          }
-
-          const msg = String(resp.json?.message || resp.json?.error || resp.text || `Backend transcribe failed (${resp.status})`);
-          logToRenderer('[Transcription] Backend proxy response: status=' + resp.status + ', message=' + msg + ', fullResponse=' + JSON.stringify(resp.json));
-          if (resp.status === 401 || resp.status === 403) {
-            logToRenderer('[Transcription] ❌ AUTHENTICATION ERROR: Backend rejected the token');
-            logToRenderer('[Transcription] Status: ' + resp.status);
-            logToRenderer('[Transcription] Error: ' + msg);
-          }
-          if (!hasLocalProviders) {
-            // Include debug info in the error response
-            return { 
-              success: false, 
-              error: msg,
-              debug: {
-                backendUrl: backend?.baseUrl,
-                backendTokenLength: backend?.token?.length || 0,
-                backendTokenPreview: backend?.token?.substring(0, 10) + '...',
-                responseStatus: resp.status,
-                responseHeaders: resp.json,
-                responseText: resp.text?.substring(0, 200),
-              }
-            };
-          }
-          logToRenderer('[Transcription] Backend proxy failed; falling back to local providers: ' + msg);
-        } catch (e: any) {
-          console.warn('[Transcription] Backend proxy error; falling back to local providers:', e?.message || e);
-          if (!hasLocalProviders) {
-            return { success: false, error: e?.message || 'Backend service unavailable' };
-          }
-        }
-      }
-
-      tempAudioPath = path.join(os.tmpdir(), `mossy-audio-${Date.now()}${ext}`);
-      fs.writeFileSync(tempAudioPath, buf);
-
-      // Prefer OpenAI Whisper if configured
-      let lastOpenAiError: string | null = null;
-      if (openaiKey) {
-        try {
-          const client = new OpenAI({ apiKey: openaiKey });
-          const result = await client.audio.transcriptions.create({
-            file: fs.createReadStream(tempAudioPath),
-            model: 'whisper-1',
-          });
-          const text = String((result as any)?.text || '').trim();
-          return { success: true, text };
-        } catch (e: any) {
-          lastOpenAiError = String(e?.message || e);
-          console.warn('[Transcription] OpenAI Whisper failed:', lastOpenAiError);
-        }
-      }
-
-      if (lastOpenAiError) {
-        return { success: false, error: `OpenAI Whisper failed: ${lastOpenAiError}` };
-      }
-
-      const detail = `openaiKey=${hasLocalProviders ? 'yes' : 'no'} backend=${backend?.baseUrl ? 'yes' : 'no'}`;
-      return { success: false, error: `No transcription provider configured (OpenAI) [${detail}]` };
-    } catch (error: any) {
-      console.error('[Transcription] transcribe-audio error:', error);
-      return { success: false, error: error?.message || 'Failed to transcribe audio' };
-    } finally {
-      if (tempAudioPath && fs.existsSync(tempAudioPath)) {
-        try { fs.unlinkSync(tempAudioPath); } catch { /* ignore */ }
-      }
-    }
-  });
+  // Cloud transcription (OpenAI / backend proxy) is not part of this build. Speech-to-text runs
+  // locally through the built-in Whisper server (see the TRANSCRIBE_AUDIO handler near the top).
+  registerHandler('transcribe-video', async () => ({
+    success: false,
+    error: 'Cloud transcription is not available in this version of Mossy. Use the built-in local Whisper transcription instead.',
+  }));
 
   // Persist voice conversation lines to disk (default path can be overridden via env var)
   registerHandler(IPC_CHANNELS.SAVE_VOICE_HISTORY, async (_event, line: string) => {
@@ -3802,33 +2944,10 @@ function setupIpcHandlers() {
         lastSyncAt: push.ok ? Date.now() : syncState?.lastSyncAt,
       });
     }
-    const backendBaseUrl = String(settings?.backendBaseUrl || process.env.MOSSY_BACKEND_URL || 'https://mossy.onrender.com').trim();
-    const backendTokenConfigured = Boolean(getSecretValue(settings, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-    const githubTokenConfigured = Boolean(getSecretValue(settings, 'githubToken', 'GITHUB_TOKEN'));
-    // Added 2026-08-26 (API-key-confirmation-dialog fix): the AI Chat cloud
-    // path (LocalAIEngine.ts) used to show a "Mossy is about to use a cloud
-    // AI provider (your configured API key)" confirm() dialog before EVERY
-    // cloud call whenever the "Require Key Confirmation" privacy toggle was
-    // on -- including the default zero-config path, where ai-chat-groq
-    // actually goes through the bundled Render backend (mossy.onrender.com)
-    // using Mossy's own server-side key, not anything the user configured.
-    // getBackendConfig() in this file falls back to that Render URL even
-    // with no env var set, so it's non-null for virtually every install --
-    // "your configured API key" was simply false for almost everyone who
-    // saw that dialog. This flag tells the renderer whether a call will
-    // actually spend a key the user personally supplied: either an Inkling
-    // key (always tried first, unconditionally) or a direct Groq key used
-    // only when no backend is configured at all (an explicit self-hosted/
-    // advanced setup). The renderer now only shows the confirmation when
-    // this is true, so the default Render-backend flow never prompts.
-    const usesOwnCloudApiKey = Boolean(getSecretValue(settings, 'inklingApiKey', 'INKLING_API_KEY'))
-      || (!getBackendConfig() && Boolean(getSecretValue(settings, 'groqApiKey', 'GROQ_API_KEY')));
     return redactSettingsForRenderer({
       ...settings,
-      backendBaseUrl,
-      backendTokenConfigured,
-      githubTokenConfigured,
-      usesOwnCloudApiKey,
+      backendBaseUrl: '',
+      usesOwnCloudApiKey: false,
     });
   });
 
@@ -3850,37 +2969,13 @@ function setupIpcHandlers() {
     }
     const current = loadSettings();
 
-    // Strip *Enc fields from renderer input before merging. The renderer must never
-    // be able to directly inject pre-computed encrypted values — all secret fields
-    // must go through encryptSecretForStorage() in this process.
+    // Legacy secret fields can never be set from the renderer (this build has no keys).
     const sanitizedInput: any = { ...(newSettings || {}) };
-    const fields: SecretField[] = ['openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey'];
-    for (const field of fields) {
-      delete sanitizedInput[secretEncKey(field)];
-    }
+    for (const k of LEGACY_SECRET_KEYS) { delete sanitizedInput[k]; }
 
     const updated = { ...current, ...sanitizedInput };
     const beforeLists = JSON.stringify(buildListsPayloadFromSettings(current));
-
-    // Never persist plaintext secrets. If renderer provides them, encrypt into *Enc fields.
-    // If the renderer sends an empty string (redacted value), preserve the existing encrypted key.
     const next: any = { ...updated };
-    for (const field of fields) {
-      if (!hasOwn(sanitizedInput, field)) continue;
-      const encKey = secretEncKey(field);
-      const plain = String(sanitizedInput[field] || '').trim();
-      if (!plain) {
-        // Renderer sent empty (key was redacted) — keep existing encrypted value, clear any stray plaintext.
-        next[field] = '';
-        continue;
-      }
-      next[encKey] = encryptSecretForStorage(plain);
-      next[field] = '';
-      // Real timestamp for "Enable API Key Rotation" — lets the UI honestly
-      // warn when a key is older than securitySettings.apiKeyRotationDays,
-      // rather than the toggle existing but nothing ever tracking key age.
-      next.apiKeySetAt = { ...(current?.apiKeySetAt || {}), [field]: Date.now() };
-    }
 
     // The renderer's copy of privacySettings never contains the password
     // hash/salt (redacted by redactSettingsForRenderer) — if we naively took
@@ -4064,19 +3159,6 @@ function setupIpcHandlers() {
       return [];
     }
   });
-
-  // Prefer settings-based backend config when available; env vars remain supported.
-  // This shadows the file-scope helper so IPC handlers (defined in this function scope)
-  // can use per-user settings without exposing secrets to the renderer.
-  const getBackendConfig = (): BackendConfig | null => {
-    const s = loadSettings();
-    const rawUrl = String(process.env.MOSSY_BACKEND_URL || s?.backendBaseUrl || 'https://mossy.onrender.com').trim();
-    if (!rawUrl) return null;
-    const baseUrl = rawUrl.replace(/\/+$/, '');
-    const tokenRaw = String(process.env.MOSSY_BACKEND_TOKEN || '').trim();
-    return { baseUrl, token: tokenRaw ? tokenRaw : undefined };
-  };
-
 
   // --- Roadmap & Project Management ---
   registerHandler(IPC_CHANNELS.PROJECT_LIST, async () => {
@@ -4749,17 +3831,10 @@ function setupIpcHandlers() {
   registerHandler('get-mossy-capabilities', async () => {
     try {
       const s = loadSettings();
-      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      const backendCfg = getBackendConfig();
-
       return {
         version: '6.0.0',
         blenderIntegrationVersion: '1.0.0',
         models: {
-          openai: openaiKey ? ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'] : [],
-          groq: groqKey ? ['openai/gpt-oss-120b', 'qwen/qwen3.6-27b'] : [],
-          backend: backendCfg ? ['auto'] : [],
           local: [
             { name: 'ollama', baseUrl: s?.ollamaBaseUrl || 'http://127.0.0.1:11434', model: s?.ollamaModel || 'llama3' },
             { name: 'text-generation-webui', baseUrl: s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1', model: s?.openaiCompatModel || '' }
@@ -4831,56 +3906,11 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
         { role: 'user' as const, content: query },
       ];
 
-      // PRIMARY: Inkling
-      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
-      if (inklingKey && inklingBase) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 60_000);
-          try {
-            const res = await fetch(`${inklingBase}/chat/completions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-              body: JSON.stringify({ model: inklingModel, messages, max_tokens: 1000, temperature: temperature ?? 0.7 }),
-              signal: controller.signal,
-            });
-            if (res.ok) {
-              const json: any = await res.json().catch(() => ({}));
-              const answer = json?.choices?.[0]?.message?.content;
-              if (answer) return { success: true, query, response: String(answer), model: inklingModel };
-            }
-          } finally { clearTimeout(timeout); }
-        } catch (e: any) {
-          console.warn('[Blender AI Query] Inkling failed, falling back to OpenAI:', e?.message);
-        }
+      const answer = await localOllamaChat(messages, { maxTokens: 1000, temperature: temperature ?? 0.7, timeoutMs: 60_000 });
+      if (!answer) {
+        return { success: false, error: 'Local AI is not running. Start Ollama (Settings → AI Engine) and try again.' };
       }
-
-      // FALLBACK: OpenAI
-      const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-      if (!openaiKey) {
-        return { success: false, error: 'No AI key configured. Add an Inkling or OpenAI API key in Settings → AI Engine.' };
-      }
-      const client = new OpenAI({ apiKey: openaiKey });
-      const response = await client.chat.completions.create({
-        model: 'gpt-4-turbo',
-        temperature: temperature ?? 0.7,
-        max_tokens: 1000,
-        messages,
-      });
-      const answer = response.choices[0]?.message?.content || '';
-      return {
-        success: true,
-        query,
-        response: answer,
-        model: response.model,
-        usage: {
-          promptTokens: response.usage?.prompt_tokens,
-          completionTokens: response.usage?.completion_tokens,
-          totalTokens: response.usage?.total_tokens,
-        },
-      };
+      return { success: true, query, response: answer, model: String(s?.ollamaModel || 'ollama') };
     } catch (e: any) {
       console.error('[Blender AI Query] Error:', e);
       return { success: false, error: e?.message || String(e) };
@@ -10635,506 +9665,11 @@ end.
 
   // ── End Edition + Fine-Tuning ─────────────────────────────────────────────
 
-  /**
-   * AI Chat Handler - OpenAI
-   * Renderer calls this with a prompt; main process handles API key
-   */
-  forceHandle('ai-chat-openai', async (_event, payload: { prompt: string; systemPrompt?: string; model?: string }) => {
-    try {
-      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
-      const model = payload.model || 'gpt-4o-mini';
-      const messages = [
-        { role: 'system' as const, content: systemPrompt },
-        { role: 'user' as const, content: String(payload.prompt || '') },
-      ];
-
-      // Try backend proxy first (Render or self-hosted)
-      let content = '';
-      let backendAttempted = false;
-      let backendError = '';
-      const backend = getBackendConfig();
-      if (backend) {
-        backendAttempted = true;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        try {
-          const backendChatUrl = backendJoin(backend, '/v1/chat');
-          let res = await fetch(backendChatUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({ provider: 'openai', model, messages }),
-            signal: controller.signal,
-          });
-
-          let json: any = await res.json().catch(() => ({}));
-
-          if ((res.status === 401 || res.status === 403) && backend.token) {
-            console.warn('[AI Chat OpenAI] Backend rejected Authorization header; retrying without auth header once');
-            res = await fetch(backendChatUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ provider: 'openai', model, messages }),
-              signal: controller.signal,
-            });
-            json = await res.json().catch(() => ({}));
-          }
-
-          if (res.ok && json?.ok) {
-            content = String(json?.text || '');
-          } else {
-            const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-            console.warn('[AI Chat OpenAI] Backend proxy failed:', msg);
-            if (res.status === 401 || res.status === 403) {
-              backendError = `Backend token rejected (HTTP ${res.status} at ${backendChatUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
-            } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
-              backendError = 'Render backend OpenAI key is invalid or missing (server-side OPENAI_API_KEY). This is not your Mossy backend token.';
-            } else {
-              backendError = msg;
-            }
-          }
-        } catch (e: any) {
-          backendError = `Backend connection error: ${e?.message || e}`;
-          console.warn('[AI Chat OpenAI] Backend proxy error:', e?.message || e);
-        } finally {
-          clearTimeout(timeout);
-        }
-      }
-
-      // If backend is configured, stay backend-only to avoid mixed/stale local key paths.
-      if (backendAttempted) {
-        if (content) {
-          return { success: true, content };
-        }
-        return { success: false, error: backendError || 'Backend chat failed. Please check backend health and provider keys.' };
-      }
-
-      // No backend configured: use direct OpenAI SDK fallback.
-      if (!content) {
-        const s = loadSettings();
-        const apiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-        if (!apiKey) {
-          return { success: false, error: 'No OpenAI API key configured. Add your key in Desktop Settings.' };
-        }
-        const { default: OpenAI } = await import('openai');
-        const client = new OpenAI({ apiKey });
-        const response = await client.chat.completions.create({ model, messages });
-        content = response.choices[0]?.message?.content || '';
-      }
-
-      return { success: true, content };
-    } catch (error: any) {
-      console.error('[AI Chat OpenAI] Error:', error);
-      return { success: false, error: error.message || 'AI chat failed' };
-    }
-  });
-
-  /**
-   * Shared helper: call Groq with automatic model fallback on 429 rate-limit.
-   * Primary model (70b) gives the best answers; on rate-limit we retry once with
-   * the 8b-instant model which has ~28× higher free-tier quota.
-   */
-  // 8b-instant is 3–5× faster and has ~28× higher free-tier quota.
-  // 70b is kept as the rate-limit fallback for queries that need deeper reasoning.
-  // llama-3.3-70b-versatile was deprecated by Groq on 2026-06-17; openai/gpt-oss-120b
-  // is Groq's own recommended migration target (console.groq.com/docs/deprecations).
-  const GROQ_FALLBACK_MODEL = 'openai/gpt-oss-120b';
-  // Hard cap on direct Groq SDK calls — prevents indefinite hangs when Groq is slow.
-  const GROQ_SDK_TIMEOUT_MS = 15000;
-
-  const callGroqWithFallback = async (
-    client: { chat: { completions: { create: (params: { model: string; messages: unknown; max_tokens?: number }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } },
-    preferredModel: string,
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    maxTokens = 1024,
-  ): Promise<string> => {
-    const { RateLimitError, BadRequestError } = await import('groq-sdk');
-    const withTimeout = <T>(p: Promise<T>): Promise<T> =>
-      Promise.race([
-        p,
-        new Promise<T>((_, reject) =>
-          setTimeout(() => reject(new Error(`Groq request timed out after ${GROQ_SDK_TIMEOUT_MS}ms`)), GROQ_SDK_TIMEOUT_MS)
-        ),
-      ]);
-    // Same detection as src/backend/routes/chat.ts's isContextLengthError —
-    // a 400 that's specifically an over-context-window request, not some
-    // other bad-request condition a retry wouldn't fix.
-    const isContextLengthError = (e: unknown): boolean => {
-      if (!(e instanceof BadRequestError)) return false;
-      const msg = (e as { message?: string }).message || '';
-      return /context.?length|reduce.*length|too (long|large)|shorten|maximum.*token|token.*limit/i.test(msg);
-    };
-    try {
-      const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages, max_tokens: maxTokens }));
-      return response.choices[0]?.message?.content || '';
-    } catch (e) {
-      if (e instanceof RateLimitError && preferredModel !== GROQ_FALLBACK_MODEL) {
-        console.warn(`[Groq] Rate-limited on ${preferredModel}, retrying with ${GROQ_FALLBACK_MODEL}`);
-        const response = await withTimeout(client.chat.completions.create({ model: GROQ_FALLBACK_MODEL, messages, max_tokens: maxTokens }));
-        return response.choices[0]?.message?.content || '';
-      }
-      if (isContextLengthError(e)) {
-        // GROQ_PRIMARY_MODEL (qwen/qwen3.6-27b) has the largest context
-        // window available here (262K tokens) — GROQ_FALLBACK_MODEL above is
-        // actually smaller (131K), so it exists only for rate-limit quota
-        // diversity and would make a context overflow worse, not better.
-        if (preferredModel !== GROQ_PRIMARY_MODEL) {
-          console.warn(`[Groq] Context length exceeded on ${preferredModel}, retrying with ${GROQ_PRIMARY_MODEL} (262K context)`);
-          const response = await withTimeout(client.chat.completions.create({ model: GROQ_PRIMARY_MODEL, messages, max_tokens: maxTokens }));
-          return response.choices[0]?.message?.content || '';
-        }
-        // Already on the largest model and still over budget — the injected
-        // system prompt (brain neurons + FO4 knowledge base) is the dominant
-        // contributor, not conversation history, so trimming history is a
-        // real reduction in token count, not a cosmetic retry: drop all but
-        // the latest exchange and try once more before giving up.
-        const systemMessages = messages.filter(m => m.role === 'system');
-        const nonSystemMessages = messages.filter(m => m.role !== 'system');
-        if (nonSystemMessages.length > 2) {
-          const trimmed = [...systemMessages, ...nonSystemMessages.slice(-2)];
-          console.warn(`[Groq] Still over context on ${preferredModel} after the largest model — retrying once with conversation history trimmed to the last exchange`);
-          const response = await withTimeout(client.chat.completions.create({ model: preferredModel, messages: trimmed, max_tokens: maxTokens }));
-          return response.choices[0]?.message?.content || '';
-        }
-        throw new Error('That request is too large even for the largest available model — try a shorter, more specific message.');
-      }
-      throw e;
-    }
-  };
-
-  /**
-   * AI Chat Handler - Groq (for voice and real-time)
-   */
-  forceHandle('ai-chat-groq', async (_event, payload: {
-    prompt: string; systemPrompt?: string; model?: string;
-    conversationHistory?: Array<{ role: string; content: string }>; includeGameData?: boolean;
-    // Real native tool-calling (OpenAI/Groq-compatible shape) -- forwarded to
-    // the backend proxy's /v1/chat, which forwards it to Groq's real API via
-    // groq-sdk (src/backend/routes/chat.ts). Optional: omitting it keeps the
-    // existing plain-text behavior unchanged for callers not yet updated.
-    // NOT currently wired into the Inkling-primary path above (a different
-    // provider, out of scope for this pass) or the no-backend-configured
-    // direct-Groq-SDK fallback below (callGroqWithFallback is shared by
-    // three unrelated call sites; scoping tool support to just this one
-    // would mean either touching all of them or an awkward optional
-    // out-parameter -- deliberately deferred rather than done half-right).
-    tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>;
-    // 'required' forces a tool call this turn; 'auto'/undefined leaves the
-    // choice to the model. See LocalAIEngine.ts's toolChoice computation
-    // (action_related classification) for why this exists -- native
-    // tool-calling alone doesn't stop the model from hedging into prose
-    // instead of calling an available, relevant tool.
-    toolChoice?: 'auto' | 'required';
-  }) => {
-    try {
-      // This channel is specifically the cloud path (Inkling/Groq) — local
-      // providers (Ollama/KoboldCpp) go through mlLlmGenerate and are
-      // unaffected. Respect "Allow Network Access" (Privacy Settings) here,
-      // since that toggle's own description is "required for cloud AI services".
-      const preCheckSettings = loadSettings();
-      if (preCheckSettings?.privacySettings?.allowNetworkAccess === false) {
-        return { success: false, error: 'Network access is disabled in Privacy Settings — cloud AI (Groq/Inkling) is unavailable. Use a local provider (Ollama/KoboldCpp) instead, or re-enable "Allow Network Access".' };
-      }
-
-      // No character cap on Mossy's system prompt — the model's 128K-token context
-      // window is large enough to hold the full MossyBrain identity, all injected
-      // game reference data, and full conversation history simultaneously.
-      // Human brains don't have truncation limits; neither does Mossy's.
-      const systemPrompt = payload.systemPrompt || 'You are a helpful assistant for Fallout 4 modding.';
-      // Diagnostic (2026-08-15): confirming whether MossyBrain's identity
-      // block actually crosses the renderer->main IPC boundary intact, per
-      // a live report of Mossy denying her own name/persona entirely on a
-      // voice turn. Remove once confirmed either way.
-      writeMainLog(`[AI Chat Groq] systemPrompt length=${systemPrompt.length}, hasIdentityRule=${systemPrompt.includes('IDENTITY RULE')}, hasMossyName=${systemPrompt.includes("I'm Mossy")}, snippet="${systemPrompt.slice(0, 150).replace(/\n/g, ' ')}"`);
-
-      // Use per-user model preference from settings (falls back to hardcoded primary)
-      const s = loadSettings();
-      const userPreferredModel = (s?.groqPrimaryModel || '').trim();
-      const model = payload.model || (userPreferredModel || GROQ_PRIMARY_MODEL);
-      const maxTokens = (typeof s?.groqMaxResponseTokens === 'number' && s.groqMaxResponseTokens > 0)
-        ? s.groqMaxResponseTokens
-        : 8192;
-
-      // Build messages array with conversation history for multi-turn context
-      const rawHistory = Array.isArray(payload.conversationHistory) ? payload.conversationHistory : [];
-      const history = rawHistory
-        .filter((entry): entry is { role: 'user' | 'assistant'; content: string } =>
-          entry != null &&
-          (entry.role === 'user' || entry.role === 'assistant') &&
-          typeof entry.content === 'string' &&
-          entry.content.trim() !== ''
-        )
-        .slice(-20);  // matches the 20-message cap applied in the renderer before sending
-      const userPromptText = String(payload.prompt || '');
-      const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-        { role: 'system', content: systemPrompt },
-        ...history,
-        { role: 'user', content: userPromptText },
-      ];
-
-      // Inject active brain neurons — but only when this turn actually needs a
-      // specific vanilla-game fact (FormID, EditorID, load order, a Papyrus
-      // signature, exact asset paths), per Brain B's game_data_related
-      // classification (LocalAIEngine.ts's EnrichmentResult). This used to be
-      // unconditional on every single call through this handler, "hi"
-      // included — measured live against brain-neurons.json at ~155K
-      // characters (~40K tokens), the dominant contributor to an oversized
-      // prompt that was both the direct cause of consistent Groq timeouts
-      // (LiveContext.tsx's 50s->120s watchdog comment blames Render cold-
-      // start, but the neuron dump was very likely the bigger factor) and,
-      // via the local-fallback path those timeouts triggered, part of what
-      // produced the "I'm just a text-based AI" persona bug. Callers that
-      // don't know about this classification (AIModAssistant.tsx,
-      // SelfImprovementEngine.ts, this file's own internal reasoning/
-      // self-critique sub-calls) omit `includeGameData` entirely, which
-      // defaults to true here — unchanged behavior for them.
-      if (payload.includeGameData !== false) {
-        try {
-          const neuronBlock = buildBrainNeuronBlock(userPromptText);
-          if (neuronBlock) {
-            messages.splice(messages.length - 1, 0, { role: 'system', content: neuronBlock });
-          }
-        } catch { /* neurons not yet ready — non-blocking */ }
-      }
-
-      // Safety net added 2026-08-26 (Mossy AI Chat context-overflow fix),
-      // fixed 2026-09-01 (live-observed mid-conversation memory loss) and
-      // extracted 2026-09-01 into messageBudget.ts so this logic is unit
-      // tested (see src/electron/__tests__/messageBudget.test.ts) and can't
-      // silently regress into wiping out conversation history again -- see
-      // that file's module docstring for the full history of this bug.
-      // `history` is always messages[1 .. 1+history.length) at this point:
-      // messages[0] is the system prompt and everything after history is
-      // the (optional) neuron block plus the final user query.
-      trimMessagesToBudget(messages, { start: 1, end: 1 + history.length });
-
-      // PRIMARY: Inkling (when key is configured) — highest quality, OpenAI-compatible
-      let content = '';
-      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      let inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-      if (inklingBase && !isUrlAllowedByHttpsPolicy(inklingBase)) {
-        console.warn('[AI Chat] Inkling base URL blocked by "Require HTTPS" policy:', inklingBase);
-        inklingBase = '';
-      }
-      const inklingChatModel = String(s?.inklingModel || 'thinkingmachines/Inkling');
-      // Inkling's plain-text result short-circuits everything below (the very
-      // next check is `if (content) return`), and it isn't wired for tool
-      // calls in this pass -- a tool-calling turn must skip straight to the
-      // backend path, or tools would silently never fire for anyone with an
-      // Inkling key configured.
-      if (inklingKey && inklingBase && !(payload.tools && payload.tools.length > 0)) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 120_000);
-          try {
-            const res = await fetch(`${inklingBase}/chat/completions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-              body: JSON.stringify({ model: inklingChatModel, messages, max_tokens: maxTokens, temperature: 0.7 }),
-              signal: controller.signal,
-            });
-            if (res.ok) {
-              const json: any = await res.json().catch(() => ({}));
-              const text = json?.choices?.[0]?.message?.content;
-              if (text) content = String(text);
-            }
-          } finally { clearTimeout(timeout); }
-        } catch (err) {
-          console.warn('[AI Chat] Inkling failed, falling back to backend/Groq:', err);
-        }
-      }
-
-      if (content) return { success: true, content };
-
-      // FALLBACK: backend proxy (Render or self-hosted).
-      // Use a 15-second timeout to allow cold-start Render instances to wake up.
-      let backendAttempted = false;
-      let backendError = '';
-      let toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> | string }> = [];
-      const backend = getBackendConfig();
-      console.log('[AI Chat Groq] Backend config:', backend ? `URL=${backend.baseUrl}, hasToken=${!!backend.token}` : 'No backend configured');
-      if (backend) {
-        backendAttempted = true;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        try {
-          const backendUrl = backendJoin(backend, '/v1/chat');
-          console.log('[AI Chat Groq] Attempting backend request to:', backendUrl);
-          const requestBody = JSON.stringify({
-            provider: 'groq', messages, maxTokens, max_tokens: maxTokens,
-            ...(payload.tools && payload.tools.length > 0
-              ? { tools: payload.tools, ...(payload.toolChoice ? { tool_choice: payload.toolChoice } : {}) }
-              : {}),
-          });
-          let res = await fetch(backendUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: requestBody,
-            signal: controller.signal,
-          });
-
-          console.log('[AI Chat Groq] Backend response status:', res.status, res.statusText);
-          let json: any = await res.json().catch(() => ({}));
-
-          if ((res.status === 401 || res.status === 403) && backend.token) {
-            console.warn('[AI Chat Groq] Backend rejected Authorization header; retrying without auth header once');
-            res = await fetch(backendUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: requestBody,
-              signal: controller.signal,
-            });
-            console.log('[AI Chat Groq] Backend retry response status:', res.status, res.statusText);
-            json = await res.json().catch(() => ({}));
-          }
-
-          if (res.ok && json?.ok) {
-            content = String(json?.text || '');
-            toolCalls = Array.isArray(json?.toolCalls) ? json.toolCalls : [];
-            console.log('[AI Chat Groq] ✅ Backend proxy succeeded, content length:', content.length, 'toolCalls:', toolCalls.length);
-          } else {
-            const msg = String(json?.message || json?.error || `Backend chat failed (${res.status})`);
-            console.warn('[AI Chat Groq] ❌ Backend proxy failed:', msg);
-            console.warn('[AI Chat Groq] Response body:', JSON.stringify(json).substring(0, 200));
-            if (res.status === 401 || res.status === 403) {
-              backendError = `Backend token rejected (HTTP ${res.status} at ${backendUrl}). Verify Mossy MOSSY_BACKEND_TOKEN matches Render MOSSY_API_TOKEN.`;
-            } else if (/invalid[_\s-]?api[_\s-]?key|incorrect[_\s-]?api[_\s-]?key/i.test(msg)) {
-              backendError = 'Render backend provider key is invalid or missing (server-side GROQ_API_KEY/OPENAI_API_KEY). This is not your Mossy backend token.';
-            } else {
-              backendError = msg;
-            }
-          }
-        } catch (e: any) {
-          console.error('[AI Chat Groq] ❌ Backend proxy exception:', e?.message || e);
-          console.error('[AI Chat Groq] Error type:', e?.name, 'Code:', e?.code);
-          backendError = `Backend connection error: ${e?.message || e}`;
-        } finally {
-          clearTimeout(timeout);
-        }
-      } else {
-        console.log('[AI Chat Groq] Skipping backend — no backend URL configured');
-      }
-
-      // If backend is configured, stay backend-only to avoid mixed/stale local key paths.
-      if (backendAttempted) {
-        // A pure tool-call turn can have empty `content` (the model made a
-        // call instead of writing prose) -- checking `content` alone would
-        // wrongly report a real, successful tool-call response as a failure.
-        if (content || toolCalls.length > 0) {
-          return { success: true, content, toolCalls };
-        }
-        return { success: false, error: backendError || 'Groq cloud chat unavailable: backend request failed.' };
-      }
-
-      // No backend configured: use direct Groq SDK fallback.
-      if (!content) {
-        const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-        if (!apiKey) {
-          // More descriptive error: differentiate between "no backend" vs "backend failed"
-          const backendConfig = getBackendConfig();
-          if (!backendConfig) {
-            console.error('[AI Chat Groq] No backend configured and no local Groq API key — cannot proceed');
-            return { success: false, error: 'Groq unavailable: No backend URL configured and no local Groq API key set. Add backend URL or Groq API key in Desktop Settings.' };
-          } else {
-            console.error('[AI Chat Groq] Backend connection failed and no local Groq API key fallback available');
-            console.error('[AI Chat Groq] Backend URL:', backendConfig.baseUrl);
-            console.error('[AI Chat Groq] Backend token present:', !!backendConfig.token);
-            return { success: false, error: 'Groq cloud chat unavailable: Backend connection failed. Please check: 1. Backend service is running (https://mossy.onrender.com/health). 2. Internet connection. 3. Backend token is correct in Settings.' };
-          }
-        }
-        const { default: Groq } = await import('groq-sdk');
-        const client = new Groq({ apiKey });
-        content = await callGroqWithFallback(client as any, model, messages, maxTokens);
-      }
-
-      return { success: true, content };
-    } catch (error: any) {
-      console.error('[AI Chat Groq] Error:', error);
-      return { success: false, error: error.message || 'Groq chat failed' };
-    }
-  });
-
-  // Screen Awareness (Phase 2 "Seeing") -- real vision call. Deliberately a
-  // separate handler from ai-chat-groq rather than retrofitting it: that
-  // handler's `prompt: string` shape is load-bearing for many existing
-  // callers, and vision only needs the backend proxy path (no Inkling, no
-  // direct-SDK no-backend fallback -- neither is wired for multimodal
-  // content, and vision is Groq-specific here regardless). Backend/schema
-  // support: src/backend/routes/chat.ts's ContentPartSchema.
-  forceHandle('ai-vision-groq', async (_event, payload: {
-    imageDataUrl: string; textPrompt: string; systemPrompt?: string; model?: string;
-  }) => {
-    try {
-      const preCheckSettings = loadSettings();
-      if (preCheckSettings?.privacySettings?.allowNetworkAccess === false) {
-        return { success: false, error: 'Network access is disabled in Privacy Settings — vision recognition needs cloud AI.' };
-      }
-      const backend = getBackendConfig();
-      if (!backend) {
-        return { success: false, error: 'No backend configured — vision recognition needs the Render backend proxy.' };
-      }
-      const messages = [
-        { role: 'system' as const, content: payload.systemPrompt || 'You are Mossy, an FO4 modding assistant with real screen-vision access.' },
-        {
-          role: 'user' as const,
-          content: [
-            { type: 'text' as const, text: payload.textPrompt },
-            { type: 'image_url' as const, image_url: { url: payload.imageDataUrl } },
-          ],
-        },
-      ];
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      try {
-        const res = await fetch(backendJoin(backend, '/v1/chat'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-          },
-          // qwen/qwen3.6-27b: the confirmed real vision-capable model on Groq
-          // (also the model already used for forced tool-calling -- same
-          // model, different capability, both live-verified this session).
-          body: JSON.stringify({ provider: 'groq', model: payload.model || 'qwen/qwen3.6-27b', messages, maxTokens: 1024 }),
-          signal: controller.signal,
-        });
-        const json: any = await res.json().catch(() => ({}));
-        if (res.ok && json?.ok) {
-          return { success: true, content: String(json?.text || '') };
-        }
-        return { success: false, error: String(json?.message || json?.error || `Vision backend request failed (${res.status})`) };
-      } finally {
-        clearTimeout(timeout);
-      }
-    } catch (error: any) {
-      console.error('[AI Vision Groq] Error:', error);
-      return { success: false, error: error.message || 'Vision chat failed' };
-    }
-  });
-
-  // Secrets presence only (no values). Renderer can use this to show setup state safely.
-  safeHandle('secret-status', async () => {
-    try {
-      const s = loadSettings();
-      const openai = Boolean(getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY'));
-      const groq = Boolean(getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY'));
-      const backendToken = Boolean(getSecretValue(s, 'backendToken', 'MOSSY_BACKEND_TOKEN'));
-      console.log('[Main] secret-status: openai=%s, groq=%s, backendToken=%s', openai, groq, backendToken);
-      return { ok: true, openai, groq, backendToken };
-    } catch (e: any) {
-      console.error('[Main] secret-status error:', e?.message || e);
-      return { ok: false, error: String(e?.message || e) };
-    }
-  });
+  // Cloud AI providers are not part of this build. These channels stay registered so
+  // existing renderer calls fail gracefully and fall back to local AI.
+  forceHandle('ai-chat-openai', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
+  forceHandle('ai-chat-groq', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
+  forceHandle('ai-vision-groq', async () => ({ success: false, error: 'Vision recognition needs a cloud model, which is not available in this version of Mossy.' }));
 
   /**
    * AI Script Generation Handler
@@ -11173,67 +9708,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         { role: 'user' as const, content: String(req.description || '') },
       ];
 
-      // PRIMARY: Inkling
-      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-      const inklingMdl = String(s?.inklingModel || 'thinkingmachines/Inkling');
-      if (inklingKey && inklingBase) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 60_000);
-          try {
-            const res = await fetch(`${inklingBase}/chat/completions`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-              body: JSON.stringify({ model: inklingMdl, messages: scriptMessages, max_tokens: 2048, temperature: 0.3 }),
-              signal: controller.signal,
-            });
-            if (res.ok) {
-              const json: any = await res.json().catch(() => ({}));
-              const text = json?.choices?.[0]?.message?.content;
-              if (text) content = String(text);
-            }
-          } finally { clearTimeout(timeout); }
-        } catch (e: any) {
-          console.warn('[AI Script Gen] Inkling failed, trying Groq:', e?.message);
-        }
-      }
-
-      // FALLBACK: Groq
+      content = await localOllamaChat(scriptMessages, { maxTokens: 2048, temperature: 0.3, timeoutMs: 120_000 });
       if (!content) {
-        const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-        if (groqKey) {
-          try {
-            const { default: Groq } = await import('groq-sdk');
-            const client = new Groq({ apiKey: groqKey });
-            const response = await client.chat.completions.create({
-              model: GROQ_FALLBACK_MODEL,
-              messages: scriptMessages,
-              temperature: 0.3,
-              max_tokens: 2048,
-            });
-            content = response.choices[0]?.message?.content || '';
-          } catch (e: any) {
-            console.warn('[AI Script Gen] Groq failed, trying OpenAI:', e?.message);
-          }
-        }
-      }
-
-      // FALLBACK: OpenAI
-      if (!content) {
-        const openaiKey = getSecretValue(s, 'openaiApiKey', 'OPENAI_API_KEY');
-        if (!openaiKey) {
-          return { success: false, error: 'No AI key configured. Add an Inkling, Groq, or OpenAI key in Settings → AI Engine.' };
-        }
-        const { default: OpenAI } = await import('openai');
-        const client = new OpenAI({ apiKey: openaiKey });
-        const response = await client.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: scriptMessages,
-          temperature: 0.3,
-          max_tokens: 2048,
-        });
-        content = response.choices[0]?.message?.content || '';
+        return { success: false, error: 'Local AI is not running. Start Ollama (Settings → AI Engine) and try again.' };
       }
 
       // Parse the code block if present
@@ -11791,9 +10268,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
       const contextSuffix = contextBlocks.length > 0 ? `\n\nContext:\n${contextBlocks.join('\n\n')}` : '';
 
-      // Use Groq for voice responses (real-time)
+      // Local AI for voice responses
       const systemPrompt = 'You are Mossy, a helpful AI assistant for Fallout 4 modding. Keep responses concise and conversational for voice chat.' + contextSuffix;
-      const model = GROQ_PRIMARY_MODEL;
       const voiceMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         { role: 'system', content: systemPrompt },
         ...history.map((entry: any) => ({ role: (entry.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant', content: entry.content })),
@@ -11809,89 +10285,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       } catch { /* non-blocking */ }
       const messages = voiceMessages;
 
-      // PRIMARY: Inkling (when key is configured)
-      let content = '';
-      {
-        const s = loadSettings();
-        const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-        const inklingBase = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-        const inklingMdl = String(s?.inklingModel || 'thinkingmachines/Inkling');
-        if (inklingKey && inklingBase) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 30_000);
-            try {
-              const res = await fetch(`${inklingBase}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-                body: JSON.stringify({ model: inklingMdl, messages, max_tokens: 512, temperature: 0.7 }),
-                signal: controller.signal,
-              });
-              if (res.ok) {
-                const json: any = await res.json().catch(() => ({}));
-                const text = json?.choices?.[0]?.message?.content;
-                if (text) content = String(text);
-              }
-            } finally { clearTimeout(timeout); }
-          } catch (e: any) {
-            console.warn('[sendMessage] Inkling failed, falling back to backend/Groq:', e?.message);
-          }
-        }
-      }
-
-      if (content) {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('message', { role: 'assistant', content, correlationId });
-        }
-        return content;
-      }
-
-      const backend = getBackendConfig();
-      if (backend) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000); // Fast fail so direct Groq path is used sooner
-        try {
-          console.log('[sendMessage] Calling backend with correlation ID:', correlationId);
-          const res = await fetch(backendJoin(backend, '/v1/chat'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}),
-            },
-            body: JSON.stringify({
-              provider: 'groq',
-              model,
-              messages,
-              maxTokens: 512,
-            }),
-            signal: controller.signal,
-          });
-
-          const json: any = await res.json().catch(() => ({}));
-          if (res.ok && json?.ok) {
-            content = String(json?.text || '');
-            console.log('[sendMessage] Backend returned successfully for correlation ID:', correlationId);
-          } else {
-            console.warn('[sendMessage] Backend proxy failed (status:', res.status, '); falling back to local provider');
-          }
-        } catch (e: any) {
-          console.warn('[sendMessage] Backend proxy error; falling back to local provider:', e?.message || e);
-        } finally {
-          clearTimeout(timeout);
-        }
-      }
-
+      // Local AI only (Ollama) — no cloud providers in this build
+      const content = await localOllamaChat(messages, { maxTokens: 512, timeoutMs: 30_000 });
       if (!content) {
-        const s = loadSettings();
-        const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-        if (!apiKey) {
-          throw new Error('Groq API key not configured');
-        }
-
-        // Dynamic import for Groq ES module
-        const { default: Groq } = await import('groq-sdk');
-        const client = new Groq({ apiKey });
-        content = await callGroqWithFallback(client as any, model, messages);
+        throw new Error('Local AI not running');
       }
 
       console.log('[Main] AI response generated, sending to renderer:', content.substring(0, 100) + (content.length > 100 ? '...' : ''), 'correlationId:', correlationId);
@@ -12361,8 +10758,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   /**
    * Generate a roadmap tailored to the user's actual prompt via the same
-   * multi-tier LLM chain used by the Creative Director (Inkling → Ollama →
-   * Groq → local KoboldCpp — see cdCallAgent()). Only falls back to the
+   * local-AI chain used by the Creative Director (Ollama →
+   * local KoboldCpp — see cdCallAgent()). Only falls back to the
    * static template below if every provider is unreachable, and reports
    * that honestly via `aiGenerated: false` rather than pretending.
    */
@@ -13760,71 +12157,13 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   });
 
   // Mod Browser IPC handlers (renderer -> main)
-  // Gate for the legacy Nexus personal-API-key auth path (modBrowser.ts's
-  // authenticateNexus()/apiRequest(), the "apikey:" header scheme). Nexus's
-  // own API Acceptable Use Policy (help.nexusmods.com/article/114) disallows
-  // shipping a public-facing app that uses a user's personal API key rather
-  // than a registered SSO/OAuth flow -- this is what nexusAuth.ts's OAuth+PKCE
-  // implementation exists to replace, but that can't go live until Nexus
-  // issues Mossy a client_id (see NEXUS_OAUTH_SETUP.md). Until then, the
-  // personal-API-key path is fully removed -- not just disabled -- from the
-  // build channel used for Nexus-bound release packages
-  // (`npm run package:win:*:nexus-release`, which sets
-  // mossyReleaseChannel=nexus-release via electron-builder's extraMetadata
-  // AND runs scripts/strip-nexus-legacy-auth.mjs to delete the compiled
-  // dist-electron/mining/modBrowser.js before packaging, so the file itself
-  // never reaches the shipped asar) while staying fully available in every
-  // normal dev/desktop run, where mossyReleaseChannel reads 'dev' straight
-  // from package.json and modBrowser.ts compiles and ships normally.
-  // Reads the app's OWN package.json (via getAppPath()) rather than a
-  // hardcoded constant so a packaged release genuinely carries whatever
-  // electron-builder baked in, not just what the source tree says.
-  const isNexusReleaseBuild = (() => {
-    let cached: boolean | null = null;
-    return () => {
-      if (cached !== null) return cached;
-      try {
-        const pkg = require(path.join(app.getAppPath(), 'package.json'));
-        cached = pkg?.mossyReleaseChannel === 'nexus-release';
-      } catch {
-        cached = false;
-      }
-      return cached;
-    };
-  })();
-  // In the nexus-release channel the compiled modBrowser.js file has been
-  // deleted from the package before this ever runs (see comment above), so
-  // requiring it here would throw "Cannot find module" and crash startup --
-  // this is intentionally never reached in that channel. modBrowserEngine
-  // instead becomes a Proxy whose every property access returns a function
-  // that throws a clear error; every mod-browser:* handler below already
-  // wraps its call in try/catch and returns { success:false, error }, so
-  // this makes ALL of them (not just authenticate-nexus) fail cleanly with
-  // one honest message instead of needing each handler edited individually.
-  const modBrowserEngine: any = isNexusReleaseBuild()
-    ? new Proxy({}, {
-        get: () => () => {
-          throw new Error('Nexus Mod Browser is not available in this build (personal API key auth was removed for the Nexus release channel).');
-        }
-      })
-    : require('../mining/modBrowser').modBrowser;
-  // Restore a previously-validated Nexus API key on startup. authenticateNexus()
-  // persists the token to settings.json but the engine's in-memory key was never
-  // read back from it -- meaning every restart quietly lost Nexus auth, and every
-  // mod-browser/trending call (including the ones that feed Mossy's own knowledge
-  // vault from "what's new" queries) failed with "Authenticate first" until the
-  // user manually re-entered their key. Same forked-state/silent-degradation shape
-  // as other recurring bugs in this codebase -- fixed at the source instead of
-  // patched per-symptom.
-  if (isNexusReleaseBuild()) {
-    console.log('[ModBrowser] Nexus-release build channel -- personal Nexus API key auth disabled, not restoring any persisted token');
-  } else {
-    const persistedNexusToken = String(loadSettings()?.nexusAuthToken || '').trim();
-    if (persistedNexusToken) {
-      modBrowserEngine.restoreNexusAuth(persistedNexusToken);
-      console.log('[ModBrowser] Restored persisted Nexus API key from settings');
-    }
-  }
+  // Nexus access is OAuth-only (see nexusAuth.ts). Mossy does not accept, store
+  // or send a personal Nexus API key. The engine asks nexusAuthService for the
+  // signed-in user's access token on each request; until the app is registered
+  // with Nexus and the user signs in, Mod Browser calls return a clear
+  // "sign in" error instead of making unauthenticated requests.
+  const modBrowserEngine: any = require('../mining/modBrowser').modBrowser;
+  modBrowserEngine.setAccessTokenProvider(() => nexusAuthService.getAccessToken());
 
   registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
     const startTime = Date.now();
@@ -13937,45 +12276,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         duration: Date.now() - startTime,
         error: errMsg,
         details: { modId, rating }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:authenticate-nexus', async (_event, apiKey: string) => {
-    const startTime = Date.now();
-    if (isNexusReleaseBuild()) {
-      // Personal Nexus API key auth is disabled in the nexus-release channel
-      // -- see the isNexusReleaseBuild() comment above for why. Fails loudly
-      // and honestly rather than silently no-op'ing.
-      return { success: false, error: 'Nexus API key sign-in is not available in this build. Sign in with your Nexus account instead (Settings).' };
-    }
-    try {
-      const result = await modBrowserEngine.authenticateNexus(apiKey);
-      if (result?.success) {
-        const currentSettings = loadSettings();
-        currentSettings.nexusAuthToken = result.token;
-        saveSettings(currentSettings);
-      }
-      auditLogger.log({
-        operation: 'mod-browser-authentication',
-        tool: 'mod-browser',
-        action: 'authenticate-nexus',
-        status: result?.success ? 'success' : 'error',
-        duration: Date.now() - startTime,
-        result: { success: result?.success, provider: result?.provider }
-      });
-      return result;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:authenticate-nexus error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-authentication',
-        tool: 'mod-browser',
-        action: 'authenticate-nexus',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg
       });
       return { success: false, error: errMsg };
     }
@@ -19385,7 +17685,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   /**
    * "Require HTTPS" (Privacy Settings) — checked against user-configurable
-   * endpoint URLs (Inkling/backend base URLs) before connecting. Localhost is
+   * endpoint URLs before connecting. Localhost is
    * always exempt (that's where Ollama/KoboldCpp run — those are never
    * remote, so there is nothing plaintext to intercept), matching how
    * browsers already treat localhost as a secure context.
@@ -19428,45 +17728,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     // Ollama (127.0.0.1) and local KoboldCpp further below still work when disabled.
     const networkAllowed = s?.privacySettings?.allowNetworkAccess !== false;
 
-    // PRIMARY: Inkling (when configured) — routes all CD roles through the 975B model
-    try {
-      const inklingKey = networkAllowed ? getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY') : '';
-      let inklingBase = networkAllowed ? String(s?.inklingBaseUrl || '').trim() : '';
-      if (inklingBase && !isUrlAllowedByHttpsPolicy(inklingBase)) {
-        console.warn('[CreativeDirector] Inkling base URL blocked by "Require HTTPS" policy:', inklingBase);
-        inklingBase = '';
-      }
-      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling').trim();
-      if (inklingKey && inklingBase) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120_000);
-        try {
-          const res = await fetch(`${inklingBase.replace(/\/$/, '')}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-            body: JSON.stringify({
-              model: inklingModel,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-              ],
-              max_tokens: maxTokens,
-              temperature: 0.7,
-            }),
-            signal: controller.signal,
-          });
-          if (res.ok) {
-            const json: any = await res.json().catch(() => ({}));
-            const text = json?.choices?.[0]?.message?.content;
-            if (text && !cdIsLikelyRefusal(text)) return String(text);
-            if (text) sawRefusal = true;
-          }
-        } catch { /* fall through to Ollama */ } finally { clearTimeout(timeout); }
-      }
-    } catch (err) {
-      console.warn('[CreativeDirector] Inkling path failed, falling back to Ollama:', err);
-    }
-
     // SECONDARY: Local Ollama (Gemma 4) — on-device, no cloud needed.
     // Falls through to Groq only if Ollama is offline or returns nothing.
     try {
@@ -19496,54 +17757,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       console.warn('[CreativeDirector] Ollama unavailable, falling back to Groq cloud:', err);
     }
 
-    // FALLBACK: Groq cloud — only used when Ollama is not running.
-    try {
-      const apiKey = networkAllowed ? getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY') : '';
-      const backend = networkAllowed ? getBackendConfig() : null;
-      if (apiKey || backend) {
-        const messages: Array<{ role: 'system' | 'user'; content: string }> = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ];
-        // Use the larger model, not the small/fast default - this team needs to
-        // produce real, structured design content and syntactically valid
-        // Papyrus, not quick chat replies.
-        const cdModel = GROQ_FALLBACK_MODEL;
-        // Groq's documented max_completion_tokens for openai/gpt-oss-120b is 65536;
-        // 32768 leaves headroom while comfortably covering the 24576 verbose-section
-        // budget (see verboseSectionBudget). Previously clamped to 8192 on an
-        // unverified guess, which silently truncated every verbose build section
-        // and caused deterministic 5-retry-then-skip failures.
-        const groqMaxTokens = Math.min(maxTokens, 32768);
-        if (backend) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 60000);
-          try {
-            const res = await fetch(backendJoin(backend, '/v1/chat'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: groqMaxTokens }),
-              signal: controller.signal,
-            });
-            const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok && json?.text) {
-              if (!cdIsLikelyRefusal(json.text)) return String(json.text);
-              sawRefusal = true;
-            }
-          } catch { /* fall through to direct SDK / Kobold */ } finally { clearTimeout(timeout); }
-        }
-        if (apiKey) {
-          const { default: Groq } = await import('groq-sdk');
-          const client = new Groq({ apiKey });
-          const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
-          if (text && !cdIsLikelyRefusal(text)) return text;
-          if (text) sawRefusal = true;
-        }
-      }
-    } catch (err) {
-      console.warn('[CreativeDirector] Groq path failed, falling back to local KoboldCpp:', err);
-    }
-
     // Fully local fallback: KoboldCpp's OpenAI-compatible endpoint (no internet required).
     try {
       const controller = new AbortController();
@@ -19571,49 +17784,14 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     if (sawRefusal) {
       throw new Error('Every available AI backend refused this prompt (safety filter) — will retry; if this repeats, the prompt may need rephrasing.');
     }
-    throw new Error('No AI backend available - configure a Groq API key or start KoboldCpp (Local Capabilities panel).');
+    throw new Error('No AI backend available - start Ollama or KoboldCpp (Local Capabilities panel).');
   }
 
   // High-quality agent call — skips local Ollama (small model) and routes directly
-  // to Inkling (if configured) or Groq cloud. Used by all specialist build roles where
+  // to the best local model available. Used by all specialist build roles where
   // output quality determines whether the files are usable.
   async function cdCallAgentHighQuality(systemPrompt: string, userPrompt: string, maxTokens = 8192): Promise<string> {
     const s = loadSettings();
-
-    // PRIMARY: Inkling via Thinking Machines Tinker API (or any OpenAI-compatible endpoint)
-    // 975B/41B-active MoE multimodal model — highest quality available
-    try {
-      const inklingKey = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-      const inklingBase = String(s?.inklingBaseUrl || '').trim();
-      const inklingModel = String(s?.inklingModel || 'thinkingmachines/Inkling').trim();
-      if (inklingKey && inklingBase) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120_000);
-        try {
-          const res = await fetch(`${inklingBase.replace(/\/$/, '')}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${inklingKey}` },
-            body: JSON.stringify({
-              model: inklingModel,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-              ],
-              max_tokens: maxTokens,
-              temperature: 0.7,
-            }),
-            signal: controller.signal,
-          });
-          if (res.ok) {
-            const json: any = await res.json().catch(() => ({}));
-            const text = json?.choices?.[0]?.message?.content;
-            if (text && !cdIsLikelyRefusal(text)) return String(text);
-          }
-        } catch { /* fall through to Groq */ } finally { clearTimeout(timeout); }
-      }
-    } catch (err) {
-      console.warn('[CreativeDirector] Inkling path failed, falling back to local specialist model:', err);
-    }
 
     // SECONDARY: local Ollama specialist model (Qwen3.5 9B by default) — benchmarks
     // well specifically on structured/strict-format output, which is what this team's
@@ -19645,47 +17823,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       }
     } catch (err) {
       console.warn('[CreativeDirector] Local specialist model unavailable, falling back to Groq:', err);
-    }
-
-    // TERTIARY: Groq cloud
-    try {
-      const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      const backend = getBackendConfig();
-      if (apiKey || backend) {
-        const messages: Array<{ role: 'system' | 'user'; content: string }> = [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ];
-        const cdModel = GROQ_FALLBACK_MODEL;
-        // Groq's documented max_completion_tokens for openai/gpt-oss-120b is 65536;
-        // 32768 leaves headroom while comfortably covering the 24576 verbose-section
-        // budget (see verboseSectionBudget). Previously clamped to 8192 on an
-        // unverified guess, which silently truncated every verbose build section
-        // and caused deterministic 5-retry-then-skip failures.
-        const groqMaxTokens = Math.min(maxTokens, 32768);
-        if (backend) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 120000);
-          try {
-            const res = await fetch(backendJoin(backend, '/v1/chat'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: cdModel, messages, maxTokens: groqMaxTokens }),
-              signal: controller.signal,
-            });
-            const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok && json?.text && !cdIsLikelyRefusal(json.text)) return String(json.text);
-          } catch { /* fall through */ } finally { clearTimeout(timeout); }
-        }
-        if (apiKey) {
-          const { default: Groq } = await import('groq-sdk');
-          const client = new Groq({ apiKey });
-          const text = await callGroqWithFallback(client as any, cdModel, messages, groqMaxTokens);
-          if (text && !cdIsLikelyRefusal(text)) return text;
-        }
-      }
-    } catch (err) {
-      console.warn('[CreativeDirector] Groq high-quality path failed, falling back to Ollama:', err);
     }
 
     // FALLBACK: local Ollama (whatever model is configured) — cdCallAgent has its
@@ -21467,53 +19604,8 @@ Format as markdown with sections: Overview, Requirements, Asset List, CK Step-by
         { role: 'user', content: `Here is the existing guide to enhance:\n\n${existingGuide.slice(0, 6000)}` }
       ];
 
-      let enhanced = '';
-      // PRIMARY: Inkling
-      {
-        const _s = loadSettings();
-        const _ik = getSecretValue(_s, 'inklingApiKey', 'INKLING_API_KEY');
-        const _ib = String(_s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-        const _im = String(_s?.inklingModel || 'thinkingmachines/Inkling');
-        if (_ik && _ib) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 60_000);
-            try {
-              const res = await fetch(`${_ib}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
-                body: JSON.stringify({ model: _im, messages, max_tokens: 2500, temperature: 0.7 }),
-                signal: controller.signal,
-              });
-              if (res.ok) {
-                const json: any = await res.json().catch(() => ({}));
-                const text = json?.choices?.[0]?.message?.content;
-                if (text) enhanced = String(text);
-              }
-            } finally { clearTimeout(timeout); }
-          } catch (e: any) { console.warn('[enhance-guide] Inkling failed:', e?.message); }
-        }
-      }
-      // FALLBACK: backend proxy
-      if (!enhanced) {
-        const backend = getBackendConfig();
-        if (backend) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
-          try {
-            const res = await fetch(backendJoin(backend, '/v1/chat'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: 'openai/gpt-oss-120b', messages, maxTokens: 2500 }),
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok) enhanced = String(json?.text || '');
-          } catch (fetchErr) { clearTimeout(timeout); console.warn('[enhance-guide] backend fetch failed:', fetchErr); }
-        }
-      }
-      if (!enhanced) return { success: false, error: 'AI unavailable — configure an Inkling key in Settings → AI Engine or check backend connection' };
+      const enhanced = await localOllamaChat(messages, { maxTokens: 2500, timeoutMs: 90_000 });
+      if (!enhanced) return { success: false, error: 'Local AI unavailable — start Ollama (Settings → AI Engine) and try again' };
 
       const header = `<!-- Enhanced by Mossy Asset Picker — ${new Date().toISOString()} -->\n\n`;
       fs.writeFileSync(guidePath, header + enhanced, 'utf-8');
@@ -21855,54 +19947,9 @@ Keep scripts focused and real — no placeholder comments like TODO.`;
         { role: 'user', content: `Parse this BUILD_GUIDE.md and return the JSON scaffold:\n\n${guideContent.slice(0, 8000)}` },
       ];
 
-      let scaffoldJson = '';
-      // PRIMARY: Inkling
-      {
-        const _s = loadSettings();
-        const _ik = getSecretValue(_s, 'inklingApiKey', 'INKLING_API_KEY');
-        const _ib = String(_s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-        const _im = String(_s?.inklingModel || 'thinkingmachines/Inkling');
-        if (_ik && _ib) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 90_000);
-            try {
-              const res = await fetch(`${_ib}/chat/completions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
-                body: JSON.stringify({ model: _im, messages, max_tokens: 4000, temperature: 0.3 }),
-                signal: controller.signal,
-              });
-              if (res.ok) {
-                const json: any = await res.json().catch(() => ({}));
-                const text = json?.choices?.[0]?.message?.content;
-                if (text) scaffoldJson = String(text);
-              }
-            } finally { clearTimeout(timeout); }
-          } catch (e: any) { console.warn('[scaffold-mod] Inkling failed:', e?.message); }
-        }
-      }
-      // FALLBACK: backend proxy
-      if (!scaffoldJson) {
-        const backend = getBackendConfig();
-        if (backend) {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 45000);
-          try {
-            const res = await fetch(backendJoin(backend, '/v1/chat'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...(backend.token ? { Authorization: `Bearer ${backend.token}` } : {}) },
-              body: JSON.stringify({ provider: 'groq', model: 'openai/gpt-oss-120b', messages, maxTokens: 4000 }),
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const json: any = await res.json().catch(() => ({}));
-            if (res.ok && json?.ok) scaffoldJson = String(json?.text || '');
-          } catch (fetchErr) { clearTimeout(timeout); console.warn('[scaffold-mod] backend fetch failed:', fetchErr); }
-        }
-      }
+      const scaffoldJson = await localOllamaChat(messages, { maxTokens: 4000, temperature: 0.3, timeoutMs: 90_000 });
 
-      if (!scaffoldJson) return { success: false, error: 'AI unavailable — configure an Inkling key in Settings → AI Engine or check backend connection' };
+      if (!scaffoldJson) return { success: false, error: 'Local AI unavailable — start Ollama (Settings → AI Engine) and try again' };
 
       // Parse the JSON response (strip any accidental markdown fences)
       let scaffold: any;
@@ -23173,125 +21220,6 @@ Rules:
     const outputPath = path.join(dir, `${base}_${suffix}.png`);
     fs.writeFileSync(outputPath, Buffer.from(imageData.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
     return outputPath;
-  }
-
-  // ── Gemini ("Nano Banana") image editing -- cloud alternative to the local
-  // ComfyUI backend for the AI Detail Synthesis stage. Billy specifically
-  // wants Texture Enhancer's batch restyle to be able to match the quality he
-  // was getting from "Nano Banana" in Krea (Google's Gemini image model) for
-  // his Glowing Sea asset collection -- a local SD/SDXL checkpoint through
-  // ComfyUI won't reliably match that, since it's a different model family
-  // entirely. This calls the real Gemini API directly instead of trying to
-  // approximate it locally.
-  //
-  // Model choice: Google's current lineup (confirmed 2026-09-02) is
-  // gemini-2.5-flash-image ("Nano Banana", the original), gemini-3.1-flash-image
-  // ("Nano Banana 2" -- current recommended default, production-scale),
-  // gemini-3.1-flash-lite-image ("Nano Banana 2 Lite" -- cheaper/faster, 1K
-  // cap), and gemini-3-pro-image ("Nano Banana Pro" -- highest quality, up to
-  // 4K). All support image+text-in, image-out editing via generateContent.
-  const GEMINI_IMAGE_ASPECT_RATIOS: [string, number][] = [
-    ['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['16:9', 16 / 9], ['9:16', 9 / 16],
-    ['3:2', 3 / 2], ['2:3', 2 / 3], ['4:5', 4 / 5], ['5:4', 5 / 4], ['21:9', 21 / 9],
-    ['4:1', 4], ['1:4', 0.25], ['8:1', 8], ['1:8', 0.125],
-  ];
-  function nearestGeminiAspectRatio(width: number, height: number): string {
-    const target = Math.log(width / height);
-    let best = '1:1';
-    let bestDiff = Infinity;
-    for (const [label, ratio] of GEMINI_IMAGE_ASPECT_RATIOS) {
-      const diff = Math.abs(Math.log(ratio) - target);
-      if (diff < bestDiff) { bestDiff = diff; best = label; }
-    }
-    return best;
-  }
-  function nearestGeminiImageSize(width: number, height: number): string {
-    const maxDim = Math.max(width, height);
-    if (maxDim <= 600) return '512';
-    if (maxDim <= 1536) return '1K';
-    if (maxDim <= 3000) return '2K';
-    return '4K';
-  }
-
-  async function geminiEditImage(inputPath: string, prompt: string, apiKey: string, model?: string): Promise<{ success: boolean; imageData?: string; error?: string }> {
-    try {
-      if (!apiKey) return { success: false, error: 'No Gemini API key configured.' };
-      const buf = fs.readFileSync(inputPath);
-      const meta = await sharp(buf).metadata();
-      const origWidth = meta.width || 0;
-      const origHeight = meta.height || 0;
-      const ext = path.extname(inputPath).toLowerCase().replace('.', '') || 'png';
-      const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-      const modelId = model || 'gemini-3.1-flash-image';
-
-      const body: Record<string, unknown> = {
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mimeType, data: buf.toString('base64') } },
-          ],
-        }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          ...(origWidth && origHeight ? {
-            responseFormat: {
-              image: {
-                aspectRatio: nearestGeminiAspectRatio(origWidth, origHeight),
-                imageSize: nearestGeminiImageSize(origWidth, origHeight),
-              },
-            },
-          } : {}),
-        },
-      };
-
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(modelId)}:generateContent`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(180000),
-        }
-      );
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => '');
-        return { success: false, error: `Gemini API error ${resp.status}: ${errText.slice(0, 400)}` };
-      }
-      const json = await resp.json() as any;
-      const parts: any[] = json?.candidates?.[0]?.content?.parts || [];
-      const imgPart = parts.find((p) => p?.inline_data?.data || p?.inlineData?.data);
-      if (!imgPart) {
-        const textPart = parts.find((p) => typeof p?.text === 'string' && p.text.trim());
-        const finishReason = json?.candidates?.[0]?.finishReason;
-        return {
-          success: false,
-          error: textPart?.text
-            ? `Gemini didn't return an image: ${textPart.text.slice(0, 300)}`
-            : `Gemini returned no image data${finishReason ? ` (finishReason: ${finishReason})` : ''}.`,
-        };
-      }
-      const inline = imgPart.inline_data || imgPart.inlineData;
-      const outBuf = Buffer.from(inline.data, 'base64');
-
-      // Nano Banana doesn't guarantee it returns the exact same pixel
-      // dimensions as the input even with aspectRatio/imageSize hints -- force
-      // it back to the source's exact width/height so the result still maps
-      // onto the mesh's existing UVs. Can't undo the model reinterpreting
-      // internal proportions, but guarantees the output is the right size to
-      // drop straight into the existing texture slot.
-      // Declared as plain Buffer (not narrowed to Buffer<ArrayBuffer> via
-      // inference from outBuf) -- sharp's .toBuffer() returns the wider
-      // Buffer<ArrayBufferLike>, which doesn't satisfy that narrower type.
-      let finalBuf: Buffer;
-      if (origWidth && origHeight) {
-        finalBuf = await sharp(outBuf).resize(origWidth, origHeight, { fit: 'fill' }).png().toBuffer();
-      } else {
-        finalBuf = await sharp(outBuf).png().toBuffer();
-      }
-      return { success: true, imageData: `data:image/png;base64,${finalBuf.toString('base64')}` };
-    } catch (err: any) {
-      return { success: false, error: err?.message || String(err) };
-    }
   }
 
   /**
@@ -35780,30 +33708,7 @@ end.
         const positivePrompt = String(pipeline.aiDetail.promptOverride || '').trim()
           || MATERIAL_DETAIL_PROMPTS[surfaceKey] || MATERIAL_DETAIL_PROMPTS.auto;
 
-        if (pipeline.aiDetail.backend === 'gemini') {
-          // Cloud path via Google's Gemini ("Nano Banana") image models --
-          // see geminiEditImage() above for why this exists alongside the
-          // ComfyUI path: local SD/SDXL checkpoints don't match this model
-          // family's output, and Billy specifically wants that quality for
-          // his Glowing Sea batch restyle.
-          try {
-            const settingsNow = loadSettings();
-            const apiKey = getSecretValue(settingsNow, 'geminiApiKey', 'GEMINI_API_KEY');
-            if (!apiKey) {
-              errors.push('AI detail synthesis (Gemini): no Gemini API key configured in this stage — skipped, continuing with original texture.');
-            } else {
-              const geminiResult = await geminiEditImage(inputPath, positivePrompt, apiKey, pipeline.aiDetail.geminiModel);
-              if (geminiResult.success && geminiResult.imageData) {
-                workingInputPath = saveComfyuiResult(inputPath, 'ai_detailed', geminiResult.imageData);
-                outputs.aiDetailSource = workingInputPath;
-              } else {
-                errors.push(`AI detail synthesis (Gemini): ${geminiResult.error || 'generation failed'} — continuing with original texture.`);
-              }
-            }
-          } catch (err: any) {
-            errors.push(`AI detail synthesis (Gemini): ${err?.message || err} — continuing with original texture.`);
-          }
-        } else if (!pipeline.aiDetail.model) {
+        if (!pipeline.aiDetail.model) {
           errors.push('AI detail synthesis: no ComfyUI checkpoint selected — skipped, continuing with original texture.');
         } else {
           try {
@@ -36902,22 +34807,6 @@ end.
       const s = loadSettings();
       const baseUrl = String(s?.anythingllmUrl || 'http://127.0.0.1:3001').replace(/\/$/, '');
 
-      // Step 1: Try writing the Groq API key into the AnythingLLM .env
-      const groqKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-      const anythingllmEnvPath = path.join(ANYTHINGLLM_SERVER_DIR, '.env');
-      if (groqKey && fs.existsSync(anythingllmEnvPath)) {
-        try {
-          let envContent = fs.readFileSync(anythingllmEnvPath, 'utf-8');
-          if (/^GROQ_API_KEY=\s*$/m.test(envContent)) {
-            envContent = envContent.replace(/^GROQ_API_KEY=\s*$/m, `GROQ_API_KEY=${groqKey}`);
-            fs.writeFileSync(anythingllmEnvPath, envContent, 'utf-8');
-            console.log('[AnythingLLM] Groq API key injected into .env');
-          }
-        } catch (e) {
-          console.warn('[AnythingLLM] Could not update .env with Groq key:', e);
-        }
-      }
-
       // Step 2: Get/create API key
       const pingResp = await fetch(`${baseUrl}/v1/auth`, {
         headers: { 'Authorization': `Bearer ${String(s?.anythingllmApiKey || '')}` }
@@ -37265,7 +35154,7 @@ let _koboldProcess: import('child_process').ChildProcess | null = null;
 let _brainBProcess: import('child_process').ChildProcess | null = null;
 const BRAINB_PORT = 8766; // matches BrainBSettings.tsx's default base URL and brain_b_slim.py's MOSSY_PORT default
 const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
-const BRAINB_VERSION = '1.0.0'; // bump when a new Nexus package version is released
+const BRAINB_VERSION = '1.1.0'; // bump when a new Nexus package version is released (1.1.0 = local Ollama generation, no cloud backend)
 const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
 const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
 
@@ -37306,6 +35195,9 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
       env: {
         ...process.env,
         MOSSY_PORT: String(BRAINB_PORT),
+        // Local AI for Brain B's generation (no cloud, no keys).
+        MOSSY_OLLAMA_URL: String(loadSettings()?.ollamaBaseUrl || 'http://127.0.0.1:11434'),
+        MOSSY_OLLAMA_MODEL: String(loadSettings()?.ollamaModel || 'gemma2:9b'),
         // Real auth (2026-08-22): Brain B had zero inbound authentication on
         // any route -- reuses the exact same bridgeAuthToken BridgeServer.ts
         // already generates/stores (see get-bridge-connection above), rather
@@ -37952,43 +35844,11 @@ app.whenReady().then(() => {
           ];
           let aiText = '';
 
-          // PRIMARY: Inkling
-          const _ik = getSecretValue(s, 'inklingApiKey', 'INKLING_API_KEY');
-          const _ib = String(s?.inklingBaseUrl || 'https://api.tinker.thinkingmachines.ai/v1').replace(/\/$/, '');
-          const _im = String(s?.inklingModel || 'thinkingmachines/Inkling');
-          if (_ik && _ib) {
-            try {
-              const controller = new AbortController();
-              const timeout = setTimeout(() => controller.abort(), 60_000);
-              try {
-                const inkRes = await fetch(`${_ib}/chat/completions`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_ik}` },
-                  body: JSON.stringify({ model: _im, messages: blenderMessages, max_tokens: 1500, temperature: 0.7 }),
-                  signal: controller.signal,
-                });
-                if (inkRes.ok) {
-                  const json: any = await inkRes.json().catch(() => ({}));
-                  const text = json?.choices?.[0]?.message?.content;
-                  if (text) aiText = String(text);
-                }
-              } finally { clearTimeout(timeout); }
-            } catch (e: any) { console.warn('[BlenderBridge] Inkling failed, falling back to Groq:', e?.message); }
-          }
-
-          // FALLBACK: Groq
+          // Local AI only (Ollama) — no cloud providers in this build
+          aiText = await localOllamaChat(blenderMessages, { maxTokens: 1500, timeoutMs: 60_000 });
           if (!aiText) {
-            const apiKey = getSecretValue(s, 'groqApiKey', 'GROQ_API_KEY');
-            if (!apiKey) {
-              respond(res, 503, { success: false, message: 'Mossy AI not configured — add an Inkling or Groq API key in Settings → AI Engine' });
-              return;
-            }
-            const { default: Groq } = await import('groq-sdk') as { default: new (opts: { apiKey: string }) => { chat: { completions: { create: (p: { model: string; messages: unknown }) => Promise<{ choices: Array<{ message: { content: string | null } }> }> } } } };
-            const groqClient = new Groq({ apiKey });
-            aiText = await groqClient.chat.completions.create({
-              model: GROQ_PRIMARY_MODEL,
-              messages: blenderMessages,
-            }).then(r => r.choices[0]?.message?.content ?? 'No response');
+            respond(res, 503, { success: false, message: 'Local AI is not running. Start Ollama (see Settings → AI Engine) and try again.' });
+            return;
           }
 
           respond(res, 200, { success: true, response: aiText });
@@ -38131,9 +35991,6 @@ app.whenReady().then(() => {
             const cfg = loadSettings();
             const ollamaBase  = String(cfg?.ollamaBaseUrl || 'http://127.0.0.1:11434');
             const ollamaModel = String(cfg?.ollamaModel   || 'gemma2:9b');
-            const backendToken = getSecretValue(cfg, 'backendToken');
-            const backendUrl  = String(cfg?.backendBaseUrl || 'https://mossy.onrender.com');
-
             let dialogue = '';
 
             // Primary: local Ollama — fast, no internet lag during gameplay
@@ -38149,35 +36006,7 @@ app.whenReady().then(() => {
                 const od = await or.json() as any;
                 dialogue = (od?.message?.content || od?.response || '').trim();
               }
-            } catch { /* Ollama not running — fall through to backend */ }
-
-            // Fallback: Render backend → Groq (when Ollama is offline or slow)
-            if (!dialogue) {
-              try {
-                const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-                if (backendToken) headers['Authorization'] = `Bearer ${backendToken}`;
-                const br = await fetch(`${backendUrl}/v1/chat`, {
-                  method: 'POST',
-                  headers,
-                  body: JSON.stringify({ provider: 'groq', model: 'qwen/qwen3.6-27b', messages, maxTokens: 80 }),
-                  signal: AbortSignal.timeout(12000),
-                });
-                const bd = await br.json() as any;
-                // If auth rejected, retry without token (backend may be open)
-                if (!br.ok || !bd?.ok) {
-                  const br2 = await fetch(`${backendUrl}/v1/chat`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider: 'groq', model: 'qwen/qwen3.6-27b', messages, maxTokens: 80 }),
-                    signal: AbortSignal.timeout(12000),
-                  });
-                  const bd2 = await br2.json() as any;
-                  dialogue = bd2?.text?.trim() || '';
-                } else {
-                  dialogue = bd?.text?.trim() || '';
-                }
-              } catch { /* fall through to default */ }
-            }
+            } catch { /* Ollama not running — use default line */ }
 
             if (!dialogue) dialogue = 'I have nothing to say right now.';
 
@@ -38422,7 +36251,6 @@ app.whenReady().then(() => {
 
   lateHandle('f4ai-generate-conversation', async (_event, payload: { npc_a: string; npc_b: string; location: string; topic: string; exchange_count: number; tone?: string }) => {
     try {
-      const backend = getBackendConfig();
       const memDir = getNpcMemoryDir();
       const loadNpcContext = (id: string): string => {
         const fpath = path.join(memDir, `${id}.json`);
@@ -38437,15 +36265,8 @@ app.whenReady().then(() => {
       const systemPrompt = `You are a Fallout 4 dialogue writer. Write a realistic conversation between two characters set in the post-apocalyptic Commonwealth. Match each character's speech style exactly. Return ONLY a JSON array of exchanges with format: [{"speaker":"name","text":"line"}]. No extra text, just the JSON array.`;
       const userPrompt = `Write a ${payload.exchange_count}-exchange conversation between:\n- ${ctxA}\n- ${ctxB}\nLocation: ${payload.location}\nTopic: ${payload.topic}\nTone: ${payload.tone || 'neutral'}\nEach line must be 1-2 short sentences max. Match vanilla Fallout 4 dialogue style.`;
       const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
-      let text = '';
-      if (backend) {
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (backend.token) headers['Authorization'] = `Bearer ${backend.token}`;
-        const res = await fetch(`${backend.baseUrl}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ provider: 'groq', messages, maxTokens: 1200 }), signal: AbortSignal.timeout(25000) });
-        const data = await res.json() as any;
-        text = data?.text || '';
-      }
-      if (!text) return { ok: false, error: 'Backend unavailable' };
+      const text = await localOllamaChat(messages, { maxTokens: 1500, timeoutMs: 120_000 });
+      if (!text) return { ok: false, error: 'Local AI is not running — start Ollama (Settings → AI Engine)' };
       // Extract JSON array from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return { ok: false, error: 'Could not parse conversation JSON from response', raw: text };
@@ -38465,7 +36286,6 @@ app.whenReady().then(() => {
 
   lateHandle('f4ai-generate-lines', async (_event, payload: { archetype: string; context: string; count: number; style_notes?: string; npc_id?: string }) => {
     try {
-      const backend = getBackendConfig();
       let archetypeContext = `${payload.archetype} NPC`;
       if (payload.npc_id) {
         const fpath = path.join(getNpcMemoryDir(), `${payload.npc_id}.json`);
@@ -38477,12 +36297,8 @@ app.whenReady().then(() => {
       const systemPrompt = `You are a Fallout 4 dialogue writer creating lines for NPCs. Match vanilla Fallout 4 tone exactly — gritty, dark, often humorous, short. Return ONLY a JSON array of strings: ["line 1","line 2",...]. No extra text.`;
       const userPrompt = `Write ${payload.count} unique dialogue lines for: ${archetypeContext}\nContext/situation: ${payload.context}\n${payload.style_notes ? `Style notes: ${payload.style_notes}\n` : ''}Rules: Each line is 1 sentence, 5-20 words, no quotation marks around lines in the array, match vanilla FO4 speech.`;
       const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
-      if (!backend) return { ok: false, error: 'Backend not configured' };
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (backend.token) headers['Authorization'] = `Bearer ${backend.token}`;
-      const res = await fetch(`${backend.baseUrl}/v1/chat`, { method: 'POST', headers, body: JSON.stringify({ provider: 'groq', messages, maxTokens: 800 }), signal: AbortSignal.timeout(20000) });
-      const data = await res.json() as any;
-      const text = data?.text || '';
+      const text = await localOllamaChat(messages, { maxTokens: 800, timeoutMs: 120_000 });
+      if (!text) return { ok: false, error: 'Local AI is not running — start Ollama (Settings → AI Engine)' };
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) return { ok: false, error: 'Could not parse lines JSON', raw: text };
       const lines: string[] = JSON.parse(jsonMatch[0]);
@@ -38513,12 +36329,6 @@ app.whenReady().then(() => {
   // button could opt back in without touching main-process code again.
   if (mainWindow) {
     autoUpdaterService.setMainWindow(mainWindow);
-  }
-
-  // Ping backend health to wake up sleeping service (e.g., Render free tier)
-  const backendCfg = getBackendConfig();
-  if (backendCfg) {
-    pingBackendHealth(backendCfg).catch(err => console.error('[Main] Backend ping failed:', err));
   }
 
   // Try to create desktop shortcut on first run

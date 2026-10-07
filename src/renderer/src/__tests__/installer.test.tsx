@@ -15,7 +15,7 @@ const mockElectron = {
     onTtsSpeak: vi.fn(),
     sttStart: vi.fn(),
     onSttResult: vi.fn(),
-    getSettings: vi.fn(() => ({ openaiApiKey: 'test-key' })),
+    getSettings: vi.fn(() => ({})),
     setSettings: vi.fn(),
   }
 };

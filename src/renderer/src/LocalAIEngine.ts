@@ -81,7 +81,7 @@ export interface AIResponse {
    *  ```tool marker convention LiveContext.tsx used to parse out of prose.
    *  Populated only on the cloud/Groq path when `tools` was passed into
    *  generateResponse's localOptions; empty/undefined everywhere else
-   *  (local providers, Inkling, and any turn where the model didn't call
+   *  (local providers, and any turn where the model didn't call
    *  a tool). `args` mirrors Groq's real shape: parsed JSON when the
    *  model's arguments string parses cleanly, the raw string otherwise. */
   toolCalls?: Array<{ id: string; name: string; args: Record<string, unknown> | string }>;
@@ -1254,8 +1254,8 @@ export const LocalAIEngine = {
         return await api?.getSettings?.();
       } catch { return null; }
     })();
-    const backendBaseUrl = String(settings?.backendBaseUrl || 'https://mossy.onrender.com').replace(/\/$/, '');
-    const cloudBackendConfigured = !!settings?.backendTokenConfigured;
+    const backendBaseUrl = '';
+    const cloudBackendConfigured = false; // no cloud backend in this build
     const provider: { localProvider: string | null; localModel: string | null; cloudBackendConfigured: boolean; cloudReachable: boolean | null; cloudLatencyMs: number | null; cloudState: 'warm' | 'cold' | 'unreachable' | 'not-configured' | null; activeChoiceForChatVoice: string } =
       { localProvider: null, localModel: null, cloudBackendConfigured, cloudReachable: null, cloudLatencyMs: null, cloudState: null, activeChoiceForChatVoice: '' };
     if (localStatus.ok) {
@@ -2067,41 +2067,6 @@ export const LocalAIEngine = {
       if (!api?.aiChatGroq) {
         return { content: '' };
       }
-
-      // "Require Key Confirmation" (Privacy Settings) — ask once per session
-      // before the first call that uses a cloud API key, rather than the
-      // toggle existing with nothing ever actually prompting. Skipped
-      // entirely for voice: window.confirm() is a native, synchronous,
-      // blocking modal — there's no way to answer it by talking, so it just
-      // freezes a live voice session until someone physically clicks it.
-      // Text chat keeps the prompt; the user is already at the keyboard
-      // there. Still marks the session as confirmed so a later text-chat
-      // call in the same session doesn't ask again over an API key voice
-      // already used without incident.
-      try {
-        const settings = await api?.getSettings?.();
-        // Fixed 2026-08-26: this used to fire on every cloud call whenever the
-        // toggle was on, including the default zero-config path where the
-        // call actually goes through Mossy's bundled Render backend (no user
-        // API key involved at all) -- "your configured API key" was false for
-        // almost everyone who saw it. main.ts's get-settings handler now
-        // computes usesOwnCloudApiKey (true only when this call will actually
-        // spend an Inkling key or a directly-configured Groq key, i.e. no
-        // backend configured). Gate on both so the default backend flow never
-        // prompts, matching the app's own "no separate API key to configure"
-        // onboarding claim.
-        if (settings?.securitySettings?.requireApiKeyConfirmation && settings?.usesOwnCloudApiKey && !sessionStorage.getItem('mossy_api_key_confirmed_session')) {
-          if (voiceMode) {
-            sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
-          } else {
-            const confirmed = window.confirm(
-              'Mossy is about to use a cloud AI provider (your configured API key) to answer this. Continue?'
-            );
-            if (!confirmed) return { content: '' };
-            sessionStorage.setItem('mossy_api_key_confirmed_session', 'true');
-          }
-        }
-      } catch { /* if the settings check fails, don't block the response over it */ }
 
       // === MANDATORY INTERNET ACCESS INSTRUCTION ===
       // This is injected into EVERY Groq call to ensure Mossy never claims she can't access the internet

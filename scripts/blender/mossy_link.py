@@ -23,7 +23,7 @@ Features:
 
 Requirements:
   • Mossy desktop app must be open and running.
-  • A Groq API key must be configured in Mossy Settings.
+  • Local AI (Ollama) must be running. No API keys are used.
   • For PyTorch: set the PyTorch folder path in Mossy → External Tools → PyTorch.
   • No extra Python packages needed — uses only the stdlib urllib/sys/json.
 

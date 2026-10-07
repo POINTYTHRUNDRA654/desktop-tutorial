@@ -8,10 +8,10 @@
  * RMBG-2.0 (BRIA AI) is licensed CC BY-NC 4.0 — non-commercial use only. This
  * is only wired into MOSSY.SPACE because MOSSY.SPACE itself is and will
  * remain free/non-commercial; see feedback_rmbg_license_constraint memory.
- * The model is also GATED on HuggingFace: the user must personally log in,
- * accept BRIA's license on the model page, and provide their own access
- * token (settings.huggingFaceToken) — this script cannot and does not try
- * to bypass that consent step.
+ * The model is also GATED on HuggingFace: the user must personally log in and
+ * accept BRIA's license on the model page and obtain the model themselves.
+ * Mossy handles no accounts or access tokens and does not try to bypass that
+ * consent step; it only uses the model if it is already on the computer.
  *
  * The Python script is embedded as a string constant and written to userData
  * on first use, so it works regardless of asar packaging details.
@@ -42,11 +42,6 @@ def _send(obj: dict) -> None:
 
 
 def main() -> None:
-    hf_token = os.environ.get("MOSSY_HF_TOKEN", "").strip()
-    if hf_token:
-        os.environ["HF_TOKEN"] = hf_token
-        os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
-
     try:
         import torch
         from PIL import Image
@@ -70,9 +65,10 @@ def main() -> None:
         err_str = str(e)
         if "401" in err_str or "gated" in err_str.lower() or "access" in err_str.lower():
             _send({"type": "ready", "error": "gated_access_denied",
-                   "hint": "Log into huggingface.co, accept BRIA's license at "
-                           "huggingface.co/briaai/RMBG-2.0, then generate an access "
-                           "token and paste it into the Background Remover tab."})
+                   "hint": "RMBG-2.0 is a gated model. Get it yourself from "
+                           "huggingface.co/briaai/RMBG-2.0 (accept BRIA's license there). "
+                           "Mossy does not handle accounts or tokens. Or use the ComfyUI "
+                           "backend (BEN2) instead."})
         else:
             _send({"type": "ready", "error": "model_load_failed: " + err_str})
         return
@@ -162,19 +158,11 @@ export class RmbgServerManager {
   private stopping = false;
   private lineBuffer = '';
   private configuredPythonPath: string | null = null;
-  private hfToken = '';
 
   /** Called once runRmbgAutoInstall confirms the dedicated RMBG env is ready. */
   setPythonPath(pythonExe: string): void {
     this.configuredPythonPath = pythonExe;
     console.log(`[RmbgMgr] Python path configured: ${pythonExe}`);
-  }
-
-  /** Called whenever the user saves/updates their HuggingFace access token in settings. */
-  setHfToken(token: string): void {
-    this.hfToken = token || '';
-    // A changed token only takes effect on the next (re)start — restart the server if it's already running.
-    if (this.process) this.stop();
   }
 
   get isReady(): boolean { return this.ready; }
@@ -192,7 +180,6 @@ export class RmbgServerManager {
 
     const env: NodeJS.ProcessEnv = {
       ...process.env,
-      MOSSY_HF_TOKEN: this.hfToken,
     };
 
     this.process = spawn(this.configuredPythonPath, [scriptPath], {

@@ -25,7 +25,7 @@ describe('Shared Types', () => {
     });
 
     it('should have valid LLM endpoint', () => {
-      expect(DEFAULT_SETTINGS.llmApiEndpoint).toMatch(/^https?:\/\//);
+      expect(DEFAULT_SETTINGS.llmApiEndpoint).toBe('');
     });
   });
 

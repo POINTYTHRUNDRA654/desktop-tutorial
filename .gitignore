@@ -248,3 +248,6 @@ prepare_uv_cluster.py
 uv_locked_material_transfer.py
 
 plugins/blender-mossy-link/
+
+# Never bundle or commit secrets (provider keys / shared tokens)
+.env.encrypted

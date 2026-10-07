@@ -150,36 +150,8 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({ onComp
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [hasPreconfiguredApiKeys, setHasPreconfiguredApiKeys] = useState(false);
+  const hasPreconfiguredApiKeys = false; // this build uses no API keys
   const lastSpokenStepId = useRef<string | null>(null);
-
-  useEffect(() => {
-    const detectPackagedKeys = async () => {
-      try {
-        const api = (window as any).electronAPI ?? (window as any).electron?.api;
-        if (api?.getSecretStatus) {
-          const st = await api.getSecretStatus();
-          if (st && st.ok && (st.backendToken || st.openai || st.openaiApiKey || st.openaiKey)) {
-            setHasPreconfiguredApiKeys(true);
-            return;
-          }
-        }
-
-        if (
-          Boolean(process?.env?.REACT_APP_OPENAI_API_KEY) ||
-          Boolean((import.meta as any).env?.VITE_OPENAI_API_KEY) ||
-          Boolean(localStorage.getItem('openai_api_key')) ||
-          Boolean(localStorage.getItem('mossy_backend_token'))
-        ) {
-          setHasPreconfiguredApiKeys(true);
-        }
-      } catch (err) {
-        // non-fatal - leave default (false)
-      }
-    };
-
-    void detectPackagedKeys();
-  }, []);
 
   // Restore saved tutorial position (if present) so re-opening the tutorial preserves progress
   useEffect(() => {

@@ -47,16 +47,6 @@ Mossy is a production-ready Fallout 4 modding assistant desktop application buil
 
 ## AI & Language Models
 
-- **OpenAI SDK** (v6.21.0) - <https://github.com/openai/node-sdk>
-  - Official OpenAI API client
-  - Licensed under Apache 2.0
-  - Copyright (c) OpenAI
-
-- **Groq SDK** (v0.37.0) - <https://github.com/groq/groq-node>
-  - Groq API client for fast LLM inference
-  - Licensed under Apache 2.0
-  - Copyright (c) Groq Inc.
-
 - **Anthropic Claude** - <https://www.anthropic.com/>
   - AI model integration support
   - For AI-assisted modding features

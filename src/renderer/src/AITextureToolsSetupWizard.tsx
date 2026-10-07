@@ -102,17 +102,17 @@ export const AITextureToolsSetupWizard: React.FC<AITextureToolsSetupWizardProps>
     // Local RMBG-2.0 backend
     try {
       const status = await api?.bgRemover?.checkStatus?.();
-      reqs[0].status = status?.installed ? (status?.hfTokenSet ? 'ok' : 'missing') : 'missing';
-      if (status?.installed && !status?.hfTokenSet) {
-        reqs[0].details = 'Dependencies installed. Add your HuggingFace token in the Background Remover tab to finish setup — that step can\'t be automated.';
+      reqs[0].status = status?.installed ? 'ok' : 'missing';
+      if (status?.installed) {
+        reqs[0].details = 'Dependencies installed. The gated RMBG-2.0 model must already be on your computer — see the Background Remover tab.';
       }
       reqs[0].fixAction = async () => {
         setCurrentFixing('bgremover-local');
         try {
           const r = await api?.bgRemover?.install?.();
-          reqs[0].status = r?.success ? 'missing' : 'error'; // still 'missing' until the HF token is added by hand
+          reqs[0].status = r?.success ? 'ok' : 'error';
           reqs[0].details = r?.success
-            ? 'Dependencies installed. Add your HuggingFace token in the Background Remover tab to finish setup.'
+            ? 'Dependencies installed. The gated RMBG-2.0 model must already be on your computer — see the Background Remover tab.'
             : `Install failed: ${r?.error || 'unknown error'}`;
         } catch (e) {
           reqs[0].status = 'error';

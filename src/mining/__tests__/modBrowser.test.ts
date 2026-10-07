@@ -1,16 +1,16 @@
 
 import { modBrowser } from '../modBrowser';
 
-describe('ModBrowserEngine - authentication and local operations', () => {
+describe('ModBrowserEngine - OAuth-only access and local operations', () => {
   it('requires auth before search', async () => {
     await expect(
       modBrowser.searchMods('vault', { game: 'fallout4', sortBy: 'downloads', nsfw: false }),
-    ).rejects.toThrow(/API key is required/i);
+    ).rejects.toThrow(/sign in with your nexus account/i);
   });
 
-  it('rejects invalid nexus auth', async () => {
-    const auth = await modBrowser.authenticateNexus('');
-    expect(auth.success).toBe(false);
+  it('has no personal API key entry point', () => {
+    expect((modBrowser as any).authenticateNexus).toBeUndefined();
+    expect((modBrowser as any).restoreNexusAuth).toBeUndefined();
   });
 
   it('creates and shares a collection', async () => {
@@ -32,6 +32,6 @@ describe('ModBrowserEngine - authentication and local operations', () => {
   });
 
   it('requires auth before download', async () => {
-    await expect(modBrowser.downloadMod('nx_1001', 'C:/temp')).rejects.toThrow(/API key is required/i);
+    await expect(modBrowser.downloadMod('nx_1001', 'C:/temp')).rejects.toThrow(/sign in with your nexus account/i);
   });
 });

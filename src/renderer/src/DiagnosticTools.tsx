@@ -82,13 +82,6 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
       status: 'idle',
       result: ''
     },
-    {
-      id: 'secret-status',
-      name: 'Secret Status (Main Process)',
-      description: 'Check if main process can see backend/OpenAI/Groq keys',
-      status: 'idle',
-      result: ''
-    },
     // FO4 Environment checks
     {
       id: 'fo4-path',
@@ -241,32 +234,6 @@ const DiagnosticTools: React.FC<DiagnosticToolsProps> = ({ embedded = false }) =
       }
     } catch (e) {
       updateCheck('tts-voices', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
-    }
-
-    // Secret status
-    try {
-      if (typeof api?.getSecretStatus !== 'function') {
-        updateCheck('secret-status', { result: 'API not available', status: 'error' });
-      } else {
-        const status = await api.getSecretStatus();
-        if (!status?.ok) {
-          updateCheck('secret-status', {
-            result: 'Error',
-            errorDetails: String(status?.error || 'Unknown error'),
-            status: 'error',
-          });
-        } else {
-          const flags = [
-            `backend=${status.backendToken ? 'yes' : 'no'}`,
-            `openai=${status.openai ? 'yes' : 'no'}`,
-            `groq=${status.groq ? 'yes' : 'no'}`,
-          ].join(' | ');
-          const anyConfigured = status.backendToken || status.openai || status.groq;
-          updateCheck('secret-status', { result: flags, status: anyConfigured ? 'success' : 'error' });
-        }
-      }
-    } catch (e) {
-      updateCheck('secret-status', { result: 'Error', errorDetails: (e as Error).message, status: 'error' });
     }
 
     // --- FO4 ENVIRONMENT CHECKS ---

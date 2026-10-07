@@ -505,12 +505,8 @@ export interface SandboxConfig { timeoutMs?: number; memoryLimitMb?: number; cpu
  * Application settings stored persistently
  */
 export interface Settings {
-  // Secure API keys for backend TTS/STT (main process only)
-  openaiApiKey?: string;
-  groqApiKey?: string;
   // Backend configuration
   backendBaseUrl?: string;
-  backendTokenConfigured?: boolean;
   // LLM Configuration
   llmApiEndpoint: string;
   llmApiKey?: string;
@@ -625,16 +621,12 @@ export interface Settings {
 
   // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, own Python env
   // (independent of pytorchPath, which is forced CPU-only for Blender compatibility).
-  huggingFaceToken?: string;
   rmbgPythonPath?: string;
 
   // Community Sharing
   communityRepo?: string; // GitHub repo in the form "owner/repo"
   communityContributorName?: string;
   communityContributorLink?: string;
-  githubToken?: string; // encrypted in main process
-  /** When each API key field was last set (ms epoch) — backs "Enable API Key Rotation". */
-  apiKeySetAt?: Record<string, number>;
   listSyncEnabled?: boolean;
   listSyncRepo?: string;
   listSyncBranch?: string;
@@ -738,7 +730,6 @@ export interface Settings {
   whatsNewDismissedVersions?: string[];
 
   // Platform 8: Mod Browser
-  nexusAuthToken?: string;
   modBrowserCollections?: Collection[];
 
   // Platform 9: Load Order Management
@@ -1012,7 +1003,7 @@ export interface ScriptBundle {
  * Default settings
  */
 export const DEFAULT_SETTINGS: Settings = {
-  llmApiEndpoint: 'https://api.openai.com/v1/chat/completions',
+  llmApiEndpoint: '',
   llmModel: 'gpt-3.5-turbo',
   localAiPreferredProvider: 'auto',
   ollamaBaseUrl: 'http://127.0.0.1:11434',
@@ -1091,7 +1082,6 @@ export const DEFAULT_SETTINGS: Settings = {
   communityRepo: '',
   communityContributorName: '',
   communityContributorLink: '',
-  githubToken: '',
   listSyncEnabled: false,
   listSyncRepo: '',
   listSyncBranch: 'main',
@@ -1259,7 +1249,6 @@ export const IPC_CHANNELS = {
   LOAD_ORDER_LAUNCH_XEDIT: 'load-order-launch-xedit',
 
   // Secrets
-  SECRET_STATUS: 'secret-status',
 
   // STT/Transcription
   TRANSCRIBE_AUDIO: 'transcribe-audio',
@@ -4474,7 +4463,6 @@ export interface ElectronAPI {
     getModDetails: (modId: string) => Promise<ModDetails>;
     downloadMod: (modId: string, destination: string) => Promise<DownloadResult>;
     rateMod: (modId: string, rating: number, review: string) => Promise<void>;
-    authenticateNexus: (apiKey: string) => Promise<AuthResult>;
     getModReviews: (modId: string) => Promise<Review[]>;
     createCollection: (name: string, items: CollectionItem[], description?: string) => Promise<Collection>;
     shareCollection: (collectionId: string) => Promise<{ success: boolean; exportPath?: string; error?: string }>;

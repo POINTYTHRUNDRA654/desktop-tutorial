@@ -62,40 +62,19 @@ function checkDirectoryExists(dirPath, description) {
   }
 }
 
-function checkEnvEncryption() {
-  logInfo('\nChecking environment encryption...');
-  
-  const envPath = path.join(rootDir, '.env.encrypted');
-  if (!fs.existsSync(envPath)) {
-    logError('.env.encrypted not found');
+function checkNoBundledSecrets() {
+  logInfo('\nChecking that no secrets are bundled...');
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'));
+  const files = [...(pkg.build?.files || [])];
+  for (const r of pkg.build?.extraResources || []) files.push(typeof r === 'string' ? r : (r.from || ''));
+  const offenders = files.filter(f => /(^|[\\/])\.env/i.test(String(f)));
+  if (offenders.length) {
+    logError(`Build bundles env/secret files: ${offenders.join(', ')}`);
     return false;
   }
-  
-  const content = fs.readFileSync(envPath, 'utf-8');
-  const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'));
-  
-  let allEncrypted = true;
-  const keysToCheck = ['OPENAI_API_KEY', 'GROQ_API_KEY', 'MOSSY_BACKEND_TOKEN', 'MOSSY_BRIDGE_TOKEN'];
-  
-  for (const key of keysToCheck) {
-    const line = lines.find(l => l.startsWith(`${key}=`));
-    if (!line) {
-      logWarning(`${key} not found in .env.encrypted`);
-      continue;
-    }
-    
-    const value = line.split('=')[1].trim();
-    if (value.startsWith('enc:')) {
-      logSuccess(`${key} is encrypted`);
-    } else if (value === '' || value === 'undefined') {
-      logWarning(`${key} is empty`);
-    } else {
-      logError(`${key} is NOT encrypted (should start with "enc:")`);
-      allEncrypted = false;
-    }
-  }
-  
-  return allEncrypted;
+  logSuccess('No .env / secret files are included in the build');
+  return true;
 }
 
 function checkPackageJson() {
@@ -113,7 +92,7 @@ function checkPackageJson() {
   }
   
   // Check files array
-  const requiredFiles = ['dist/**/*', 'dist-electron/**/*', '.env.encrypted'];
+  const requiredFiles = ['dist/**/*', 'dist-electron/**/*'];
   for (const file of requiredFiles) {
     if (pkg.build.files.includes(file)) {
       logSuccess(`Build includes: ${file}`);
@@ -163,7 +142,6 @@ async function main() {
   
   // Check critical files
   logInfo('\nChecking critical files...');
-  allChecks &= checkFileExists('.env.encrypted', 'Environment config');
   allChecks &= checkFileExists('package.json', 'Package config');
   allChecks &= checkFileExists('src/electron/main.ts', 'Main process');
   allChecks &= checkFileExists('vite.config.mts', 'Vite config');
@@ -179,7 +157,7 @@ async function main() {
   }
   
   // Check encryption
-  allChecks &= checkEnvEncryption();
+  allChecks &= checkNoBundledSecrets();
   
   // Check package.json
   allChecks &= checkPackageJson();
@@ -194,12 +172,11 @@ async function main() {
     console.log('\nNext steps:');
     console.log('  1. npm run package:win    # Package for Windows');
     console.log('  2. Test the installer in release/ directory');
-    console.log('  3. Verify API keys work after installation');
+    console.log('  3. Confirm the app starts with no keys configured');
   } else {
     logError('Some checks failed. Please fix the issues above.');
     console.log('\nCommon fixes:');
     console.log('  - Run: npm run build');
-    console.log('  - Run: node scripts/fix-env-encryption.mjs');
     console.log('  - Check package.json build configuration');
     process.exit(1);
   }

@@ -8,10 +8,9 @@
 
 ## 1. What local server endpoints are exposed while the app is running?
 
-Mossy runs **two local servers** while the app is open:
+Mossy runs local servers on your own PC while the app is open:
 
-**Port 8787 — Python backend**
-Hosts the AI chat and (optional) cloud Whisper transcription routes. This port is bound to `0.0.0.0` (all interfaces) because the Electron renderer needs to reach it. It is only active when the backend process is running. Routes require a valid internal bearer token (`MOSSY_BACKEND_TOKEN`) for all AI calls.
+**No AI chat server and no cloud backend.** This edition has no hosted backend and no API keys or tokens. AI chat talks to the local AI (Ollama) running on your own PC.
 
 **Port 21337 — Bridge Server ("Desktop Bridge")**
 Provides hardware telemetry, file listing, and Blender add-on communication. Bound strictly to `127.0.0.1` (localhost only) — unreachable from any other device on your network. **As of this release, every request must carry a valid internal authentication token** (a random value generated locally on first launch, stored in your own settings file, and attached automatically by Mossy's own renderer — you never see or manage it directly). The token is what actually gates access — the port stays fixed so the Blender add-on can keep reaching it at a known address.
@@ -64,9 +63,7 @@ Mossy does not call `Add-MpPreference` or any similar command. No exclusions are
 - Hardware telemetry (CPU, RAM, OS info) — collected for display in the UI, never transmitted.
 - File listings when using file browser features — never sent off-device.
 
-**What goes to the cloud (only when you use AI chat features):**
-- The text of your chat messages is sent to the Mossy backend (`mossy.onrender.com`), which forwards them to the AI provider (Groq) and returns the response. The API keys are the developer's — users do not need to supply or pay for any API key. Mossy is free to use.
-- The backend does not store your messages. It receives a request, forwards it to the AI provider, and returns the reply. That's it.
+**What goes to the cloud:** nothing for AI. This edition has no API keys, tokens or cloud AI services. AI chat runs on your own local AI (Ollama), so the text of your chats never leaves your PC. The only network use is optional downloads you start yourself (for example Brain B from GitHub, or AI models from HuggingFace) and web search if you use it.
 
 **No usage analytics, crash reports, or telemetry are collected by Mossy.** The app has no analytics SDK, no tracking pixels, and no "phone home" behavior. A voluntary donation page exists for users who want to support development, but it is never prompted automatically and is entirely optional.
 
@@ -74,4 +71,4 @@ Mossy does not call `Add-MpPreference` or any similar command. No exclusions are
 
 ## Short summary for the mod page description
 
-> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. The only data sent to the internet is the text of your chat messages, which go to the AI provider via a secure relay. No API keys required — the developer covers AI costs, Mossy is free. The local Bridge Server requires a per-launch authentication token on every request — a website cannot make it do anything without that token, which only Mossy's own interface holds. First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder. **A prior version of this document overstated protections that hadn't actually shipped yet — see the correction note at the top and the linked Security Advisory for the honest history.**
+> **Privacy & Security:** Mossy AI runs its speech recognition (Whisper) locally on your PC — your voice never leaves your computer. AI chat runs on your own local AI (Ollama): this edition has no API keys, tokens or cloud AI services, and your chat text never leaves your PC. The local Bridge Server requires a per-launch authentication token on every request — a website cannot make it do anything without that token, which only Mossy's own interface holds. First-launch downloads (PyTorch + Whisper, ~350 MB total) are announced up-front before any download starts and are stored in your AppData folder. **A prior version of this document overstated protections that hadn't actually shipped yet — see the correction note at the top and the linked Security Advisory for the honest history.**

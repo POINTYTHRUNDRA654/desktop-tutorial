@@ -274,26 +274,7 @@ Based on this data, give them:
 Be specific, encouraging, and use real FO4 terminology. Keep it under 200 words total.`;
 
       let text = '';
-      // Try backend proxy first
-      try {
-        const resp = await fetch('https://mossy.onrender.com/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(20000),
-          body: JSON.stringify({
-            messages: [{ role: 'user', content: prompt }],
-            model: 'openai/gpt-oss-120b',
-            max_tokens: 350,
-          }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          text = data?.choices?.[0]?.message?.content
-            || data?.content?.[0]?.text
-            || data?.text
-            || '';
-        }
-      } catch { /* fallback */ }
+      // Nexus release: no cloud call; the profile below is generated locally.
 
       // Fallback: generate a basic profile locally
       if (!text) {

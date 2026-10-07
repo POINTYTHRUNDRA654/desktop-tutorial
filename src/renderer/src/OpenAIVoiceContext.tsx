@@ -116,15 +116,9 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       console.log('[OpenAI] Connecting...');
       setStatus('Initializing...');
 
-      // Get API key from environment or localStorage
-      const apiKey = process.env.REACT_APP_OPENAI_API_KEY || localStorage.getItem('openai_api_key');
-      
-      if (!apiKey) {
-        setStatus('Please provide OpenAI API key');
-        throw new Error('OpenAI API key not found. Set REACT_APP_OPENAI_API_KEY environment variable or save key to localStorage');
-      }
-
-      apiKeyRef.current = apiKey;
+      // Nexus release: cloud voice needs an API key, and this edition uses none.
+      setStatus('Cloud voice is not available in this edition');
+      throw new Error('Cloud voice is not available in this edition of Mossy.');
       conversationRef.current = [];
 
       // Request microphone

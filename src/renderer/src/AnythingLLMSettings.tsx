@@ -231,16 +231,6 @@ const AnythingLLMSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fals
               className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
             />
           </div>
-          <div>
-            <label className="block text-xs text-slate-400 mb-1">API Key</label>
-            <input
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              type="password"
-              placeholder="Created automatically on first connect"
-              className="w-full px-3 py-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
-            />
-          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

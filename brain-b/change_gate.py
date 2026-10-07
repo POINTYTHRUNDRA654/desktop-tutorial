@@ -6,8 +6,7 @@ referenced this as "the existing mechanism the self-practice pipeline
 already uses" — a real research pass found neither actually existed
 anywhere in the repo (grepped for ChangeGate/propose_change/self-practice/
 self_practice, zero matches). This is the real first version, not a
-rediscovery. See groq_native_tool_calling_migration memory for how the same
-kind of fabricated-premise check played out earlier the same session.
+rediscovery.
 
 Design: proposals are LOCAL-ONLY (PENDING_PATH lives under brain-b/data/,
 which .gitignore already excludes wholesale — see the "Brain B local build

@@ -220,7 +220,7 @@ const QUIPS: Record<string, string[]> = {
         "I'm pulse-checking your system resources to ensure stability during asset heavy loads.",
         "Blender add-on connected? I'm listening on http://127.0.0.1:8080 — install the real mossy_link.py (scripts/blender/) to get AI answers inside Blender.",
         "The Blender add-on sends events to me on /event — I can react to mesh imports, exports, and step completions in real time.",
-        "If Blender shows 'Mossy not available', check that the Mossy desktop app is open and that your Groq API key is set in Settings."
+        "If Blender shows 'Mossy not available', check that the Mossy desktop app is open and that local AI (Ollama) is running."
     ],
     '/lorekeeper': [
         "The Lorekeeper manages LOD generation and precombine optimization for large worldspace performance.",

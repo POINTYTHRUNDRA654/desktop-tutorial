@@ -38,11 +38,11 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete =
     const reqs: VoiceRequirement[] = [
       {
         id: 'backend',
-        name: 'Backend Connection',
-        description: 'Backend URL + token for AI responses',
+        name: 'Local AI Engine',
+        description: 'AI responses are generated on your computer',
         status: 'checking',
         canAutoFix: false,
-        details: 'Required for Mossy to generate responses. Configure in Settings → Backend.'
+        details: 'No account, key or cloud connection is needed. Install Ollama for local responses.'
       },
       {
         id: 'ollama',
@@ -80,23 +80,8 @@ export const VoiceSetupWizard: React.FC<VoiceSetupWizardProps> = ({ onComplete =
 
     setRequirements(reqs);
 
-    // Check backend configuration
-    try {
-      const settings = await api?.getSettings?.();
-      const hasBackendUrl = !!String(settings?.backendBaseUrl || '').trim();
-      let hasBackendToken = !!settings?.backendTokenConfigured;
-
-      if (!hasBackendToken && api?.getSecretStatus) {
-        const secrets = await api.getSecretStatus();
-        hasBackendToken = !!secrets?.backendToken;
-      }
-      reqs[0].status = hasBackendUrl && hasBackendToken ? 'ok' : 'missing';
-      if (!hasBackendUrl || !hasBackendToken) {
-        reqs[0].details = 'Backend URL and token are required. Configure in Settings → Backend.';
-      }
-    } catch {
-      reqs[0].status = 'error';
-    }
+    // Nothing to configure: this build has no cloud backend.
+    reqs[0].status = 'ok';
 
     // Check Ollama (optional)
     try {

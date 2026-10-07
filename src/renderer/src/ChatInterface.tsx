@@ -1425,7 +1425,7 @@ export const ChatInterface: React.FC = () => {
         // Check if transcription is available
         const api = (window as any).electron?.api || (window as any).electronAPI;
         if (!api?.transcribeAudio) {
-            toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
+            toast.error('Voice transcription is not available in this edition.');
             return;
         }
 
@@ -1495,8 +1495,8 @@ export const ChatInterface: React.FC = () => {
                 try {
                     const api = (window as any).electron?.api || (window as any).electronAPI;
                     if (!api?.transcribeAudio) {
-                        console.warn('[VoiceInput] transcribeAudio IPC not available - check if API keys are configured');
-                        toast.error('Voice transcription is not available. Configure an OpenAI API key in Settings.');
+                        console.warn('[VoiceInput] transcribeAudio IPC not available - check that local speech recognition is set up');
+                        toast.error('Voice transcription is not available in this edition.');
                         return;
                     } else {
                         console.log('[VoiceInput] Transcribing audio via main process... (size:', audioBlob.size, 'bytes)');
@@ -1932,7 +1932,7 @@ IMPORTANT RULES when Blender is detected or the user asks about Blender:
                     "• FO4 External Integrations Hub (/ext-tools): Configure and launch every external tool from one place — MO2, Vortex, Blender, xEdit, Creation Kit, LOOT, NifSkope, BodySlide, GIMP, BAE, Archive2, ComfyUI, Upscayl. Each integration shows connection status and has a launch button. Also manage MO2 profiles, run ComfyUI image generation workflows, and upscale textures with Upscayl.",
                     "• FO4 Plugin & Load Order Hub (/plugin-tools): Manage your plugin load order safely. Scan for conflicts with xEdit, sort with LOOT, detect ITMs and UDRs, build conflict-resolution patches, manage ESL/ESP/ESM plugin types, and follow PRP-aware patching workflows to avoid breaking precombines.",
                     "• FO4 System & Diagnostics Hub (/system-hub): Diagnose Mossy itself. Run hardware scans, check local AI capabilities (Ollama, KoboldCPP), manage the mod blacklist and whitelist, browse the asset vault, view Mossy's logs, and get support information.",
-                    "• Settings (/settings): Configure everything — FO4 game folder, tool paths (xEdit, CK, Blender, etc.), AI engine settings (Groq model, max tokens, voice), AnythingLLM RAG connection, appearance, and all other Mossy preferences.",
+                    "• Settings (/settings): Configure everything — FO4 game folder, tool paths (xEdit, CK, Blender, etc.), AI engine settings (local model, max tokens, voice), AnythingLLM RAG connection, appearance, and all other Mossy preferences.",
                     "• Vault-Tec Creative Director (/creative-director): The AI design team. Enable the autonomous AI team to generate complete Fallout 4 mod concepts with full BUILD_GUIDE documentation — quest design, NPC concepts, dialogue, world-building, art direction, and Papyrus script stubs. Review finished projects in Lab Handoff, score them on buildability, enhance guides with your real asset paths, and generate xEdit setup scripts.",
                 ].join('\n');
 
@@ -3108,7 +3108,7 @@ ${rawOutcome}
                         'Execute exactly one action (generate text or analyze a file) and confirm the output is usable.',
                     ]}
                     troubleshooting={[
-                        'If responses fail, check Settings for API key/model configuration.',
+                        'If responses fail, check that local AI (Ollama) is running.',
                         'If desktop actions fail, open Runtime Hub and verify Desktop Bridge is online.',
                     ]}
                     shortcuts={[
