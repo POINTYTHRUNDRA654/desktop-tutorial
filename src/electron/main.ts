@@ -9671,6 +9671,15 @@ end.
   forceHandle('ai-chat-groq', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
   forceHandle('ai-vision-groq', async () => ({ success: false, error: 'Vision recognition needs a cloud model, which is not available in this version of Mossy.' }));
 
+  // DIVA only: if the gitignored localDev/claudeBackend module exists, it replaces the stubs above
+  // with Claude (Billy's own API key). Missing module = no-op, so GitHub/Nexus builds are unaffected.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require('./localDev/claudeBackend').start();
+  } catch (e: any) {
+    if (e?.code !== 'MODULE_NOT_FOUND') console.error('[Main] localDev claudeBackend failed:', e?.message || e);
+  }
+
   /**
    * AI Script Generation Handler
    * Generates Papyrus, XML, or Python scripts from natural language description
