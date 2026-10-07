@@ -56,6 +56,7 @@ from knowledge_manifest import EMBEDDING_MODEL_NAME
 import game_data_index
 import screen_filter
 import log_patterns
+import question_classifier
 
 import networkx as nx
 import numpy as np
@@ -1486,6 +1487,39 @@ def diagnose(question: str, mode: str) -> Optional[str]:
     return diagnosis or None
 
 
+_question_clf = None
+_question_clf_loaded = False
+
+
+def _get_question_classifier():
+    """Trained local question classifier (question_classifier.json next to this file / the exe). None if absent or built on a different embedding model."""
+    global _question_clf, _question_clf_loaded
+    if not _question_clf_loaded:
+        _question_clf_loaded = True
+        for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+            if not base:
+                continue
+            candidate = Path(base) / "question_classifier.json"
+            if candidate.exists():
+                clf = question_classifier.QuestionClassifier.load(candidate)
+                if clf and clf.embedding_model == EMBEDDING_MODEL_NAME:
+                    _question_clf = clf
+                    break
+                log.warning("question_classifier.json ignored (missing or built on a different embedding model)")
+    return _question_clf
+
+
+def _learned_prediction(question: str):
+    clf = _get_question_classifier()
+    if clf is None:
+        return None
+    try:
+        return clf.predict(question, embed)
+    except Exception as e:  # noqa: BLE001
+        log.warning("question classifier failed (%s); using keyword fallbacks", type(e).__name__)
+        return None
+
+
 def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool, bool, bool, bool]:
     """
     Merges classify_mode() and diagnose() into ONE _generate_json call.
@@ -1607,21 +1641,46 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
         '"scene_related": true|false, "app_help_related": true|false, "game_data_related": true|false, '
         '"needs_grounding": true|false, "action_related": true|false}'
     )
+    # Optional fast path (off by default): when the trained local classifier is confident about every
+    # field, skip the LLM call entirely. diagnosis comes back None, which every caller already handles.
+    if os.environ.get("MOSSY_FAST_CLASSIFY", "").strip() == "1":
+        fast = _learned_prediction(question)
+        if fast is not None and question_classifier.confident(fast):
+            return (fast["mode"][0], None, fast["scene_related"][0], fast["app_help_related"][0],
+                    fast["game_data_related"][0], fast["needs_grounding"][0], fast["action_related"][0])
+
     parsed, raw, attempts = _generate_json(
         prompt, ["mode", "diagnosis", "scene_related", "app_help_related", "game_data_related", "needs_grounding", "action_related"],
         max_new_tokens=280
     )
     keyword_mode = _classify_mode_keywords(question)
 
+    # When the LLM answer is missing or malformed, prefer the trained local classifier over the keyword guesses.
+    _cache: list = []
+
+    def _learned():
+        if not _cache:
+            _cache.append(_learned_prediction(question))
+        return _cache[0]
+
+    def _pick(field: str, keyword_value: bool) -> bool:
+        p = _learned()
+        return bool(p[field][0]) if p else keyword_value
+
     if parsed is None:
         log_contract_failure(question, "classify_and_diagnose", raw, attempts)
-        return (keyword_mode, None, _is_scene_related_keywords(question),
-                _is_app_help_keywords(question), _is_game_data_related_keywords(question),
-                not _is_conversational_keywords(question), _is_action_related_keywords(question))
+        p = _learned()
+        return ((p["mode"][0] if p else keyword_mode), None,
+                _pick("scene_related", _is_scene_related_keywords(question)),
+                _pick("app_help_related", _is_app_help_keywords(question)),
+                _pick("game_data_related", _is_game_data_related_keywords(question)),
+                _pick("needs_grounding", not _is_conversational_keywords(question)),
+                _pick("action_related", _is_action_related_keywords(question)))
 
     mode = parsed.get("mode")
     if mode not in ("teach", "debug", "answer"):
-        mode = keyword_mode
+        p = _learned()
+        mode = p["mode"][0] if p else keyword_mode
     else:
         log_mode_classification(question, mode, keyword_mode)
 
@@ -1638,27 +1697,27 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
     scene_related = parsed.get("scene_related")
     if not isinstance(scene_related, bool):
         log_contract_failure(question, "classify_and_diagnose.scene_related", raw, attempts)
-        scene_related = _is_scene_related_keywords(question)
+        scene_related = _pick("scene_related", _is_scene_related_keywords(question))
 
     app_help_related = parsed.get("app_help_related")
     if not isinstance(app_help_related, bool):
         log_contract_failure(question, "classify_and_diagnose.app_help_related", raw, attempts)
-        app_help_related = _is_app_help_keywords(question)
+        app_help_related = _pick("app_help_related", _is_app_help_keywords(question))
 
     game_data_related = parsed.get("game_data_related")
     if not isinstance(game_data_related, bool):
         log_contract_failure(question, "classify_and_diagnose.game_data_related", raw, attempts)
-        game_data_related = _is_game_data_related_keywords(question)
+        game_data_related = _pick("game_data_related", _is_game_data_related_keywords(question))
 
     needs_grounding = parsed.get("needs_grounding")
     if not isinstance(needs_grounding, bool):
         log_contract_failure(question, "classify_and_diagnose.needs_grounding", raw, attempts)
-        needs_grounding = not _is_conversational_keywords(question)
+        needs_grounding = _pick("needs_grounding", not _is_conversational_keywords(question))
 
     action_related = parsed.get("action_related")
     if not isinstance(action_related, bool):
         log_contract_failure(question, "classify_and_diagnose.action_related", raw, attempts)
-        action_related = _is_action_related_keywords(question)
+        action_related = _pick("action_related", _is_action_related_keywords(question))
 
     return mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding, action_related
 

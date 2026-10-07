@@ -1,0 +1,33 @@
+d|0|0|0|1|0|Game closes right when I click new game with my mod on
+t|0|0|0|1|0|Could you break down what an ingestible form does
+a|0|0|0|1|0|What's the Papyrus call to kill an actor?
+d|0|0|0|1|0|Script compiles but the property is always None
+t|0|0|0|1|0|Why do some mods need F4SE and others don't?
+a|0|0|0|1|0|What compression does a DDS for a diffuse map need?
+a|1|0|0|1|0|Which vertex group is active on my mesh right now?
+a|1|0|0|1|0|How many polygons does the object in my viewport have?
+d|1|0|0|1|0|The selected armature is rotated wrong when I look at it
+a|0|1|0|1|0|Which screen in Mossy lets me read my Papyrus log?
+a|0|1|0|1|0|Where is the button to start the Blender link?
+t|0|1|0|1|0|What is the Mod Builder hub for?
+a|0|0|1|1|0|What's the EditorID of the vanilla laser musket?
+a|0|0|1|1|0|Which of my mods edits the Diamond City market cell?
+a|0|0|1|1|0|What textures does the vanilla Minuteman hat reference?
+t|0|0|0|0|0|thanks a lot
+t|0|0|0|0|0|hey
+t|0|0|0|0|0|perfect, that's what I needed
+t|0|0|0|0|0|ok I will
+a|0|0|0|1|1|Build my BA2 from the project folder now
+a|0|0|0|1|1|Open my plugin in the Creation Kit
+a|0|0|0|1|1|Write a script that makes the door open when the quest is done
+a|0|0|0|1|1|Scan this folder for broken textures
+t|0|0|0|1|0|How does the engine decide which plugin wins a conflict?
+a|0|0|0|1|0|How do I make a custom armor piece?
+d|0|0|0|1|0|Why does the console say my quest stage was never set?
+a|0|0|0|1|0|Does Papyrus have switch statements?
+t|0|0|0|1|0|What's happening when a cell loads in the engine?
+a|0|0|0|1|0|What's the fastest way to bulk-rename records?
+d|0|0|0|1|0|Mossy says Brain B is offline, what should I do?
+a|0|1|0|1|0|Does Mossy have a chat history page?
+a|0|0|0|1|1|Tell me which of my plugins have script errors by scanning them
+t|0|0|0|1|0|How does lighting in interiors differ from exteriors?

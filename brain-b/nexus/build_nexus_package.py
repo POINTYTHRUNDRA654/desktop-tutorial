@@ -131,6 +131,8 @@ def main():
         "--hidden-import=change_gate",
         "--hidden-import=screen_filter",
         "--hidden-import=log_patterns",
+        "--hidden-import=question_classifier",
+        "--add-data", f"question_classifier.json{os.pathsep}.",
         "--collect-all", "drain3",
         "--hidden-import=bootstrap_fallout4_knowledge",
         "--collect-all", "chromadb",
