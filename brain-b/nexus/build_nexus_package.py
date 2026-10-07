@@ -141,6 +141,41 @@ def main():
     pyinstaller_cmd += ["--noconfirm", "brain_b_slim.py"]
     run(pyinstaller_cmd)
 
+    # 2b. Prune ChromaDB's loose source/test copies from the package. --collect-all
+    #     drops chromadb's entire source tree (its tests and every cloud embedding
+    #     helper: OpenAI, Cohere, Google, ...) into _internal/ as plain .py files, on
+    #     top of the compiled copy PyInstaller already embeds and actually imports.
+    #     Brain B never reads the loose copies, and it only ever uses PersistentClient
+    #     with its own local fastembed embedding. Shipping them puts "OPENAI_API_KEY"
+    #     style wording in front of any static scan of a "no API keys, local only"
+    #     package. Removing them changed nothing at runtime: the pruned and unpruned
+    #     builds returned byte-identical /infer sources and confidence (checked
+    #     2026-10-06). The compiled chromadb package itself must stay: its __init__
+    #     imports every helper at startup, so the helpers can't be --exclude-module'd.
+    print("=" * 70)
+    print("[2b] Pruning ChromaDB loose source/test files...")
+    print("=" * 70)
+    chroma_dir = NEXUS_DIR / "dist" / "brain_b_slim" / "_internal" / "chromadb"
+    if not chroma_dir.is_dir():
+        raise SystemExit(f"Expected {chroma_dir} after PyInstaller; the bundle layout changed. "
+                         f"Update this prune step instead of shipping unpruned.")
+    shutil.rmtree(chroma_dir / "test", ignore_errors=True)
+    for pattern in ("*.py", "*.pyi", "*.md"):
+        for f in chroma_dir.rglob(pattern):
+            f.unlink()
+    import re
+    cloud_words = re.compile(r"openai|api[_-]?key|bearer", re.IGNORECASE)
+    leftovers = [
+        f for f in chroma_dir.rglob("*")
+        if f.is_file() and f.suffix in {".json", ".txt", ".yml", ".yaml", ".ipynb", ".sql", ""}
+        and cloud_words.search(f.read_text(encoding="utf-8", errors="ignore"))
+    ]
+    if leftovers:
+        raise SystemExit("Cloud-API wording still present in the Brain B package: "
+                         + ", ".join(str(f.relative_to(chroma_dir)) for f in leftovers[:5]))
+    print(f"ChromaDB pruned; {sum(1 for f in chroma_dir.rglob('*') if f.is_file())} loose files remain, "
+          f"none mention OpenAI/API keys/bearer tokens.")
+
     # 3. Assemble the final shippable package.
     print("=" * 70)
     print("[3/4] Assembling dist-package/...")
