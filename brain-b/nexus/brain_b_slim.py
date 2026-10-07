@@ -58,6 +58,7 @@ import screen_filter
 import log_patterns
 import question_classifier
 import record_anomalies
+import mesh_similarity
 
 import networkx as nx
 import numpy as np
@@ -2596,6 +2597,39 @@ def records_anomalies():
                     "flagged": sum(1 for r in results if r["flagged"]), "results": results[:top]})
 
 
+_mesh_index = None
+_mesh_index_loaded = False
+
+
+def _get_mesh_index():
+    """Vanilla mesh index (mesh_index.npz next to this file / the exe). None if absent."""
+    global _mesh_index, _mesh_index_loaded
+    if not _mesh_index_loaded:
+        _mesh_index_loaded = True
+        for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+            if base and (Path(base) / "mesh_index.npz").exists():
+                _mesh_index = mesh_similarity.MeshIndex.load(Path(base) / "mesh_index.npz")
+                break
+    return _mesh_index
+
+
+@app.route("/mesh/similar", methods=["POST"])
+def mesh_similar():
+    """Which vanilla meshes are most like this one, and what do they use (BSXFlags, collision, shader flags)? Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    features = data.get("features")
+    if not isinstance(features, dict) or not features:
+        return jsonify({"error": "features (an object of mesh measurements) is required"}), 400
+    index = _get_mesh_index()
+    if index is None:
+        return jsonify({"error": "vanilla mesh index is not installed in this Brain B build"}), 404
+    try:
+        k = max(1, min(int(data.get("k") or 25), 100))
+        return jsonify({"index_size": len(index.names), **index.similar(features, k=k)})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/change-gate/patterns", methods=["GET"])
 def change_gate_patterns():
     program = request.args.get("program", "")
@@ -2688,6 +2722,7 @@ def health():
         "ollama_reachable": ollama_reachable(),
         "screen_ocr": screen_filter.ocr_available(),
         "record_models": record_anomalies.available_collections(_record_models_dir()),
+        "mesh_index": len(_get_mesh_index().names) if _get_mesh_index() else 0,
         "curated_docs": get_curated_collection().count(),
         "runtime_docs": get_runtime_collection().count(),
         # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at

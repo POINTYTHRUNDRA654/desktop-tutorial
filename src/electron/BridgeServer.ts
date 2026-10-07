@@ -1320,6 +1320,36 @@ export class BridgeServer {
                                     res.end(JSON.stringify({ status: 'success', message: 'Blender capabilities', response }));
                                 } catch (e: any) { blenderErrResponse(e, 'capabilities fetch'); }
 
+                            } else if (type === 'mesh_compare') {
+                                // Thin add-on, fat Mossy: the add-on only measures the mesh and runs plain rule checks;
+                                // Brain B (local, this computer) finds the closest vanilla meshes in the base game's own files.
+                                try {
+                                    const measured: any = await this._blenderSend({ type: 'mesh_features' }, 8_000);
+                                    if (!measured || measured.status !== 'success' || !measured.features) {
+                                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: 'error', message: measured?.message || 'The Blender add-on did not return mesh measurements. Select a mesh object, and make sure the add-on is up to date.', response: measured }));
+                                    } else {
+                                        let similar: unknown = null;
+                                        let similarError: string | null = null;
+                                        try {
+                                            const settings = this._readSettings();
+                                            const base = String(settings.brainBBaseUrl || 'http://127.0.0.1:8766').replace(/\/+$/, '');
+                                            const r = await fetch(`${base}/mesh/similar`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'X-Mossy-Token': String(settings.bridgeAuthToken || '') },
+                                                body: JSON.stringify({ features: measured.features, k: 25 }),
+                                                signal: AbortSignal.timeout(15_000),
+                                            });
+                                            if (r.ok) similar = await r.json();
+                                            else similarError = `Brain B answered ${r.status}`;
+                                        } catch (e: any) {
+                                            similarError = `Could not reach Brain B: ${String(e?.message || e)}`;
+                                        }
+                                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                                        res.end(JSON.stringify({ status: 'success', message: 'Mesh compared with vanilla', features: measured.features, checks: measured.checks || [], similar, similarError }));
+                                    }
+                                } catch (e: any) { blenderErrResponse(e, 'mesh compare'); }
+
                             } else if (type === 'export_fbx') {
                                 try {
                                     const response = await this._blenderSend(
