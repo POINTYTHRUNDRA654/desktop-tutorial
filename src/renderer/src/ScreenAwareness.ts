@@ -29,6 +29,7 @@
 // WRITE_DIAGNOSTIC_LOG's comment in main.ts) under a [screen-awareness] tag.
 
 import { LocalAIEngine } from './LocalAIEngine';
+import { computeDHash, shouldSkipUnchanged, nextFailureState, type LastPass } from './screenFilter';
 
 interface KnownPattern {
   id: string;
@@ -243,14 +244,37 @@ export function initScreenAwareness(speakSystemMessage: (text: string) => Promis
   const api = getApi();
   if (!api?.onScreenAwarenessCapture) return () => {};
 
+  // Local filter state, per program. Nothing here leaves this computer.
+  const lastPass = new Map<string, LastPass>();
+  const failState = new Map<string, { failures: number; pausedUntil: number }>();
+
   const unsubscribe = api.onScreenAwarenessCapture(async (data: { program: string; dataUrl: string; timestamp: number }) => {
+    const now = Date.now();
+    const fs = failState.get(data.program) || { failures: 0, pausedUntil: 0 };
+    if (now < fs.pausedUntil) return; // vision keeps failing (e.g. no vision model here) -- stay quiet for a while
+
+    // Local filter: same screen as the last good pass -> skip, no AI call.
+    const hash = await computeDHash(data.dataUrl);
+    if (shouldSkipUnchanged(lastPass.get(data.program), hash, now)) {
+      logScreenAwareness({ event: 'skipped-unchanged', program: data.program });
+      return;
+    }
+
     const patterns = await fetchKnownPatterns(data.program);
     const verdict = await runRecognitionPass(data.program, data.dataUrl, patterns);
 
+    const next = nextFailureState(fs, !!verdict, now);
+    failState.set(data.program, { failures: next.failures, pausedUntil: next.pausedUntil });
+
     if (!verdict) {
-      logScreenAwareness({ event: 'pass-failed', program: data.program, reason: 'no verdict -- vision call failed or response was unparseable' });
+      if (next.justPaused) {
+        logScreenAwareness({ event: 'paused-vision-unavailable', program: data.program, reason: 'vision check failed several times in a row; pausing for 10 minutes' });
+      } else {
+        logScreenAwareness({ event: 'pass-failed', program: data.program, reason: 'no verdict -- vision call failed or response was unparseable' });
+      }
       return;
     }
+    if (hash) lastPass.set(data.program, { hash, at: now });
 
     if (verdict.matched && verdict.patternId) {
       const pattern = patterns.find((p) => p.id === verdict.patternId);
