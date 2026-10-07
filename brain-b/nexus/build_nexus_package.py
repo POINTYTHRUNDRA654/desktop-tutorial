@@ -132,6 +132,8 @@ def main():
         "--hidden-import=screen_filter",
         "--hidden-import=log_patterns",
         "--hidden-import=question_classifier",
+        "--hidden-import=record_anomalies",
+        "--add-data", f"record_models{os.pathsep}record_models",
         "--add-data", f"question_classifier.json{os.pathsep}.",
         "--collect-all", "drain3",
         "--hidden-import=bootstrap_fallout4_knowledge",

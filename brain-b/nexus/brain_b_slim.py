@@ -57,6 +57,7 @@ import game_data_index
 import screen_filter
 import log_patterns
 import question_classifier
+import record_anomalies
 
 import networkx as nx
 import numpy as np
@@ -2552,6 +2553,49 @@ def logs_cluster():
     return jsonify(miner.mine(lines))
 
 
+def _record_models_dir() -> Path:
+    for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+        if base and (Path(base) / "record_models").is_dir():
+            return Path(base) / "record_models"
+    return Path(__file__).resolve().parent / "record_models"
+
+
+_record_model_cache: dict = {}
+
+
+@app.route("/records/anomalies", methods=["POST"])
+def records_anomalies():
+    """Score scanner records against a model trained on vanilla (Isolation Forest, ONNX). Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    collection = str(data.get("collection") or "")
+    models_dir = _record_models_dir()
+    available = record_anomalies.available_collections(models_dir)
+    if collection not in available:
+        return jsonify({"error": f"no model for '{collection}'", "available": available}), 404
+    records = data.get("records")
+    if records is None and data.get("path"):
+        try:
+            records = record_anomalies.load_records_from_json(str(data["path"]), str(data.get("key") or collection))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except (OSError, json.JSONDecodeError) as e:
+            return jsonify({"error": f"could not read that file: {type(e).__name__}"}), 404
+    if not isinstance(records, list) or not records:
+        return jsonify({"error": "records (a list) or path is required"}), 400
+    records = records[:record_anomalies.MAX_RECORDS]
+    model = _record_model_cache.get(collection)
+    if model is None:
+        model = record_anomalies.RecordAnomalyModel.load(models_dir, collection)
+        if model is None:
+            return jsonify({"error": "model failed to load"}), 500
+        _record_model_cache[collection] = model
+    results = model.score([r for r in records if isinstance(r, dict)])
+    results.sort(key=lambda r: -r["unusualness"])
+    top = max(1, min(int(data.get("top") or 20), 100))
+    return jsonify({"collection": collection, "scored": len(results),
+                    "flagged": sum(1 for r in results if r["flagged"]), "results": results[:top]})
+
+
 @app.route("/change-gate/patterns", methods=["GET"])
 def change_gate_patterns():
     program = request.args.get("program", "")
@@ -2643,6 +2687,7 @@ def health():
         "ollama_model": OLLAMA_MODEL,
         "ollama_reachable": ollama_reachable(),
         "screen_ocr": screen_filter.ocr_available(),
+        "record_models": record_anomalies.available_collections(_record_models_dir()),
         "curated_docs": get_curated_collection().count(),
         "runtime_docs": get_runtime_collection().count(),
         # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at
