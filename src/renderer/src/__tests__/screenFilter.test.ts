@@ -26,7 +26,7 @@ describe('screenFilter', () => {
     const h = dHashFromGray(ramp);
     const last = { hash: h, at: 1000 };
     expect(shouldSkipUnchanged(last, h, 2000)).toBe(true);
-    expect(shouldSkipUnchanged(last, '1'.repeat(64), 2000)).toBe(false);
+    expect(shouldSkipUnchanged(last, '0'.repeat(64), 2000)).toBe(false);
     expect(shouldSkipUnchanged(last, h, 1000 + MAX_SKIP_MS)).toBe(false);
     expect(shouldSkipUnchanged(undefined, h, 2000)).toBe(false);
     expect(shouldSkipUnchanged(last, null, 2000)).toBe(false);
