@@ -54,6 +54,7 @@ from typing import Any, Optional
 # model without loading fastembed itself.
 from knowledge_manifest import EMBEDDING_MODEL_NAME
 import game_data_index
+import screen_filter
 
 import networkx as nx
 import numpy as np
@@ -188,7 +189,7 @@ OLLAMA_MODEL = os.environ.get("MOSSY_OLLAMA_MODEL", "gemma2:9b")
 # A version string plus the route list below turns that into an immediate,
 # legible "running, v1.0.0, /enrich missing" instead of a silent failure that
 # took hours to trace.
-NEXUS_BUILD_VERSION = "1.1.0"
+NEXUS_BUILD_VERSION = "1.2.0"
 BACKEND_UNAVAILABLE_MESSAGE = (
     "I can't reach your local AI (Ollama) right now, so I can't generate a full answer. "
     "Start Ollama and make sure a model is installed. Retrieval and citations below still "
@@ -2453,6 +2454,25 @@ def knowledge_count():
 # Proposed lessons stay pending until approved; approved ones feed /enrich.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@app.route("/screen/check", methods=["POST"])
+def screen_check():
+    """Local Screen Awareness filter: OCR + pattern match + (only if unsure) a local yes/no. No cloud."""
+    data = request.get_json(force=True, silent=True) or {}
+    image = data.get("image")
+    patterns = data.get("patterns")
+    if not image or not isinstance(patterns, list):
+        return jsonify({"error": "image and patterns are required"}), 400
+    try:
+        raw = screen_filter.decode_data_url(str(image))
+    except Exception:
+        return jsonify({"error": "image is not valid base64"}), 400
+    result = screen_filter.check(
+        raw, patterns, embed,
+        judge_fn=lambda p: generate_text_backend(p, max_new_tokens=40, temperature=0.0),
+    )
+    return jsonify(result)
+
+
 @app.route("/change-gate/patterns", methods=["GET"])
 def change_gate_patterns():
     program = request.args.get("program", "")
@@ -2543,6 +2563,7 @@ def health():
         "generation": "ollama-local",
         "ollama_model": OLLAMA_MODEL,
         "ollama_reachable": ollama_reachable(),
+        "screen_ocr": screen_filter.ocr_available(),
         "curated_docs": get_curated_collection().count(),
         "runtime_docs": get_runtime_collection().count(),
         # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at

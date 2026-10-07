@@ -235,6 +235,35 @@ async function runRecognitionPass(program: string, dataUrl: string, patterns: Kn
   }
 }
 
+interface LocalCheckResult {
+  verdict: 'match' | 'none' | 'unsure' | 'ocr_unavailable' | 'error';
+  pattern_id?: string;
+  score?: number;
+  judged?: boolean | null;
+}
+
+/**
+ * Local filter (Brain B, this computer only): read the screenshot's text with OCR,
+ * compare it with the known patterns, and only ask the local AI when it is unsure.
+ * Returns null when Brain B is unreachable or too old to have /screen/check.
+ */
+async function runLocalCheck(dataUrl: string, patterns: KnownPattern[]): Promise<LocalCheckResult | null> {
+  try {
+    const base = await getBrainBBaseUrl();
+    const res = await fetch(`${base}/screen/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getBrainBAuthHeaders()) },
+      body: JSON.stringify({ image: dataUrl, patterns: patterns.map((p) => ({ id: p.id, whatToLookFor: p.whatToLookFor })) }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && typeof data.verdict === 'string' ? (data as LocalCheckResult) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Wires the real capture->recognition->action loop. Call once from a
  * top-level, always-mounted component (not per voice-session) so it keeps
@@ -261,6 +290,27 @@ export function initScreenAwareness(speakSystemMessage: (text: string) => Promis
     }
 
     const patterns = await fetchKnownPatterns(data.program);
+
+    // Local check first. Clear match or clearly-nothing is settled here with no vision/AI call;
+    // anything unsure (or OCR/Brain B unavailable) falls through to the vision pass below.
+    const local = patterns.length > 0 ? await runLocalCheck(data.dataUrl, patterns) : null;
+    if (local?.verdict === 'match' && local.pattern_id) {
+      const pattern = patterns.find((p) => p.id === local.pattern_id);
+      if (pattern) {
+        const spoke = await speakSystemMessage(pattern.correction);
+        logScreenAwareness({ event: 'matched-local', program: data.program, patternId: pattern.id, score: local.score, judged: local.judged ?? null, spoke });
+        failState.set(data.program, { failures: 0, pausedUntil: 0 });
+        if (hash) lastPass.set(data.program, { hash, at: now });
+        return;
+      }
+    }
+    if (local?.verdict === 'none') {
+      logScreenAwareness({ event: 'local-nothing-notable', program: data.program, score: local.score ?? null });
+      failState.set(data.program, { failures: 0, pausedUntil: 0 });
+      if (hash) lastPass.set(data.program, { hash, at: now });
+      return;
+    }
+
     const verdict = await runRecognitionPass(data.program, data.dataUrl, patterns);
 
     const next = nextFailureState(fs, !!verdict, now);
