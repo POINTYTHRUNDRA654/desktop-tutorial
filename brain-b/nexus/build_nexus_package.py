@@ -149,6 +149,10 @@ def main():
     if use_conda_dll_bundling:
         for dll in REQUIRED_DLLS:
             pyinstaller_cmd += ["--add-binary", f"{CONDA_LIB_BIN / dll};."]
+        # OpenSSL DLLs: conda's _ssl.pyd needs them next to the exe or `import ssl` fails at
+        # runtime ("DLL load failed while importing _ssl") -- found by running the 1.2.0 build.
+        for dll in sorted(CONDA_LIB_BIN.glob("libssl*.dll")) + sorted(CONDA_LIB_BIN.glob("libcrypto*.dll")):
+            pyinstaller_cmd += ["--add-binary", f"{dll};."]
     pyinstaller_cmd += ["--noconfirm", "brain_b_slim.py"]
     run(pyinstaller_cmd)
 
