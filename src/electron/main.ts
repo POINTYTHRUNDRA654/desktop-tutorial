@@ -23568,6 +23568,9 @@ print(json.dumps(result))
       '╚════════════════════════════════════════════════════════════╝',
     ].join('\n\n');
   }
+  // DIVA: let the gitignored localDev/claudeBackend module add the same game-knowledge block
+  // the old cloud handler added. Harmless elsewhere: nothing reads it unless that module exists.
+  (globalThis as any).__mossyBrainNeuronBlock = buildBrainNeuronBlock;
 
   // Builds the full game-data block for Creative Director agents from every loaded
   // brain neuron (form graph, asset graph, full Papyrus analysis, texture/mesh/
