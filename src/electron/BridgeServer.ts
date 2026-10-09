@@ -438,7 +438,7 @@ export class BridgeServer {
      */
     static readonly KNOWN_MODDING_TOOLS: Record<string, string[]> = {
         blender: ['blender'],
-        xedit: ['fo4edit', 'fo4xedit', 'xedit'],   // FO4Edit64.exe / FO4xEdit64.exe
+        xedit: ['fo4edit', 'fo4xedit', 'xfoedit', 'xedit'],   // FO4Edit64.exe / FO4xEdit64.exe / xFOEdit64.exe (xEdit 4.1.5+)
         creationkit: ['creationkit'],               // CreationKit32.exe / CreationKit64.exe
         nifskope: ['nifskope'],                     // NifSkope2.exe
         archive2: ['archive2'],                     // Archive2.exe

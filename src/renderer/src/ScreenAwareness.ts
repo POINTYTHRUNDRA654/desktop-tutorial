@@ -311,6 +311,9 @@ export function initScreenAwareness(speakSystemMessage: (text: string) => Promis
       return;
     }
 
+    // Say why the local check didn't settle this, so thresholds can be tuned from real logs.
+    logScreenAwareness({ event: 'local-unsure', program: data.program, patterns: patterns.length, localVerdict: local?.verdict ?? 'unavailable', score: local?.score ?? null, textChars: (local as any)?.text_chars ?? null });
+
     const verdict = await runRecognitionPass(data.program, data.dataUrl, patterns);
 
     const next = nextFailureState(fs, !!verdict, now);
