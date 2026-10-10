@@ -291,6 +291,14 @@ export function initScreenAwareness(speakSystemMessage: (text: string) => Promis
 
     const patterns = await fetchKnownPatterns(data.program);
 
+    // Nothing to compare against for this program (no saved patterns) and no vision model to fall back on:
+    // do nothing quietly instead of failing, and don't look again until the screen changes.
+    if (patterns.length === 0) {
+      logScreenAwareness({ event: 'no-known-patterns', program: data.program });
+      if (hash) lastPass.set(data.program, { hash, at: now });
+      return;
+    }
+
     // Local check first. Clear match or clearly-nothing is settled here with no vision/AI call;
     // anything unsure (or OCR/Brain B unavailable) falls through to the vision pass below.
     const local = patterns.length > 0 ? await runLocalCheck(data.dataUrl, patterns) : null;
