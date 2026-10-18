@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "Schritt 3: KI-Engine",
-        "desc": "KI-Anbieter (Groq/Ollama), Modell, Antwortlänge und Selbstkritik auswählen."
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "Schritt 4: Lokales LLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "Typisiertes JavaScript von Microsoft (Apache 2.0)",
         "vite": "Build-Tool der nächsten Generation (MIT)",
         "aiMl": "KI & Maschinelles Lernen",
-        "groq": "Schnelle LLM-Inferenz (Apache 2.0)",
-        "openaiSdk": "ChatGPT-Integration (Apache 2.0)",
         "ollama": "Lokale LLM-Laufzeitumgebung (MIT)",
         "pytorch": "ML-Framework von Meta (BSD)",
         "numpy": "Numerisches Rechnen (BSD 3-Clause)",

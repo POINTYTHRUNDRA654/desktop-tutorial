@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "Étape 3 : Moteur IA",
-        "desc": "Sélectionner le fournisseur IA (Groq/Ollama), le modèle, la longueur de réponse et l'auto-critique."
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "Étape 4 : LLM local — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "JavaScript typé par Microsoft (Apache 2.0)",
         "vite": "Outil de build nouvelle génération (MIT)",
         "aiMl": "IA et Apprentissage Automatique",
-        "groq": "Inférence LLM rapide (Apache 2.0)",
-        "openaiSdk": "Intégration ChatGPT (Apache 2.0)",
         "ollama": "Runtime LLM local (MIT)",
         "pytorch": "Framework ML par Meta (BSD)",
         "numpy": "Calcul numérique (BSD 3-Clause)",

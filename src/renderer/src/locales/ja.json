@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "ステップ3：AIエンジン",
-        "desc": "AIプロバイダー（Groq/Ollama）、モデル、応答の長さ、自己評価を選択する。"
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "ステップ4：ローカルLLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "MicrosoftによるTypedJavaScript（Apache 2.0）",
         "vite": "次世代ビルドツール（MIT）",
         "aiMl": "AI・機械学習",
-        "groq": "高速LLM推論（Apache 2.0）",
-        "openaiSdk": "ChatGPT連携（Apache 2.0）",
         "ollama": "ローカルLLMランタイム（MIT）",
         "pytorch": "Metaによる機械学習フレームワーク（BSD）",
         "numpy": "数値計算（BSD 3-Clause）",
