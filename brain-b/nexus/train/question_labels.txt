@@ -1,0 +1,243 @@
+# mode(t=teach,d=debug,a=answer) | scene | app_help | game_data | needs_grounding | action | question
+# Hand-written training examples for the local question classifier. One per line.
+t|0|0|0|1|0|How does the Papyrus event system work?
+t|0|0|0|1|0|Explain what a form list is and when I would use one
+t|0|0|0|1|0|What is the difference between an ESP and an ESL?
+t|0|0|0|1|0|What's the difference between a quest alias and a reference alias?
+t|0|0|0|1|0|Can you explain how precombines and previs work?
+t|0|0|0|1|0|How do navmeshes affect NPC pathfinding?
+t|0|0|0|1|0|Why do I need to flip normals when exporting to NIF?
+t|0|0|0|1|0|Teach me how leveled lists are resolved at runtime
+t|0|0|0|1|0|What does the master flag actually do in a plugin?
+t|0|0|0|1|0|Walk me through how a script attaches to a quest
+t|0|0|0|1|0|How do object modifications work for weapons?
+t|0|0|0|1|0|What are keywords used for in Fallout 4?
+t|0|0|0|1|0|How does the havok collision system decide what blocks the player?
+t|0|0|0|1|0|Explain bone weights and how skinning works for armor
+t|0|0|0|1|0|What is a BA2 archive and why would I pack my mod into one?
+t|0|0|0|1|0|How does the dialogue system pick which line an NPC says?
+t|0|0|0|1|0|Explain how workshop settlements assign NPCs to jobs
+t|0|0|0|1|0|Why are material files BGSM and BGEM separate?
+t|0|0|0|1|0|How do conditions work in the Creation Kit?
+t|0|0|0|1|0|What is the load order and why does it matter?
+t|0|0|0|1|0|How does LOD generation work for a new worldspace?
+t|0|0|0|1|0|Help me understand how packages and AI procedures work
+t|0|0|0|1|0|What is a Scene in the Creation Kit and how do phases work?
+t|0|0|0|1|0|I don't get how script properties get filled in
+t|0|0|0|1|0|What does the Papyrus garbage collector do?
+t|0|0|0|1|0|How do vertex colors affect the way a mesh renders?
+t|0|0|0|1|0|Why is a normal map green and purple?
+t|0|0|0|1|0|Explain the difference between a cell and a worldspace
+t|0|0|0|1|0|How do I think about script latency in Papyrus?
+t|0|0|0|1|0|What's an effect shader and how is it different from an art object?
+d|0|0|0|1|0|My Papyrus script won't compile and says unknown type
+d|0|0|0|1|0|Creation Kit crashes every time I open my cell
+d|0|0|0|1|0|The game crashes on load after I added my plugin
+d|0|0|0|1|0|My armor shows up invisible in game
+d|0|0|0|1|0|NPCs are stuck in a T-pose after my animation edit
+d|0|0|0|1|0|I'm getting an error that says missing master
+d|0|0|0|1|0|My mesh is pink in NifSkope, what's wrong?
+d|0|0|0|1|0|The quest won't start even though the conditions are true
+d|0|0|0|1|0|Why is my script not running? Nothing shows up in the Papyrus log
+d|0|0|0|1|0|My textures look black in game
+d|0|0|0|1|0|CK says the plugin could not be loaded because of a bad file header
+d|0|0|0|1|0|Fallout 4 freezes at the loading screen when I enter my interior
+d|0|0|0|1|0|The weapon fires but the muzzle flash never appears
+d|0|0|0|1|0|My navmesh finalize fails with an error
+d|0|0|0|1|0|Precombined meshes aren't showing in my cell and I see flickering
+d|0|0|0|1|0|Export to NIF from Blender fails with a Python error
+d|0|0|0|1|0|Why does my settlement object vanish when I load the save?
+d|0|0|0|1|0|xEdit reports an injected record error, how do I fix it?
+d|0|0|0|1|0|My dialogue never plays, the NPC stays silent
+d|0|0|0|1|0|The dds texture shows as a white square after conversion
+d|0|0|0|1|0|Archive2 fails to build my BA2 and quits
+d|0|0|0|1|0|Everything works in CK but my mod does nothing in the game
+d|0|0|0|1|0|I keep getting a stack dump in my Papyrus log
+d|0|0|0|1|0|My script says cannot cast object to the target type
+d|0|0|0|1|0|Why does the game crash when my NPC tries to equip the outfit?
+d|0|0|0|1|0|Getting the error 'file not found' when packing textures
+d|0|0|0|1|0|My mod is throwing a lot of warnings in the CKPE log, is that bad?
+d|0|0|0|1|0|The new armor clips through the body when animated
+d|0|0|0|1|0|Mossy's chat window won't load anything and shows an error
+d|0|1|0|1|0|The Mossy app crashed when I opened the NIF tools, how do I fix it?
+a|0|0|0|1|0|What are the parameters of the PlaceAtMe function?
+a|0|0|0|1|0|Where is the OnInit event defined?
+a|0|0|0|1|0|What is the syntax for a for loop in Papyrus?
+a|0|0|0|1|0|What does the SetOutfit function return?
+a|0|0|0|1|0|Which texture format should normal maps use?
+a|0|0|0|1|0|What is the maximum number of plugins in the load order?
+a|0|0|0|1|0|What is the file extension for Papyrus compiled scripts?
+a|0|0|0|1|0|What resolution should a weapon texture be?
+a|0|0|0|1|0|Which tool converts PNG to DDS?
+a|0|0|0|1|0|What is the syntax to cast an object reference to an Actor?
+a|0|0|0|1|0|What are the valid values for the slot number on armor addons?
+a|0|0|0|1|0|What's the console command to teleport to a cell?
+a|0|0|0|1|0|What version of the Creation Kit is current?
+a|0|0|0|1|0|How many vertices can a single NIF shape have?
+a|0|0|0|1|0|What does the Utility.Wait function take as an argument?
+a|0|0|0|1|0|What are the keyword types used for crafting recipes?
+a|0|0|0|1|0|Which folder do loose meshes go in?
+a|0|0|0|1|0|Where do I put my scripts so the CK sees them?
+a|0|0|0|1|0|What is the Papyrus function to add an item to the player?
+a|0|0|0|1|0|What's the name of the property type for a form list?
+a|1|0|0|1|0|What's my active object in Blender right now?
+a|1|0|0|1|0|How many vertices does my current selection have?
+a|1|0|0|1|0|Which objects are selected in my scene?
+a|1|0|0|1|0|What are the dimensions of the mesh I have open?
+a|1|0|0|1|0|Is my armature named correctly in the scene?
+a|1|0|0|1|0|What modifiers are on the object I'm editing?
+a|1|0|0|1|0|How many materials does the selected mesh use?
+a|1|0|0|1|0|What's the current frame range in my Blender file?
+a|1|0|0|1|0|What is the scale of my active object?
+a|1|0|0|1|0|List the bones in the armature I have selected
+d|1|0|0|1|0|Why does the mesh I have open look inside out?
+d|1|0|0|1|0|My selected object has weird shading, what is wrong with it?
+d|1|0|0|1|0|The armature in my scene deforms the mesh wrongly
+t|1|0|0|1|0|Explain what the modifiers on my current object are doing
+a|0|1|0|1|0|Where do I find the DDS converter in Mossy?
+a|0|1|0|1|0|Which tab has the BGSM editor?
+a|0|1|0|1|0|What can Mossy do?
+a|0|1|0|1|0|How do I get to the plugin tools?
+a|0|1|0|1|0|Which platform in Mossy handles load order?
+a|0|1|0|1|0|Where are Mossy's settings?
+a|0|1|0|1|0|Which part of the app lets me check my scripts?
+a|0|1|0|1|0|How do I open the Blender bridge in Mossy?
+a|0|1|0|1|0|Is there a place in this app to manage my textures?
+a|0|1|0|1|0|What does the CK Hub section do?
+a|0|1|0|1|0|Where is the Papyrus tools page?
+a|0|1|0|1|0|How do I change the voice Mossy uses?
+t|0|1|0|1|0|How does Mossy's Screen Awareness work?
+t|0|1|0|1|0|What does Brain B do inside this app?
+a|0|1|0|1|0|Which tab do I use to scan my Data folder?
+a|0|0|1|1|0|What is the FormID of the Vault 111 cryo pod?
+a|0|0|1|1|0|What's the EditorID for the combat rifle?
+a|0|0|1|1|0|What record type is a leveled item?
+a|0|0|1|1|0|Which of my installed mods overrides the player's default outfit?
+a|0|0|1|1|0|What is my actual load order right now?
+a|0|0|1|1|0|Which mod adds the most plugins in my setup?
+a|0|0|1|1|0|What's the exact signature of the OnItemEquipped event?
+a|0|0|1|1|0|What path does the vanilla 10mm pistol mesh use?
+a|0|0|1|1|0|Which vanilla material file does the Brotherhood armor use?
+a|0|0|1|1|0|Which texture does the vanilla combat armor chest piece use?
+a|0|0|1|1|0|Do I have any mods that edit the Sanctuary cell?
+a|0|0|1|1|0|Which master files does my mod depend on?
+a|0|0|1|1|0|What is the base object ID for the vanilla workbench?
+t|0|0|1|1|0|Why does my installed mod override the vanilla weapon keywords?
+d|0|0|1|1|0|Two of my installed mods conflict on the same record, which wins?
+t|0|0|0|0|0|hi
+t|0|0|0|0|0|hey Mossy
+t|0|0|0|0|0|hello there
+t|0|0|0|0|0|thanks
+t|0|0|0|0|0|thank you so much, that helped
+t|0|0|0|0|0|got it, makes sense now
+t|0|0|0|0|0|ok cool
+t|0|0|0|0|0|good morning
+t|0|0|0|0|0|that worked, you're great
+t|0|0|0|0|0|what do you think?
+t|0|0|0|0|0|how are you doing today?
+t|0|0|0|0|0|nice, appreciate it
+t|0|0|0|0|0|lol okay
+t|0|0|0|0|0|never mind
+t|0|0|0|0|0|are you there?
+t|0|0|0|0|0|ok thanks, I'll try that
+t|0|0|0|0|0|awesome
+a|0|0|0|1|1|List the files in my Data folder
+a|0|0|0|1|1|Read the file at C:\Mods\MyMod\notes.txt
+a|0|0|0|1|1|Launch xEdit for me
+a|0|0|0|1|1|Scan my hardware and tell me what I have
+a|0|0|0|1|1|Create a new mod project called Sanctuary Extras
+a|0|0|0|1|1|Diagnose my plugin and fix any problems you find
+a|0|0|0|1|1|Generate a Papyrus script that spawns a raider when I enter the cell
+a|0|0|0|1|1|Open the Creation Kit
+a|0|0|0|1|1|Check my plugin for missing masters
+a|0|0|0|1|1|Convert these PNG files to DDS
+a|0|0|0|1|1|Pack my meshes into a BA2
+a|0|0|0|1|1|Clean my plugin with xEdit
+a|0|0|0|1|1|Show me what's in my Textures folder
+a|0|0|0|1|1|Compile my scripts now
+a|0|0|0|1|1|Create a backup of my workspace
+a|0|0|0|1|1|Run the precombine check on my mod
+a|0|0|0|1|1|Find all the NIF files in my project folder
+a|0|0|0|1|1|Rename these textures to match my naming convention
+a|1|0|0|1|1|Export my current Blender scene to NIF
+a|1|0|0|1|1|Apply all the modifiers on the selected object
+a|0|1|0|1|0|how does list_files work
+t|0|0|0|1|0|How does the compile process work for Papyrus scripts?
+a|0|0|0|1|0|What does the xEdit clean command do?
+t|0|0|0|1|0|What does Archive2 do when it packs a BA2?
+a|0|0|0|1|0|Is there a tool that lists the files inside a BA2?
+d|0|0|0|1|0|Why does cleaning my plugin with xEdit remove my records?
+d|0|0|0|1|0|Compiling keeps failing with a file not found on a script
+a|0|0|0|1|0|how many files can a ba2 hold
+t|0|0|0|1|0|how do animations get attached to a weapon
+a|0|0|0|1|0|best way to name my records so they don't conflict
+t|0|0|0|1|0|why do modders use ESL flagged plugins
+d|0|0|0|1|0|ctd when opening workshop menu
+d|0|0|0|1|0|ctd on startup after installing f4se
+d|0|0|0|1|0|ck wont launch
+d|0|0|0|1|0|my script isnt firing
+a|0|0|0|1|0|papyrus array syntax?
+a|0|0|0|1|0|ck keyboard shortcut for render window
+t|0|0|0|1|0|whats a ref vs a base object
+a|0|0|0|1|0|how do i add a keyword to a form in script
+t|0|0|0|1|0|how do mods share the same asset without breaking each other
+a|0|0|0|1|0|What's the best tool for editing BGSM files?
+a|0|0|0|1|0|How do I make a new weapon?
+a|0|0|0|1|0|How do I add a custom perk?
+t|0|0|0|1|0|How do I create a new settlement?
+a|0|0|0|1|0|How do I make a custom NPC?
+d|0|0|0|1|0|Why isn't my custom perk showing in the perk chart?
+d|0|0|0|1|0|My custom NPC doesn't spawn where I put it
+t|0|0|0|1|0|Why do some meshes need a collision shape and others don't?
+a|0|0|0|1|0|Can I use Blender 4 for FO4 mods?
+a|0|0|0|1|0|Does the Creation Kit support multiple monitors?
+t|0|0|0|1|0|Show me how a typical OnActivate script is structured
+a|0|0|0|1|1|Fix the errors in my script file
+a|0|0|0|1|1|Open my plugin in xEdit and check for conflicts
+a|0|0|0|1|1|Take a screenshot of what I'm looking at
+a|0|1|0|1|1|Switch Mossy to the dark theme
+a|0|0|0|1|1|Delete the old backup files in my workspace
+a|0|0|0|1|1|Show me the contents of my Scripts folder
+a|0|0|0|1|1|Open the folder where my meshes are
+a|0|0|0|1|1|Run a scan of my load order and report problems
+a|0|0|0|1|1|Write me a script that gives the player 100 caps on activation
+a|0|0|0|1|1|Make a Papyrus script to toggle a light when I use the switch
+a|0|0|0|1|1|Start Mod Organizer
+a|0|0|0|1|1|Check whether my ESP has any dirty edits
+a|0|0|0|1|1|Compile all the scripts in my project
+a|0|0|0|1|1|Optimize these NIF files for me
+a|0|0|0|1|1|Create a plugin called Better Lighting
+a|0|0|0|1|1|Look up my installed mods and list the ones with scripts
+a|0|0|0|1|1|Open NifSkope with this mesh
+a|0|0|0|1|1|Validate my textures and tell me which are the wrong format
+a|0|0|0|1|1|Generate a quest script for a fetch quest
+a|0|0|0|1|1|Run the Papyrus compiler on MyScript.psc
+a|0|0|0|1|1|Back up my plugin before I edit it
+a|0|0|0|1|1|Can you scan my game folder for loose files?
+a|0|0|0|1|1|Please extract the BA2 into a folder for me
+a|0|0|0|1|1|Go through my project and fix every missing texture path
+a|0|0|0|1|1|Check what version of F4SE I have installed
+a|0|1|0|1|0|Where do I go in this app to edit scripts?
+a|0|1|0|1|0|Which Mossy page converts textures?
+a|0|1|0|1|0|Is there a mesh viewer inside Mossy?
+a|0|1|0|1|0|What tools does the Mod Builder hub have?
+a|0|1|0|1|0|How do I connect Mossy to Blender?
+a|0|1|0|1|0|Where can I turn on Screen Awareness?
+a|0|1|0|1|0|What's the difference between Brain B and the normal chat in this app?
+a|0|1|0|1|0|Which section holds the Creation Kit helpers?
+a|0|1|0|1|0|How do I update Mossy?
+a|0|1|0|1|0|Where do I set my Fallout 4 path in the app?
+a|0|1|0|1|0|Which menu shows my recent lessons?
+a|0|1|0|1|0|Can Mossy edit my plugins directly?
+a|0|0|1|1|0|What's the FormID of the Sanctuary Hills workshop?
+a|0|0|1|1|0|What is the EditorID of the power armor frame?
+a|0|0|1|1|0|Which plugin in my load order adds new settlements?
+a|0|0|1|1|0|What mesh path does the vanilla baseball bat use?
+a|0|0|1|1|0|Which record in my mods touches the Red Rocket interior?
+a|0|0|1|1|0|What are the exact arguments of the OnHit event?
+a|0|0|1|1|0|Which of my plugins are flagged ESL?
+a|0|0|1|1|0|What keyword does vanilla use for pistol weapons, exactly?
+a|0|0|1|1|0|What's the actor value ID for Strength?
+a|0|0|1|1|0|Which mods in my setup change leveled lists?
+a|0|0|1|1|0|What vanilla textures does the Vault suit use?
+a|0|0|1|1|0|Where does my current mod set sit in the load order?

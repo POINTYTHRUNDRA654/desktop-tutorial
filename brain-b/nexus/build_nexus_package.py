@@ -129,15 +129,30 @@ def main():
         "--hidden-import=knowledge_manifest",
         "--hidden-import=retrieval_tuning",
         "--hidden-import=change_gate",
+        "--hidden-import=screen_filter",
+        "--hidden-import=log_patterns",
+        "--hidden-import=question_classifier",
+        "--hidden-import=record_anomalies",
+        "--hidden-import=mesh_similarity",
+        "--hidden-import=nif_features",
+        "--add-data", f"mesh_index.npz{os.pathsep}.",
+        "--add-data", f"record_models{os.pathsep}record_models",
+        "--add-data", f"question_classifier.json{os.pathsep}.",
+        "--collect-all", "drain3",
         "--hidden-import=bootstrap_fallout4_knowledge",
         "--collect-all", "chromadb",
         "--collect-all", "chromadb_rust_bindings",
         "--collect-data", "fastembed",
         "--collect-data", "tokenizers",
+        "--collect-all", "rapidocr_onnxruntime",
     ]
     if use_conda_dll_bundling:
         for dll in REQUIRED_DLLS:
             pyinstaller_cmd += ["--add-binary", f"{CONDA_LIB_BIN / dll};."]
+        # OpenSSL DLLs: conda's _ssl.pyd needs them next to the exe or `import ssl` fails at
+        # runtime ("DLL load failed while importing _ssl") -- found by running the 1.2.0 build.
+        for dll in sorted(CONDA_LIB_BIN.glob("libssl*.dll")) + sorted(CONDA_LIB_BIN.glob("libcrypto*.dll")):
+            pyinstaller_cmd += ["--add-binary", f"{dll};."]
     pyinstaller_cmd += ["--noconfirm", "brain_b_slim.py"]
     run(pyinstaller_cmd)
 

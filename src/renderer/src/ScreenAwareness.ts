@@ -29,6 +29,7 @@
 // WRITE_DIAGNOSTIC_LOG's comment in main.ts) under a [screen-awareness] tag.
 
 import { LocalAIEngine } from './LocalAIEngine';
+import { computeDHash, shouldSkipUnchanged, nextFailureState, type LastPass } from './screenFilter';
 
 interface KnownPattern {
   id: string;
@@ -234,6 +235,35 @@ async function runRecognitionPass(program: string, dataUrl: string, patterns: Kn
   }
 }
 
+interface LocalCheckResult {
+  verdict: 'match' | 'none' | 'unsure' | 'ocr_unavailable' | 'error';
+  pattern_id?: string;
+  score?: number;
+  judged?: boolean | null;
+}
+
+/**
+ * Local filter (Brain B, this computer only): read the screenshot's text with OCR,
+ * compare it with the known patterns, and only ask the local AI when it is unsure.
+ * Returns null when Brain B is unreachable or too old to have /screen/check.
+ */
+async function runLocalCheck(dataUrl: string, patterns: KnownPattern[]): Promise<LocalCheckResult | null> {
+  try {
+    const base = await getBrainBBaseUrl();
+    const res = await fetch(`${base}/screen/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getBrainBAuthHeaders()) },
+      body: JSON.stringify({ image: dataUrl, patterns: patterns.map((p) => ({ id: p.id, whatToLookFor: p.whatToLookFor })) }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data && typeof data.verdict === 'string' ? (data as LocalCheckResult) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Wires the real capture->recognition->action loop. Call once from a
  * top-level, always-mounted component (not per voice-session) so it keeps
@@ -243,14 +273,69 @@ export function initScreenAwareness(speakSystemMessage: (text: string) => Promis
   const api = getApi();
   if (!api?.onScreenAwarenessCapture) return () => {};
 
-  const unsubscribe = api.onScreenAwarenessCapture(async (data: { program: string; dataUrl: string; timestamp: number }) => {
-    const patterns = await fetchKnownPatterns(data.program);
-    const verdict = await runRecognitionPass(data.program, data.dataUrl, patterns);
+  // Local filter state, per program. Nothing here leaves this computer.
+  const lastPass = new Map<string, LastPass>();
+  const failState = new Map<string, { failures: number; pausedUntil: number }>();
 
-    if (!verdict) {
-      logScreenAwareness({ event: 'pass-failed', program: data.program, reason: 'no verdict -- vision call failed or response was unparseable' });
+  const unsubscribe = api.onScreenAwarenessCapture(async (data: { program: string; dataUrl: string; timestamp: number }) => {
+    const now = Date.now();
+    const fs = failState.get(data.program) || { failures: 0, pausedUntil: 0 };
+    if (now < fs.pausedUntil) return; // vision keeps failing (e.g. no vision model here) -- stay quiet for a while
+
+    // Local filter: same screen as the last good pass -> skip, no AI call.
+    const hash = await computeDHash(data.dataUrl);
+    if (shouldSkipUnchanged(lastPass.get(data.program), hash, now)) {
+      logScreenAwareness({ event: 'skipped-unchanged', program: data.program });
       return;
     }
+
+    const patterns = await fetchKnownPatterns(data.program);
+
+    // Nothing to compare against for this program (no saved patterns) and no vision model to fall back on:
+    // do nothing quietly instead of failing, and don't look again until the screen changes.
+    if (patterns.length === 0) {
+      logScreenAwareness({ event: 'no-known-patterns', program: data.program });
+      if (hash) lastPass.set(data.program, { hash, at: now });
+      return;
+    }
+
+    // Local check first. Clear match or clearly-nothing is settled here with no vision/AI call;
+    // anything unsure (or OCR/Brain B unavailable) falls through to the vision pass below.
+    const local = patterns.length > 0 ? await runLocalCheck(data.dataUrl, patterns) : null;
+    if (local?.verdict === 'match' && local.pattern_id) {
+      const pattern = patterns.find((p) => p.id === local.pattern_id);
+      if (pattern) {
+        const spoke = await speakSystemMessage(pattern.correction);
+        logScreenAwareness({ event: 'matched-local', program: data.program, patternId: pattern.id, score: local.score, judged: local.judged ?? null, spoke });
+        failState.set(data.program, { failures: 0, pausedUntil: 0 });
+        if (hash) lastPass.set(data.program, { hash, at: now });
+        return;
+      }
+    }
+    if (local?.verdict === 'none') {
+      logScreenAwareness({ event: 'local-nothing-notable', program: data.program, score: local.score ?? null });
+      failState.set(data.program, { failures: 0, pausedUntil: 0 });
+      if (hash) lastPass.set(data.program, { hash, at: now });
+      return;
+    }
+
+    // Say why the local check didn't settle this, so thresholds can be tuned from real logs.
+    logScreenAwareness({ event: 'local-unsure', program: data.program, patterns: patterns.length, localVerdict: local?.verdict ?? 'unavailable', score: local?.score ?? null, textChars: (local as any)?.text_chars ?? null });
+
+    const verdict = await runRecognitionPass(data.program, data.dataUrl, patterns);
+
+    const next = nextFailureState(fs, !!verdict, now);
+    failState.set(data.program, { failures: next.failures, pausedUntil: next.pausedUntil });
+
+    if (!verdict) {
+      if (next.justPaused) {
+        logScreenAwareness({ event: 'paused-vision-unavailable', program: data.program, reason: 'vision check failed several times in a row; pausing for 10 minutes' });
+      } else {
+        logScreenAwareness({ event: 'pass-failed', program: data.program, reason: 'no verdict -- vision call failed or response was unparseable' });
+      }
+      return;
+    }
+    if (hash) lastPass.set(data.program, { hash, at: now });
 
     if (verdict.matched && verdict.patternId) {
       const pattern = patterns.find((p) => p.id === verdict.patternId);

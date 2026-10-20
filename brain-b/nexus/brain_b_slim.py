@@ -54,6 +54,11 @@ from typing import Any, Optional
 # model without loading fastembed itself.
 from knowledge_manifest import EMBEDDING_MODEL_NAME
 import game_data_index
+import screen_filter
+import log_patterns
+import question_classifier
+import record_anomalies
+import mesh_similarity
 
 import networkx as nx
 import numpy as np
@@ -188,7 +193,7 @@ OLLAMA_MODEL = os.environ.get("MOSSY_OLLAMA_MODEL", "gemma2:9b")
 # A version string plus the route list below turns that into an immediate,
 # legible "running, v1.0.0, /enrich missing" instead of a silent failure that
 # took hours to trace.
-NEXUS_BUILD_VERSION = "1.1.0"
+NEXUS_BUILD_VERSION = "1.2.0"
 BACKEND_UNAVAILABLE_MESSAGE = (
     "I can't reach your local AI (Ollama) right now, so I can't generate a full answer. "
     "Start Ollama and make sure a model is installed. Retrieval and citations below still "
@@ -1484,6 +1489,39 @@ def diagnose(question: str, mode: str) -> Optional[str]:
     return diagnosis or None
 
 
+_question_clf = None
+_question_clf_loaded = False
+
+
+def _get_question_classifier():
+    """Trained local question classifier (question_classifier.json next to this file / the exe). None if absent or built on a different embedding model."""
+    global _question_clf, _question_clf_loaded
+    if not _question_clf_loaded:
+        _question_clf_loaded = True
+        for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+            if not base:
+                continue
+            candidate = Path(base) / "question_classifier.json"
+            if candidate.exists():
+                clf = question_classifier.QuestionClassifier.load(candidate)
+                if clf and clf.embedding_model == EMBEDDING_MODEL_NAME:
+                    _question_clf = clf
+                    break
+                log.warning("question_classifier.json ignored (missing or built on a different embedding model)")
+    return _question_clf
+
+
+def _learned_prediction(question: str):
+    clf = _get_question_classifier()
+    if clf is None:
+        return None
+    try:
+        return clf.predict(question, embed)
+    except Exception as e:  # noqa: BLE001
+        log.warning("question classifier failed (%s); using keyword fallbacks", type(e).__name__)
+        return None
+
+
 def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool, bool, bool, bool]:
     """
     Merges classify_mode() and diagnose() into ONE _generate_json call.
@@ -1605,21 +1643,46 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
         '"scene_related": true|false, "app_help_related": true|false, "game_data_related": true|false, '
         '"needs_grounding": true|false, "action_related": true|false}'
     )
+    # Optional fast path (off by default): when the trained local classifier is confident about every
+    # field, skip the LLM call entirely. diagnosis comes back None, which every caller already handles.
+    if os.environ.get("MOSSY_FAST_CLASSIFY", "").strip() == "1":
+        fast = _learned_prediction(question)
+        if fast is not None and question_classifier.confident(fast):
+            return (fast["mode"][0], None, fast["scene_related"][0], fast["app_help_related"][0],
+                    fast["game_data_related"][0], fast["needs_grounding"][0], fast["action_related"][0])
+
     parsed, raw, attempts = _generate_json(
         prompt, ["mode", "diagnosis", "scene_related", "app_help_related", "game_data_related", "needs_grounding", "action_related"],
         max_new_tokens=280
     )
     keyword_mode = _classify_mode_keywords(question)
 
+    # When the LLM answer is missing or malformed, prefer the trained local classifier over the keyword guesses.
+    _cache: list = []
+
+    def _learned():
+        if not _cache:
+            _cache.append(_learned_prediction(question))
+        return _cache[0]
+
+    def _pick(field: str, keyword_value: bool) -> bool:
+        p = _learned()
+        return bool(p[field][0]) if p else keyword_value
+
     if parsed is None:
         log_contract_failure(question, "classify_and_diagnose", raw, attempts)
-        return (keyword_mode, None, _is_scene_related_keywords(question),
-                _is_app_help_keywords(question), _is_game_data_related_keywords(question),
-                not _is_conversational_keywords(question), _is_action_related_keywords(question))
+        p = _learned()
+        return ((p["mode"][0] if p else keyword_mode), None,
+                _pick("scene_related", _is_scene_related_keywords(question)),
+                _pick("app_help_related", _is_app_help_keywords(question)),
+                _pick("game_data_related", _is_game_data_related_keywords(question)),
+                _pick("needs_grounding", not _is_conversational_keywords(question)),
+                _pick("action_related", _is_action_related_keywords(question)))
 
     mode = parsed.get("mode")
     if mode not in ("teach", "debug", "answer"):
-        mode = keyword_mode
+        p = _learned()
+        mode = p["mode"][0] if p else keyword_mode
     else:
         log_mode_classification(question, mode, keyword_mode)
 
@@ -1636,27 +1699,27 @@ def classify_and_diagnose(question: str) -> tuple[str, Optional[str], bool, bool
     scene_related = parsed.get("scene_related")
     if not isinstance(scene_related, bool):
         log_contract_failure(question, "classify_and_diagnose.scene_related", raw, attempts)
-        scene_related = _is_scene_related_keywords(question)
+        scene_related = _pick("scene_related", _is_scene_related_keywords(question))
 
     app_help_related = parsed.get("app_help_related")
     if not isinstance(app_help_related, bool):
         log_contract_failure(question, "classify_and_diagnose.app_help_related", raw, attempts)
-        app_help_related = _is_app_help_keywords(question)
+        app_help_related = _pick("app_help_related", _is_app_help_keywords(question))
 
     game_data_related = parsed.get("game_data_related")
     if not isinstance(game_data_related, bool):
         log_contract_failure(question, "classify_and_diagnose.game_data_related", raw, attempts)
-        game_data_related = _is_game_data_related_keywords(question)
+        game_data_related = _pick("game_data_related", _is_game_data_related_keywords(question))
 
     needs_grounding = parsed.get("needs_grounding")
     if not isinstance(needs_grounding, bool):
         log_contract_failure(question, "classify_and_diagnose.needs_grounding", raw, attempts)
-        needs_grounding = not _is_conversational_keywords(question)
+        needs_grounding = _pick("needs_grounding", not _is_conversational_keywords(question))
 
     action_related = parsed.get("action_related")
     if not isinstance(action_related, bool):
         log_contract_failure(question, "classify_and_diagnose.action_related", raw, attempts)
-        action_related = _is_action_related_keywords(question)
+        action_related = _pick("action_related", _is_action_related_keywords(question))
 
     return mode, diagnosis, scene_related, app_help_related, game_data_related, needs_grounding, action_related
 
@@ -2453,6 +2516,120 @@ def knowledge_count():
 # Proposed lessons stay pending until approved; approved ones feed /enrich.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@app.route("/screen/check", methods=["POST"])
+def screen_check():
+    """Local Screen Awareness filter: OCR + pattern match + (only if unsure) a local yes/no. No cloud."""
+    data = request.get_json(force=True, silent=True) or {}
+    image = data.get("image")
+    patterns = data.get("patterns")
+    if not image or not isinstance(patterns, list):
+        return jsonify({"error": "image and patterns are required"}), 400
+    try:
+        raw = screen_filter.decode_data_url(str(image))
+    except Exception:
+        return jsonify({"error": "image is not valid base64"}), 400
+    result = screen_filter.check(
+        raw, patterns, embed,
+        judge_fn=lambda p: generate_text_backend(p, max_new_tokens=40, temperature=0.0),
+    )
+    return jsonify(result)
+
+
+@app.route("/logs/cluster", methods=["POST"])
+def logs_cluster():
+    """Group log lines into repeating patterns (Drain3) and flag ones not seen in earlier scans. Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    paths = data.get("paths")
+    if not isinstance(paths, list) or not paths or len(paths) > 5:
+        return jsonify({"error": "paths (1-5 log files) is required"}), 400
+    lines: list[str] = []
+    for p in paths:
+        try:
+            lines.extend(log_patterns.read_tail_lines(str(p)))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except OSError as e:
+            return jsonify({"error": f"could not read {os.path.basename(str(p))}: {e.strerror or type(e).__name__}"}), 404
+    miner = log_patterns.LogPatternMiner(BASE_DIR / "data" / "log-patterns", str(data.get("label") or "log"))
+    return jsonify(miner.mine(lines))
+
+
+def _record_models_dir() -> Path:
+    for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+        if base and (Path(base) / "record_models").is_dir():
+            return Path(base) / "record_models"
+    return Path(__file__).resolve().parent / "record_models"
+
+
+_record_model_cache: dict = {}
+
+
+@app.route("/records/anomalies", methods=["POST"])
+def records_anomalies():
+    """Score scanner records against a model trained on vanilla (Isolation Forest, ONNX). Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    collection = str(data.get("collection") or "")
+    models_dir = _record_models_dir()
+    available = record_anomalies.available_collections(models_dir)
+    if collection not in available:
+        return jsonify({"error": f"no model for '{collection}'", "available": available}), 404
+    records = data.get("records")
+    if records is None and data.get("path"):
+        try:
+            records = record_anomalies.load_records_from_json(str(data["path"]), str(data.get("key") or collection))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except (OSError, json.JSONDecodeError) as e:
+            return jsonify({"error": f"could not read that file: {type(e).__name__}"}), 404
+    if not isinstance(records, list) or not records:
+        return jsonify({"error": "records (a list) or path is required"}), 400
+    records = records[:record_anomalies.MAX_RECORDS]
+    model = _record_model_cache.get(collection)
+    if model is None:
+        model = record_anomalies.RecordAnomalyModel.load(models_dir, collection)
+        if model is None:
+            return jsonify({"error": "model failed to load"}), 500
+        _record_model_cache[collection] = model
+    results = model.score([r for r in records if isinstance(r, dict)])
+    results.sort(key=lambda r: -r["unusualness"])
+    top = max(1, min(int(data.get("top") or 20), 100))
+    return jsonify({"collection": collection, "scored": len(results),
+                    "flagged": sum(1 for r in results if r["flagged"]), "results": results[:top]})
+
+
+_mesh_index = None
+_mesh_index_loaded = False
+
+
+def _get_mesh_index():
+    """Vanilla mesh index (mesh_index.npz next to this file / the exe). None if absent."""
+    global _mesh_index, _mesh_index_loaded
+    if not _mesh_index_loaded:
+        _mesh_index_loaded = True
+        for base in (getattr(sys, "_MEIPASS", None), Path(__file__).resolve().parent):
+            if base and (Path(base) / "mesh_index.npz").exists():
+                _mesh_index = mesh_similarity.MeshIndex.load(Path(base) / "mesh_index.npz")
+                break
+    return _mesh_index
+
+
+@app.route("/mesh/similar", methods=["POST"])
+def mesh_similar():
+    """Which vanilla meshes are most like this one, and what do they use (BSXFlags, collision, shader flags)? Local only."""
+    data = request.get_json(force=True, silent=True) or {}
+    features = data.get("features")
+    if not isinstance(features, dict) or not features:
+        return jsonify({"error": "features (an object of mesh measurements) is required"}), 400
+    index = _get_mesh_index()
+    if index is None:
+        return jsonify({"error": "vanilla mesh index is not installed in this Brain B build"}), 404
+    try:
+        k = max(1, min(int(data.get("k") or 25), 100))
+        return jsonify({"index_size": len(index.names), **index.similar(features, k=k)})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/change-gate/patterns", methods=["GET"])
 def change_gate_patterns():
     program = request.args.get("program", "")
@@ -2543,6 +2720,9 @@ def health():
         "generation": "ollama-local",
         "ollama_model": OLLAMA_MODEL,
         "ollama_reachable": ollama_reachable(),
+        "screen_ocr": screen_filter.ocr_available(),
+        "record_models": record_anomalies.available_collections(_record_models_dir()),
+        "mesh_index": len(_get_mesh_index().names) if _get_mesh_index() else 0,
         "curated_docs": get_curated_collection().count(),
         "runtime_docs": get_runtime_collection().count(),
         # "waitress" (production) or "flask-dev" (fallback — see __main__). A silent log line at
