@@ -258,3 +258,7 @@ plugins/blender-mossy-link/
 /Claude outputs/
 /.claude/
 
+
+# Third-party Papyrus library sources (Hydra): no verified licence to redistribute, kept on the dev machine only
+/plugins/fo4-advanced-ai/papyrus/Hydra_Stubs/
+
