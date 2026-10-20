@@ -251,3 +251,10 @@ plugins/blender-mossy-link/
 
 # Never bundle or commit secrets (provider keys / shared tokens)
 .env.encrypted
+
+# Private working notes and local assistant config: stay on the dev machine, never published
+/CLAUDE.md
+/CLAUDE.local.md
+/Claude outputs/
+/.claude/
+
