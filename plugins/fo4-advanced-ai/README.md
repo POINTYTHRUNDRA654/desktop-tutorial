@@ -41,6 +41,13 @@ By the TinyLlama project (https://github.com/jzhang38/TinyLlama)
 GGUF quantisation by TheBloke (https://huggingface.co/TheBloke)  
 License: Apache 2.0
 
+**Piper** — offline neural text-to-speech for NPC voices (runs on your PC, nothing is sent online)  
+By the Rhasspy / Open Home Foundation project (https://github.com/rhasspy/piper)  
+License: MIT
+
+**Piper voices** — en_US-joe-medium (CC0) and en_US-ljspeech-high (public domain), from https://huggingface.co/rhasspy/piper-voices  
+Installed by setup_piper.ps1; not bundled in the repository.
+
 ---
 
 ## License

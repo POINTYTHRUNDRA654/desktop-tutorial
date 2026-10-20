@@ -60,11 +60,11 @@ echo [OK] Bridge script found
 :: Without these the bridge still runs, but NPCs get "Hello." instead of your
 :: spoken words (no STT) and produce no voice audio (no TTS).
 echo Checking voice dependencies (STT/TTS)...
-%MOSSY_PYTHON% -c "import faster_whisper, sounddevice, numpy, edge_tts, pydub, pyttsx3" >nul 2>&1
+%MOSSY_PYTHON% -c "import faster_whisper, sounddevice, numpy, scipy" >nul 2>&1
 if errorlevel 1 (
     echo [SETUP] Installing voice dependencies - one-time, may take a few minutes...
-    %MOSSY_PYTHON% -m pip install --quiet faster-whisper sounddevice numpy edge-tts pydub pyttsx3
-    %MOSSY_PYTHON% -c "import faster_whisper, sounddevice, numpy" >nul 2>&1
+    %MOSSY_PYTHON% -m pip install --quiet faster-whisper sounddevice numpy scipy
+    %MOSSY_PYTHON% -c "import faster_whisper, sounddevice, numpy, scipy" >nul 2>&1
     if errorlevel 1 (
         echo [WARN] STT install incomplete - push-to-talk will use generic greetings.
     ) else (

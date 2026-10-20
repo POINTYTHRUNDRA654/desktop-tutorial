@@ -15,11 +15,11 @@
   "_memory_path_help": "Leave memory_path empty to use the default (Documents/My Games/Fallout4/F4AI/NPC_Memories). Set it to any folder on any drive if your C: drive is full. Example: H:/F4AI_Memory  or  D:/Games/FO4_AI_Memory",
   "memory_path": "",
 
-  "_tts_help": "TTS (text-to-speech) plays AI responses through the NPC in-game. Requires a Sound Descriptor in your ESP pointing to tts_voice_path. Set enable_tts to 1 after completing CK setup. Engines: edge-tts (needs internet + pip install edge-tts pydub) or pyttsx3 (offline + pip install pyttsx3).",
+  "_tts_help": "TTS (text-to-speech) plays AI responses through the NPC in-game. Requires a Sound Descriptor in your ESP pointing to tts_voice_path. Set enable_tts to 1 after completing CK setup. Engines (both run on this PC, nothing goes online): piper (offline neural voice, run setup_piper.ps1 once) or sapi (the built-in Windows voice, no setup).",
   "enable_tts": 1,
   "_tts_pc_playback_help": "Set to 1 to also play NPC voice through your PC speakers - useful before the ESP Sound Descriptor (F4AI_VoiceSound) is set up in the CK.",
   "tts_pc_playback": 0,
-  "tts_engine": "edge-tts",
+  "tts_engine": "piper",
   "tts_voice": "",
   "tts_voice_path": "E:/Steam/steamapps/common/Fallout 4/Data/Sound/Voice/F4AI/npc_voice.xwm",
   "xwmaencode_path": "E:/Steam/steamapps/common/Fallout 4/Tools/LipGen/LipGenerator/xWMAEncode.exe",

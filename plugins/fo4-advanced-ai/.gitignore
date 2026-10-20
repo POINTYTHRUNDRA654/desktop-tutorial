@@ -47,3 +47,6 @@ papyrus/.fuse_hidden*
 f4se_plugin/build_direct/
 f4se_plugin/compile_direct.log
 compile_out_*.txt
+
+# Piper voice engine and voice models (downloaded by setup_piper.ps1)
+runtime/piper/
