@@ -226,7 +226,7 @@ def main():
     print("[4/4] Zipping + writing checksum manifest...")
     print("=" * 70)
     version = os.environ.get("MOSSY_BRAINB_VERSION", "dev")
-    zip_name = f"brain-b-nexus-v{version}.zip"
+    zip_name = f"brain-b-v{version}.zip"
     zip_path = NEXUS_DIR / zip_name
     if zip_path.exists():
         zip_path.unlink()
@@ -248,7 +248,7 @@ def main():
         "size_bytes": zip_path.stat().st_size,
         "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
-    manifest_path = NEXUS_DIR / f"brain-b-nexus-v{version}.manifest.json"
+    manifest_path = NEXUS_DIR / f"brain-b-v{version}.manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     print("\n" + "=" * 70)

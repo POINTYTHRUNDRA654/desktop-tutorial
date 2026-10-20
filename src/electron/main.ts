@@ -36757,7 +36757,7 @@ app.whenReady().then(() => {
   // the UI can label this step honestly as "checks GitHub for the current
   // version" rather than folding it into the local-only claim above.
   lateHandle('brainb:check-latest', async () => {
-    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.manifest.json`;
     try {
       const manifest = await _brainBFetchJson(manifestUrl);
       return { ok: true, manifest };
@@ -36767,8 +36767,8 @@ app.whenReady().then(() => {
   });
 
   lateHandle('brainb:install', async (event) => {
-    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
-    const zipUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.zip`;
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.manifest.json`;
+    const zipUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.zip`;
     const TIMEOUT_MS = 600_000;
 
     const destDir = BRAINB_DIR();

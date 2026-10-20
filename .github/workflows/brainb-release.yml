@@ -1,4 +1,4 @@
-name: Brain B Nexus Package Build and Upload
+name: Brain B Package Build and Upload
 
 # Builds the CPU-only, no-GPU Brain B package (brain_b_slim.exe + curated
 # knowledge base + embed model — see brain-b/nexus/) and uploads it as a
@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Brain B Nexus package version (e.g. 1.2.0)'
+        description: 'Brain B package version (e.g. 1.2.0)'
         required: true
         default: '1.2.0'
       draft:
@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   build-and-upload:
-    name: Build and Upload Brain B Nexus Package
+    name: Build and Upload Brain B Package
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -46,7 +46,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-nexus.txt
 
-      - name: Build Nexus package
+      - name: Build package
         working-directory: brain-b/nexus
         run: python build_nexus_package.py
         env:
@@ -57,8 +57,8 @@ jobs:
         working-directory: brain-b/nexus
         shell: pwsh
         run: |
-          $zip = "brain-b-nexus-v${{ github.event.inputs.version }}.zip"
-          $manifest = "brain-b-nexus-v${{ github.event.inputs.version }}.manifest.json"
+          $zip = "brain-b-v${{ github.event.inputs.version }}.zip"
+          $manifest = "brain-b-v${{ github.event.inputs.version }}.manifest.json"
           if (-not (Test-Path $zip)) { throw "Missing build output: $zip" }
           if (-not (Test-Path $manifest)) { throw "Missing build output: $manifest" }
           $sizeMB = [math]::Round((Get-Item $zip).Length / 1MB, 2)
@@ -68,12 +68,12 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: brain-b-nexus-v${{ github.event.inputs.version }}
-          name: Brain B (Nexus edition) v${{ github.event.inputs.version }}
+          tag_name: brain-b-v${{ github.event.inputs.version }}
+          name: Brain B v${{ github.event.inputs.version }}
           draft: ${{ github.event.inputs.draft }}
           make_latest: false
           files: |
-            brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.zip
-            brain-b/nexus/brain-b-nexus-v${{ github.event.inputs.version }}.manifest.json
+            brain-b/nexus/brain-b-v${{ github.event.inputs.version }}.zip
+            brain-b/nexus/brain-b-v${{ github.event.inputs.version }}.manifest.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
