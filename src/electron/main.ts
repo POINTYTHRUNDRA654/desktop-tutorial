@@ -9146,7 +9146,8 @@ end.
   registerHandler(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
     const s = loadSettings();
     const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434')) as any;
-    const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1')) as any;
+    const openaiCompatBase = String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+    const openaiCompat = await getOpenAICompatStatus(openaiCompatBase, require('./byoAi').byoKeyFor(openaiCompatBase, s)) as any;
     const cosmosBaseUrl = String(s?.cosmosBaseUrl || '').trim();
     const cosmos = cosmosBaseUrl
       ? await getOpenAICompatStatus(cosmosBaseUrl) as any
@@ -9197,10 +9198,12 @@ end.
           return { ok: true, text: (resp as any).text };
         }
 
+        const compatBase = req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
         const resp = await openAICompatChat({
-          baseUrl: req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'),
+          baseUrl: compatBase,
+          apiKey: require('./byoAi').byoKeyFor(compatBase, loadSettings()),
           model,
-          system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
+          system: 'You are Mossy, an AI assistant for Fallout 4 modding running in OpenAI-compatible mode. Follow the user prompt carefully.',
           user: prompt,
         });
         if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
@@ -9506,6 +9509,25 @@ end.
     return { success: true, stopped: stopCdHelpers() };
   });
   app.on('will-quit', () => { try { require('./cdHelpers').stopCdHelpers(); } catch { /* nothing running */ } });
+
+  // Optional: the user's own cloud AI service (byoAi.ts). Off by default; key encrypted, never sent to the renderer.
+  registerHandler('byo-ai:get', async () => require('./byoAi').getByoConfig(loadSettings() as any));
+  registerHandler('byo-ai:save', async (_event, input: any) => {
+    try {
+      const current: any = loadSettings() || {};
+      const patch = require('./byoAi').buildByoPatch(current, input || {});
+      saveSettings({ ...current, ...patch });
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
+    }
+  });
+  registerHandler('byo-ai:test', async (_event, params: { baseUrl: string; apiKey?: string }) => {
+    const s: any = loadSettings() || {};
+    // A typed-in key is used once for the test and not stored; otherwise the saved key, only for the saved address.
+    const key = params?.apiKey || (s.byoAiBaseUrl && String(s.byoAiBaseUrl).replace(/\/+$/, '').toLowerCase() === String(params?.baseUrl || '').replace(/\/+$/, '').toLowerCase() ? (require('./byoAi').byoKeyFor(String(s.byoAiBaseUrl), { ...s, byoAiEnabled: true }) || undefined) : undefined);
+    return getOpenAICompatStatus(String(params?.baseUrl || ''), key);
+  });
 
   registerHandler('setup:set-ollama-models-dir', async (_event, dir: string) => {
     if (!dir) return { success: false, error: 'No folder chosen.' };

@@ -3563,6 +3563,13 @@ const electronAPI = {
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
 
+  // Optional: the user's own cloud AI service (byoAi.ts). The key is never returned to the renderer.
+  byoAi: {
+    get: (): Promise<any> => ipcRenderer.invoke('byo-ai:get'),
+    save: (input: { enabled: boolean; preset: string; baseUrl: string; model: string; apiKey?: string }): Promise<any> => ipcRenderer.invoke('byo-ai:save', input),
+    test: (params: { baseUrl: string; apiKey?: string }): Promise<any> => ipcRenderer.invoke('byo-ai:test', params),
+  },
+
   // Creative Director AI helpers (optional local services, see cdHelpers.ts)
   cdHelpers: {
     status: (): Promise<any> => ipcRenderer.invoke('cd-helpers:status'),

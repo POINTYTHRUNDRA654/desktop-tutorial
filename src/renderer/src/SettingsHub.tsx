@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug,
+  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug, Cloud,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -16,6 +16,7 @@ import OllamaSettings from './OllamaSettings';
 import BrainBSettings from './BrainBSettings';
 import HardwareCheck from './HardwareCheck';
 import McpBridgeSettings from './McpBridgeSettings';
+import ByoAiSettings from './ByoAiSettings';
 import ScreenAwarenessSettings from './ScreenAwarenessSettings';
 import LessonsReviewSettings from './LessonsReviewSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
@@ -462,6 +463,15 @@ const SettingsHub: React.FC = () => {
       description: t('settings.hub.step3c.desc', 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.'),
       icon: Database,
       content: <AnythingLLMSettings embedded />,
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+    },
+    {
+      id: 'byo-ai',
+      title: t('settings.hub.byoAi.title', 'Your own AI service (optional)'),
+      description: t('settings.hub.byoAi.desc', 'Mossy runs on local AI. If you want, connect your own OpenAI, Groq, OpenRouter or other OpenAI-compatible account with your own key.'),
+      icon: Cloud,
+      content: <ByoAiSettings />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },
