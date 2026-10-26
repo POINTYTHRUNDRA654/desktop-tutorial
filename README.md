@@ -17,7 +17,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ---
 
-## 🚀 Onboarding & Installer Notes (v5.6.0)
+## 🚀 Onboarding & Installer Notes
 
 **New in v5.6.0 (Latest):**
 - ✅ **Background Remover** (Textures & Materials Hub) - AI background removal: a standalone local RMBG-2.0 GPU install, or a ComfyUI-RMBG backend with permissively-licensed BEN2/InSPyReNet/BEN models
@@ -109,7 +109,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 📥 Download & Install
 
-👉 **[Download the latest Mossy from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**: pick **Mossy NVIDIA** for NVIDIA graphics cards, or **Mossy Universal** for everything else.
+👉 **[Download Mossy 6.0.0 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**: pick **Mossy NVIDIA** for NVIDIA graphics cards, or **Mossy Universal** for everything else.
 
 📘 **Step-by-step guide: [INSTALL.md](INSTALL.md)**. It covers system requirements, every first-run screen, what each optional download does, choosing drives, and troubleshooting.
 

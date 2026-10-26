@@ -1,6 +1,6 @@
 # MOSSY.SPACE Changelog
 
-## [Unreleased] — GitHub-only release
+## [6.0.0] — 2026-10-26 — GitHub-only release
 
 Mossy is now released only on GitHub. Everything in this release still runs on your own PC by default; nothing new talks to the internet unless you click for it.
 
