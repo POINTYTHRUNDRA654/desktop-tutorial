@@ -1,5 +1,34 @@
 # MOSSY.SPACE Changelog
 
+## [Unreleased] — GitHub-only release
+
+Mossy is now released only on GitHub. Everything in this release still runs on your own PC by default; nothing new talks to the internet unless you click for it.
+
+### Setup: your PC, your choices
+- **"What your PC can run"** — a new first-run step (also in Settings > Your PC) measures your graphics card, video memory, RAM and free disk, and shows each AI feature as Ready, Needs setup, Limited or Not on this PC. The chat model is picked to fit your hardware.
+- **Opt-in "download and set up for me"** for Ollama, Python, PhotoCraft, the starter memory and the Creative Director AI helpers. You choose the folder (so big downloads can go on another drive); every download is checked against its publisher's SHA-256, and Ollama and Python against their publisher's signature, before anything installs. Ollama models can go in their own folder.
+- Things Mossy cannot verify and install itself (ComfyUI) get the official link and step-by-step setup text.
+- New written guide: [INSTALL.md](INSTALL.md).
+
+### New
+- **Starter memory** — optional 7 MB download of Mossy's pre-built Fallout 4 knowledge (Bethesda data only, facts only, no game text), so she can answer with real game data without hours of scanning. Your own scans always take priority.
+- **Vault-Tec Creative Director** is now included for everyone, with optional local **AI helpers** that draft quests, dialogue, NPC backstories and world briefs with your own model, plus lore search and Papyrus checks. Generated scripts are marked as unverified drafts.
+- **Glowing Sea Studio** (Textures & Materials) — batch-enhance textures with the silhouette and alpha locked, plus the free PhotoCraft editor for hand edits and batch actions.
+- **Claude / MCP bridge** (optional, off by default) — lets Claude Code or another MCP client use Mossy's tools on your PC. Local-only, per-launch token, refuses browser requests.
+- **Your own AI service** (optional, off by default) — connect your own OpenAI, Groq, OpenRouter or other OpenAI-compatible account. Your key is encrypted on your PC and only sent to the service you chose.
+
+### Changed
+- **Find Mods** replaces the Mod Browser's Nexus sign-in (which never had a working connection): searches open Nexus Mods in your browser, alongside the install guide and community sharing.
+
+### Fixed
+- Hardware detection used `wmic`, which current Windows 11 no longer has, and its video-memory field cannot report more than 4 GB. GPU, video memory, disk and motherboard detection now work on current Windows, and the INI Manager tunes for your dedicated graphics card instead of integrated graphics.
+- Creative Director's design tabs called routes their helper never had, so they always fell back to templates; the helpers now answer them. The helpers listen only on 127.0.0.1 (they listened on every network interface).
+- Creative Director's offline Papyrus check suggested `RegisterForSingleUpdate`, which does not exist in Fallout 4; it now flags it and points to `StartTimer` / `OnTimer`.
+- Game scanners and fine-tune scripts no longer default to a developer's drive letter.
+
+### Removed
+- Nexus-only build channel, Nexus sign-in and the Nexus release scripts.
+
 ## [5.6.0] — 2026-08-05
 
 ### Security Fix — Desktop Bridge Authentication (2026-08-14)

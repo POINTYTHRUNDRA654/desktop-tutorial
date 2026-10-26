@@ -67,14 +67,12 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 - All modules are functional—no placeholders
 - ⚠️ **Note:** The Blender add-on is still under active development
 - **Fixed**: Encryption key parity between dev and production builds
-- **Added**: Automatic API key decryption in packaged builds
 - **New**: Tutorial replay feature - Re-experience the installation tutorial anytime!
 
 **Important Notes:**
 - Mossy **intentionally recommends** Mod Organizer 2 (MO2) or Vortex when users ask about installation tutorials
 - This is correct behavior for Fallout 4 modding workflows
 - The installer has the same features as the dev environment
-- API keys are automatically decrypted from `.env.encrypted` in packaged builds
 - **You can now replay the installation tutorial** from Settings → Tutorial & Onboarding
 
 **Replaying the Tutorial:**
@@ -88,7 +86,6 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 - Windows installer is generated via NSIS (`npm run package:win`)
 - Version is auto-set from `package.json` (currently 5.6.0)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
-- Run `node scripts/fix-env-encryption.mjs` before packaging to ensure API keys work
 
 **Onboarding:**
 - **📚 Documentation Guide:** See [DOCUMENTATION_GUIDE.md](DOCUMENTATION_GUIDE.md) - Navigation guide for all documentation
@@ -112,28 +109,23 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 📥 Download & Install
 
-### Quick Download
+👉 **[Download the latest Mossy from GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)**: pick **Mossy NVIDIA** for NVIDIA graphics cards, or **Mossy Universal** for everything else.
 
-**Ready to use Mossy?** Download the latest installer:
-
-👉 **[Download Mossy v5.6.0 from GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)**
+📘 **Step-by-step guide: [INSTALL.md](INSTALL.md)**. It covers system requirements, every first-run screen, what each optional download does, choosing drives, and troubleshooting.
 
 ### System Requirements
 
 - **OS:** Windows 10/11 (64-bit)
-- **RAM:** 8GB minimum, 16GB recommended
-- **Storage:** 500MB for application + space for mods
-- **Optional:** OpenAI API key for AI features (can be added later)
+- **RAM:** 8 GB minimum, 16 GB recommended
+- **Storage:** 1 GB for Mossy; 20 GB or more if you add local AI and image tools
+- **Graphics:** not required. An NVIDIA card with 8 GB of video memory unlocks the AI image tools and faster AI chat.
+- **No accounts or API keys needed.** Mossy runs on local AI. Connecting your own online AI service is optional (Settings > Your own AI service).
 
 ### First-Time Installation
 
-1. **Download** the installer from the [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
-2. **Run** the `.exe` installer (Windows) or `.dmg` (macOS)
-3. **Follow** the installation wizard
-4. **Launch** Mossy from your desktop or start menu
-5. **Complete** the first-run tutorial to learn the basics
-
-> **Note:** Windows may show a SmartScreen warning for new releases. Click "More info" → "Run anyway" to proceed. Mossy is open source and safe.
+1. **Download** the installer for your edition from the [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest).
+2. **Run** it. If Windows SmartScreen appears, click "More info", then "Run anyway".
+3. **Launch** Mossy and follow the first-run setup. After scanning for your modding tools, Mossy checks your PC and shows which AI features fit it. Anything extra (Ollama, Python, PhotoCraft, starter memory, Creative Director helpers) installs only when you click it, into a folder you choose, after its checksum is verified.
 
 ### Upgrading from a Previous Version
 
@@ -143,7 +135,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 #### ✅ Safe Upgrade Process (Recommended)
 
-1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases/latest)
+1. **Download** the new version installer from [GitHub Releases](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases/latest)
 2. **Close** Mossy completely (check system tray if it's running in background)
 3. **Run** the new installer
    - The installer will detect your existing installation
@@ -151,7 +143,6 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 4. **Your data is preserved:**
    - ✅ Settings and preferences
    - ✅ Memory Vault content
-   - ✅ API keys
    - ✅ Project configurations
    - ✅ Tutorial progress
 
@@ -162,7 +153,6 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 The installer **keeps** all your user data:
 - Settings stored in: `%APPDATA%/mossy-desktop/` (Windows)
 - Memory Vault data
-- Encrypted API keys
 - Recent projects list
 
 The installer **replaces**:
@@ -187,8 +177,7 @@ The installer **replaces**:
 #### 💡 Pro Tips
 
 - **Back up your Memory Vault**: Settings → Memory Vault → Export before major upgrades
-- **Note your API keys**: Settings are preserved, but it's good to have backups
-- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/mossy-ai/releases)
+- **Check release notes**: Review changes at [Releases page](https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases)
 
 ### Building from Source
 
@@ -483,15 +472,7 @@ Want to build from source or contribute? Follow these steps:
    ```bash
    pip install -r requirements.txt
    ```
-4. (Optional) Set development API keys (Electron main only):
-   - Create `.env.local` in the project root and add any keys you want to use in dev.
-   - Example:
-     ```env
-     OPENAI_API_KEY=your-api-key-here
-     GROQ_API_KEY=your-key-here
-     ELEVENLABS_API_KEY=your-key-here
-     ```
-   - Security note: do not put secrets in `VITE_*` variables (Vite exposes those to the renderer).
+4. No API keys are needed: Mossy uses local AI (Ollama / KoboldCpp / LM Studio). To try a cloud model while developing, use Settings > Your own AI service in the running app.
 
 ### Development
 Start the development server:
@@ -562,8 +543,6 @@ cd mossy-ai
 # Install dependencies
 npm install
 
-# (Optional) Set dev-only API keys for Electron main
-echo "OPENAI_API_KEY=your_key_here" > .env.local
 ```
 
 ### Development
