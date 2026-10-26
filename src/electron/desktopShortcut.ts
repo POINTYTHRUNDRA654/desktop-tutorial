@@ -6,7 +6,7 @@
 import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 
 export class DesktopShortcutManager {
   private static getHomeDir(): string {
@@ -62,19 +62,31 @@ export class DesktopShortcutManager {
         ? ''
         : `$Shortcut.Arguments = "--app=${appPath}"; `;
 
-      // Create the shortcut using WScript.Shell (VBScript via PowerShell)
+      // Installed builds already get desktop + Start menu shortcuts from the NSIS
+      // installer (build.nsis.createDesktopShortcut); a second "Mossy.lnk" here
+      // would just duplicate it. Only dev/unpacked runs need one made.
+      if (app.isPackaged) {
+        console.log('Desktop shortcut: left to the installer');
+        return false;
+      }
+
+      // Create the shortcut using WScript.Shell (VBScript via PowerShell). The
+      // command goes to PowerShell as one argument (no cmd.exe in between) with
+      // single-quoted paths, so paths with spaces or quotes can't break it; the
+      // old double-quoted cmd string failed on every run.
+      const q = (s: string) => `'${String(s).replace(/'/g, "''")}'`;
       const psCommand = [
         '$WshShell = New-Object -ComObject WScript.Shell',
-        `$Shortcut = $WshShell.CreateShortcut("${shortcutPath}")`,
-        `$Shortcut.TargetPath = "${exePath}"`,
-        ...(argAssignment ? [`${argAssignment}`] : []),
-        `$Shortcut.WorkingDirectory = "${path.dirname(exePath)}"`,
-        '$Shortcut.Description = "Mossy - Fallout 4 Modding AI Assistant with Pip-Boy Interface"',
-        `$Shortcut.IconLocation = "${iconPath}, 0"`,
+        `$Shortcut = $WshShell.CreateShortcut(${q(shortcutPath)})`,
+        `$Shortcut.TargetPath = ${q(exePath)}`,
+        ...(argAssignment ? [`$Shortcut.Arguments = ${q(`--app=${appPath}`)}`] : []),
+        `$Shortcut.WorkingDirectory = ${q(path.dirname(exePath))}`,
+        `$Shortcut.Description = ${q('Mossy - Fallout 4 Modding AI Assistant with Pip-Boy Interface')}`,
+        `$Shortcut.IconLocation = ${q(`${iconPath}, 0`)}`,
         '$Shortcut.Save()',
       ].join('; ');
 
-      execSync(`powershell -NoProfile -Command "${psCommand}"`, { stdio: 'pipe' });
+      execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', psCommand], { stdio: 'pipe' });
       
       console.log(`✓ Desktop shortcut created: ${shortcutPath}`);
       return true;
