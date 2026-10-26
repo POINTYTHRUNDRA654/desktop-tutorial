@@ -1117,7 +1117,7 @@ const NarrativeDebug: React.FC<{ backendOnline: boolean }> = ({ backendOnline })
     const r: typeof results = [];
     if (questScript.includes('GetCurrentStageID') && !questScript.includes('SetStage')) r.push({ level: 'warn', msg: 'Reading stage but no SetStage call found — stages may never advance.' });
     if (questScript.includes('PlayerRef') && !questScript.includes('import')) r.push({ level: 'warn', msg: 'PlayerRef used without explicit import — may fail in standalone scripts.' });
-    if ((questScript.match(/RegisterForSingleUpdate/g) || []).length > 3) r.push({ level: 'warn', msg: 'Multiple RegisterForSingleUpdate calls — risk of overlapping timer chains.' });
+    if (/\bRegisterForSingleUpdate\b|\bRegisterForUpdate\b|\bEvent\s+OnUpdate\b/.test(questScript)) r.push({ level: 'error', msg: 'RegisterForSingleUpdate / RegisterForUpdate / OnUpdate do not exist in Fallout 4 Papyrus (Skyrim only). Use StartTimer(seconds, id) and Event OnTimer(int aiTimerID).' });
     if (questScript.includes('Game.GetForm(0x')) r.push({ level: 'error', msg: 'Hardcoded FormID in Game.GetForm() — use persistent reference instead.' });
     if (questScript.length > 0 && r.length === 0) r.push({ level: 'ok', msg: 'No issues detected.' });
     if (questScript.length === 0) r.push({ level: 'error', msg: 'No script provided — paste your Papyrus script above.' });
@@ -2663,17 +2663,35 @@ const CreativeDirectorPanel: React.FC = () => {
   const [checking, setChecking] = useState(false);
   const [teamEnabled, setTeamEnabled] = useState(false);
   const [personalRdReachable, setPersonalRdReachable] = useState(false);
+  const [helpersInstalled, setHelpersInstalled] = useState<boolean | null>(null);
+  const [helpersBusy, setHelpersBusy] = useState(false);
+  const [helpersMsg, setHelpersMsg] = useState('');
 
   const checkBackend = useCallback(async () => {
     setChecking(true);
     try {
-      await fetch(`http://localhost:${BACKEND_PORT}/status`, { signal: AbortSignal.timeout(1500) });
-      setBackendOnline(true);
+      const res = await fetch(`http://localhost:${BACKEND_PORT}/status`, { signal: AbortSignal.timeout(1500) });
+      setBackendOnline(res.ok);
     } catch {
       setBackendOnline(false);
     }
+    try {
+      const api = (window as any).electronAPI ?? (window as any).electron?.api;
+      const st = await api?.cdHelpers?.status?.();
+      setHelpersInstalled(Boolean(st?.installed));
+    } catch { setHelpersInstalled(null); }
     setChecking(false);
   }, []);
+
+  // Optional local AI helpers (Settings > Your PC installs them; Mossy stops them when it quits).
+  const toggleHelpers = async () => {
+    const api = (window as any).electronAPI ?? (window as any).electron?.api;
+    setHelpersBusy(true); setHelpersMsg('');
+    const r = backendOnline ? await api?.cdHelpers?.stop?.() : await api?.cdHelpers?.start?.();
+    if (r && r.success === false) setHelpersMsg(r.error || 'Could not start the helpers.');
+    setHelpersBusy(false);
+    checkBackend();
+  };
 
   useEffect(() => {
     const pollTeam = async () => {
@@ -2733,8 +2751,17 @@ const CreativeDirectorPanel: React.FC = () => {
           </button>
           <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-semibold ${backendOnline ? 'bg-emerald-400/10 text-emerald-400' : 'bg-slate-700 text-slate-500'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-            {backendOnline ? 'Backend Online' : 'Offline Mode'}
+            {backendOnline ? 'AI Helpers Online' : 'Offline Mode'}
           </div>
+          {helpersInstalled && (
+            <button onClick={toggleHelpers} disabled={helpersBusy} className="px-2 py-1 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 disabled:opacity-50 flex items-center gap-1">
+              {helpersBusy && <Loader2 className="w-3 h-3 animate-spin" />}{backendOnline ? 'Stop AI helpers' : 'Start AI helpers'}
+            </button>
+          )}
+          {helpersInstalled === false && !backendOnline && (
+            <span className="text-[10px] text-slate-500" title="Optional local services that draft quests, dialogue and NPCs with your own AI model">AI helpers: install in Settings &gt; Your PC</span>
+          )}
+          {helpersMsg && <span className="text-[10px] text-rose-300 max-w-xs truncate" title={helpersMsg}>{helpersMsg}</span>}
         </div>
       </div>
 

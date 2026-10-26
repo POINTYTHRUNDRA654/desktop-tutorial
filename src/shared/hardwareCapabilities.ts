@@ -35,6 +35,8 @@ export interface PrerequisiteStatus {
   photocraft: string | null;
   /** Installed Brain B version (from its install record), or null. */
   brainB: string | null;
+  /** Folder of the installed Creative Director AI helpers, or null. */
+  cdHelpers: string | null;
 }
 
 export interface HardwareProfile {
@@ -64,7 +66,7 @@ export interface CapabilityAction {
 }
 
 export interface Capability {
-  id: 'core' | 'local-chat' | 'brain-b' | 'image-ai' | 'texture-tools' | 'voice' | 'fine-tune' | 'edition';
+  id: 'core' | 'local-chat' | 'brain-b' | 'image-ai' | 'texture-tools' | 'voice' | 'fine-tune' | 'edition' | 'cd-helpers';
   title: string;
   state: CapabilityState;
   /** One plain sentence saying what is true on this PC. */
@@ -264,6 +266,19 @@ export function computeCapabilities(p: HardwareProfile): Capability[] {
       ...(pre.photocraft ? [] : [{ kind: 'install' as const, label: 'Download and set up PhotoCraft for me (90 MB)', target: 'photocraft' }]),
     ],
   });
+
+  // Creative Director AI helpers: optional local services that power its quest/dialogue/NPC/lore tabs.
+  if (pre.cdHelpers) {
+    caps.push({ id: 'cd-helpers', title: 'Creative Director AI helpers (optional)', state: 'ready',
+      summary: `Installed in ${pre.cdHelpers}. Start them from the Creative Director panel.`, actions: [] });
+  } else {
+    const missing = [!pre.python && 'Python', !pre.ollama.installed && 'Ollama'].filter(Boolean) as string[];
+    caps.push({ id: 'cd-helpers', title: 'Creative Director AI helpers (optional)', state: missing.length ? 'limited' : 'needs-setup',
+      summary: missing.length
+        ? `Local services that let the Creative Director draft quests, dialogue and NPCs with your own AI model. Install ${missing.join(' and ')} above first.`
+        : 'Local services that let the Creative Director draft quests, dialogue and NPCs and search your lore with your own AI model. About 400 MB; nothing leaves your PC.',
+      actions: missing.length ? [] : [{ kind: 'install', label: 'Download and set up the AI helpers for me (400 MB)', target: 'cd-helpers' }] });
+  }
 
   caps.push({
     id: 'voice',

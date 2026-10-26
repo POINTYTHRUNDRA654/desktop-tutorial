@@ -19,6 +19,7 @@ const profile = (over: Partial<HardwareProfile> = {}, pre: Partial<HardwareProfi
     comfyui: { running: false, configuredPath: null },
     photocraft: null,
     brainB: null,
+    cdHelpers: null,
     ...pre,
   },
 });
@@ -107,6 +108,13 @@ describe('computeCapabilities', () => {
     const img = cap(caps, 'image-ai');
     expect(img.actions.every((a) => a.kind === 'link')).toBe(true);
     expect(img.setupSteps?.length).toBeGreaterThan(2);
+  });
+
+  it('offers the Creative Director helpers only once Python and Ollama exist', () => {
+    expect(cap(computeCapabilities(profile()), 'cd-helpers')).toMatchObject({ state: 'limited', actions: [] });
+    const ready = profile({}, { python: 'Python 3.13.17', ollama: { installed: true, running: true, version: '0.12', models: [] } });
+    expect(cap(computeCapabilities(ready), 'cd-helpers').actions[0]).toMatchObject({ kind: 'install', target: 'cd-helpers' });
+    expect(cap(computeCapabilities(profile({}, { cdHelpers: 'D:\\Helpers' })), 'cd-helpers').state).toBe('ready');
   });
 
   it('lets the user move Ollama models to another drive once Ollama runs', () => {

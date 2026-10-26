@@ -209,6 +209,16 @@
         ]
       },
       {
+        "from": "tools/creative-director-helpers",
+        "to": "tools/creative-director-helpers",
+        "filter": [
+          "*.py",
+          "*.json",
+          "*.txt",
+          "*.md"
+        ]
+      },
+      {
         "from": "tools/glowing-sea-texture-pipeline",
         "to": "tools/glowing-sea-texture-pipeline",
         "filter": [

@@ -3563,6 +3563,13 @@ const electronAPI = {
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
 
+  // Creative Director AI helpers (optional local services, see cdHelpers.ts)
+  cdHelpers: {
+    status: (): Promise<any> => ipcRenderer.invoke('cd-helpers:status'),
+    start: (): Promise<any> => ipcRenderer.invoke('cd-helpers:start'),
+    stop: (): Promise<any> => ipcRenderer.invoke('cd-helpers:stop'),
+  },
+
   // Onboarding "Your PC" step: hardware check + Ollama model download (see main.ts setup:*)
   setup: {
     getHardwareProfile: (): Promise<any> => ipcRenderer.invoke('setup:hardware-profile'),
@@ -3570,7 +3577,7 @@ const electronAPI = {
     installDefaults: (): Promise<any> => ipcRenderer.invoke('setup:install-defaults'),
     freeSpace: (dir: string): Promise<number | null> => ipcRenderer.invoke('setup:free-space', dir),
     pickFolder: (params?: { defaultPath?: string; title?: string }): Promise<string | null> => ipcRenderer.invoke('setup:pick-folder', params),
-    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
+    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
     setOllamaModelsDir: (dir: string): Promise<any> => ipcRenderer.invoke('setup:set-ollama-models-dir', dir),
     onInstallProgress: (callback: (p: any) => void) => {
       const subscription = (_event: any, p: any) => callback(p);

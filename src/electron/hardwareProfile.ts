@@ -183,6 +183,7 @@ export async function getHardwareProfile(opts: { edition: 'nvidia' | 'universal'
       comfyui: { running: comfyRunning, configuredPath: comfyPath && fs.existsSync(comfyPath) ? comfyPath : null },
       photocraft: findPhotoCraft(opts.settings),
       brainB,
+      cdHelpers: (() => { const d = String(opts.settings.cdHelpersPath || '').trim(); return d && fs.existsSync(path.join(d, 'venv', 'Scripts', 'python.exe')) ? d : null; })(),
     },
   };
 }

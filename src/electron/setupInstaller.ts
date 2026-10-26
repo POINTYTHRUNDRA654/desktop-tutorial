@@ -25,7 +25,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-export type ComponentId = 'ollama' | 'python' | 'photocraft';
+export type ComponentId = 'ollama' | 'python' | 'photocraft' | 'cd-helpers';
 export type Progress = { id: ComponentId; phase: 'resolve' | 'download' | 'verify' | 'install' | 'configure' | 'done'; message: string; received?: number; total?: number };
 type Report = (p: Progress) => void;
 
@@ -33,6 +33,7 @@ const LOCAL_PROGRAMS = path.join(process.env.LOCALAPPDATA || path.join(os.homedi
 
 export function defaultLocations(): Record<ComponentId, string> & { ollamaModels: string } {
   return {
+    'cd-helpers': path.join(LOCAL_PROGRAMS, 'Mossy', 'CreativeDirectorHelpers'),
     ollama: path.join(LOCAL_PROGRAMS, 'Ollama'),
     ollamaModels: process.env.OLLAMA_MODELS || path.join(os.homedir(), '.ollama', 'models'),
     python: path.join(LOCAL_PROGRAMS, 'Python', 'Python313'),
@@ -295,18 +296,25 @@ async function installPhotoCraft(targetDir: string, report: Report): Promise<{ m
 export async function installComponent(
   id: ComponentId,
   /** verifyOnly: download and check, then stop before installing (used by the automated test). */
-  opts: { targetDir: string; modelsDir?: string; requirementsFile?: string | null; verifyOnly?: boolean },
+  opts: { targetDir: string; modelsDir?: string; requirementsFile?: string | null; verifyOnly?: boolean; helpersSourceDir?: string | null; ollamaModel?: string | null },
   report: Report,
 ): Promise<{ success: boolean; message?: string; error?: string; exe?: string }> {
   try {
     const target = path.resolve(opts.targetDir);
     const free = freeSpaceGB(target);
-    const needGB = id === 'ollama' ? 4 : id === 'python' ? 0.5 : 0.5;
+    const needGB = id === 'ollama' ? 4 : id === 'cd-helpers' ? 1 : 0.5;
     if (free !== null && free < needGB) throw new Error(`Only ${free} GB is free on that drive; this needs about ${needGB} GB. Pick a folder on another drive.`);
     if (id === 'ollama') {
       const message = await installOllama(target, opts.modelsDir, report, opts.verifyOnly);
       report({ id, phase: 'done', message });
       return { success: true, message };
+    }
+    if (id === 'cd-helpers') {
+      if (!opts.helpersSourceDir) throw new Error('The helper scripts were not found in this Mossy install.');
+      const { installCdHelpers } = require('./cdHelpers');
+      const r = await installCdHelpers({ targetDir: target, sourceDir: opts.helpersSourceDir, ollamaModel: opts.ollamaModel ?? null }, report);
+      report({ id, phase: 'done', message: r.message });
+      return { success: true, message: r.message, exe: r.dir };
     }
     if (id === 'python') {
       const message = await installPython(target, report, opts.requirementsFile ?? null, opts.verifyOnly);

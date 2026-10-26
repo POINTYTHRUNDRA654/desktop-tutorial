@@ -9451,9 +9451,9 @@ end.
     return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
   });
 
-  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft'; targetDir: string; modelsDir?: string }) => {
+  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers'; targetDir: string; modelsDir?: string }) => {
     if (setupInstallActive) return { success: false, error: 'Another install is already running.' };
-    if (!['ollama', 'python', 'photocraft'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
+    if (!['ollama', 'python', 'photocraft', 'cd-helpers'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
     setupInstallActive = true;
     try {
       const { installComponent } = require('./setupInstaller');
@@ -9462,18 +9462,43 @@ end.
         path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
         path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
       ].find((p) => fs.existsSync(p)) || null;
-      const result = await installComponent(params.id, { targetDir: params.targetDir, modelsDir: params.modelsDir, requirementsFile }, (p: unknown) => {
+      const helpersSourceDir = [
+        path.join(process.resourcesPath || '', 'tools', 'creative-director-helpers'),
+        path.join(app.getAppPath(), 'tools', 'creative-director-helpers'),
+        path.join(process.cwd(), 'tools', 'creative-director-helpers'),
+      ].find((p) => fs.existsSync(path.join(p, 'creative_director.py'))) || null;
+      const ollamaModel = String((loadSettings() as any)?.ollamaModel || '') || null;
+      const result = await installComponent(params.id, { targetDir: params.targetDir, modelsDir: params.modelsDir, requirementsFile, helpersSourceDir, ollamaModel }, (p: unknown) => {
         try { event.sender.send('setup:install-progress', p); } catch { /* window closed */ }
       });
       if (result.success && params.id === 'photocraft' && result.exe) {
         const s: any = loadSettings() || {};
         saveSettings({ ...s, photocraftPath: result.exe });
       }
+      if (result.success && params.id === 'cd-helpers' && result.exe) {
+        const s: any = loadSettings() || {};
+        saveSettings({ ...s, cdHelpersPath: result.exe });
+      }
       return result;
     } finally {
       setupInstallActive = false;
     }
   });
+
+  // Creative Director AI helpers (cdHelpers.ts): status / start / stop, stopped when Mossy quits.
+  registerHandler('cd-helpers:status', async () => {
+    const { cdHelpersStatus } = require('./cdHelpers');
+    return cdHelpersStatus(String((loadSettings() as any)?.cdHelpersPath || '') || null);
+  });
+  registerHandler('cd-helpers:start', async () => {
+    const { startCdHelpers } = require('./cdHelpers');
+    return startCdHelpers(String((loadSettings() as any)?.cdHelpersPath || ''), path.join(app.getPath('userData'), 'logs', 'cd-helpers'));
+  });
+  registerHandler('cd-helpers:stop', async () => {
+    const { stopCdHelpers } = require('./cdHelpers');
+    return { success: true, stopped: stopCdHelpers() };
+  });
+  app.on('will-quit', () => { try { require('./cdHelpers').stopCdHelpers(); } catch { /* nothing running */ } });
 
   registerHandler('setup:set-ollama-models-dir', async (_event, dir: string) => {
     if (!dir) return { success: false, error: 'No folder chosen.' };
@@ -22221,7 +22246,9 @@ Rules:
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${PERSONAL_RD_BASE}/status`, { signal: controller.signal });
+      // Probe the testing queue itself: the bundled Creative Director helpers also answer
+      // /status on this port but have no testing queue, and must not light up this tab.
+      const res = await fetch(`${PERSONAL_RD_BASE}/testing-queue`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) return { success: false, reachable: false };
       const json = await res.json();
