@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PlayCircle, AlertCircle } from 'lucide-react';
+import { PlayCircle } from 'lucide-react';
 
 interface TutorialVideoPanelProps {
   title?: string;
@@ -32,6 +32,10 @@ const TutorialVideoPanel: React.FC<TutorialVideoPanelProps> = ({
     setPosterUrl(poster && poster.trim() ? poster.trim() : null);
   }, []);
 
+  // No video ships with Mossy; the panel only appears when one has been configured.
+  // (It used to show users developer instructions about localStorage keys instead.)
+  if (!videoUrl) return null;
+
   return (
     <div
       className={`bg-slate-900/70 border border-slate-700 rounded-xl p-4 ${compact ? 'text-xs' : 'text-sm'} ${className}`}
@@ -41,41 +45,17 @@ const TutorialVideoPanel: React.FC<TutorialVideoPanelProps> = ({
           <h3 className="text-white font-bold">{title}</h3>
           <p className="text-slate-400 mt-1">{description}</p>
         </div>
-        <div
-          className={`px-2 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wide ${
-            videoUrl
-              ? 'border-emerald-500/40 text-emerald-300 bg-emerald-900/20'
-              : 'border-amber-500/40 text-amber-300 bg-amber-900/20'
-          }`}
-        >
-          {videoUrl ? 'Video Ready' : 'Needs Video'}
-        </div>
+        <PlayCircle className="w-5 h-5 text-emerald-300 flex-shrink-0" />
       </div>
 
       <div className="mt-3">
-        {videoUrl ? (
-          <video
-            src={videoUrl}
-            poster={posterUrl || undefined}
-            controls
-            preload="metadata"
-            className="w-full rounded-lg border border-slate-700 bg-black"
-          />
-        ) : (
-          <div className="w-full rounded-lg border border-slate-700 bg-slate-950 p-4 text-slate-400 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-300 flex-shrink-0" />
-            <div>
-              <div className="text-slate-200 font-semibold flex items-center gap-2">
-                <PlayCircle className="w-4 h-4" />
-                Add a tutorial video to enable playback
-              </div>
-              <p className="mt-1">
-                Set localStorage keys: <strong>mossy_tutorial_video_url</strong> and
-                <strong> mossy_tutorial_video_poster</strong>.
-              </p>
-            </div>
-          </div>
-        )}
+        <video
+          src={videoUrl}
+          poster={posterUrl || undefined}
+          controls
+          preload="metadata"
+          className="w-full rounded-lg border border-slate-700 bg-black"
+        />
       </div>
 
       {!compact && (

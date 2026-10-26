@@ -2,7 +2,7 @@
  * Creative Director AI helpers -- optional local services for the Vault-Tec
  * Creative Director panel (tools/creative-director-helpers, shipped with Mossy):
  *   creative_director.py  :8767  quest/dialogue/NPC/world drafts, lore search
- *   ai_helper.py          :8766  research peer
+ *   ai_helper.py          :8769  research peer (8766 is Brain B)
  *   virtual_mod_lab.py    :8768  experiment peer
  * All three listen on 127.0.0.1 only and use the local Ollama (or KoboldCpp);
  * lore search embeds through Ollama (nomic-embed-text), so nothing reaches the
@@ -17,7 +17,7 @@ import fs from 'fs';
 import path from 'path';
 
 export const CD_HELPER_SERVICES = [
-  { script: 'ai_helper.py', port: 8766 },
+  { script: 'ai_helper.py', port: 8769 }, // not 8766: that is Brain B's port
   { script: 'virtual_mod_lab.py', port: 8768 },
   { script: 'creative_director.py', port: 8767 },
 ] as const;

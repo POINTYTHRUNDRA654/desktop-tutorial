@@ -125,9 +125,13 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-background-media-suspend');
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
+// Keep dev and packaged builds using the same userData folder for consistent onboarding/memory,
+// unless a separate profile was asked for at launch (--user-data-dir): portable copies and test
+// runs then get their own settings and memory instead of silently sharing the installed app's.
 app.setName('mossy-desktop');
-app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
+if (!app.commandLine.hasSwitch('user-data-dir')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
+}
 
 // Load environment variables.
 // process.cwd() is unreliable in packaged Electron apps (can be the system dir on Windows).
@@ -36935,7 +36939,12 @@ app.whenReady().then(() => {
       const manifest = await _brainBFetchJson(manifestUrl);
       return { ok: true, manifest };
     } catch (error: any) {
-      return { ok: false, error: error?.message || String(error) };
+      const msg = String(error?.message || error);
+      // A 404 here means this Mossy version points at a Brain B release that isn't public yet.
+      if (/\b404\b/.test(msg)) {
+        return { ok: false, error: `Brain B ${BRAINB_VERSION} isn't available for download yet. Nothing was changed; check again after the next Mossy update.` };
+      }
+      return { ok: false, error: msg };
     }
   });
 

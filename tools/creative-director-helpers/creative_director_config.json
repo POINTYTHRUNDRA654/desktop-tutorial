@@ -1,7 +1,7 @@
 {
   "_comment": "Creative Director v2 configuration",
   "port": 8767,
-  "ai_helper_ws": "ws://localhost:8766",
+  "ai_helper_ws": "ws://localhost:8769",
   "vml_ws": "ws://localhost:8768",
   "db_path": "creative_director_lore.db",
   "chroma_path": "creative_director_chroma",
@@ -12,7 +12,7 @@
     "ollama_model": "Mossy fills this in with your chat model when it installs the helpers; any model you have pulled works",
     "embed_model": "Ollama embedding model for lore search (Mossy pulls nomic-embed-text during install)",
     "chroma_path": "Where ChromaDB stores its vector index \u2014 relative to creative_director.py",
-    "ai_helper_ws": "WebSocket address of your AI Helper (port 8766 by default)",
+    "ai_helper_ws": "WebSocket address of the AI Helper (port 8769; 8766 belongs to Brain B)",
     "vml_ws": "WebSocket address of VirtualModLab (port 8768 by default)",
     "koboldcpp_host": "KoboldCpp server (default port 5001). Used when Ollama is not running, or when llm_engine is \"koboldcpp\"",
     "llm_engine": "auto | ollama | koboldcpp",

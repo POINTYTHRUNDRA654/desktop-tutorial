@@ -7,6 +7,6 @@ export const PLUGIN_META = {
   name: 'Vault-Tec Creative Director',
   version: '1.0.0',
   backendPort: 8767,
-  aiHelperPort: 8766,
+  aiHelperPort: 8769,
   vmlPort: 8768,
 } as const;

@@ -431,9 +431,8 @@ export const BrainBSettings: React.FC<{ embedded?: boolean }> = ({ embedded = fa
         </div>
 
         <p className="text-[11px] text-slate-500 border-t border-slate-700/60 pt-2">
-          Once running, retrieval and tutoring logic execute locally on your computer. Generating an
-          actual answer routes through Mossy's own backend (the same one the app itself uses) — no
-          separate API key of yours is used or needed.
+          Once running, everything executes on your computer: retrieval, tutoring logic, and the answer
+          itself, which your local AI model (Ollama) writes. No account or API key is used or needed.
         </p>
       </div>
 

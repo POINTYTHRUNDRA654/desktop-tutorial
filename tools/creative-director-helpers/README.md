@@ -5,7 +5,7 @@ Optional local services for Mossy's **Vault-Tec Creative Director** panel. Mossy
 | Service | Port | What it does |
 |---|---|---|
 | `creative_director.py` | 8767 | Drafts quest scripts, dialogue lines, NPC backstories and world design briefs with your local AI model; lore store with semantic search; static Papyrus checks |
-| `ai_helper.py` | 8766 | Research peer the Creative Director talks to |
+| `ai_helper.py` | 8769 | Research peer the Creative Director talks to |
 | `virtual_mod_lab.py` | 8768 | Experiment peer the Creative Director talks to |
 
 ## Local only

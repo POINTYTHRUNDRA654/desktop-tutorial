@@ -1,8 +1,8 @@
 """
 AI Helper — peer service for the Vault-Tec Creative Director Network
-Port 8766 (WebSocket + REST on same port via FastAPI)
+Port 8769 (WebSocket + REST on same port via FastAPI). Not 8766: that is Brain B's port.
 
-Creative Director connects to ws://localhost:8766 and sends a peer_hello.
+Creative Director connects to ws://localhost:8769 and sends a peer_hello.
 AI Helper stores research findings and forwards them to CD via WebSocket.
 REST endpoints let the Vault-Tec UI submit research tasks.
 """
@@ -35,7 +35,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("ai_helper")
 
-PORT = int(os.environ.get("AI_HELPER_PORT", 8766))
+PORT = int(os.environ.get("AI_HELPER_PORT", 8769))
 DB_PATH = Path(__file__).parent / "ai_helper.db"
 
 # ─── State ───────────────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ async def _lifespan(app: FastAPI):
 
 app = FastAPI(
     title       = "AI Helper",
-    description = "Research peer service for Vault-Tec Creative Director (port 8766)",
+    description = "Research peer service for Vault-Tec Creative Director (port 8769)",
     version     = "1.0.0",
     lifespan    = _lifespan,
 )
@@ -289,7 +289,7 @@ async def get_lore_cache(limit: int = 10):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="AI Helper — research peer for Creative Director")
-    p.add_argument("--port", type=int, default=8766, help="Port for WebSocket + REST (default 8766)")
+    p.add_argument("--port", type=int, default=8769, help="Port for WebSocket + REST (default 8769; 8766 is Brain B)")
     args = p.parse_args()
     PORT = args.port
     uvicorn.run("ai_helper:app", host="127.0.0.1", port=PORT, log_level="info", reload=False)

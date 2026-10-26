@@ -102,7 +102,7 @@ MOD_OUTPUT_DIR.mkdir(exist_ok=True)
 
 DEFAULTS: dict = {
     "port":          8767,
-    "ai_helper_ws":  "ws://localhost:8766",
+    "ai_helper_ws":  "ws://localhost:8769",   # 8766 is Brain B's port
     "vml_ws":        "ws://localhost:8768",
     "db_path":       str(BASE / "creative_director_lore.db"),
     "chroma_path":   str(BASE / "creative_director_chroma"),
@@ -274,7 +274,7 @@ _ollama_models: List[str] = []
 _CREATIVE_DIRECTOR_SYSTEM = """\
 You are the Vault-Tec Creative Director — the narrative and creative AI in the \
 MOSSY.SPACE Fallout 4 modding platform. You work in a 3-agent network alongside \
-AI Helper (research, port 8766) and VirtualModLab (testing, port 8768).
+AI Helper (research, port 8769) and VirtualModLab (testing, port 8768).
 
 Your domain is the creative layer: quest writing, branched dialogue trees, NPC \
 personalities and backstories, worldspace and settlement design, lore consistency, \
