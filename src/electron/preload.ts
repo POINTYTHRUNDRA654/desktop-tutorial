@@ -3563,6 +3563,27 @@ const electronAPI = {
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
 
+  // Onboarding "Your PC" step: hardware check + Ollama model download (see main.ts setup:*)
+  setup: {
+    getHardwareProfile: (): Promise<any> => ipcRenderer.invoke('setup:hardware-profile'),
+    pullModel: (tag: string): Promise<any> => ipcRenderer.invoke('setup:pull-model', tag),
+    installDefaults: (): Promise<any> => ipcRenderer.invoke('setup:install-defaults'),
+    freeSpace: (dir: string): Promise<number | null> => ipcRenderer.invoke('setup:free-space', dir),
+    pickFolder: (params?: { defaultPath?: string; title?: string }): Promise<string | null> => ipcRenderer.invoke('setup:pick-folder', params),
+    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
+    setOllamaModelsDir: (dir: string): Promise<any> => ipcRenderer.invoke('setup:set-ollama-models-dir', dir),
+    onInstallProgress: (callback: (p: any) => void) => {
+      const subscription = (_event: any, p: any) => callback(p);
+      ipcRenderer.on('setup:install-progress', subscription);
+      return () => ipcRenderer.removeListener('setup:install-progress', subscription);
+    },
+    onPullProgress: (callback: (p: any) => void) => {
+      const subscription = (_event: any, p: any) => callback(p);
+      ipcRenderer.on('setup:pull-progress', subscription);
+      return () => ipcRenderer.removeListener('setup:pull-progress', subscription);
+    },
+  },
+
   // Mod Browser
   modBrowser: {
     createCollection: (name: string, items: any[], description?: string): Promise<any> =>

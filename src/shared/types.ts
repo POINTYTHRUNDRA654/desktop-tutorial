@@ -609,6 +609,8 @@ export interface Settings {
   nvidiaTextureToolsPath?: string;
   autodeskFbxPath?: string;
   photoDemonPath?: string;
+  photocraftPath?: string;
+  glowingSeaPipelinePath?: string;
   unWrap3Path?: string;
   nifUtilsSuitePath?: string;
   sniffPath?: string;
@@ -1054,6 +1056,8 @@ export const DEFAULT_SETTINGS: Settings = {
   nvidiaTextureToolsPath: '',
   autodeskFbxPath: '',
   photoDemonPath: '',
+  photocraftPath: '',
+  glowingSeaPipelinePath: '',
   unWrap3Path: '',
   nifUtilsSuitePath: '',
   sniffPath: '',

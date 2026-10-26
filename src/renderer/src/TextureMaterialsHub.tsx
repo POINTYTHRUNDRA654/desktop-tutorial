@@ -32,8 +32,9 @@ const MaterialDefinitionEditor = React.lazy(() =>
 const AIImageStudio = React.lazy(() => import('./AIImageStudio'));
 const BackgroundRemover = React.lazy(() => import('./BackgroundRemover'));
 const PostProcessingPipeline = React.lazy(() => import('./PostProcessingPipeline'));
+const GlowingSeaStudio = React.lazy(() => import('./GlowingSeaStudio'));
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio' | 'bgremover' | 'postprocess';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio' | 'bgremover' | 'postprocess' | 'glowingsea';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
@@ -49,6 +50,7 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'aistudio',  icon: Camera,            label: 'AI Image Studio',   sublabel: 'txt2img · img2img'   },
   { id: 'bgremover', icon: Scissors,          label: 'Background Remover', sublabel: 'AI isolation · RMBG-2.0' },
   { id: 'postprocess', icon: Aperture,        label: 'Post-Processing',   sublabel: 'Layer FX · Face · Relight · Upscale' },
+  { id: 'glowingsea', icon: Layers,           label: 'Glowing Sea Studio', sublabel: 'Batch enhance · PhotoCraft' },
 ];
 
 // ============================================================================
@@ -560,6 +562,11 @@ const TextureMaterialsHub: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         {activeTab === 'postprocess' && (
           <PanelLoader>
             <PostProcessingPipeline />
+          </PanelLoader>
+        )}
+        {activeTab === 'glowingsea' && (
+          <PanelLoader>
+            <GlowingSeaStudio />
           </PanelLoader>
         )}
       </div>

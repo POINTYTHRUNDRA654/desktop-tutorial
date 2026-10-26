@@ -55,6 +55,11 @@ def load_config() -> dict:
                 cfg.update(json.load(f))
         except Exception as e:
             print(f"[WARN] config.json exists but couldn't be parsed ({e}) — using defaults.")
+    # Mossy's Glowing Sea Studio passes the paths it resolved for this PC (config.json
+    # ships with the original author's paths and is read-only inside an installed app).
+    for env_key, cfg_key in (("GLOWINGSEA_TEXCONV", "texconv_path"), ("GLOWINGSEA_COMFYUI", "comfyui_base")):
+        if os.environ.get(env_key):
+            cfg[cfg_key] = os.environ[env_key]
     return cfg
 
 

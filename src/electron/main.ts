@@ -4206,7 +4206,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get Friendly OS Name
       let osFriendly = `${platform} ${release}`;
       if (platform === 'win32') {
-        const osWmic = await safeExec('wmic os get Caption /value');
+        const osWmic = 'Caption=' + (await safeExec('powershell -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_OperatingSystem).Caption"', 10000)).trim();
         const osMatch = osWmic.match(/Caption=(.+)/);
         if (osMatch) {
           osFriendly = osMatch[1].trim();
@@ -4225,8 +4225,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get Motherboard info
       let motherboard = 'Unknown Motherboard';
       if (platform === 'win32') {
-        const mbWmic = await safeExec('wmic baseboard get product,manufacturer');
-        const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.includes('Manufacturer') && !l.includes('Product'));
+        const mbWmic = await safeExec(`powershell -NoProfile -NonInteractive -Command "$b = Get-CimInstance Win32_BaseBoard; $b.Manufacturer + ' ' + $b.Product"`, 10000);
+        const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter(Boolean);
         if (mbLines.length > 0) {
           motherboard = mbLines[0];
         }
@@ -4237,29 +4237,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       let allDetectedGPUs: string[] = [];
       let vramGB = 0;
       if (platform === 'win32') {
-        console.log('[Main] Attempting GPU detection via WMIC...');
-
-        // Get GPU names
-        const wmic = await safeExec('wmic path win32_VideoController get name');
-        allDetectedGPUs = wmic.split('\n')
-          .map((line: string) => line.trim())
-          .filter((line: string) => line && !line.includes('Name'));
-
+        // nvidia-smi + the driver's 64-bit registry value (hardwareProfile.ts): wmic is gone
+        // from current Windows 11 and its AdapterRAM field caps at 4 GB.
+        const { detectGpus } = require('./hardwareProfile');
+        const gpus: { name: string; vramMB: number | null }[] = await detectGpus();
+        allDetectedGPUs = gpus.map((g) => g.name);
         console.log('[Main] All detected GPUs:', allDetectedGPUs);
-
         if (allDetectedGPUs.length > 0) {
           gpuInfo = allDetectedGPUs.join(' + ');
         }
-
-        // Get VRAM (AdapterRAM is in bytes)
-        const vramWmic = await safeExec('wmic path win32_VideoController get AdapterRAM');
-        const vramLines = vramWmic.split('\n')
-          .map((line: string) => line.trim())
-          .filter((line: string) => line && !line.includes('AdapterRAM') && line !== '0');
-
-        if (vramLines.length > 0) {
-          const vramBytes = vramLines.reduce((acc: number, curr: string) => acc + parseInt(curr, 10), 0);
-          vramGB = Math.round(vramBytes / (1024 ** 3)); // Convert to GB
+        const vramMB = gpus.reduce((acc, g) => acc + (g.vramMB ?? 0), 0);
+        if (vramMB > 0) {
+          vramGB = Math.round(vramMB / 1024);
           console.log('[Main] Detected total VRAM:', vramGB, 'GB');
         }
       } else if (platform === 'darwin') {
@@ -4307,8 +4296,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get ALL storage space
       const storageDrives: Array<{ device: string, free: number, total: number }> = [];
       if (platform === 'win32') {
-        const storageWmic = await safeExec('wmic logicaldisk get DeviceID,FreeSpace,Size');
-        const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
+        // Same "DeviceID FreeSpace Size" rows wmic used to print (wmic is gone from current Windows 11).
+        const storageWmic = await safeExec('powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.Size } | ForEach-Object { \'{0} {1} {2}\' -f $_.DeviceID, $_.FreeSpace, $_.Size }"', 10000);
+        const rows = storageWmic.split('\n').filter((l: string) => l.trim());
         for (const row of rows) {
           const parts = row.trim().split(/\s+/);
           if (parts.length >= 3) {
@@ -8074,42 +8064,22 @@ end.
       const cpus = os.cpus();
       const totalMemGB = Math.round(os.totalmem() / (1024 ** 3));
 
-      // Get GPU info (Windows only via WMIC)
+      // The card the game renders on: the dedicated GPU with the most video memory,
+      // not the first adapter listed (often the CPU's integrated graphics).
       let gpuName = 'Unknown GPU';
       let vramMB = 0;
 
       if (process.platform === 'win32') {
         try {
-          const { exec } = require('child_process');
-          const wmicGpu = await new Promise<string>((resolve, reject) => {
-            exec('wmic path win32_VideoController get name', (err: any, stdout: string) => {
-              if (err) reject(err);
-              else resolve(stdout);
-            });
-          });
-
-          const lines = wmicGpu.split('\n').filter(l => l.trim() && !l.includes('Name'));
-          if (lines.length > 0) {
-            gpuName = lines[0].trim();
+          const { detectGpus } = require('./hardwareProfile');
+          const gpus: { name: string; vendor: string; vramMB: number | null }[] = await detectGpus();
+          const ranked = [...gpus].sort((a, b) => (a.vendor === 'intel' ? 1 : 0) - (b.vendor === 'intel' ? 1 : 0) || (b.vramMB ?? 0) - (a.vramMB ?? 0));
+          if (ranked[0]) {
+            gpuName = ranked[0].name;
+            vramMB = ranked[0].vramMB ?? 0;
           }
-
-          // Get VRAM
-          const wmicVram = await new Promise<string>((resolve, reject) => {
-            exec('wmic path win32_VideoController get AdapterRAM', (err: any, stdout: string) => {
-              if (err) reject(err);
-              else resolve(stdout);
-            });
-          });
-
-          const vramLines = wmicVram.split('\n').filter(l => l.trim() && !l.includes('AdapterRAM'));
-          if (vramLines.length > 0) {
-            const vramBytes = parseInt(vramLines[0].trim(), 10);
-            if (!isNaN(vramBytes) && vramBytes > 0) {
-              vramMB = Math.round(vramBytes / (1024 * 1024));
-            }
-          }
-        } catch (wmicErr) {
-          console.error('WMIC GPU detection failed:', wmicErr);
+        } catch (gpuErr) {
+          console.error('GPU detection failed:', gpuErr);
         }
       }
 
@@ -9431,6 +9401,143 @@ end.
    * Returns 'nvidia' or 'universal' so the renderer can gate fine-tune UI.
    */
   registerHandler(IPC_CHANNELS.GET_MOSSY_EDITION, async () => MOSSY_EDITION);
+
+  /**
+   * Handlers: setup:* -- the onboarding "Your PC" step.
+   * setup:hardware-profile measures this PC (hardwareProfile.ts) and returns what
+   * it can run (shared/hardwareCapabilities.ts). setup:pull-model downloads an
+   * Ollama model with streamed progress and no overall time limit (multi-GB
+   * downloads routinely take longer than ml:ollama-pull's 5-minute cap); only
+   * an Ollama-reported success saves the model as Mossy's chat model.
+   */
+  registerHandler('setup:hardware-profile', async () => {
+    try {
+      const { getHardwareProfile } = require('./hardwareProfile');
+      const { computeCapabilities, recommendOllamaModel } = require('../shared/hardwareCapabilities');
+      const profile = await getHardwareProfile({ edition: MOSSY_EDITION, settings: loadSettings() || {}, dataDir: app.getPath('userData') });
+      const capabilities = computeCapabilities(profile);
+      const recommendedModel = recommendOllamaModel(profile);
+      const s: any = loadSettings() || {};
+      saveSettings({ ...s, hardwareProfile: { measuredAt: profile.measuredAt, ramGB: profile.ramGB, gpus: profile.gpus, recommendedModel: recommendedModel.tag } });
+      return { success: true, profile, capabilities, recommendedModel };
+    } catch (error: any) {
+      console.error('[Main] setup:hardware-profile error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Opt-in "download and set up for me" installs + install locations (setupInstaller.ts).
+  // One install at a time; each verifies checksum/signature before running anything.
+  let setupInstallActive = false;
+  registerHandler('setup:install-defaults', async () => {
+    const { defaultLocations, freeSpaceGB } = require('./setupInstaller');
+    const locations = defaultLocations();
+    const free: Record<string, number | null> = {};
+    for (const [k, v] of Object.entries(locations)) free[k] = freeSpaceGB(String(v));
+    return { locations, free };
+  });
+
+  registerHandler('setup:free-space', async (_event, dir: string) => {
+    const { freeSpaceGB } = require('./setupInstaller');
+    return freeSpaceGB(String(dir || ''));
+  });
+
+  registerHandler('setup:pick-folder', async (_event, params?: { defaultPath?: string; title?: string }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, {
+      title: params?.title || 'Choose a folder',
+      defaultPath: params?.defaultPath,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
+  });
+
+  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft'; targetDir: string; modelsDir?: string }) => {
+    if (setupInstallActive) return { success: false, error: 'Another install is already running.' };
+    if (!['ollama', 'python', 'photocraft'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
+    setupInstallActive = true;
+    try {
+      const { installComponent } = require('./setupInstaller');
+      const requirementsFile = [
+        path.join(process.resourcesPath || '', 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+        path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+        path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+      ].find((p) => fs.existsSync(p)) || null;
+      const result = await installComponent(params.id, { targetDir: params.targetDir, modelsDir: params.modelsDir, requirementsFile }, (p: unknown) => {
+        try { event.sender.send('setup:install-progress', p); } catch { /* window closed */ }
+      });
+      if (result.success && params.id === 'photocraft' && result.exe) {
+        const s: any = loadSettings() || {};
+        saveSettings({ ...s, photocraftPath: result.exe });
+      }
+      return result;
+    } finally {
+      setupInstallActive = false;
+    }
+  });
+
+  registerHandler('setup:set-ollama-models-dir', async (_event, dir: string) => {
+    if (!dir) return { success: false, error: 'No folder chosen.' };
+    const { setOllamaModelsDir } = require('./setupInstaller');
+    return setOllamaModelsDir(String(dir));
+  });
+
+  let setupPullActive = false;
+  registerHandler('setup:pull-model', async (event, tag: string) => {
+    if (setupPullActive) return { success: false, error: 'A model download is already running.' };
+    if (!/^[a-z0-9._-]+(:[a-z0-9._-]+)?$/i.test(String(tag || ''))) return { success: false, error: 'Invalid model name.' };
+    setupPullActive = true;
+    const send = (p: Record<string, unknown>) => { try { event.sender.send('setup:pull-progress', { tag, ...p }); } catch { /* window closed */ } };
+    try {
+      const controller = new AbortController();
+      let idle: NodeJS.Timeout = setTimeout(() => controller.abort(), 120_000);
+      const res = await fetch('http://127.0.0.1:11434/api/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tag, stream: true }),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) {
+        clearTimeout(idle);
+        return { success: false, error: `Ollama answered HTTP ${res.status}. Is Ollama running?` };
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let lastStatus = '';
+      let ollamaError = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        clearTimeout(idle);
+        idle = setTimeout(() => controller.abort(), 120_000); // 2 minutes with no data = stalled
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          try {
+            const j = JSON.parse(line);
+            if (j.error) ollamaError = String(j.error);
+            if (j.status) lastStatus = String(j.status);
+            send({ status: lastStatus, completed: j.completed ?? null, total: j.total ?? null });
+          } catch { /* partial line */ }
+        }
+      }
+      clearTimeout(idle);
+      if (ollamaError) return { success: false, error: ollamaError };
+      if (lastStatus !== 'success') return { success: false, error: `Download ended without Ollama reporting success (last status: ${lastStatus || 'none'}).` };
+      const s: any = loadSettings() || {};
+      saveSettings({ ...s, ollamaModel: tag });
+      return { success: true, model: tag };
+    } catch (error: any) {
+      const msg = error?.name === 'AbortError' ? 'The download stalled (no data for 2 minutes). Check your connection and try again; Ollama keeps what it already downloaded.' : (error instanceof Error ? error.message : String(error));
+      return { success: false, error: msg };
+    } finally {
+      setupPullActive = false;
+    }
+  });
+
 
   /**
    * Handler: fine-tune-pick-dataset
@@ -21073,6 +21180,249 @@ Rules:
       }
       return { available: false };
     }
+  });
+
+  // ── Glowing Sea Asset Studio (Textures hub) ──────────────────────────────────
+  // Drives tools/glowing-sea-texture-pipeline (4-stage ComfyUI + mask-lock +
+  // DDS pipeline) and PhotoCraft (free Apache-2.0/MIT Rust image editor, run as
+  // a separate installed program -- never bundled or linked) for hand editing
+  // and headless batch actions. Every status field is read from disk/process
+  // reality; nothing reports success without a real exit code behind it.
+  function findGlowingSeaPipelineDir(): string | null {
+    const s: any = loadSettings() || {};
+    const candidates = [
+      String(s.glowingSeaPipelinePath || '').trim(),
+      path.join(process.resourcesPath || '', 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(__dirname, '..', 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline'),
+    ].filter(Boolean);
+    return candidates.find((c) => fs.existsSync(path.join(c, 'run_pipeline.bat'))) || null;
+  }
+
+  function findPhotoCraft(): { exe: string | null; cli: string | null; dir: string | null } {
+    const s: any = loadSettings() || {};
+    const roots: string[] = [];
+    const configured = String(s.photocraftPath || '').trim();
+    if (configured) roots.push(configured);
+    for (const base of ['C:\\Program Files\\PhotoCraft', path.join(process.env.LOCALAPPDATA || '', 'Programs', 'PhotoCraft')]) {
+      try {
+        if (!fs.existsSync(base)) continue;
+        roots.push(base);
+        for (const e of fs.readdirSync(base, { withFileTypes: true })) if (e.isDirectory()) roots.push(path.join(base, e.name));
+      } catch { /* unreadable root -- try the next */ }
+    }
+    for (const r of roots) {
+      const dir = r.toLowerCase().endsWith('.exe') ? path.dirname(r) : r;
+      const exe = path.join(dir, 'photocraft.exe');
+      if (fs.existsSync(exe)) {
+        const cli = path.join(dir, 'photocraft-cli.exe');
+        return { exe, cli: fs.existsSync(cli) ? cli : null, dir };
+      }
+    }
+    return { exe: null, cli: null, dir: null };
+  }
+
+  /**
+   * texconv.exe for the pipeline's DDS output. The Creation Kit installs Elric's copy at
+   * <Fallout 4>\Tools\Elric\texconv.exe; config.json's own value is the original
+   * author's machine, used only if it happens to exist here too.
+   */
+  function findTexconv(pipelineDir: string | null): string | null {
+    const s: any = loadSettings() || {};
+    const candidates: string[] = [];
+    for (const root of [s.fallout4Path, s.creationKitPath && path.dirname(String(s.creationKitPath))]) {
+      if (root) candidates.push(path.join(String(root), 'Tools', 'Elric', 'texconv.exe'));
+    }
+    if (pipelineDir) {
+      try { candidates.push(String(JSON.parse(fs.readFileSync(path.join(pipelineDir, 'config.json'), 'utf-8')).texconv_path || '')); } catch { /* unreadable config */ }
+    }
+    return candidates.find((c) => c && fs.existsSync(c)) || null;
+  }
+
+  type GlowingSeaJob = { running: boolean; stage: number; totalStages: number; log: string[]; exitCode: number | null; folder: string; startedAt: number; proc?: ReturnType<typeof spawn> };
+  let glowingSeaJob: GlowingSeaJob | null = null;
+  const pushGlowingSeaLog = (job: GlowingSeaJob, text: string) => {
+    for (const line of text.split(/\r?\n/)) if (line.trim()) job.log.push(line);
+    if (job.log.length > 400) job.log.splice(0, job.log.length - 400);
+  };
+
+  registerHandler('glowingsea:status', async () => {
+    const pipelineDir = findGlowingSeaPipelineDir();
+    const pc = findPhotoCraft();
+    // Seed the Settings field from a real detection (same idea as comfyuiPath's auto-seed) so it shows in External Tools.
+    const current: any = loadSettings() || {};
+    if (pc.exe && !String(current.photocraftPath || '').trim()) saveSettings({ ...current, photocraftPath: pc.exe });
+    const texconvPath = findTexconv(pipelineDir) || '';
+    let comfyBase = 'http://127.0.0.1:8188';
+    let model = '';
+    if (pipelineDir) {
+      try {
+        const cfg = JSON.parse(fs.readFileSync(path.join(pipelineDir, 'config.json'), 'utf-8'));
+        comfyBase = String(cfg.comfyui_base || comfyBase);
+        model = String(cfg.comfyui_model || '');
+      } catch { /* config unreadable -- defaults above */ }
+    }
+    const pythonOk = await new Promise<string | null>((resolve) => {
+      exec('python --version', { timeout: 5000 }, (err, stdout, stderr) => resolve(err ? null : (stdout || stderr).trim()));
+    });
+    let comfyOnline = false;
+    try { comfyOnline = (await fetch(`${comfyBase}/system_stats`, { signal: AbortSignal.timeout(3000) })).ok; } catch { /* offline */ }
+    return {
+      pipelineDir,
+      python: pythonOk,
+      comfyBase,
+      comfyOnline,
+      comfyModel: model,
+      texconvPath,
+      texconvFound: !!texconvPath,
+      photocraftExe: pc.exe,
+      photocraftCli: pc.cli,
+      job: glowingSeaJob ? { running: glowingSeaJob.running, stage: glowingSeaJob.stage, totalStages: glowingSeaJob.totalStages, exitCode: glowingSeaJob.exitCode, folder: glowingSeaJob.folder } : null,
+    };
+  });
+
+  registerHandler('glowingsea:pick-folder', async () => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openDirectory', 'createDirectory'], title: 'Pick the batch folder (contains an Input subfolder)' });
+    return r.canceled || !r.filePaths[0] ? { success: false } : { success: true, folder: r.filePaths[0] };
+  });
+
+  registerHandler('glowingsea:pick-file', async (_e, params?: { filters?: Electron.FileFilter[] }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile'], filters: params?.filters });
+    return r.canceled || !r.filePaths[0] ? { success: false } : { success: true, filePath: r.filePaths[0] };
+  });
+
+  registerHandler('glowingsea:folder-info', async (_e, params: { folder: string }) => {
+    const root = params.folder;
+    const count = (sub: string, exts: string[]) => {
+      try { return fs.readdirSync(path.join(root, sub)).filter((f) => exts.some((x) => f.toLowerCase().endsWith(x))).length; } catch { return 0; }
+    };
+    return {
+      exists: fs.existsSync(root),
+      hasInput: fs.existsSync(path.join(root, 'Input')),
+      input: count('Input', ['.dds', '.png']),
+      mask: count('UV_Mask', ['.png']),
+      enhanced: count('Enhanced', ['.png']),
+      locked: count('UV-Locked', ['.png']),
+      output: count('Output', ['.dds', '.png']),
+      needsReview: fs.existsSync(path.join(root, 'needs_review.txt')) ? fs.readFileSync(path.join(root, 'needs_review.txt'), 'utf-8').split(/\r?\n/).filter(Boolean) : [],
+    };
+  });
+
+  registerHandler('glowingsea:ensure-input', async (_e, params: { folder: string }) => {
+    try { fs.mkdirSync(path.join(params.folder, 'Input'), { recursive: true }); return { success: true }; }
+    catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  /** Copies chosen textures into <folder>\Input (copy only -- never touches the source files). */
+  registerHandler('glowingsea:add-inputs', async (_e, params: { folder: string }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Textures', extensions: ['dds', 'png'] }] });
+    if (r.canceled) return { success: false };
+    try {
+      const inputDir = path.join(params.folder, 'Input');
+      fs.mkdirSync(inputDir, { recursive: true });
+      for (const f of r.filePaths) fs.copyFileSync(f, path.join(inputDir, path.basename(f)));
+      return { success: true, copied: r.filePaths.length };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  registerHandler('glowingsea:run-pipeline', async (_e, params: { folder: string; fromStage?: number }) => {
+    if (glowingSeaJob?.running) return { success: false, error: 'A pipeline run is already in progress.' };
+    const dir = findGlowingSeaPipelineDir();
+    if (!dir) return { success: false, error: 'tools/glowing-sea-texture-pipeline was not found. Set glowingSeaPipelinePath in Settings.' };
+    const root = params.folder;
+    if (!fs.existsSync(path.join(root, 'Input'))) return { success: false, error: `${path.join(root, 'Input')} does not exist. Add textures first.` };
+    const P = (n: string) => path.join(root, n);
+    const stages: { name: string; args: string[] }[] = [
+      { name: 'extract_uv_mask', args: ['extract_uv_mask.py', P('Input'), P('UV_Mask')] },
+      { name: 'enhance (ComfyUI)', args: ['enhance.py', P('Input'), P('Enhanced')] },
+      { name: 'composite_lock', args: ['composite_lock.py', P('Input'), P('Enhanced'), P('UV_Mask'), P('UV-Locked')] },
+      { name: 'finalize', args: ['finalize.py', P('Input'), P('UV-Locked'), P('UV_Mask'), P('Output')] },
+    ];
+    const first = Math.min(Math.max(params.fromStage ?? 1, 1), 4);
+    const texconv = findTexconv(dir);
+    const stageEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', ...(texconv ? { GLOWINGSEA_TEXCONV: texconv } : {}) };
+    const job: GlowingSeaJob = { running: true, stage: first, totalStages: 4, log: [], exitCode: null, folder: root, startedAt: Date.now() };
+    glowingSeaJob = job;
+    const runStage = (i: number) => {
+      if (i >= stages.length) { job.running = false; job.exitCode = 0; pushGlowingSeaLog(job, `Done. Output written to ${P('Output')}`); return; }
+      job.stage = i + 1;
+      pushGlowingSeaLog(job, `=== Stage ${i + 1}/4: ${stages[i].name} ===`);
+      const proc = spawn('python', ['-u', ...stages[i].args], { cwd: dir, windowsHide: true, env: stageEnv });
+      job.proc = proc;
+      proc.stdout.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
+      proc.stderr.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
+      proc.on('error', (err) => { job.running = false; job.exitCode = -1; pushGlowingSeaLog(job, `Could not start python: ${err.message}`); });
+      proc.on('close', (code) => {
+        if (!job.running) return;
+        if (code !== 0) { job.running = false; job.exitCode = code ?? -1; pushGlowingSeaLog(job, `Stage ${i + 1} failed (exit ${code}). Earlier stages' output is kept on disk; re-run from stage ${i + 1}.`); return; }
+        runStage(i + 1);
+      });
+    };
+    runStage(first - 1);
+    return { success: true };
+  });
+
+  registerHandler('glowingsea:job-status', async () => {
+    if (!glowingSeaJob) return { running: false, log: [], stage: 0, exitCode: null };
+    const { running, stage, totalStages, log, exitCode, folder } = glowingSeaJob;
+    return { running, stage, totalStages, log: log.slice(-120), exitCode, folder };
+  });
+
+  registerHandler('glowingsea:cancel', async () => {
+    if (!glowingSeaJob?.running) return { success: false, error: 'Nothing is running.' };
+    glowingSeaJob.running = false;
+    glowingSeaJob.exitCode = -2;
+    pushGlowingSeaLog(glowingSeaJob, 'Cancelled by user.');
+    try { glowingSeaJob.proc?.kill(); } catch { /* already exited */ }
+    return { success: true };
+  });
+
+  registerHandler('glowingsea:open-photocraft', async (_e, params?: { filePath?: string }) => {
+    const pc = findPhotoCraft();
+    if (!pc.exe) return { success: false, error: 'PhotoCraft was not found. Install it (free, github.com/storytold/photocraft) or set its path in Settings > External Tools.' };
+    try {
+      const args = params?.filePath ? [params.filePath] : [];
+      const child = spawn(pc.exe, args, { detached: true, stdio: 'ignore', cwd: pc.dir || undefined });
+      child.unref();
+      return { success: true };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  /** Headless PhotoCraft batch: photocraft-cli batch --actions <file> --in <dir> --out <dir>. Result comes from the real exit code. */
+  registerHandler('glowingsea:photocraft-batch', async (_e, params: { actionsFile: string; inDir: string; outDir: string; format?: string }) => {
+    const pc = findPhotoCraft();
+    if (!pc.cli) return { success: false, error: 'photocraft-cli.exe was not found next to PhotoCraft.' };
+    if (!fs.existsSync(params.actionsFile)) return { success: false, error: `Actions file not found: ${params.actionsFile}` };
+    if (path.resolve(params.inDir).toLowerCase() === path.resolve(params.outDir).toLowerCase()) return { success: false, error: 'Output folder must differ from the input folder (originals are never overwritten).' };
+    const args = ['batch', '--actions', params.actionsFile, '--in', params.inDir, '--out', params.outDir];
+    if (params.format) args.push('--format', params.format);
+    return await new Promise((resolve) => {
+      let out = '';
+      const proc = spawn(pc.cli!, args, { windowsHide: true });
+      const timer = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } }, 30 * 60 * 1000);
+      proc.stdout.on('data', (d) => { out += d.toString(); });
+      proc.stderr.on('data', (d) => { out += d.toString(); });
+      proc.on('error', (err) => { clearTimeout(timer); resolve({ success: false, error: err.message }); });
+      proc.on('close', (code) => { clearTimeout(timer); resolve({ success: code === 0, exitCode: code, output: out.slice(-4000), error: code === 0 ? undefined : `photocraft-cli exited with ${code}` }); });
+    });
+  });
+
+  /** Returns a PNG as a data URL for before/after preview (capped at 40 MB). */
+  registerHandler('glowingsea:preview', async (_e, params: { filePath: string }) => {
+    try {
+      if (!params.filePath.toLowerCase().endsWith('.png')) return { success: false, error: 'Preview supports PNG only (intermediate stage output).' };
+      const st = fs.statSync(params.filePath);
+      if (st.size > 40 * 1024 * 1024) return { success: false, error: 'Image is too large to preview.' };
+      return { success: true, dataUrl: `data:image/png;base64,${fs.readFileSync(params.filePath).toString('base64')}` };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  registerHandler('glowingsea:list-stage', async (_e, params: { folder: string; stage: 'Input' | 'Enhanced' | 'UV-Locked' | 'Output' }) => {
+    try {
+      const d = path.join(params.folder, params.stage);
+      return { success: true, files: fs.readdirSync(d).filter((f) => /\.(png|dds)$/i.test(f)).map((f) => path.join(d, f)) };
+    } catch { return { success: true, files: [] }; }
   });
 
   // ── Layer Effects (ComfyUI_LayerStyle) ───────────────────────────────────────

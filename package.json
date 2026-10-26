@@ -209,6 +209,17 @@
         ]
       },
       {
+        "from": "tools/glowing-sea-texture-pipeline",
+        "to": "tools/glowing-sea-texture-pipeline",
+        "filter": [
+          "*.py",
+          "*.json",
+          "*.bat",
+          "*.txt",
+          "*.md"
+        ]
+      },
+      {
         "from": "CREDITS.md",
         "to": ".",
         "filter": [
