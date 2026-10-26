@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu,
+  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -15,6 +15,7 @@ import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
 import BrainBSettings from './BrainBSettings';
 import HardwareCheck from './HardwareCheck';
+import McpBridgeSettings from './McpBridgeSettings';
 import ScreenAwarenessSettings from './ScreenAwarenessSettings';
 import LessonsReviewSettings from './LessonsReviewSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
@@ -461,6 +462,15 @@ const SettingsHub: React.FC = () => {
       description: t('settings.hub.step3c.desc', 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.'),
       icon: Database,
       content: <AnythingLLMSettings embedded />,
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+    },
+    {
+      id: 'mcp-bridge',
+      title: t('settings.hub.mcpBridge.title', 'Claude / MCP bridge'),
+      description: t('settings.hub.mcpBridge.desc', 'Let Claude Code or another MCP client use Mossy\'s tools on this PC. Off by default.'),
+      icon: Plug,
+      content: <McpBridgeSettings />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },

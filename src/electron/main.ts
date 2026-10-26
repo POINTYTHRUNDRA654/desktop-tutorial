@@ -35576,6 +35576,13 @@ app.whenReady().then(() => {
     });
   }
 
+  // Optional MCP bridge (Settings > Claude / MCP bridge; off by default).
+  try {
+    require('./mcpBridge').start({ getWindow: () => mainWindow, settings: loadSettings() as any });
+  } catch (e: any) {
+    console.error('[Main] MCP bridge failed to start:', e?.message || e);
+  }
+
   // ── Version Migration & Data Preservation ──────────────────────────────────
   // Check if app version has changed; if so, preserve user data (scan results,
   // projects, settings, etc.) across the update. Only onboarding flags are cleared

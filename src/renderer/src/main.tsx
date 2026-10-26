@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { I18nProvider } from './i18n';
 import './utils/ipcDiagnostics'; // Load IPC diagnostics
+import './mcpRunner'; // optional MCP bridge runner (inert unless the bridge is turned on)
 
 import './index.css';
 import './shell.css';

@@ -209,6 +209,14 @@
         ]
       },
       {
+        "from": "tools/mossy-mcp",
+        "to": "tools/mossy-mcp",
+        "filter": [
+          "*.mjs",
+          "*.md"
+        ]
+      },
+      {
         "from": "tools/creative-director-helpers",
         "to": "tools/creative-director-helpers",
         "filter": [
