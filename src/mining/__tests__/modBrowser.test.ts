@@ -1,16 +1,12 @@
 
 import { modBrowser } from '../modBrowser';
 
-describe('ModBrowserEngine - OAuth-only access and local operations', () => {
-  it('requires auth before search', async () => {
-    await expect(
-      modBrowser.searchMods('vault', { game: 'fallout4', sortBy: 'downloads', nsfw: false }),
-    ).rejects.toThrow(/sign in with your nexus account/i);
-  });
-
-  it('has no personal API key entry point', () => {
-    expect((modBrowser as any).authenticateNexus).toBeUndefined();
-    expect((modBrowser as any).restoreNexusAuth).toBeUndefined();
+describe('ModBrowserEngine - no Nexus API, local sharing only', () => {
+  it('has no Nexus account or API entry points', () => {
+    const engine = modBrowser as any;
+    for (const name of ['searchMods', 'getModDetails', 'downloadMod', 'endorseMod', 'setAccessTokenProvider', 'authenticateNexus', 'restoreNexusAuth']) {
+      expect(engine[name]).toBeUndefined();
+    }
   });
 
   it('creates and shares a collection', async () => {
@@ -24,14 +20,8 @@ describe('ModBrowserEngine - OAuth-only access and local operations', () => {
     expect(share.exportPath).toBeDefined();
   });
 
-  it('stores and returns local reviews', async () => {
-    await modBrowser.rateMod('nx_1234', 5, 'Solid mod');
-    const reviews = await modBrowser.getModReviews('nx_1234');
-    expect(Array.isArray(reviews)).toBe(true);
-    expect(reviews[0]).toHaveProperty('text');
-  });
-
-  it('requires auth before download', async () => {
-    await expect(modBrowser.downloadMod('nx_1001', 'C:/temp')).rejects.toThrow(/sign in with your nexus account/i);
+  it('reports a missing collection instead of pretending to share it', async () => {
+    const share = await modBrowser.shareCollection('col_does_not_exist');
+    expect(share.success).toBe(false);
   });
 });

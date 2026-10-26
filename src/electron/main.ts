@@ -36,7 +36,6 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
 import { autoUpdaterService } from './autoUpdater';
-import { nexusAuthService } from './nexusAuth';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
 import { trimMessagesToBudget } from './messageBudget';
@@ -163,7 +162,7 @@ const result = envPath ? dotenv.config({ path: envPath, quiet: true }) : { parse
 console.log('[Main] dotenv result:', result);
 
 
-// Nexus release: Mossy is self-contained. There is no default cloud backend, no
+// Mossy is self-contained. There is no default cloud backend, no
 // API key of any kind, and nothing is contacted unless the user runs a local
 // service themselves (Ollama, Whisper, etc.).
 
@@ -1509,7 +1508,7 @@ const settingsPath = (() => {
   }
 })();
 
-/** Local-only chat via Ollama. The Nexus build has no cloud AI providers. Returns '' if Ollama isn't reachable. */
+/** Local-only chat via Ollama. Mossy has no cloud AI providers. Returns '' if Ollama isn't reachable. */
 async function localOllamaChat(
   messages: Array<{ role: string; content: string }>,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
@@ -1530,7 +1529,7 @@ async function localOllamaChat(
   } catch { return ''; }
 }
 
-// Nexus release: Mossy uses no API keys, tokens or cloud accounts. These legacy setting names
+// Mossy uses no API keys, tokens or cloud accounts. These legacy setting names
 // (written by older versions) are never read, never written, and never sent to the renderer.
 const LEGACY_SECRET_KEYS = [
   'openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey',
@@ -12156,159 +12155,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  // Mod Browser IPC handlers (renderer -> main)
-  // Nexus access is OAuth-only (see nexusAuth.ts). Mossy does not accept, store
-  // or send a personal Nexus API key. The engine asks nexusAuthService for the
-  // signed-in user's access token on each request; until the app is registered
-  // with Nexus and the user signs in, Mod Browser calls return a clear
-  // "sign in" error instead of making unauthenticated requests.
+  // Mod Browser IPC handlers (renderer -> main). Community sharing only: Mossy has no
+  // Nexus account link and never calls the Nexus API; finding mods happens on the
+  // Nexus Mods website in the user's browser.
   const modBrowserEngine: any = require('../mining/modBrowser').modBrowser;
-  modBrowserEngine.setAccessTokenProvider(() => nexusAuthService.getAccessToken());
-
-  registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
-    const startTime = Date.now();
-    try {
-      const results = await modBrowserEngine.searchMods(query, filters || { game: 'fallout4', sortBy: 'trending', nsfw: false });
-      auditLogger.log({
-        operation: 'mod-browser-search',
-        tool: 'mod-browser',
-        action: 'search',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resultCount: Array.isArray(results) ? results.length : 0, query: query?.substring(0, 50) || '' }
-      });
-      return results;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:search error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-search',
-        tool: 'mod-browser',
-        action: 'search',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { query: query?.substring(0, 50) || '' }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:get-details', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const details = await modBrowserEngine.getModDetails(modId);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-details',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, modName: details?.name || '' }
-      });
-      return details;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:get-details error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-details',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:download', async (_event, modId: string, destination: string) => {
-    const startTime = Date.now();
-    try {
-      const result = await modBrowserEngine.downloadMod(modId, destination);
-      auditLogger.log({
-        operation: 'mod-browser-download',
-        tool: 'mod-browser',
-        action: 'download',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, success: result?.success, filePath: result?.filePath?.substring(0, 100) || '', sizeMB: ((result?.size || 0) / 1024 / 1024).toFixed(2) }
-      });
-      return result;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:download error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-download',
-        tool: 'mod-browser',
-        action: 'download',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId, destination: destination?.substring(0, 50) || '' }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:rate', async (_event, modId: string, rating: number, review: string) => {
-    const startTime = Date.now();
-    try {
-      await modBrowserEngine.rateMod(modId, rating, review);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'rate-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, rating, reviewLength: review?.length || 0 }
-      });
-      return { success: true };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:rate error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'rate-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId, rating }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:get-reviews', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const reviews = await modBrowserEngine.getModReviews(modId);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-reviews',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, reviewCount: Array.isArray(reviews) ? reviews.length : 0 }
-      });
-      return reviews;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:get-reviews error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-reviews',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   registerHandler('mod-browser:create-collection', async (_event, name: string, items: any[], description?: string) => {
     const startTime = Date.now();
@@ -12380,64 +12230,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  registerHandler('mod-browser:endorse-mod', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      await modBrowserEngine.endorseMod(modId);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'endorse-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId }
-      });
-      return { success: true };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:endorse-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'endorse-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:trending', async (_event, timeframe?: string) => {
-    const startTime = Date.now();
-    try {
-      const results = await modBrowserEngine.getTrendingMods(timeframe || 'week');
-      auditLogger.log({
-        operation: 'mod-browser-discovery',
-        tool: 'mod-browser',
-        action: 'get-trending',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { timeframe: timeframe || 'week', modCount: Array.isArray(results) ? results.length : 0 }
-      });
-      return results;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:trending error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-discovery',
-        tool: 'mod-browser',
-        action: 'get-trending',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { timeframe: timeframe || 'week' }
-      });
-      return { success: false, error: errMsg };
     }
   });
 
@@ -16360,7 +16152,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '• No invented FormIDs → builder uses "[GENERATE]"; you write "[VERIFY]" for uncertain vanilla refs\n' +
         '• EditorIDs → MI_ prefix, CamelCase/PascalCase, no spaces (e.g. MI_FactionMycel, MI_Q01_Awakening)\n' +
         '• No Mossy canon violations — no Blue Hills/SPORE resolution, no Dr. Moss fate revealed, no Cultivator identities named\n' +
-        '• All content Nexus-compliant (Creative Director is local-only and must never appear in the release build)\n' +
+        '• All content original and safe to share publicly (no ripped assets, no other authors\' work without permission)\n' +
         '• Mossy Industries aesthetic is organic/botanical — NOT chrome/mechanical/vault-tech\n\n' +
         'Output format (use these EXACT headings):\n\n' +
         '## DLC Concept\n' +
@@ -17754,7 +17546,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (text) sawRefusal = true;
       }
     } catch (err) {
-      console.warn('[CreativeDirector] Ollama unavailable, falling back to Groq cloud:', err);
+      console.warn('[CreativeDirector] Ollama unavailable, trying local KoboldCpp:', err);
     }
 
     // Fully local fallback: KoboldCpp's OpenAI-compatible endpoint (no internet required).
@@ -17822,7 +17614,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (text && !cdIsLikelyRefusal(text)) return String(text);
       }
     } catch (err) {
-      console.warn('[CreativeDirector] Local specialist model unavailable, falling back to Groq:', err);
+      console.warn('[CreativeDirector] Local specialist model unavailable, falling back to the general local model:', err);
     }
 
     // FALLBACK: local Ollama (whatever model is configured) — cdCallAgent has its
@@ -29424,40 +29216,6 @@ print(json.dumps({
     }
   });
 
-  // Nexus Mods OAuth (PKCE) IPC handlers.
-  // signIn() throws a clear error until Mossy has a real client_id from Nexus
-  // (see NEXUS_OAUTH_SETUP.md) — that's surfaced to the renderer as success:false.
-
-  registerHandler('nexus-auth:sign-in', async () => {
-    try {
-      const identity = await nexusAuthService.signIn();
-      return { success: true, identity };
-    } catch (error) {
-      console.error('[Main] nexus-auth:sign-in error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  registerHandler('nexus-auth:sign-out', async () => {
-    try {
-      nexusAuthService.signOut();
-      return { success: true };
-    } catch (error) {
-      console.error('[Main] nexus-auth:sign-out error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  forceHandle('nexus-auth:get-identity', async () => {
-    try {
-      const identity = await nexusAuthService.getIdentity();
-      return { success: true, signedIn: !!identity, identity };
-    } catch (error) {
-      console.error('[Main] nexus-auth:get-identity error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
   // =========================================================================
   // GAME LOG MONITOR HANDLERS (Feature 3)
   // =========================================================================
@@ -36708,7 +36466,7 @@ app.whenReady().then(() => {
     }
   });
 
-  // ── Brain B (Nexus edition) install + lifecycle ─────────────────────────
+  // ── Brain B (local edition) install + lifecycle ─────────────────────────
   // CPU-only, no GPU, edition-agnostic (unlike KoboldCPP's model download,
   // this is offered identically on Mossy NVIDIA and Mossy Universal). See
   // brain-b/nexus/ in the repo for what's actually in the downloaded package

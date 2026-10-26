@@ -2572,7 +2572,7 @@ const electronAPI = {
 
       // IPC handler is not registered – call the Render backend directly.
       // The preload runs in Node context so process.env is available.
-      const backendUrl = ''; // Nexus release: no cloud backend
+      const backendUrl = ''; // no cloud backend: Mossy is local-only
 
       if (!backendUrl) {
         console.warn('[Preload] aiChatGroq: no backend URL configured');
@@ -2887,30 +2887,6 @@ const electronAPI = {
    */
   getAppVersion: (): Promise<{ success: boolean; version?: string; error?: string }> => {
     return ipcRenderer.invoke('get-app-version');
-  },
-
-  /**
-   * Nexus Mods: Sign in via OAuth (PKCE) — opens the system browser to Nexus's
-   * consent screen. Fails with a clear error until Mossy has a registered
-   * client_id (see NEXUS_OAUTH_SETUP.md in the repo root).
-   */
-  nexusSignIn: (): Promise<{ success: boolean; identity?: any; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:sign-in');
-  },
-
-  /**
-   * Nexus Mods: Sign out and clear the stored token.
-   */
-  nexusSignOut: (): Promise<{ success: boolean; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:sign-out');
-  },
-
-  /**
-   * Nexus Mods: Get the current signed-in identity, if any (refreshes the
-   * token first if it's expired).
-   */
-  nexusGetIdentity: (): Promise<{ success: boolean; signedIn?: boolean; identity?: any; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:get-identity');
   },
 
   /**
@@ -3589,26 +3565,12 @@ const electronAPI = {
 
   // Mod Browser
   modBrowser: {
-    searchMods: (query: string, filters?: any): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:search', query, filters),
-    getModDetails: (modId: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:get-details', modId),
-    downloadMod: (modId: string, destination: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:download', modId, destination),
-    rateMod: (modId: string, rating: number, review: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:rate', modId, rating, review),
-    getModReviews: (modId: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:get-reviews', modId),
     createCollection: (name: string, items: any[], description?: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:create-collection', name, items, description),
     shareCollection: (collectionId: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:share-collection', collectionId),
     revealCollection: (exportPath: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:reveal-collection', exportPath),
-    endorseMod: (modId: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:endorse-mod', modId),
-    getTrendingMods: (timeframe?: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:trending', timeframe),
   },
 
   // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, see main.ts
@@ -4272,7 +4234,7 @@ const electronAPI = {
   stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
   koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
 
-  // Brain B (Nexus edition) — one-click install + lifecycle. CPU-only, offered
+  // Brain B (local edition) — one-click install + lifecycle. CPU-only, offered
   // identically on both Mossy editions.
   brainBScan: (): Promise<any> => ipcRenderer.invoke('brainb:scan'),
   brainBCheckLatest: (): Promise<any> => ipcRenderer.invoke('brainb:check-latest'),

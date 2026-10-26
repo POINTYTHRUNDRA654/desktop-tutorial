@@ -4689,9 +4689,9 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
   'creative-director': {
     pageId: 'creative-director',
     pageName: 'Vault-Tec Creative Director',
-    // Not part of the main 23-page guided tour — Creative Director is a local-only dev tool
-    // and shouldn't be presented as a normal user-facing feature. Page 23 is now Guided Tours,
-    // matching the real screenshot set (see 'guided-tours' entry).
+    // Not part of the main 23-page guided tour — Creative Director is an advanced feature,
+    // not a starting point for new modders. Page 23 is Guided Tours, matching the real
+    // screenshot set (see 'guided-tours' entry).
     route: '/creative-director',
     purpose: 'AI team pipeline for designing small, accurate Fallout 4 mods. The team works through a strict gated pipeline — Plan → Review → Analyze → YOUR APPROVAL → Build (section by section) → Verify — before producing a complete BUILD_GUIDE.md you can follow in Creation Kit. Every FormID, EditorID, and NIF path is cross-checked against real FO4 game data. The team never invents records.',
     features: [

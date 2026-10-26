@@ -167,22 +167,7 @@ const JourneyHub = React.lazy(() => import('./JourneyHub'));
 const RuntimeHub = React.lazy(() => import('./RuntimeHub'));
 const SystemHub = React.lazy(() => import('./SystemHub'));
 const GuidesHub = React.lazy(() => import('./GuidesHub'));
-// Vault-Tec Creative Director is a local-only dev tool (see .gitignore) — its source is not
-// tracked in the public repo. import.meta.glob resolves at build time without requiring the
-// file to exist, so a fresh clone of the public repo still builds; it just shows the fallback
-// below instead of the real panel when the local-only files aren't present.
-const creativeDirectorModules = import.meta.glob('./plugin_creative_director/CreativeDirectorPanel.tsx');
-const CreativeDirectorPanel = React.lazy(() => {
-   const loader = creativeDirectorModules['./plugin_creative_director/CreativeDirectorPanel.tsx'];
-   if (loader) return loader() as Promise<{ default: React.ComponentType<any> }>;
-   return Promise.resolve({
-      default: () => (
-         <div className="p-8 text-center text-slate-400">
-            Vault-Tec Creative Director is a local-only development tool and isn't included in this build.
-         </div>
-      ),
-   });
-});
+const CreativeDirectorPanel = React.lazy(() => import('./plugin_creative_director/CreativeDirectorPanel'));
 const FO4NPCDirector = React.lazy(() => import('./FO4NPCDirector'));
 
 // Test Components

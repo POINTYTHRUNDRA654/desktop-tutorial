@@ -274,7 +274,7 @@ Based on this data, give them:
 Be specific, encouraging, and use real FO4 terminology. Keep it under 200 words total.`;
 
       let text = '';
-      // Nexus release: no cloud call; the profile below is generated locally.
+      // No cloud call; the profile below is generated locally.
 
       // Fallback: generate a basic profile locally
       if (!text) {
