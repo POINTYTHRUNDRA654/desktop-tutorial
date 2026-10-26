@@ -56,7 +56,7 @@ DLC_BA2S = [
     FO4_DATA / "DLCworkshop03 - Main.ba2",
 ]
 
-_OUT_DIR  = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+_OUT_DIR  = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or str(Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop" / "game-scan-cache"))
 GRAPH_OUT = _OUT_DIR / "fo4_quest_graph.json"
 
 COMPRESSED_FLAG = 0x00040000

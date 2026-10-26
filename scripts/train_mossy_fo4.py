@@ -24,6 +24,7 @@ AFTER TRAINING:
 """
 
 import argparse, os, sys
+import os
 from pathlib import Path
 
 # Must be set BEFORE unsloth/unsloth_zoo imports to disable torch.compile
@@ -33,7 +34,7 @@ os.environ['UNSLOTH_COMPILE_DISABLE'] = '1'
 # ─── Argument parsing ────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--model",       default="4b",   choices=["4b", "12b"], help="Model size (4b fits 8GB VRAM, 12b needs 15GB)")
-parser.add_argument("--dataset",     default=r"H:\Mossy Memory\finetune\mossy_fo4_train.jsonl")
+parser.add_argument("--dataset",     default=str(Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop" / "finetune" / "mossy_fo4_train.jsonl"))
 parser.add_argument("--steps",       default=200,    type=int, help="Max training steps (200 for small dataset)")
 parser.add_argument("--rank",        default=16,     type=int, help="LoRA rank (8=less VRAM, 32=better quality)")
 parser.add_argument("--output",      default=None,   help="Output directory (default: mossy-fo4-4b/ or mossy-fo4-12b/)")

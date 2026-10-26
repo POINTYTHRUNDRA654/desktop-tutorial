@@ -10,8 +10,8 @@ Sources pulled:
   - Mossy Industries lore (from memory files)
 
 Output:
-  H:\\Mossy Memory\\finetune\\mossy_fo4_train.jsonl   (ChatML format — Unsloth native)
-  H:\\Mossy Memory\\finetune\\mossy_fo4_train_alpaca.jsonl  (Alpaca format — fallback)
+  %APPDATA%\\mossy-desktop\\finetune\\mossy_fo4_train.jsonl   (ChatML format — Unsloth native)
+  %APPDATA%\\mossy-desktop\\finetune\\mossy_fo4_train_alpaca.jsonl  (Alpaca format — fallback)
 
 Usage:
   python generate_finetune_dataset.py
@@ -20,13 +20,15 @@ Usage:
 """
 
 import argparse, json, os, random, textwrap
+import os
 from pathlib import Path
 from datetime import datetime
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
 BRAIN_NEURONS  = Path(r"C:\Users\Owner\AppData\Roaming\mossy-desktop\brain-neurons.json")
-KNOWLEDGE_VAULT = Path(r"H:\Mossy Memory\knowledge-vault.json")
-OUT_DIR        = Path(r"H:\Mossy Memory\finetune")
+_MOSSY_DATA = Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop"
+KNOWLEDGE_VAULT = _MOSSY_DATA / "knowledge-vault.json"
+OUT_DIR        = _MOSSY_DATA / "finetune"
 
 SYSTEM_PROMPT = """You are Mossy — the AI of Mossy Industries, a pre-war company specialising in AI, fungal networks, and bioengineering.
 

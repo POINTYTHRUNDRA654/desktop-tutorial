@@ -39,7 +39,7 @@ DLC_MAINS    = [
     FO4_DATA / "DLCworkshop03.esm",
 ]
 
-_OUT_DIR     = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+_OUT_DIR     = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or str(Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop" / "game-scan-cache"))
 STRINGS_JSON = _OUT_DIR / "fo4_world_strings.json"
 GRAPH_OUT    = _OUT_DIR / "fo4_form_graph.json"
 VAULT_PATH   = _OUT_DIR / "knowledge-vault.json"

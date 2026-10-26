@@ -25,7 +25,7 @@ from pathlib import Path
 
 FO4_DATA = Path(os.environ.get("MOSSY_FO4_DATA") or r"E:\Steam\steamapps\common\Fallout 4\Data")
 SCRIPTS_BASE = FO4_DATA / "Scripts" / "Source" / "Base"
-_OUT_DIR = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+_OUT_DIR = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or str(Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop" / "game-scan-cache"))
 DEFAULT_OUT = _OUT_DIR / "fo4_papyrus_api.json"
 
 # The foundational script objects most other scripts extend or call into —
