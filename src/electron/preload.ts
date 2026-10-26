@@ -3577,7 +3577,7 @@ const electronAPI = {
     installDefaults: (): Promise<any> => ipcRenderer.invoke('setup:install-defaults'),
     freeSpace: (dir: string): Promise<number | null> => ipcRenderer.invoke('setup:free-space', dir),
     pickFolder: (params?: { defaultPath?: string; title?: string }): Promise<string | null> => ipcRenderer.invoke('setup:pick-folder', params),
-    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
+    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
     setOllamaModelsDir: (dir: string): Promise<any> => ipcRenderer.invoke('setup:set-ollama-models-dir', dir),
     onInstallProgress: (callback: (p: any) => void) => {
       const subscription = (_event: any, p: any) => callback(p);

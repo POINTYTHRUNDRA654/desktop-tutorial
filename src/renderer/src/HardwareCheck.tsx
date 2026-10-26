@@ -24,7 +24,7 @@ type ProfileResult = {
   capabilities?: Capability[];
   recommendedModel?: { tag: string; label: string; sizeGB: number; onGpu: boolean };
 };
-type ComponentId = 'ollama' | 'python' | 'photocraft' | 'cd-helpers';
+type ComponentId = 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack';
 type Progress = { id?: string; tag?: string; phase?: string; status?: string; message?: string; received?: number | null; total?: number | null; completed?: number | null };
 type Locations = Record<ComponentId | 'ollamaModels', string>;
 
@@ -37,7 +37,7 @@ const STATE_STYLE: Record<CapabilityState, { label: string; icon: React.Componen
   'not-supported': { label: 'Not on this PC', icon: Ban, cls: 'text-slate-400 border-slate-600/50 bg-slate-800/40' },
 };
 
-const COMPONENT_NAME: Record<ComponentId, string> = { ollama: 'Ollama', python: 'Python', photocraft: 'PhotoCraft', 'cd-helpers': 'the AI helpers' };
+const COMPONENT_NAME: Record<ComponentId, string> = { ollama: 'Ollama', python: 'Python', photocraft: 'PhotoCraft', 'cd-helpers': 'the AI helpers', 'memory-pack': 'the starter memory' };
 const gb = (mb: number | null) => (mb ? `${Math.round((mb / 1024) * 10) / 10} GB` : 'unknown');
 const pctOf = (p: Progress | null) => {
   const done = p?.received ?? p?.completed;
@@ -213,7 +213,9 @@ export const HardwareCheck: React.FC<{ onContinue?: () => void; embedded?: boole
                         <FolderField label={`Install ${COMPONENT_NAME[id]} into`} value={locations[id]} onChange={(v) => setLocations({ ...locations, [id]: v })} disabled={!!busy} />
                         {id === 'ollama' && <FolderField label="Store AI models in (they are the big part: 2-8 GB each)" value={modelsDir} onChange={setModelsDir} disabled={!!busy} />}
                         <div className="text-[11px] text-slate-500">
-                          {id === 'cd-helpers'
+                          {id === 'memory-pack'
+                            ? 'Mossy downloads the pack from its GitHub release and checks every file against the published SHA-256 list. Files from your own scans are never replaced.'
+                            : id === 'cd-helpers'
                             ? 'Mossy copies the helper scripts that came with it, makes a private Python environment in this folder and installs their packages from PyPI. Nothing else on your PC changes.'
                             : `Mossy downloads the official release, checks its SHA-256${id === 'photocraft' ? '' : ' and publisher signature'}, and only then installs it. The download is deleted afterwards.`}
                         </div>

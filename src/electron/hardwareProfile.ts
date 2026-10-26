@@ -141,7 +141,7 @@ function findPhotoCraft(settings: Record<string, unknown>): string | null {
   return null;
 }
 
-export async function getHardwareProfile(opts: { edition: 'nvidia' | 'universal'; settings: Record<string, unknown>; dataDir: string }): Promise<HardwareProfile> {
+export async function getHardwareProfile(opts: { edition: 'nvidia' | 'universal'; settings: Record<string, unknown>; dataDir: string; scanCacheDir?: string }): Promise<HardwareProfile> {
   const release = os.release();
   const build = Number.parseInt(release.split('.')[2] || '', 10);
   let freeDiskGB: number | null = null;
@@ -183,6 +183,8 @@ export async function getHardwareProfile(opts: { edition: 'nvidia' | 'universal'
       comfyui: { running: comfyRunning, configuredPath: comfyPath && fs.existsSync(comfyPath) ? comfyPath : null },
       photocraft: findPhotoCraft(opts.settings),
       brainB,
+      // Count of Mossy's game-scan files present (own scans or the starter memory pack).
+      gameMemoryFiles: (() => { try { return fs.readdirSync(opts.scanCacheDir || path.join(opts.dataDir, 'game-scan-cache')).filter((f) => /^fo4_.*\.json$/.test(f)).length; } catch { return 0; } })(),
       cdHelpers: (() => { const d = String(opts.settings.cdHelpersPath || '').trim(); return d && fs.existsSync(path.join(d, 'venv', 'Scripts', 'python.exe')) ? d : null; })(),
     },
   };

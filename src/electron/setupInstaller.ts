@@ -25,7 +25,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-export type ComponentId = 'ollama' | 'python' | 'photocraft' | 'cd-helpers';
+export type ComponentId = 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack';
 export type Progress = { id: ComponentId; phase: 'resolve' | 'download' | 'verify' | 'install' | 'configure' | 'done'; message: string; received?: number; total?: number };
 type Report = (p: Progress) => void;
 
@@ -34,6 +34,8 @@ const LOCAL_PROGRAMS = path.join(process.env.LOCALAPPDATA || path.join(os.homedi
 export function defaultLocations(): Record<ComponentId, string> & { ollamaModels: string } {
   return {
     'cd-helpers': path.join(LOCAL_PROGRAMS, 'Mossy', 'CreativeDirectorHelpers'),
+    // Overridden by main.ts with the real scan cache folder (Mossy's own data folder unless moved).
+    'memory-pack': path.join(process.env.APPDATA || os.homedir(), 'mossy-desktop', 'game-scan-cache'),
     ollama: path.join(LOCAL_PROGRAMS, 'Ollama'),
     ollamaModels: process.env.OLLAMA_MODELS || path.join(os.homedir(), '.ollama', 'models'),
     python: path.join(LOCAL_PROGRAMS, 'Python', 'Python313'),
@@ -293,6 +295,56 @@ async function installPhotoCraft(targetDir: string, report: Report): Promise<{ m
   return { message: `PhotoCraft ${rel.tag} installed in ${path.dirname(exe)}.`, exe };
 }
 
+/**
+ * Starter memory: Mossy's pre-built Fallout 4 scan results (scripts/build_memory_pack.py),
+ * published as release assets on the Mossy GitHub repo under the tag below. Every file is
+ * checked against the release's manifest (SHA-256 of the zip and of each file inside), and
+ * only files the user does not already have are written, so their own scans always win.
+ */
+const MEMORY_PACK_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
+const MEMORY_PACK_TAG = 'memory-pack-v1';
+
+async function installMemoryPack(targetDir: string, report: Report): Promise<string> {
+  report({ id: 'memory-pack', phase: 'resolve', message: 'Finding the starter memory release on GitHub' });
+  const r = await fetch(`https://api.github.com/repos/${MEMORY_PACK_REPO}/releases/tags/${MEMORY_PACK_TAG}`, { headers: { 'User-Agent': 'Mossy-Setup', Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(20_000) });
+  if (r.status === 404) throw new Error('The starter memory has not been published on GitHub yet. Nothing was changed.');
+  if (!r.ok) throw new Error(`GitHub answered HTTP ${r.status}.`);
+  const rel: any = await r.json();
+  const assets: { name: string; browser_download_url: string }[] = rel.assets || [];
+  const manifestAsset = assets.find((a) => a.name.endsWith('.manifest.json'));
+  if (!manifestAsset) throw new Error('The release has no manifest; refusing to install unchecked files.');
+  const manifest = JSON.parse(await fetchText(manifestAsset.browser_download_url));
+  const zipAsset = assets.find((a) => a.name === manifest.zip);
+  if (!zipAsset) throw new Error(`The release is missing ${manifest.zip}.`);
+
+  const file = path.join(downloadDirFor(targetDir), manifest.zip);
+  const actual = await download('memory-pack', zipAsset.browser_download_url, file, report);
+  report({ id: 'memory-pack', phase: 'verify', message: 'Checking the download (SHA-256)' });
+  if (actual !== String(manifest.zip_sha256).toLowerCase()) { fs.rmSync(file, { force: true }); throw new Error('The download does not match the published SHA-256. It was deleted; nothing was installed.'); }
+
+  report({ id: 'memory-pack', phase: 'install', message: `Unpacking into ${targetDir}` });
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(file);
+  fs.mkdirSync(targetDir, { recursive: true });
+  let added = 0;
+  let kept = 0;
+  for (const entry of zip.getEntries()) {
+    const name = path.basename(entry.entryName);
+    const expected = manifest.files?.[name]?.sha256;
+    if (entry.isDirectory || !expected) continue; // only files the manifest vouches for
+    const data: Buffer = entry.getData();
+    if (crypto.createHash('sha256').update(data).digest('hex') !== String(expected).toLowerCase()) {
+      throw new Error(`${name} inside the pack does not match the manifest. Stopped; ${added} file(s) were already added.`);
+    }
+    const out = path.join(targetDir, name);
+    if (fs.existsSync(out)) { kept++; continue; }
+    fs.writeFileSync(out, data);
+    added++;
+  }
+  try { fs.rmSync(file, { force: true }); } catch { /* leave it */ }
+  return `Starter memory ${manifest.version}: added ${added} file(s) to ${targetDir}${kept ? `, kept ${kept} of your own scans` : ''}.`;
+}
+
 export async function installComponent(
   id: ComponentId,
   /** verifyOnly: download and check, then stop before installing (used by the automated test). */
@@ -308,6 +360,11 @@ export async function installComponent(
       const message = await installOllama(target, opts.modelsDir, report, opts.verifyOnly);
       report({ id, phase: 'done', message });
       return { success: true, message };
+    }
+    if (id === 'memory-pack') {
+      const message = await installMemoryPack(target, report);
+      report({ id, phase: 'done', message });
+      return { success: true, message, exe: target };
     }
     if (id === 'cd-helpers') {
       if (!opts.helpersSourceDir) throw new Error('The helper scripts were not found in this Mossy install.');

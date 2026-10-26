@@ -9414,7 +9414,8 @@ end.
     try {
       const { getHardwareProfile } = require('./hardwareProfile');
       const { computeCapabilities, recommendOllamaModel } = require('../shared/hardwareCapabilities');
-      const profile = await getHardwareProfile({ edition: MOSSY_EDITION, settings: loadSettings() || {}, dataDir: app.getPath('userData') });
+      const scanCacheDir = String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache');
+      const profile = await getHardwareProfile({ edition: MOSSY_EDITION, settings: loadSettings() || {}, dataDir: app.getPath('userData'), scanCacheDir });
       const capabilities = computeCapabilities(profile);
       const recommendedModel = recommendOllamaModel(profile);
       const s: any = loadSettings() || {};
@@ -9432,6 +9433,7 @@ end.
   registerHandler('setup:install-defaults', async () => {
     const { defaultLocations, freeSpaceGB } = require('./setupInstaller');
     const locations = defaultLocations();
+    locations['memory-pack'] = String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache');
     const free: Record<string, number | null> = {};
     for (const [k, v] of Object.entries(locations)) free[k] = freeSpaceGB(String(v));
     return { locations, free };
@@ -9451,9 +9453,9 @@ end.
     return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
   });
 
-  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers'; targetDir: string; modelsDir?: string }) => {
+  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack'; targetDir: string; modelsDir?: string }) => {
     if (setupInstallActive) return { success: false, error: 'Another install is already running.' };
-    if (!['ollama', 'python', 'photocraft', 'cd-helpers'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
+    if (!['ollama', 'python', 'photocraft', 'cd-helpers', 'memory-pack'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
     setupInstallActive = true;
     try {
       const { installComponent } = require('./setupInstaller');
@@ -9474,6 +9476,11 @@ end.
       if (result.success && params.id === 'photocraft' && result.exe) {
         const s: any = loadSettings() || {};
         saveSettings({ ...s, photocraftPath: result.exe });
+      }
+      if (result.success && params.id === 'memory-pack' && result.exe) {
+        // Remember a folder the user moved off the default (e.g. to another drive).
+        const s: any = loadSettings() || {};
+        if (path.resolve(result.exe) !== path.resolve(path.join(app.getPath('userData'), 'game-scan-cache'))) saveSettings({ ...s, gameScanCacheDir: result.exe });
       }
       if (result.success && params.id === 'cd-helpers' && result.exe) {
         const s: any = loadSettings() || {};
@@ -30308,7 +30315,9 @@ print(json.dumps({
    * (if present) so scans already run before this fix keep working without re-running.
    */
   function resolveScanCacheDir(): string {
-    const portable = path.join(app.getPath('userData'), 'game-scan-cache');
+    // A user-chosen folder (Your PC > starter memory lets people put it on another drive).
+    const chosen = String((loadSettings() as any)?.gameScanCacheDir || '').trim();
+    const portable = chosen || path.join(app.getPath('userData'), 'game-scan-cache');
     if (!fs.existsSync(portable)) {
       try { fs.mkdirSync(portable, { recursive: true }); } catch { /* best effort */ }
     }
@@ -35350,7 +35359,7 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
         // Inlined rather than calling resolveScanCacheDir() directly: that
         // function is scoped inside a different enclosing closure than this
         // one, not reachable from here.
-        GAME_SCAN_CACHE_PATH: path.join(app.getPath('userData'), 'game-scan-cache'),
+        GAME_SCAN_CACHE_PATH: String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache'),
         // ChangeGate lessons (see brain-b/change_gate.py). Approved lessons
         // ship inside the package at knowledge/lessons; the review queue lives
         // in runtime-data. MOSSY_LESSONS_DIR can be pre-set in the environment

@@ -37,6 +37,8 @@ export interface PrerequisiteStatus {
   brainB: string | null;
   /** Folder of the installed Creative Director AI helpers, or null. */
   cdHelpers: string | null;
+  /** How many of Mossy's Fallout 4 scan files exist (own scans or the starter memory). */
+  gameMemoryFiles: number;
 }
 
 export interface HardwareProfile {
@@ -66,7 +68,7 @@ export interface CapabilityAction {
 }
 
 export interface Capability {
-  id: 'core' | 'local-chat' | 'brain-b' | 'image-ai' | 'texture-tools' | 'voice' | 'fine-tune' | 'edition' | 'cd-helpers';
+  id: 'core' | 'local-chat' | 'brain-b' | 'image-ai' | 'texture-tools' | 'voice' | 'fine-tune' | 'edition' | 'cd-helpers' | 'memory-pack';
   title: string;
   state: CapabilityState;
   /** One plain sentence saying what is true on this PC. */
@@ -279,6 +281,14 @@ export function computeCapabilities(p: HardwareProfile): Capability[] {
         : 'Local services that let the Creative Director draft quests, dialogue and NPCs and search your lore with your own AI model. About 400 MB; nothing leaves your PC.',
       actions: missing.length ? [] : [{ kind: 'install', label: 'Download and set up the AI helpers for me (400 MB)', target: 'cd-helpers' }] });
   }
+
+  // Starter memory: Mossy's pre-built Fallout 4 game knowledge (Bethesda data, facts only).
+  caps.push(pre.gameMemoryFiles >= 40
+    ? { id: 'memory-pack', title: 'Mossy\'s Fallout 4 game memory', state: 'ready',
+        summary: `Present: ${pre.gameMemoryFiles} game knowledge files (FormIDs, records, placements). Mossy uses them to answer with real game data.`, actions: [] }
+    : { id: 'memory-pack', title: 'Mossy\'s Fallout 4 game memory (starter pack)', state: 'needs-setup',
+        summary: 'A head start: Mossy\'s pre-built knowledge of Fallout 4 and its DLCs (FormIDs, records, placements; no game text), so she can answer with real game data without hours of scanning. 7 MB download, 117 MB unpacked.',
+        actions: [{ kind: 'install', label: 'Download the starter memory (7 MB)', target: 'memory-pack' }] });
 
   caps.push({
     id: 'voice',

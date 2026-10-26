@@ -20,6 +20,7 @@ const profile = (over: Partial<HardwareProfile> = {}, pre: Partial<HardwareProfi
     photocraft: null,
     brainB: null,
     cdHelpers: null,
+    gameMemoryFiles: 0,
     ...pre,
   },
 });
@@ -115,6 +116,11 @@ describe('computeCapabilities', () => {
     const ready = profile({}, { python: 'Python 3.13.17', ollama: { installed: true, running: true, version: '0.12', models: [] } });
     expect(cap(computeCapabilities(ready), 'cd-helpers').actions[0]).toMatchObject({ kind: 'install', target: 'cd-helpers' });
     expect(cap(computeCapabilities(profile({}, { cdHelpers: 'D:\\Helpers' })), 'cd-helpers').state).toBe('ready');
+  });
+
+  it('offers the starter memory until the game scan files exist', () => {
+    expect(cap(computeCapabilities(profile()), 'memory-pack').actions[0]).toMatchObject({ kind: 'install', target: 'memory-pack' });
+    expect(cap(computeCapabilities(profile({}, { gameMemoryFiles: 59 })), 'memory-pack').state).toBe('ready');
   });
 
   it('lets the user move Ollama models to another drive once Ollama runs', () => {
