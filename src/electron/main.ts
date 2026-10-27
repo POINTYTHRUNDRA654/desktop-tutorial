@@ -24064,6 +24064,54 @@ HOW TO APPLY THIS: when a user asks why their mod isn't getting downloads, or is
     return { success: true, block: buildBrainNeuronBlock(), neuronCount: _brainNeurons.size };
   });
 
+  // Question-relevant lines from Mossy's game-scan neurons, for the local
+  // models' compact prompt. buildBrainNeuronBlock() only ever reached the
+  // cloud chat path, which 6.0.0 removed, so since then none of the scanned
+  // game data (form/asset graphs, catalogs, Papyrus analysis) reached an
+  // answer. Neurons are matched on id/domain/title there; here every LINE of
+  // every neuron is scored by how many of the question's keywords it
+  // contains, so a question about one weapon or perk gets the matching lines
+  // rather than a whole 40K-char neuron. All neurons together are small
+  // (~350 KB measured), so scanning them per turn is cheap.
+  registerHandler('brain:get-relevant-lines', async (_event, query: string, budget?: number) => {
+    try {
+      const max = Math.max(500, Math.min(Number(budget) || 5_000, 20_000));
+      const keywords = extractNeuronQueryKeywords(query || '');
+      if (keywords.length === 0) return { success: true, block: '', lines: 0 };
+      // Two matching keywords per line whenever the question has two or more
+      // (one-word matches on chit-chat such as "thanks, that helps" pulled in
+      // unrelated lines in testing).
+      const need = keywords.length >= 2 ? 2 : 1;
+      const hits: Array<{ neuron: BrainNeuron; line: string; score: number }> = [];
+      for (const n of getAllBrainNeurons()) {
+        const titleBonus = scoreNeuronRelevance(n, keywords) > 0 ? 1 : 0;
+        for (const raw of String(n.content || '').split('\n')) {
+          const line = raw.trim();
+          if (line.length < 8 || line.length > 600) continue;
+          const low = line.toLowerCase();
+          let score = 0;
+          for (const kw of keywords) if (low.includes(kw)) score += 1;
+          if (score >= need) hits.push({ neuron: n, line, score: score + titleBonus });
+        }
+      }
+      hits.sort((a, b) => b.score - a.score);
+      const byNeuron = new Map<string, { title: string; lines: string[] }>();
+      let used = 0;
+      for (const h of hits) {
+        if (used + h.line.length + 1 > max) continue;
+        const g = byNeuron.get(h.neuron.id) ?? { title: h.neuron.title, lines: [] };
+        if (g.lines.includes(h.line)) continue;
+        g.lines.push(h.line);
+        byNeuron.set(h.neuron.id, g);
+        used += h.line.length + 1;
+      }
+      const block = [...byNeuron.values()].map((g) => `[${g.title}]\n${g.lines.join('\n')}`).join('\n\n');
+      return { success: true, block, lines: hits.length, used };
+    } catch (err: any) {
+      return { success: false, error: String(err?.message || err), block: '' };
+    }
+  });
+
   // =========================================================================
   // MOSSY BRAIN SCAN ENGINE — All knowledge scans registered as neurons
   // =========================================================================

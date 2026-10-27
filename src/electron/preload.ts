@@ -4123,6 +4123,10 @@ const electronAPI = {
   brain: {
     getFullBrain: (): Promise<any> =>
       ipcRenderer.invoke('brain:get-full-brain'),
+    // Question-relevant lines from the game-scan neurons, for local models'
+    // compact prompt (see main.ts 'brain:get-relevant-lines').
+    getRelevantLines: (query: string, budget?: number): Promise<any> =>
+      ipcRenderer.invoke('brain:get-relevant-lines', query, budget),
     // Restored 2026-09-10 — these scan triggers (and the neuron list) were fully
     // implemented in main.ts but had no bridge exposure at all, so the "rescan"
     // button that used to call them had nothing left to call. runAllScans is the

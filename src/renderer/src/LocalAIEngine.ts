@@ -789,6 +789,7 @@ function pickInjectedSection(injected: string, header: string): string {
  */
 function buildLocalToolSystemPrompt(p: {
   groundingContext?: string;
+  gameScanContext?: string;
   brainBUnavailable?: boolean;
   sceneContext?: Record<string, unknown> | null;
   injectedContext: string;
@@ -802,6 +803,12 @@ function buildLocalToolSystemPrompt(p: {
     );
   } else if (p.brainBUnavailable) {
     parts.push('### NOTE\nMossy\'s knowledge base (Brain B) is not running right now, so there is no retrieved documentation for this question. If the answer needs it, say so plainly.');
+  }
+  if (p.gameScanContext && p.gameScanContext.trim()) {
+    parts.push(
+      "### FROM MOSSY'S SCAN OF THIS USER'S GAME (real records, assets and scripts from their install; use these exact names, IDs and paths):\n" +
+      clipForLocal(p.gameScanContext.trim(), 5_000),
+    );
   }
   const web = pickInjectedSection(p.injectedContext, 'LIVE WEB SEARCH RESULTS');
   if (web) parts.push(`### LIVE WEB SEARCH RESULTS\n${clipForLocal(web, 3_000)}`);
@@ -1112,6 +1119,15 @@ export const LocalAIEngine = {
         '\n\n**Note: Mossy\'s knowledge/context service (Brain B) is not reachable right now.** You have no live Blender scene data, no citations, and no retrieval for this specific turn — not because you lack the capability to ever access them, but because that background service is down right now, for a reason unrelated to this question. If this question genuinely needs live scene/game-state data or cited documentation to answer well, say so plainly and specifically — e.g. "I can\'t read your Blender scene right now because my context service isn\'t running" — never claim you have no way to access the user\'s machine or Blender at all, which is not true. For questions that don\'t need any of that, just answer normally.';
     }
 
+    // Matching lines from Mossy's game-scan neurons (form/asset graphs,
+    // catalogs, Papyrus analysis). Only the cloud path ever received these,
+    // and 6.0.0 removed it, so this is how the local models get them.
+    let gameScanContext: string | undefined;
+    try {
+      const scan = await (window as any).electronAPI?.brain?.getRelevantLines?.(query, 5_000);
+      if (scan?.success && scan.block) gameScanContext = String(scan.block);
+    } catch { /* scan data is optional; answer without it */ }
+
     const generateStart = Date.now();
     const response = await this._generateResponseCore(
       query, effectiveSystemInstruction, conversationHistory, voiceMode, signal,
@@ -1140,6 +1156,7 @@ export const LocalAIEngine = {
           enrichment?.appHelpRelated ? getPlatformMapBlockForPrompt() : '',
         ].filter(Boolean).join('\n\n') || undefined,
         brainBUnavailable: !enrichment,
+        gameScanContext,
       },
     );
     const generateMs = Date.now() - generateStart;
@@ -1438,7 +1455,7 @@ export const LocalAIEngine = {
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean; groundingContext?: string; brainBUnavailable?: boolean }): Promise<AIResponse> {
+  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean; groundingContext?: string; gameScanContext?: string; brainBUnavailable?: boolean }): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -2075,6 +2092,7 @@ export const LocalAIEngine = {
       // LOCAL_TOOL_PROMPT_BUDGET for what that did).
       const toolSystem = buildLocalToolSystemPrompt({
         groundingContext: localOptions?.groundingContext,
+        gameScanContext: localOptions?.gameScanContext,
         brainBUnavailable: localOptions?.brainBUnavailable,
         sceneContext: localOptions?.sceneContext,
         injectedContext,
@@ -2085,7 +2103,7 @@ export const LocalAIEngine = {
         ...trimHistoryForLocal(conversationHistory),
         { role: 'user', content: query },
       ];
-      void api?.writeDiagnosticLog?.(`[local-prompt] voiceMode=${voiceMode} system=${toolSystem.length} grounding=${localOptions?.groundingContext?.length ?? 0} history=${toolMessages.length - 2}`);
+      void api?.writeDiagnosticLog?.(`[local-prompt] voiceMode=${voiceMode} system=${toolSystem.length} grounding=${localOptions?.groundingContext?.length ?? 0} gameScan=${localOptions?.gameScanContext?.length ?? 0} history=${toolMessages.length - 2}`);
       // Lemonade and Ollama tool calls share one shape (both go through
       // openaiCompat.ts). Groq's own toolCalls carry `args` as
       // parsed-JSON-with-string-fallback (see chat.ts's BackendToolCall) —
