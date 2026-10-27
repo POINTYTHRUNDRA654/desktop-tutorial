@@ -411,6 +411,15 @@ def generate_text_backend(prompt: str, max_new_tokens: int = 512, temperature: f
             "model": OLLAMA_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
+            # Thinking models (gemma4, qwen3.5) otherwise reason privately
+            # first: measured 2026-10-27, gemma4:12b took ~7-8 s per small
+            # JSON call instead of ~1 s, so /enrich (several calls) passed
+            # Mossy's 15 s wait and her answers lost Brain B's knowledge.
+            # Accepted by non-thinking models too (gemma2, llama3 tested).
+            "think": False,
+            # Same as Mossy's own Ollama chat calls, so when both use one
+            # model it stays loaded instead of being reloaded per message.
+            "keep_alive": "30m",
             "options": {"temperature": temperature, "num_predict": int(max_new_tokens)},
         },
         timeout=180,
