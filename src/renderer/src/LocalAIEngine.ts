@@ -1956,47 +1956,81 @@ export const LocalAIEngine = {
         ? (localOptions?.actionRelated ? 'required' : 'auto')
         : undefined;
 
-      // ── Lemonade first: real tool-calling-capable local fallback, live-verified
-      // 2026-08-24 against Qwen3-4B-Instruct-2507-GGUF (see src/electron/ml/lemonade.ts
-      // for the full comparison against Groq/qwen3.6-27b and why the OpenAI dialect
-      // was chosen). It's the ONLY local path below that can fulfill a tool-calling
-      // turn at all — the generic mlLlmGenerate path further down is plain
-      // single-prompt text with no tool support, so a tool-requesting turn has to
-      // succeed here or degrade honestly (see the `wantsTools` block below), never
-      // silently fall through to a provider that can't do what was asked.
-      // Status checked FIRST via a fast (1.5s) health probe, deliberately separate
-      // from the chat call itself, so a genuinely-not-running Lemonade fails fast
-      // instead of the user waiting out a full chat-completion timeout on top of
-      // the Groq failure that already happened this turn.
+      // ── Tool-capable local chain: Ollama (best tutoring model) → Lemonade →
+      // any other tool-capable Ollama model. These are the ONLY local paths that
+      // can fulfill a tool-calling turn at all — the generic mlLlmGenerate path
+      // further down is plain single-prompt text with no tool support, so a
+      // tool-requesting turn has to succeed here or degrade honestly (see the
+      // `wantsTools` block below), never silently fall through to a provider
+      // that can't do what was asked. Lemonade was live-verified 2026-08-24
+      // against Qwen3-4B-Instruct-2507-GGUF (see src/electron/ml/lemonade.ts);
+      // Ollama's model choice is checked per model (ollamaTools.ts). Each step
+      // fails fast (1.5s probes) when its server isn't running.
+      const toolMessages: Array<{ role: string; content: string }> = [
+        { role: 'system', content: enhancedSystemInstruction + localOverride + injectedContext },
+        ...(conversationHistory ?? [])
+          .filter(m => m.content && m.content.trim())
+          .map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: query },
+      ];
+      // Lemonade and Ollama tool calls share one shape (both go through
+      // openaiCompat.ts). Groq's own toolCalls carry `args` as
+      // parsed-JSON-with-string-fallback (see chat.ts's BackendToolCall) —
+      // mirrored here so a caller can treat a local tool call identically.
+      const toToolResponse = (resp: any): AIResponse | null => {
+        if (!(resp?.ok && (resp.text || (resp.toolCalls && resp.toolCalls.length > 0)))) return null;
+        const parsedToolCalls = Array.isArray(resp.toolCalls)
+          ? resp.toolCalls.map((tc: { id: string; name: string; args: string }) => {
+              let args: Record<string, unknown> | string = tc.args;
+              try { args = JSON.parse(tc.args); } catch { /* keep raw string */ }
+              return { id: tc.id, name: tc.name, args };
+            })
+          : undefined;
+        return {
+          content: String(resp.text || ''), context: { citations }, usedLocalFallback: true,
+          toolCalls: parsedToolCalls, actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
+        };
+      };
+      // Ollama with a model Ollama itself reports as tool-capable (see
+      // src/electron/ml/ollamaTools.ts). Since 6.0.0 there is no cloud path, so
+      // this local chain answers every turn.
+      const tryOllamaTools = async (allowLastResort: boolean): Promise<AIResponse | null> => {
+        try {
+          const resp = await api?.mlOllamaToolChat?.({
+            messages: toolMessages, tools: localOptions?.tools, toolChoice,
+            timeoutMs: localOptions?.timeoutMs, allowLastResort,
+          });
+          const out = toToolResponse(resp);
+          if (out) {
+            console.log(`[LocalAIEngine] ✅ Ollama tool chat succeeded (${resp.model})`);
+            return out;
+          }
+          console.warn('[LocalAIEngine] Ollama tool chat unavailable:', resp?.error);
+        } catch (ollamaErr) {
+          console.warn('[LocalAIEngine] Ollama tool chat attempt failed:', ollamaErr);
+        }
+        return null;
+      };
+
+      // 1. Ollama's best tutoring model first. A 2026-10-27 tutoring eval with
+      //    Brain B context (CHANGELOG.md) had qwen3.5:9b say plainly when the
+      //    context didn't cover something, where Lemonade's Qwen3-4B was ~2x
+      //    faster but confidently taught wrong facts. Mossy is a tutor, so
+      //    accuracy wins.
+      const ollamaBest = await tryOllamaTools(false);
+      if (ollamaBest) return ollamaBest;
+
+      // 2. Lemonade (Qwen3-4B), when Ollama or a good model isn't there.
       try {
         const status = await api?.mlLemonadeStatus?.();
         if (status?.ok) {
-          const messages: Array<{ role: string; content: string }> = [
-            { role: 'system', content: enhancedSystemInstruction + localOverride + injectedContext },
-            ...(conversationHistory ?? [])
-              .filter(m => m.content && m.content.trim())
-              .map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: query },
-          ];
           const resp = await api.mlLemonadeChat({
-            messages, tools: localOptions?.tools, toolChoice, timeoutMs: localOptions?.timeoutMs,
+            messages: toolMessages, tools: localOptions?.tools, toolChoice, timeoutMs: localOptions?.timeoutMs,
           });
-          if (resp?.ok && (resp.text || (resp.toolCalls && resp.toolCalls.length > 0))) {
+          const out = toToolResponse(resp);
+          if (out) {
             console.log('[LocalAIEngine] ✅ Lemonade local fallback succeeded');
-            // Groq's own toolCalls carry `args` as parsed-JSON-with-string-fallback
-            // (see chat.ts's BackendToolCall) — mirrored here so a caller can treat
-            // a Lemonade tool call identically to a Groq one downstream.
-            const parsedToolCalls = Array.isArray(resp.toolCalls)
-              ? resp.toolCalls.map((tc: { id: string; name: string; args: string }) => {
-                  let args: Record<string, unknown> | string = tc.args;
-                  try { args = JSON.parse(tc.args); } catch { /* keep raw string */ }
-                  return { id: tc.id, name: tc.name, args };
-                })
-              : undefined;
-            return {
-              content: String(resp.text || ''), context: { citations }, usedLocalFallback: true,
-              toolCalls: parsedToolCalls, actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
-            };
+            return out;
           }
           console.warn('[LocalAIEngine] Lemonade reachable but chat failed:', resp?.error);
         } else {
@@ -2005,6 +2039,10 @@ export const LocalAIEngine = {
       } catch (lemonadeErr) {
         console.warn('[LocalAIEngine] Lemonade fallback attempt failed:', lemonadeErr);
       }
+
+      // 3. Any other tool-capable Ollama model, so Mossy still answers.
+      const ollamaAny = await tryOllamaTools(true);
+      if (ollamaAny) return ollamaAny;
 
       // A tool-calling turn has nowhere else to go from here — the generic
       // local-provider path below (mlLlmGenerate) is plain single-prompt text
@@ -2016,7 +2054,7 @@ export const LocalAIEngine = {
       // available instead of pretending a text-only reply fulfilled the request.
       if (wantsTools) {
         return {
-          content: "Mossy's local fallback isn't available right now — Lemonade Server (the local model that can actually use tools) isn't running or isn't reachable. Start Lemonade Server to enable offline tool use, or try again once the cloud connection is back.",
+          content: "I can't answer right now: neither Ollama nor Lemonade Server is running with a model that can use my tools. Start Ollama (with a model such as qwen3.5:9b installed) or Lemonade Server, then ask me again.",
           context: { citations }, usedLocalFallback: true,
           actionRelated: localOptions?.actionRelated, toolChoiceUsed: toolChoice,
         };

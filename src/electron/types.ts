@@ -264,6 +264,9 @@ export const IPC_CHANNELS = {
   // local fallback, see src/electron/ml/lemonade.ts
   ML_LEMONADE_STATUS: 'ml-lemonade-status',
   ML_LEMONADE_CHAT: 'ml-lemonade-chat',
+  // Ollama tool-calling chat — second local tool-capable path, see
+  // src/electron/ml/ollamaTools.ts
+  ML_OLLAMA_TOOL_CHAT: 'ml-ollama-tool-chat',
 
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',

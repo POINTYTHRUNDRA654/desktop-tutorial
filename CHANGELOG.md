@@ -1,5 +1,14 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.1] — 2026-10-27
+
+### Fixed
+- **Mossy stopped answering unless Lemonade Server was running.** Since 6.0.0 every chat is answered on your PC, and most messages give Mossy tools to use. Those messages could only be answered by Lemonade, so with Lemonade closed she replied "Lemonade Server isn't running" even when Ollama was running with suitable models installed. She now answers through Ollama too.
+  - Order: Ollama with its best tutoring model first, then Lemonade, then any other Ollama model that can use tools. If none of them is running, she says so and names both.
+  - Mossy asks Ollama which installed models can use tools instead of assuming. Many popular models (for example gemma2 and llama3) cannot. Your own Ollama chat model is used when it can.
+  - How the order was chosen: real beginner questions (ESL plugins, precombines and previs, quests on existing saves), each answered with Mossy's Brain B knowledge and checked against the correct answers, plus a plain question that must not trigger a tool and a request that must. **qwen3.5:9b** said plainly when Brain B's knowledge didn't cover something instead of inventing an answer, and used tools correctly. Lemonade's Qwen3-4B was about twice as fast but confidently taught wrong facts. llama3.1:8b answered a plain question with a tool call, and mistral:7b skipped a requested one, so both are last resorts. gemma4:12b returned no text inside Mossy's answer limit, so it is not used for this.
+  - Without Brain B's knowledge, every model tested got these questions wrong, so keep Brain B running for teaching.
+
 ## [6.0.0] — 2026-10-26 — GitHub-only release
 
 Mossy is now released only on GitHub. Everything in this release still runs on your own PC by default. The one automatic internet request is a daily read of the public GitHub Releases list for the update notice, which you can switch off; everything else waits for your click.

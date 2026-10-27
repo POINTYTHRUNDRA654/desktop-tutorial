@@ -182,6 +182,9 @@ const IPC_CHANNELS = {
   // local fallback, see src/electron/ml/lemonade.ts
   ML_LEMONADE_STATUS: 'ml-lemonade-status',
   ML_LEMONADE_CHAT: 'ml-lemonade-chat',
+  // Ollama tool-calling chat — second local tool-capable path, see
+  // src/electron/ml/ollamaTools.ts
+  ML_OLLAMA_TOOL_CHAT: 'ml-ollama-tool-chat',
 
   // Edition detection
   GET_MOSSY_EDITION: 'get-mossy-edition',
@@ -2395,6 +2398,14 @@ const electronAPI = {
    */
   mlLemonadeChat: (req: { messages: Array<{ role: string; content: string }>; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; toolChoice?: 'auto' | 'required'; baseUrl?: string; model?: string; timeoutMs?: number }): Promise<any> => {
     return ipcRenderer.invoke(IPC_CHANNELS.ML_LEMONADE_CHAT, req);
+  },
+
+  /**
+   * Ollama tool-calling chat — used when Lemonade isn't running. Main picks a
+   * model that Ollama itself reports as tool-capable.
+   */
+  mlOllamaToolChat: (req: { messages: Array<{ role: string; content: string }>; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; toolChoice?: 'auto' | 'required'; timeoutMs?: number; allowLastResort?: boolean }): Promise<any> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.ML_OLLAMA_TOOL_CHAT, req);
   },
 
   /**
