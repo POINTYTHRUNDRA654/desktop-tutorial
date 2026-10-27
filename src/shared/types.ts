@@ -1245,6 +1245,7 @@ export const IPC_CHANNELS = {
   ML_LLM_GENERATE: 'ml-llm-generate',
   ML_LEMONADE_STATUS: 'ml-lemonade-status',
   ML_LEMONADE_CHAT: 'ml-lemonade-chat',
+  ML_OLLAMA_TOOL_CHAT: 'ml-ollama-tool-chat',
 
   // Load Order Lab
   LOAD_ORDER_PICK_MO2_PROFILE_DIR: 'load-order-pick-mo2-profile-dir',

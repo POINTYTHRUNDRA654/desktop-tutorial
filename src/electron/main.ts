@@ -35,6 +35,7 @@ import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from '
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
+import { ollamaToolChat } from './ml/ollamaTools';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
@@ -9257,6 +9258,41 @@ end.
           baseUrl, model, messages: req.messages, tools: req.tools, toolChoice: req.toolChoice,
           timeoutMs: req.timeoutMs,
         });
+      } catch (err: any) {
+        return { ok: false, error: String(err?.message || err) };
+      }
+    }
+  );
+
+  // Ollama tool-calling chat: the second local path that can answer a turn
+  // carrying tools, used when Lemonade isn't running (see
+  // src/electron/ml/ollamaTools.ts). The model is the user's Ollama chat model
+  // when Ollama reports it can call tools, otherwise the best installed one.
+  registerHandler(
+    IPC_CHANNELS.ML_OLLAMA_TOOL_CHAT,
+    async (
+      _event,
+      req: {
+        messages: Array<{ role: string; content: string }>;
+        tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>;
+        toolChoice?: 'auto' | 'required';
+        timeoutMs?: number;
+        allowLastResort?: boolean;
+      }
+    ) => {
+      try {
+        if (!req || !Array.isArray(req.messages) || req.messages.length === 0) {
+          return { ok: false, error: 'Missing messages' };
+        }
+        const s = loadSettings() as any;
+        const resp = await ollamaToolChat({
+          baseUrl: String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'),
+          chatModel: String(s?.ollamaToolModel || s?.ollamaModel || ''),
+          messages: req.messages, tools: req.tools, toolChoice: req.toolChoice, timeoutMs: req.timeoutMs,
+          allowLastResort: !!req.allowLastResort,
+        });
+        console.log(`[Ollama tools] ${resp.ok ? `answered with ${resp.model}` : `failed: ${resp.error}`}`);
+        return resp;
       } catch (err: any) {
         return { ok: false, error: String(err?.message || err) };
       }
