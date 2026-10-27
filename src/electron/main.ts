@@ -9206,6 +9206,9 @@ end.
         const resp = await openAICompatChat({
           baseUrl: compatBase,
           apiKey: require('./byoAi').byoKeyFor(compatBase, loadSettings()),
+          // Honour the caller's limit (chat asks for minutes); the module default is 30 s,
+          // which a cold model load or a busy cloud service easily exceeds.
+          timeoutMs: req.timeoutMs,
           model,
           system: 'You are Mossy, an AI assistant for Fallout 4 modding running in OpenAI-compatible mode. Follow the user prompt carefully.',
           user: prompt,
