@@ -11,6 +11,7 @@ import it from './locales/it.json';
 import pl from './locales/pl.json';
 import tr from './locales/tr.json';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { setDomTranslatorLanguage } from './domTranslator';
 
 type Lang = 'en' | 'es' | 'fr' | 'de' | 'ru' | 'zh-Hans' | 'pt-BR' | 'ja' | 'ko' | 'it' | 'pl' | 'tr';
 export type UiLanguagePreference = 'auto' | Lang;
@@ -157,6 +158,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       disposed = true;
     };
   }, []);
+
+  // Screens that don't use t() are translated by exact interface phrase (domTranslator.ts).
+  useEffect(() => { void setDomTranslatorLanguage(lang); }, [lang]);
 
   const setUiLanguagePref = (pref: UiLanguagePreference) => {
     setUiLanguagePrefState(pref);

@@ -336,7 +336,7 @@ export const LocalAIEngine: React.FC = () => {
             <ol className="list-decimal list-inside space-y-0.5 text-slate-500">
               <li>Download F4SE source from <span className="font-mono text-sky-400">f4se.silverlock.org</span> → extract to <span className="font-mono">C:\dev\f4se_src</span></li>
               <li>Open VS2022 Developer Command Prompt</li>
-              <li className="font-mono text-slate-400 whitespace-pre-wrap">cd D:\Projects\Fallout-4-advanced-AI\f4se_plugin</li>
+              <li className="font-mono text-slate-400 whitespace-pre-wrap">cd path\to\Fallout-4-advanced-AI\f4se_plugin</li>
               <li className="font-mono text-slate-400 whitespace-pre-wrap">mkdir build &amp;&amp; cd build</li>
               <li className="font-mono text-slate-400 whitespace-pre-wrap">cmake .. -DF4SE_SOURCE_DIR="C:\dev\f4se_src" -A x64</li>
               <li className="font-mono text-slate-400 whitespace-pre-wrap">cmake --build . --config Release</li>

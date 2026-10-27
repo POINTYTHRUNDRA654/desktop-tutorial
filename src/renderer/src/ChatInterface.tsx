@@ -372,9 +372,12 @@ const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMes
                     </div>
                 )}
                 {msg.content && (
+                    // data-no-translate: chat text is the user's and Mossy's own words, never interface phrases.
+                    <div data-no-translate>
                     <ReactMarkdown className="prose prose-invert prose-sm max-w-none whitespace-pre-wrap">
                         {msg.content}
                     </ReactMarkdown>
+                    </div>
                 )}
                 {proposedScript && onManualExecute && (
                     <button

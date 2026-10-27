@@ -28029,7 +28029,7 @@ print(json.dumps(result))
       }
     }
     const s = loadSettings();
-    const npcStorePath = String(s?.fo4NpcStorePath || 'H:/F4AI').trim();
+    const npcStorePath = String(s?.fo4NpcStorePath || (fs.existsSync('H:/F4AI') ? 'H:/F4AI' : path.join(app.getPath('userData'), 'F4AI'))).trim();
     const npcEntries: string[] = [];
     if (npcStorePath && fs.existsSync(npcStorePath)) {
       try { for (const f of fs.readdirSync(npcStorePath).slice(0, 20)) npcEntries.push(f); } catch { /* */ }
@@ -36269,7 +36269,7 @@ app.whenReady().then(() => {
 
   const getNpcStorePath = (): string => {
     const s = loadSettings();
-    return String((s as any)?.fo4NpcStorePath || 'H:/F4AI').replace(/\\/g, '/');
+    return String((s as any)?.fo4NpcStorePath || (fs.existsSync('H:/F4AI') ? 'H:/F4AI' : path.join(app.getPath('userData'), 'F4AI'))).replace(/\\/g, '/');
   };
 
   const getNpcMemoryDir = (): string => path.join(getNpcStorePath(), 'memories', 'npcs').replace(/\\/g, '/');

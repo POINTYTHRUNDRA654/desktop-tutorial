@@ -821,7 +821,7 @@ export const SelfImprovementPanel: React.FC<SelfImprovementPanelProps> = ({ isVi
                 type="text"
                 value={newReferenceFolder}
                 onChange={(e) => setNewReferenceFolder(e.target.value)}
-                placeholder="e.g. E:\Mod.Organizer-2.5.2 Game Mods\Some SS2 Addon Pack"
+                placeholder="e.g. D:\MO2\mods\Some SS2 Addon Pack"
                 className="flex-1 bg-gray-600 border border-gray-500 rounded px-3 py-2 text-white text-sm"
               />
               <button
