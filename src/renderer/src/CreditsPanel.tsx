@@ -232,9 +232,7 @@ fallback — the full credits file (CREDITS.md) is included in your installation
 - **Vite** - Next-gen build tool (MIT)
 
 ## AI & Machine Learning
-- **OpenAI SDK** - ChatGPT integration (Apache 2.0)
-- **Groq SDK** - Fast LLM inference (Apache 2.0)
-- **Anthropic Claude** - AI model integration
+- **Local AI** - Runs on your own computer (Ollama or KoboldCpp, installed separately); no cloud services or API keys
 - **PyTorch** - Machine learning framework by Meta (BSD)
 - **NumPy** - Numerical computing (BSD 3-Clause)
 - **Pillow (PIL)** - Image processing (HPND)

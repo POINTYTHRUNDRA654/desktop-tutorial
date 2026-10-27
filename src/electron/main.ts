@@ -1683,6 +1683,7 @@ const loadSettings = (): any => {
     meshlabPath: '',
     packerIoPath: '',
     fomodCreatorPath: '',
+    runalipPath: '',
     creationKitPath: '',
     blenderPath: '',
     lootPath: '',
@@ -9670,15 +9671,6 @@ end.
   forceHandle('ai-chat-openai', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
   forceHandle('ai-chat-groq', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
   forceHandle('ai-vision-groq', async () => ({ success: false, error: 'Vision recognition needs a cloud model, which is not available in this version of Mossy.' }));
-
-  // DIVA only: if the gitignored localDev/claudeBackend module exists, it replaces the stubs above
-  // with Claude (Billy's own API key). Missing module = no-op, so GitHub/Nexus builds are unaffected.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('./localDev/claudeBackend').start();
-  } catch (e: any) {
-    if (e?.code !== 'MODULE_NOT_FOUND') console.error('[Main] localDev claudeBackend failed:', e?.message || e);
-  }
 
   /**
    * AI Script Generation Handler
@@ -21292,6 +21284,232 @@ Rules:
     }
   });
 
+  // ── Glowing Sea Asset Studio (Textures hub) ──────────────────────────────────
+  // Drives tools/glowing-sea-texture-pipeline (4-stage ComfyUI + mask-lock +
+  // DDS pipeline) and PhotoCraft (free Apache-2.0/MIT Rust image editor, run as
+  // a separate installed program -- never bundled or linked) for hand editing
+  // and headless batch actions. Every status field is read from disk/process
+  // reality; nothing reports success without a real exit code behind it.
+  function findGlowingSeaPipelineDir(): string | null {
+    const s: any = loadSettings() || {};
+    const candidates = [
+      String(s.glowingSeaPipelinePath || '').trim(),
+      path.join(process.resourcesPath || '', 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(__dirname, '..', 'tools', 'glowing-sea-texture-pipeline'),
+      path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline'),
+      'D:\\Projects\\desktop-tutorial\\tools\\glowing-sea-texture-pipeline',
+    ].filter(Boolean);
+    return candidates.find((c) => fs.existsSync(path.join(c, 'run_pipeline.bat'))) || null;
+  }
+
+  function findPhotoCraft(): { exe: string | null; cli: string | null; dir: string | null } {
+    const s: any = loadSettings() || {};
+    const roots: string[] = [];
+    const configured = String(s.photocraftPath || '').trim();
+    if (configured) roots.push(configured);
+    for (const base of ['E:\\Tools\\PhotoCraft', 'C:\\Program Files\\PhotoCraft', path.join(process.env.LOCALAPPDATA || '', 'Programs', 'PhotoCraft')]) {
+      try {
+        if (!fs.existsSync(base)) continue;
+        roots.push(base);
+        for (const e of fs.readdirSync(base, { withFileTypes: true })) if (e.isDirectory()) roots.push(path.join(base, e.name));
+      } catch { /* unreadable root -- try the next */ }
+    }
+    for (const r of roots) {
+      const dir = r.toLowerCase().endsWith('.exe') ? path.dirname(r) : r;
+      const exe = path.join(dir, 'photocraft.exe');
+      if (fs.existsSync(exe)) {
+        const cli = path.join(dir, 'photocraft-cli.exe');
+        return { exe, cli: fs.existsSync(cli) ? cli : null, dir };
+      }
+    }
+    return { exe: null, cli: null, dir: null };
+  }
+
+  type GlowingSeaJob = { running: boolean; stage: number; totalStages: number; log: string[]; exitCode: number | null; folder: string; startedAt: number; proc?: ReturnType<typeof spawn> };
+  let glowingSeaJob: GlowingSeaJob | null = null;
+  const pushGlowingSeaLog = (job: GlowingSeaJob, text: string) => {
+    for (const line of text.split(/\r?\n/)) if (line.trim()) job.log.push(line);
+    if (job.log.length > 400) job.log.splice(0, job.log.length - 400);
+  };
+
+  registerHandler('glowingsea:status', async () => {
+    const pipelineDir = findGlowingSeaPipelineDir();
+    const pc = findPhotoCraft();
+    // Seed the Settings field from a real detection (same idea as comfyuiPath's auto-seed) so it shows in External Tools.
+    const current: any = loadSettings() || {};
+    if (pc.exe && !String(current.photocraftPath || '').trim()) saveSettings({ ...current, photocraftPath: pc.exe });
+    let texconvPath = '';
+    let comfyBase = 'http://127.0.0.1:8188';
+    let model = '';
+    if (pipelineDir) {
+      try {
+        const cfg = JSON.parse(fs.readFileSync(path.join(pipelineDir, 'config.json'), 'utf-8'));
+        texconvPath = String(cfg.texconv_path || '');
+        comfyBase = String(cfg.comfyui_base || comfyBase);
+        model = String(cfg.comfyui_model || '');
+      } catch { /* config unreadable -- reported below via empty texconvPath */ }
+    }
+    const pythonOk = await new Promise<string | null>((resolve) => {
+      exec('python --version', { timeout: 5000 }, (err, stdout, stderr) => resolve(err ? null : (stdout || stderr).trim()));
+    });
+    let comfyOnline = false;
+    try { comfyOnline = (await fetch(`${comfyBase}/system_stats`, { signal: AbortSignal.timeout(3000) })).ok; } catch { /* offline */ }
+    return {
+      pipelineDir,
+      python: pythonOk,
+      comfyBase,
+      comfyOnline,
+      comfyModel: model,
+      texconvPath,
+      texconvFound: !!texconvPath && fs.existsSync(texconvPath),
+      photocraftExe: pc.exe,
+      photocraftCli: pc.cli,
+      job: glowingSeaJob ? { running: glowingSeaJob.running, stage: glowingSeaJob.stage, totalStages: glowingSeaJob.totalStages, exitCode: glowingSeaJob.exitCode, folder: glowingSeaJob.folder } : null,
+    };
+  });
+
+  registerHandler('glowingsea:pick-folder', async () => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openDirectory', 'createDirectory'], title: 'Pick the batch folder (contains an Input subfolder)' });
+    return r.canceled || !r.filePaths[0] ? { success: false } : { success: true, folder: r.filePaths[0] };
+  });
+
+  registerHandler('glowingsea:pick-file', async (_e, params?: { filters?: Electron.FileFilter[] }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile'], filters: params?.filters });
+    return r.canceled || !r.filePaths[0] ? { success: false } : { success: true, filePath: r.filePaths[0] };
+  });
+
+  registerHandler('glowingsea:folder-info', async (_e, params: { folder: string }) => {
+    const root = params.folder;
+    const count = (sub: string, exts: string[]) => {
+      try { return fs.readdirSync(path.join(root, sub)).filter((f) => exts.some((x) => f.toLowerCase().endsWith(x))).length; } catch { return 0; }
+    };
+    return {
+      exists: fs.existsSync(root),
+      hasInput: fs.existsSync(path.join(root, 'Input')),
+      input: count('Input', ['.dds', '.png']),
+      mask: count('UV_Mask', ['.png']),
+      enhanced: count('Enhanced', ['.png']),
+      locked: count('UV-Locked', ['.png']),
+      output: count('Output', ['.dds', '.png']),
+      needsReview: fs.existsSync(path.join(root, 'needs_review.txt')) ? fs.readFileSync(path.join(root, 'needs_review.txt'), 'utf-8').split(/\r?\n/).filter(Boolean) : [],
+    };
+  });
+
+  registerHandler('glowingsea:ensure-input', async (_e, params: { folder: string }) => {
+    try { fs.mkdirSync(path.join(params.folder, 'Input'), { recursive: true }); return { success: true }; }
+    catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  /** Copies chosen textures into <folder>\Input (copy only -- never touches the source files). */
+  registerHandler('glowingsea:add-inputs', async (_e, params: { folder: string }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Textures', extensions: ['dds', 'png'] }] });
+    if (r.canceled) return { success: false };
+    try {
+      const inputDir = path.join(params.folder, 'Input');
+      fs.mkdirSync(inputDir, { recursive: true });
+      for (const f of r.filePaths) fs.copyFileSync(f, path.join(inputDir, path.basename(f)));
+      return { success: true, copied: r.filePaths.length };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  registerHandler('glowingsea:run-pipeline', async (_e, params: { folder: string; fromStage?: number }) => {
+    if (glowingSeaJob?.running) return { success: false, error: 'A pipeline run is already in progress.' };
+    const dir = findGlowingSeaPipelineDir();
+    if (!dir) return { success: false, error: 'tools/glowing-sea-texture-pipeline was not found. Set glowingSeaPipelinePath in Settings.' };
+    const root = params.folder;
+    if (!fs.existsSync(path.join(root, 'Input'))) return { success: false, error: `${path.join(root, 'Input')} does not exist. Add textures first.` };
+    const P = (n: string) => path.join(root, n);
+    const stages: { name: string; args: string[] }[] = [
+      { name: 'extract_uv_mask', args: ['extract_uv_mask.py', P('Input'), P('UV_Mask')] },
+      { name: 'enhance (ComfyUI)', args: ['enhance.py', P('Input'), P('Enhanced')] },
+      { name: 'composite_lock', args: ['composite_lock.py', P('Input'), P('Enhanced'), P('UV_Mask'), P('UV-Locked')] },
+      { name: 'finalize', args: ['finalize.py', P('Input'), P('UV-Locked'), P('UV_Mask'), P('Output')] },
+    ];
+    const first = Math.min(Math.max(params.fromStage ?? 1, 1), 4);
+    const job: GlowingSeaJob = { running: true, stage: first, totalStages: 4, log: [], exitCode: null, folder: root, startedAt: Date.now() };
+    glowingSeaJob = job;
+    const runStage = (i: number) => {
+      if (i >= stages.length) { job.running = false; job.exitCode = 0; pushGlowingSeaLog(job, `Done. Output written to ${P('Output')}`); return; }
+      job.stage = i + 1;
+      pushGlowingSeaLog(job, `=== Stage ${i + 1}/4: ${stages[i].name} ===`);
+      const proc = spawn('python', ['-u', ...stages[i].args], { cwd: dir, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+      job.proc = proc;
+      proc.stdout.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
+      proc.stderr.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
+      proc.on('error', (err) => { job.running = false; job.exitCode = -1; pushGlowingSeaLog(job, `Could not start python: ${err.message}`); });
+      proc.on('close', (code) => {
+        if (!job.running) return;
+        if (code !== 0) { job.running = false; job.exitCode = code ?? -1; pushGlowingSeaLog(job, `Stage ${i + 1} failed (exit ${code}). Earlier stages' output is kept on disk; re-run from stage ${i + 1}.`); return; }
+        runStage(i + 1);
+      });
+    };
+    runStage(first - 1);
+    return { success: true };
+  });
+
+  registerHandler('glowingsea:job-status', async () => {
+    if (!glowingSeaJob) return { running: false, log: [], stage: 0, exitCode: null };
+    const { running, stage, totalStages, log, exitCode, folder } = glowingSeaJob;
+    return { running, stage, totalStages, log: log.slice(-120), exitCode, folder };
+  });
+
+  registerHandler('glowingsea:cancel', async () => {
+    if (!glowingSeaJob?.running) return { success: false, error: 'Nothing is running.' };
+    glowingSeaJob.running = false;
+    glowingSeaJob.exitCode = -2;
+    pushGlowingSeaLog(glowingSeaJob, 'Cancelled by user.');
+    try { glowingSeaJob.proc?.kill(); } catch { /* already exited */ }
+    return { success: true };
+  });
+
+  registerHandler('glowingsea:open-photocraft', async (_e, params?: { filePath?: string }) => {
+    const pc = findPhotoCraft();
+    if (!pc.exe) return { success: false, error: 'PhotoCraft is not installed. Expected photocraft.exe under E:\\Tools\\PhotoCraft or the photocraftPath setting.' };
+    try {
+      const args = params?.filePath ? [params.filePath] : [];
+      const child = spawn(pc.exe, args, { detached: true, stdio: 'ignore', cwd: pc.dir || undefined });
+      child.unref();
+      return { success: true };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  /** Headless PhotoCraft batch: photocraft-cli batch --actions <file> --in <dir> --out <dir>. Result comes from the real exit code. */
+  registerHandler('glowingsea:photocraft-batch', async (_e, params: { actionsFile: string; inDir: string; outDir: string; format?: string }) => {
+    const pc = findPhotoCraft();
+    if (!pc.cli) return { success: false, error: 'photocraft-cli.exe was not found next to PhotoCraft.' };
+    if (!fs.existsSync(params.actionsFile)) return { success: false, error: `Actions file not found: ${params.actionsFile}` };
+    if (path.resolve(params.inDir).toLowerCase() === path.resolve(params.outDir).toLowerCase()) return { success: false, error: 'Output folder must differ from the input folder (originals are never overwritten).' };
+    const args = ['batch', '--actions', params.actionsFile, '--in', params.inDir, '--out', params.outDir];
+    if (params.format) args.push('--format', params.format);
+    return await new Promise((resolve) => {
+      let out = '';
+      const proc = spawn(pc.cli!, args, { windowsHide: true });
+      const timer = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } }, 30 * 60 * 1000);
+      proc.stdout.on('data', (d) => { out += d.toString(); });
+      proc.stderr.on('data', (d) => { out += d.toString(); });
+      proc.on('error', (err) => { clearTimeout(timer); resolve({ success: false, error: err.message }); });
+      proc.on('close', (code) => { clearTimeout(timer); resolve({ success: code === 0, exitCode: code, output: out.slice(-4000), error: code === 0 ? undefined : `photocraft-cli exited with ${code}` }); });
+    });
+  });
+
+  /** Returns a PNG as a data URL for before/after preview (capped at 40 MB). */
+  registerHandler('glowingsea:preview', async (_e, params: { filePath: string }) => {
+    try {
+      if (!params.filePath.toLowerCase().endsWith('.png')) return { success: false, error: 'Preview supports PNG only (intermediate stage output).' };
+      const st = fs.statSync(params.filePath);
+      if (st.size > 40 * 1024 * 1024) return { success: false, error: 'Image is too large to preview.' };
+      return { success: true, dataUrl: `data:image/png;base64,${fs.readFileSync(params.filePath).toString('base64')}` };
+    } catch (err: any) { return { success: false, error: err.message }; }
+  });
+
+  registerHandler('glowingsea:list-stage', async (_e, params: { folder: string; stage: 'Input' | 'Enhanced' | 'UV-Locked' | 'Output' }) => {
+    try {
+      const d = path.join(params.folder, params.stage);
+      return { success: true, files: fs.readdirSync(d).filter((f) => /\.(png|dds)$/i.test(f)).map((f) => path.join(d, f)) };
+    } catch { return { success: true, files: [] }; }
+  });
+
   // ── Layer Effects (ComfyUI_LayerStyle) ───────────────────────────────────────
   function buildLayerEffectsWorkflow(p: {
     effect: 'drop_shadow' | 'outer_glow' | 'color_match';
@@ -23568,9 +23786,6 @@ print(json.dumps(result))
       '╚════════════════════════════════════════════════════════════╝',
     ].join('\n\n');
   }
-  // DIVA: let the gitignored localDev/claudeBackend module add the same game-knowledge block
-  // the old cloud handler added. Harmless elsewhere: nothing reads it unless that module exists.
-  (globalThis as any).__mossyBrainNeuronBlock = buildBrainNeuronBlock;
 
   // Builds the full game-data block for Creative Director agents from every loaded
   // brain neuron (form graph, asset graph, full Papyrus analysis, texture/mesh/
@@ -23863,6 +24078,7 @@ HOW TO APPLY THIS: when a user asks why their mod isn't getting downloads, or is
       nifUtilsSuitePath:      { label: 'NifUtils Suite', path: '' },
       papyrusCompilerPath:    { label: 'Papyrus Compiler', path: '' },
       fomodCreatorPath:       { label: 'FOMOD Creation Tool', path: '' },
+      runalipPath:            { label: 'Runalip (LIP/FUZ generator)', path: '' },
       unWrap3Path:            { label: 'UnWrap3 (MinistryOfFlat)', path: '' },
       shaderMapPath:          { label: 'ShaderMap 4', path: '' },
       nvidiaCanvasPath:       { label: 'NVIDIA Canvas', path: '' },
@@ -35609,7 +35825,7 @@ app.whenReady().then(() => {
   // via GET /tool-paths.  Keep in sync with the path fields in src/shared/types.ts.
   const BRIDGE_PATH_KEYS = [
     'fallout4Path', 'xeditPath', 'creationKitPath', 'blenderPath',
-    'nifSkopePath', 'meshlabPath', 'packerIoPath', 'fomodCreatorPath', 'lootPath', 'vortexPath',
+    'nifSkopePath', 'meshlabPath', 'packerIoPath', 'fomodCreatorPath', 'runalipPath', 'lootPath', 'vortexPath',
     'mo2Path', 'wryeBashPath', 'bodySlidePath', 'outfitStudioPath',
     'baePath', 'gimpPath', 'archive2Path', 'pjmScriptPath', 'f4sePath',
     'upscaylPath', 'nvidiaTextureToolsPath', 'autodeskFbxPath',

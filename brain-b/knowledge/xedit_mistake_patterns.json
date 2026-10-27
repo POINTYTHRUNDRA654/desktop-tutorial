@@ -12,6 +12,30 @@
       "severity": "unreviewed",
       "approvedFrom": "proposal-1790671054-d1e87808",
       "reviewerNote": null
+    },
+    {
+      "id": "xedit-mistake-ef5c2482",
+      "whatToLookFor": "xEdit's message pane shows: \"[PACK:FE0C74E3] has invalid ObjectID 0044E3 for a light module. You will not be able to save this file with the ESL flag active.\" A plugin flagged ESL (light) can only use FormIDs from 000800 to 000FFF. Records numbered outside that range break the ESL flag.",
+      "correction": "Either renumber the records into the 000800-000FFF range (xEdit: right-click the plugin, \"Compact FormIDs for ESL\") or remove the ESL flag and keep it as a normal plugin. Make a backup first, because FormIDs referenced by other plugins or saves will change.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791591365-6a320561",
+      "reviewerNote": null
+    },
+    {
+      "id": "xedit-mistake-bafdbb32",
+      "whatToLookFor": "xEdit's message pane shows: \"<Warning: Modules with extended FormID range should always have the Game Master as their first master.>\" The plugin uses the extended (light) FormID range, but Fallout4.esm is not listed first in its masters.",
+      "correction": "Open the plugin's header, check the Masters list, and make sure Fallout4.esm is the first master. In xEdit, right-click the plugin and choose \"Sort Masters\". Then save the file.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791591367-2accb506",
+      "reviewerNote": null
+    },
+    {
+      "id": "xedit-mistake-b14b0e37",
+      "whatToLookFor": "xEdit's message pane shows: \"Background Loader: Error: record REFR contains unexpected (or out of order) subrecord XPWR\". The same error shows up for SCEN records with subrecord DTID. Some record in a plugin has a subrecord in the wrong place, or one this game's record definition doesn't expect.",
+      "correction": "The plugin was probably saved by a tool that wrote the subrecords wrongly, or made for a different version. Open the plugin in xEdit and look at the flagged record, then re-save it in the Creation Kit or ask the mod author for a fixed version. If it's your own mod, remove the stray subrecord and check the file again. Don't clean or delete records until you know which plugin is affected.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791591370-d213fb67",
+      "reviewerNote": null
     }
   ]
 }

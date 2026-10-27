@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "3단계: AI 엔진",
-        "desc": "AI 제공업체 (Groq/Ollama), 모델, 응답 길이, 자기 비평을 선택합니다."
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "4단계: 로컬 LLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "Microsoft의 타입 지정 JavaScript (Apache 2.0)",
         "vite": "차세대 빌드 도구 (MIT)",
         "aiMl": "AI 및 머신 러닝",
-        "groq": "빠른 LLM 추론 (Apache 2.0)",
-        "openaiSdk": "ChatGPT 통합 (Apache 2.0)",
         "ollama": "로컬 LLM 런타임 (MIT)",
         "pytorch": "Meta의 ML 프레임워크 (BSD)",
         "numpy": "수치 계산 (BSD 3-Clause)",

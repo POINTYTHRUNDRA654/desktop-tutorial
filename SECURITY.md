@@ -33,7 +33,7 @@ Please include:
 ## In-Scope Areas
 
 - **Electron main process** — IPC injection, arbitrary file write, privilege escalation
-- **API key storage** — leakage of Groq/OpenAI/ElevenLabs/Deepgram keys from `userData/settings.json`
+- **Local secrets** — leakage of the local bridge tokens (Neural Bridge, Brain B) stored in `userData/settings.json`
 - **Blender TCP bridge** — unauthorized command execution via the local TCP bridge (port 9999)
 - **Neural Bridge token** — token bypass or brute-force
 - **GGUF model import** — path traversal or command injection via the Ollama model import handler
@@ -49,7 +49,7 @@ Please include:
 
 ## Security Architecture
 
-- **API keys never reach the renderer.** Stored encrypted in `userData/settings.json` (main process only). The renderer receives only response text, never the key.
+- **No API keys and no cloud services.** This edition contains no cloud AI, no accounts and no API keys. AI runs on the user's own computer (Ollama, KoboldCpp).
 - **No `VITE_*` secrets.** Vite exposes `VITE_*` vars to the renderer bundle. All secret config uses main-process-only env vars.
 - **IPC channels are allowlisted.** `contextBridge` exposes only named, typed wrapper functions — no raw `ipcRenderer.invoke` from renderer.
 - **Neural Bridge token authentication.** The Blender TCP bridge requires a 32-character auto-generated hex token stored in `settings.json`. Empty tokens accepted for backward compatibility.
@@ -60,7 +60,7 @@ Please include:
 
 ## API Keys & Secrets
 
-Mossy API keys (Groq, OpenAI, Deepgram, ElevenLabs) are user-supplied via the in-app Settings UI or a local `.env.local` file. Both are **git-ignored** and never committed. The `.env.example` file contains only placeholder values.
+Mossy contains no API keys and sends no conversations to any AI service. The local bridge tokens (Neural Bridge, Brain B) are generated on the user's own computer and kept in `userData/settings.json`, which is not part of the repository.
 
 ---
 

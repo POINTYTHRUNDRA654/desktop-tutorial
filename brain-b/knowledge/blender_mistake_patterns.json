@@ -26,6 +26,14 @@
       "severity": "unreviewed",
       "approvedFrom": "proposal-1790668288-b71d0b6b",
       "reviewerNote": null
+    },
+    {
+      "id": "blender-mistake-1074d852",
+      "whatToLookFor": "A collision mesh for a Fallout 4 NIF export is left with a default name (Cube.001 etc.) instead of the name the Mossy add-on looks for, so the exporter doesn't recognise it as collision and no collision is written into the NIF.",
+      "correction": "Name the collision object with the UCX_ prefix followed by the visual mesh's name (e.g. UCX_GSSeaFrond01), or with the legacy _COLLISION suffix, and parent it to the visual mesh. The add-on's collision detection (export_helpers._find_collision_mesh) matches UCX_<name> and <name>_COLLISION.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1790696237-abf3db55",
+      "reviewerNote": null
     }
   ]
 }

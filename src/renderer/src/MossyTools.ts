@@ -308,6 +308,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'archive2': 'archive2Path',
                 'archive 2': 'archive2Path',
                 'fomodcreator': 'fomodCreatorPath',
+                'runalip': 'runalipPath',
                 'fomod creator': 'fomodCreatorPath',
                 'autodesk fbx': 'autodeskFbxPath',
                 'fbx converter': 'autodeskFbxPath',
@@ -349,6 +350,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'bae': 'B.A.E. Archive Extractor',
                 'archive2': 'Archive2',
                 'fomodcreator': 'FOMOD Creator',
+                'runalip': 'Runalip (LIP/FUZ generator)',
                 'autodesk fbx': 'Autodesk FBX Converter',
                 'photodemon': 'PhotoDemon',
                 'unwrap3': 'Unwrap3',
@@ -377,6 +379,7 @@ export const executeMossyTool = async (name: string, args: any, context: {
                 'bae': ['bae', 'archive extractor', 'bethesda archive extractor'],
                 'archive2': ['archive2', 'archive 2', 'bethesda archive'],
                 'fomodcreator': ['fomod creator', 'fomod'],
+                'runalip': ['runalip', 'lip generator', 'lip files', 'fuz generator', 'lipsync'],
                 'autodesk fbx': ['autodesk fbx', 'fbx converter'],
                 'photodemon': ['photodemon', 'photo demon'],
                 'unwrap3': ['unwrap3', 'un-wrap3'],
@@ -847,6 +850,8 @@ export const executeMossyTool = async (name: string, args: any, context: {
                         'fomod creator': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
                         'fomodcreator': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
                         'fomod': { key: 'fomodCreatorPath', displayName: 'FOMOD Creator' },
+                        'runalip': { key: 'runalipPath', displayName: 'Runalip' },
+                        'lip generator': { key: 'runalipPath', displayName: 'Runalip' },
                         
                         // Conversion/Export
                         'autodesk fbx': { key: 'autodeskFbxPath', displayName: 'Autodesk FBX Converter' },

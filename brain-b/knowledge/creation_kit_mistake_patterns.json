@@ -12,6 +12,54 @@
       "severity": "unreviewed",
       "approvedFrom": "proposal-1790640793-cbc2ef5e",
       "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-3f2b5dd2",
+      "whatToLookFor": "When the Creation Kit loads Fallout4.esm and the DLC masters, its log and warnings window show many messages that look serious but come from Bethesda's own files, not from your mod. Examples: \"Unable to find Value TESGlobal ... in TESConditionItem Init for form: QUST DLC03WorkshopRadiantOwned05\", \"Unable to find master location ... on worldspace 'NukaWorld'\", \"(Faction Reaction Error) Faction 'DLC03_WolfFaction' is a Friend or Ally of ...\", and \"Combined Ref Key errors found for cells\".",
+      "correction": "Don't try to fix these. They come from the vanilla masters and appear every time the CK loads them. Only investigate a message if it names a form from your own plugin or a mod you're editing. Do not edit or clean Bethesda's master files.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791591960-74dac9eb",
+      "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-c2afb15f",
+      "whatToLookFor": "The Creation Kit log shows \"[SHADERS] Could not find material Materials\\landscape\\plants\\GSMushroomfCluster05.BGSM\" (and the same name with \".1.BGSM\"). The mesh points at a material file that the CK cannot find in Data, so it renders with a default material.",
+      "correction": "Check that the .BGSM file exists at exactly that path under Data\\Materials, either loose or inside a loaded .ba2 archive. If it exists, check for a typo, or a space or wrong folder name in the path stored in the NIF's shader property. If it's missing, add the file or repoint the mesh to a material that exists.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791592924-03cc8d93",
+      "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-1430f4e5",
+      "whatToLookFor": "The Creation Kit log shows \"[MODELS] RockM01_GS : L1_RockM01:3 marked for flutter animation, but has no vertex colors. Animation will be disabled.\" A mesh has the wind-flutter (tree animation) shader flag set but carries no vertex color data, so the flutter is switched off.",
+      "correction": "If the mesh should sway (grass, plants, trees), add a vertex color layer to it in Blender or NifSkope and export with vertex colors. If it shouldn't move, such as a rock, clear the flutter / tree-animation flag on its shader. A rock shouldn't have that flag at all.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791592927-2a46b5d8",
+      "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-f72d091d",
+      "whatToLookFor": "A Fallout 4 landscape can be generated into a plugin by script instead of clicking through the Creation Kit. Layout that the CK accepted: TES4 (master Fallout4.esm), top WRLD group holding the WRLD record, then a world-children group (type 1, label = WRLD formid) holding a persistent CELL (flag 0x400) and exterior blocks. Block group (type 4) label = int16 Y-block then int16 X-block (cell>>5); sub-block (type 5) label = cell>>3 the same way. Each cell is a CELL record (DATA=0x0002, XCLC x,y,0, LTMP, XCLW=FLT_MAX) followed by a type 6 group holding a type 9 group holding the LAND record. LAND: DATA 0x1d, VNML 33x33x3 int8, VHGT = float offset + 33x33 int8 deltas + 3 pad bytes (heights stored in steps of 8 units, row 0 = south edge, column 0 deltas chain down the rows), then four BTXT (formid, quadrant, pad, layer -1). LAND can be zlib-compressed (record flag 0x40000). WRLD bounds NAM0/NAM9 are in game units (cell*4096); Commonwealth is declared as +/-96 cells.",
+      "correction": "When asked to build terrain for a worldspace, prefer a generator script that writes WRLD/CELL/LAND from a heightmap (use Fallout4.esm records as templates), then open the result in the CK to check it loads. Keep neighbouring cells' shared edge vertices identical and per-vertex height steps within int8 range.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791692773-41dbf7df",
+      "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-10c8f181",
+      "whatToLookFor": "Creation Kit Data dialog and Cell View quirks seen while testing generated worldspaces: (1) Cancelling the File > Data dialog does not reload anything; the new plugin set only takes effect after OK, and an old plugin with the same worldspace EditorID that was still loaded keeps winning. (2) The Cell View 'Go' button stays greyed (and does not move the camera) until the worldspace is re-picked in the dropdown after a reload. (3) Clicking a plugin's checkbox toggles it, so check the Status column ('Active File' vs 'Plugin File') before pressing OK. (4) A CK worldspace with cells out at +/-158 X and +/-90 Y (320 x 184 cells, about 4x the Commonwealth) loads and renders in the editor.",
+      "correction": "After changing plugins in the Data dialog press OK, wait for 'Done.', re-select the worldspace in Cell View, then type X/Y (click the field, Ctrl+A, type) and press Go. Only keep one plugin with a given worldspace loaded at a time. Editor acceptance of a huge worldspace does not prove the game runtime handles it, so test in-game too.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791692775-17bb2a8a",
+      "reviewerNote": null
+    },
+    {
+      "id": "creation-kit-mistake-c20dcb16",
+      "whatToLookFor": "Terrain ground textures in a FO4 LAND record can be painted by script: each of the 4 quadrants (0=SW,1=SE,2=NW,3=NE, 17x17 vertices, edges shared) gets a BTXT base texture (formid, quadrant, pad, layer=-1) plus up to 6 ATXT layers (formid, quadrant, pad, layer index) each followed by a VTXT list of (u16 vertex position row*17+col, u16 unused, float32 opacity). Layers are alpha-composited in order, so to get exact blend proportions use opacity_k = weight_k / cumulative weight of base and layers up to k. Vanilla pre-war ground textures are only LPreWarWildGrass01/02, LPreWarGreenLawn01 (+NoGrass), LPreWarDirt01 and LPreWarFallenLeaves01; their pre-war grass objects (PreWarWildGrassObj, PreWarLawnGrassObj, PreWarForestGrassObj) attach through the texture's own grass list, so painting the texture gives the grass for free. Pre-war trees are the Chargen maples/elms and HollyShrub PreWar statics; there is no pine.",
+      "correction": "Drive layer weights from a land-cover raster (e.g. NLCD) smoothed with a 3x3 filter, drop layers with tiny totals, quantize opacity to 1/8 to keep size down, and expect roughly 3 KB per painted cell compressed.",
+      "severity": "unreviewed",
+      "approvedFrom": "proposal-1791694277-bcfd5809",
+      "reviewerNote": null
     }
   ]
 }

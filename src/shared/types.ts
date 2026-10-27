@@ -567,6 +567,7 @@ export interface Settings {
   packerIoPath?: string; // optional standalone UV packing tool (3d-io Packer-IO)
   xeditScriptsDirOverride?: string;
   fomodCreatorPath?: string;
+  runalipPath?: string;
   creationKitPath?: string;
   blenderPath?: string;
   blenderLinkToken?: string; // Token to authenticate Mossy ↔ Blender connection
@@ -609,6 +610,8 @@ export interface Settings {
   nvidiaTextureToolsPath?: string;
   autodeskFbxPath?: string;
   photoDemonPath?: string;
+  photocraftPath?: string;
+  glowingSeaPipelinePath?: string;
   unWrap3Path?: string;
   nifUtilsSuitePath?: string;
   sniffPath?: string;
@@ -1034,6 +1037,7 @@ export const DEFAULT_SETTINGS: Settings = {
   meshlabPath: '',
   packerIoPath: '',
   fomodCreatorPath: '',
+  runalipPath: '',
   creationKitPath: '',
   blenderPath: '',
   lootPath: '',
@@ -1054,6 +1058,8 @@ export const DEFAULT_SETTINGS: Settings = {
   nvidiaTextureToolsPath: '',
   autodeskFbxPath: '',
   photoDemonPath: '',
+  photocraftPath: '',
+  glowingSeaPipelinePath: '',
   unWrap3Path: '',
   nifUtilsSuitePath: '',
   sniffPath: '',

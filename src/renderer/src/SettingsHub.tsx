@@ -71,8 +71,6 @@ const CredsSection: React.FC = () => {
             <Brain className="w-4 h-4 text-slate-400" /> {t('settings.hub.credits.aiMl', 'AI & Machine Learning')}
           </h4>
           <ul className="space-y-1 text-slate-300">
-            <li>• <strong>Groq</strong> — {t('settings.hub.credits.groq', 'Fast LLM inference (Apache 2.0)')}</li>
-            <li>• <strong>OpenAI SDK</strong> — {t('settings.hub.credits.openaiSdk', 'ChatGPT integration (Apache 2.0)')}</li>
             <li>• <strong>Ollama</strong> — {t('settings.hub.credits.ollama', 'Local LLM runtime (MIT)')}</li>
             <li>• <strong>PyTorch</strong> — {t('settings.hub.credits.pytorch', 'ML framework by Meta (BSD)')}</li>
             <li>• <strong>NumPy</strong> — {t('settings.hub.credits.numpy', 'Numerical computing (BSD 3-Clause)')}</li>
@@ -411,7 +409,7 @@ const SettingsHub: React.FC = () => {
     {
       id: 'ai-engine',
       title: t('settings.hub.step3.title', 'Step 3: AI Engine'),
-      description: t('settings.hub.step3.desc', 'Select your AI provider (Groq/Ollama), model, response length, and self-critique.'),
+      description: t('settings.hub.step3.desc', 'Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique.'),
       icon: Brain,
       content: <AIEngineSettings embedded />,
     },

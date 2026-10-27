@@ -47,9 +47,8 @@ Mossy is a production-ready Fallout 4 modding assistant desktop application buil
 
 ## AI & Language Models
 
-- **Anthropic Claude** - <https://www.anthropic.com/>
-  - AI model integration support
-  - For AI-assisted modding features
+Mossy contains no cloud AI service and no API keys. AI assistance runs on a local AI program that you install yourself
+(for example Ollama or KoboldCpp), which is separate software with its own license.
 
 ## Python Dependencies
 
@@ -123,16 +122,6 @@ Mossy bundles **Python 3.11.9 (Embeddable Edition)** for local analysis and proc
   - Copyright (c) 2020-2024 Lucide Contributors
 
 ## Audio Processing
-
-- **Deepgram SDK** - <https://deepgram.com/>
-  - Speech-to-Text API integration
-  - Licensed under MIT
-  - Copyright (c) Deepgram Inc.
-
-- **ElevenLabs SDK** - <https://elevenlabs.io/>
-  - Text-to-Speech API integration
-  - Licensed under Apache 2.0
-  - Copyright (c) ElevenLabs Inc.
 
 - **Mic** (v2.1.2) - <https://github.com/ashishbajaj99/mic>
   - Microphone input capture

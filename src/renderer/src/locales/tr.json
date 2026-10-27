@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "Adım 3: Yapay Zeka Motoru",
-        "desc": "Yapay zeka sağlayıcısını (Groq/Ollama), modeli, yanıt uzunluğunu ve öz-eleştiriyi seçin."
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "Adım 4: Yerel LLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "Microsoft'un tipli JavaScript'i (Apache 2.0)",
         "vite": "Yeni nesil derleme aracı (MIT)",
         "aiMl": "AI ve Makine Öğrenmesi",
-        "groq": "Hızlı LLM çıkarımı (Apache 2.0)",
-        "openaiSdk": "ChatGPT entegrasyonu (Apache 2.0)",
         "ollama": "Yerel LLM çalışma zamanı (MIT)",
         "pytorch": "Meta'nın ML çerçevesi (BSD)",
         "numpy": "Sayısal hesaplama (BSD 3-Clause)",

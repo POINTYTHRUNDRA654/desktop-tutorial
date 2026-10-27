@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "Шаг 3: ИИ-движок",
-        "desc": "Выбрать провайдера ИИ (Groq/Ollama), модель, длину ответа и самокритику."
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "Шаг 4: Локальный LLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "Типизированный JavaScript от Microsoft (Apache 2.0)",
         "vite": "Инструмент сборки нового поколения (MIT)",
         "aiMl": "ИИ и Машинное Обучение",
-        "groq": "Быстрый вывод LLM (Apache 2.0)",
-        "openaiSdk": "Интеграция ChatGPT (Apache 2.0)",
         "ollama": "Локальная среда выполнения LLM (MIT)",
         "pytorch": "ML-фреймворк от Meta (BSD)",
         "numpy": "Численные вычисления (BSD 3-Clause)",

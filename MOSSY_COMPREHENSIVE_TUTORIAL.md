@@ -89,7 +89,7 @@ The onboarding wizard guides you through initial setup:
 
 1. **Explore The Nexus** - Your main dashboard showing all available modules
 2. **Try Chat Interface** - Talk to Mossy about your modding project
-3. **Check Settings** - Configure API keys, tool paths, and preferences
+3. **Check Settings** - Configure your local AI, tool paths, and preferences
 4. **Browse Learning Hub** - Access comprehensive modding documentation
 
 ---
@@ -273,8 +273,8 @@ The sidebar is your primary navigation tool in Mossy.
 
 - **Real-time voice conversation** - Speak naturally to Mossy
 - **Smart silence detection** - ~1 second detection using audio analysis
-- **Multiple STT providers** - Deepgram (primary), Whisper (backup), Browser API
-- **Multiple TTS providers** - OpenAI, ElevenLabs, Browser API
+- **Speech-to-text** - Local Whisper on your PC (preferred); the browser's speech recognition is an online fallback
+- **Text-to-speech** - Your system's built-in browser voices (free, local)
 - **Conversation memory** - Full context awareness across turns
 - **Mode indicators** - Visual feedback for listening/processing/speaking
 - **Mute toggle** - Quick mute/unmute during conversation
@@ -282,7 +282,7 @@ The sidebar is your primary navigation tool in Mossy.
 **How to Use:**
 
 1. Click "Live Voice" in the sidebar
-2. Configure your preferred STT/TTS providers in settings
+2. Check the voice settings (local Whisper for speech recognition, a browser voice for speech)
 3. Click the microphone button to start
 4. Speak your question or request
 5. Wait for Mossy to respond (about 1-2 seconds)
@@ -290,8 +290,8 @@ The sidebar is your primary navigation tool in Mossy.
 
 **Voice Settings:**
 
-- **STT Provider:** Choose between Deepgram, Whisper, or Browser
-- **TTS Provider:** Choose between OpenAI, ElevenLabs, or Browser
+- **Speech recognition:** Local Whisper (preferred) or the browser's online fallback
+- **Voice:** The browser's built-in voices
 - **Voice Selection:** Pick from available voices
 - **Speech Rate:** Adjust speaking speed
 - **Pitch:** Adjust voice pitch
@@ -302,8 +302,8 @@ The sidebar is your primary navigation tool in Mossy.
 - Ensure microphone permissions are granted
 - Check microphone selection in settings
 - Test microphone with a simple "Hello Mossy"
-- Verify internet connection for cloud STT/TTS
-- Use browser-based options if cloud services fail
+- If speech recognition is unreliable, make sure the local Whisper service is running
+- The browser's speech recognition fallback needs an internet connection
 
 ---
 
@@ -614,9 +614,8 @@ The sidebar is your primary navigation tool in Mossy.
 
 **2. AI & Voice**
 - AI provider (local Ollama)
-- API keys (secure storage)
 - Model selection
-- STT/TTS providers
+- Voice settings (speech recognition, voice)
 - Voice preferences
 
 **3. Tools & Paths**
@@ -1173,11 +1172,9 @@ For full details see [`scripts/blender/README_BLENDER_ADDONS.md`](scripts/blende
 **Symptoms:** Long wait times for AI responses
 
 **Solutions:**
-- Check internet connection
-- Verify API keys are valid
-- Switch to a different AI provider
-- Consider using local Ollama
-- Check API rate limits
+- Make sure your local AI (Ollama or KoboldCpp) is running and the model is loaded
+- Try a smaller model; large models are slow on a small GPU
+- Close other programs that use the GPU
 
 #### 6. Assets Not Showing in The Vault
 
@@ -1213,8 +1210,8 @@ A: Mossy checks for updates automatically. When an update is available, you'll s
 **Q: Is my data safe?**
 A: Yes. By default, all data is stored locally on your computer. You control what (if anything) is shared. Read the Privacy Architecture document for details.
 
-**Q: Where are my API keys stored?**
-A: API keys are stored securely in Electron's main process, never exposed to the renderer. They're encrypted at rest.
+**Q: Does Mossy use API keys?**
+A: No. This edition has no API keys and no cloud AI. Everything runs on your own computer.
 
 **Q: Can I delete all my data?**
 A: Yes. Go to Settings → Privacy → Delete All Local Data. This removes everything Mossy has stored.
@@ -1225,7 +1222,7 @@ A: Yes. Go to Settings → Privacy → Delete All Local Data. This removes every
 A: Local Ollama. The Nexus edition uses local AI only.
 
 **Q: Why isn't voice chat working?**
-A: Check microphone permissions, verify your STT/TTS provider settings, and ensure you have an active internet connection (for cloud providers).
+A: Check microphone permissions and that the local Whisper service is running. If you rely on the browser's speech recognition fallback, you also need an internet connection.
 
 **Q: Can I use my own voice model?**
 A: Not directly, but you can use local TTS engines via the browser API or integrate custom voice systems.

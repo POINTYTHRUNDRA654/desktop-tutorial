@@ -135,18 +135,17 @@ describe('InteractiveTutorial layout & navigation', () => {
     localStorage.removeItem('mossy_pip_mode');
   });
 
-  it('hides API key setup instructions when keys are preconfigured in the build (unit)', async () => {
-    // Unit-test the text builder directly to avoid navigating to that step
+  it('never mentions API keys or cloud AI providers in the tutorial text (unit)', async () => {
+    // Unit-test the text builder directly to avoid navigating to that step.
+    // The shipped edition is local-AI only (no API keys, no cloud providers), so neither
+    // variant of the settings tutorial may mention an API-key-gated provider.
     const settingsContext = tutorialContexts['settings'];
 
-    const withoutPackaged = buildTutorialText(settingsContext, 0, false);
-    // Settings features mention "Groq primary model" which is an API-key-gated provider
-    expect(/Groq/i.test(withoutPackaged)).toBeTruthy();
-
-    const withPackaged = buildTutorialText(settingsContext, 0, true);
-    // No API-key guidance or provider mentions should appear in packaged builds
-    expect(/Enter your OpenAI API key/i.test(withPackaged)).toBeFalsy();
-    expect(/(API key|OpenAI|openai|Groq)/i.test(withPackaged)).toBeFalsy();
+    for (const packaged of [false, true]) {
+      const text = buildTutorialText(settingsContext, 0, packaged);
+      expect(/Enter your OpenAI API key/i.test(text)).toBeFalsy();
+      expect(/(API key|OpenAI|Groq|Deepgram|Gemini)/i.test(text)).toBeFalsy();
+    }
   });
 
   it('orders tutorial contexts to follow VISUAL_GUIDE.md when page numbers exist', () => {

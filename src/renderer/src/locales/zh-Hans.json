@@ -118,7 +118,7 @@
       },
       "step3": {
         "title": "第3步：AI引擎",
-        "desc": "选择AI提供商（Groq/Ollama）、模型、响应长度和自我评估。"
+        "desc": "Select your local AI (Ollama or KoboldCpp), model, response length, and self-critique."
       },
       "step3b": {
         "title": "第4步：本地LLM — Ollama",
@@ -153,8 +153,6 @@
         "typescript": "微软的类型化 JavaScript (Apache 2.0)",
         "vite": "新一代构建工具 (MIT)",
         "aiMl": "AI 与机器学习",
-        "groq": "快速 LLM 推理 (Apache 2.0)",
-        "openaiSdk": "ChatGPT 集成 (Apache 2.0)",
         "ollama": "本地 LLM 运行时 (MIT)",
         "pytorch": "Meta 的 ML 框架 (BSD)",
         "numpy": "数值计算 (BSD 3-Clause)",
