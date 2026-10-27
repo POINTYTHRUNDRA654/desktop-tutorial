@@ -178,7 +178,12 @@ describe('FirstRunOnboarding — spriggit-digest 0xFFFFFFFF error recovery', () 
     // version → scanning (startScan fires immediately, no setTimeout)
     await user.click(screen.getByRole('button', { name: /start system scan/i }));
 
-    // scan async ops (mocked) complete; wait for credits step
+    // scan async ops (mocked) complete → "What your PC can run" step → credits
+    await waitFor(
+      () => expect(screen.getByText(/what your pc can run/i)).toBeInTheDocument(),
+      { timeout: 10_000 }
+    );
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
     await waitFor(
       () => expect(screen.getByTestId('onboarding-credits-cta')).toBeInTheDocument(),
       { timeout: 10_000 }
