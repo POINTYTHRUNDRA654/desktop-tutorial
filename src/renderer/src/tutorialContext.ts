@@ -1811,7 +1811,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Distributing a mod built with the NG CK to OG users without warning about BA2 V7/V8 incompatibility',
       'Installing AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD in any NG/AE mod — these are deprecated; see FO4 CK Guide tab',
       'Installing standalone Buffout 4 NG alongside Addictol — Addictol already includes it; installing both causes crashes',
-      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (0x800-0xFFF) or precombine rules',
+      'Treating the FO4 CK Guide tab as optional and missing ESL FormID limits (no higher than 0xFFF) or precombine rules',
     ],
     guides: [
       {
@@ -1836,7 +1836,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
         title: 'Release-safe workflow checklist',
         steps: [
           'Open FO4 CK Guide tab → review Deprecated Frameworks and NG/AE sections',
-          'Validate ESL FormID boundary (0x800-0xFFF limit) — run xEdit Compact FormIDs if needed',
+          'Validate ESL FormID boundary (new FormIDs no higher than 0xFFF) — run xEdit Compact FormIDs if needed',
           'Check BA2 header version matches your target runtime (V1 for OG, V2 for NG/AE)',
           'Run Spriggit (CK Safety tab) to serialize your ESP to YAML for Git before releasing',
         ],

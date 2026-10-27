@@ -9658,7 +9658,7 @@ Credits:
 
 **ESL (Elder Scrolls Light):**
 - Lightweight plugin (doesn't count toward 254 limit)
-- Limited form ID range (2,048 new records max, 0x800–0xFFF)
+- Limited form ID range: 0x001–0xFFF (up to 4,095 new records) with header version 1.0, 0x800–0xFFF (up to 2,048) with the old 0.95 header
 - Can be flagged as ESL or renamed .esl
 - Loads in separate "FE" slot
 - Use for: Small mods (single weapon, minor tweaks)
@@ -9668,7 +9668,7 @@ Credits:
 **WHEN TO USE EACH PLUGIN TYPE**
 
 **Use ESP when:**
-- Mod has 4096+ records
+- Mod adds more new records than an ESL allows (4,095 with header 1.0, 2,048 with header 0.95)
 - You want users to control load order
 - Mod patches other mods (needs to load last)
 - Standard weapon/armor/quest mod
@@ -9680,7 +9680,7 @@ Credits:
 - Creating DLC-sized content
 
 **Use ESL when:**
-- Mod has <2,048 new records (check in xEdit)
+- Mod adds few enough new records for an ESL (up to 4,095 with header 1.0, 2,048 with 0.95; check in xEdit)
 - Simple mod (1-10 items, small quest)
 - Want to save plugin slot for users
 - Compatibility is key (doesn't conflict with load order)
@@ -9694,11 +9694,11 @@ Credits:
 1. Open mod in xEdit
 2. Right-click on plugin header
 3. Select "Check for Errors"
-4. Count records (must be <4096 for ESL)
+4. Count new records (up to 4,095 with header 1.0, 2,048 with header 0.95)
 
 **Step 2: Compact Form IDs**
 
-ESL requires compact form ID range (0x800 - 0xFFF):
+ESL requires new FormIDs no higher than 0xFFF (0x001–0xFFF (up to 4,095 new records) with header version 1.0, 0x800–0xFFF (up to 2,048) with the old 0.95 header):
 
 1. In xEdit, right-click plugin
 2. Select "Compact FormIDs for ESL"
@@ -13141,7 +13141,7 @@ Core records: ARMO (inventory item — biped slot bitmask, keywords, weight/valu
 
 **LOAD ORDER, ESL FLAGGING & PLUGIN MANAGEMENT**
 
-Three plugin types: ESM (full 16M FormIDs, always loads before ESPs, use for frameworks/DLC-scale content), ESP (full FormIDs, load-order-position-sorted, standard for most mods), ESL/ESL-flagged ESP (0x800-0xFFF = 2048 new FormIDs max, does NOT count toward 254-plugin limit). 254-plugin limit: when reached, game refuses to launch — ESL-flag small patches (0-few new FormIDs) to exempt them. FormID structure: high byte = plugin index (00-FD regular, FE = ESL indicator), low 3 bytes = record ID. ESL safe when: < 2000 new records, pure edits to existing records, or small patches. NOT safe when: large mods, mods that may grow, framework masters. To ESL-flag: xEdit → plugin header → Record Flags → enable Light flag + run Compact FormIDs for ESL script first. LOOT sort order: always run LOOT after mod changes; sorts masters before dependents, applies community rules, flags dirty edits. Load order structure: DLC/Masters → UFO4P (early) → PRP (after UFO4P) → Frameworks → Overhauls → Content → Patches → xLODGen/TexGen LOD Output (last before Bashed Patch) → Bashed Patch (absolute last). Bashed Patch: Wrye Bash merges leveled lists from all plugins → resolves vendor/drop list conflicts without explicit patches; rebuild after every load order change. xEdit conflict detection: View → Filter for Conflicts; green=no conflict, yellow=override, red=conflict. OG/NG/AE plugin compatibility: ESP/ESM/ESL files are format-compatible across all three versions — DLL mods (F4SE plugins) need separate OG/NG/AE builds. Use Address Library AiO Anniversary (Nexus #47327) for all DLL mods.
+Three plugin types: ESM (full 16M FormIDs, always loads before ESPs, use for frameworks/DLC-scale content), ESP (full FormIDs, load-order-position-sorted, standard for most mods), ESL/ESL-flagged ESP (new FormIDs no higher than 0xFFF: 4,095 max with header 1.0, 2,048 with header 0.95; does NOT count toward 254-plugin limit). 254-plugin limit: when reached, game refuses to launch — ESL-flag small patches (0-few new FormIDs) to exempt them. FormID structure: high byte = plugin index (00-FD regular, FE = ESL indicator), low 3 bytes = record ID. ESL safe when: < 2000 new records, pure edits to existing records, or small patches. NOT safe when: large mods, mods that may grow, framework masters. To ESL-flag: xEdit → plugin header → Record Flags → enable Light flag + run Compact FormIDs for ESL script first. LOOT sort order: always run LOOT after mod changes; sorts masters before dependents, applies community rules, flags dirty edits. Load order structure: DLC/Masters → UFO4P (early) → PRP (after UFO4P) → Frameworks → Overhauls → Content → Patches → xLODGen/TexGen LOD Output (last before Bashed Patch) → Bashed Patch (absolute last). Bashed Patch: Wrye Bash merges leveled lists from all plugins → resolves vendor/drop list conflicts without explicit patches; rebuild after every load order change. xEdit conflict detection: View → Filter for Conflicts; green=no conflict, yellow=override, red=conflict. OG/NG/AE plugin compatibility: ESP/ESM/ESL files are format-compatible across all three versions — DLL mods (F4SE plugins) need separate OG/NG/AE builds. Use Address Library AiO Anniversary (Nexus #47327) for all DLL mods.
 
 ---
 
