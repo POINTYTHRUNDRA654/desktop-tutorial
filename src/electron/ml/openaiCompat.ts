@@ -61,6 +61,9 @@ export type OpenAICompatChatRequest = {
   tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>
   toolChoice?: 'auto' | 'required'
   timeoutMs?: number
+  /** Extra request fields a specific server understands, e.g. Ollama's
+   *  reasoning_effort: 'none' to switch off a model's hidden thinking. */
+  extraBody?: Record<string, unknown>
 }
 
 export type OpenAICompatChatResponse =
@@ -90,6 +93,7 @@ export async function openAICompatChat(req: OpenAICompatChatRequest): Promise<Op
         ...(req.tools && req.tools.length > 0
           ? { tools: req.tools, tool_choice: req.toolChoice ?? 'auto' }
           : {}),
+        ...(req.extraBody ?? {}),
       }),
       signal: controller.signal,
     })
