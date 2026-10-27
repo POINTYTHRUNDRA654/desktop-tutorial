@@ -4,10 +4,11 @@
 
 ### Fixed
 - **Mossy stopped answering unless Lemonade Server was running.** Since 6.0.0 every chat is answered on your PC, and most messages give Mossy tools to use. Those messages could only be answered by Lemonade, so with Lemonade closed she replied "Lemonade Server isn't running" even when Ollama was running with suitable models installed. She now answers through Ollama too.
-  - Order: Ollama with its best tutoring model first, then Lemonade, then any other Ollama model that can use tools. If none of them is running, she says so and names both.
+  - Order: Ollama with its best tutoring model first (gemma4:12b, then qwen3.5:9b), then Lemonade, then any other Ollama model that can use tools. If none of them is running, she says so and names both.
   - Mossy asks Ollama which installed models can use tools instead of assuming. Many popular models (for example gemma2 and llama3) cannot. Your own Ollama chat model is used when it can.
-  - How the order was chosen: real beginner questions (ESL plugins, precombines and previs, quests on existing saves), each answered with Mossy's Brain B knowledge and checked against the correct answers, plus a plain question that must not trigger a tool and a request that must. **qwen3.5:9b** said plainly when Brain B's knowledge didn't cover something instead of inventing an answer, and used tools correctly. Lemonade's Qwen3-4B was about twice as fast but confidently taught wrong facts. llama3.1:8b answered a plain question with a tool call, and mistral:7b skipped a requested one, so both are last resorts. gemma4:12b returned no text inside Mossy's answer limit, so it is not used for this.
-  - Without Brain B's knowledge, every model tested got these questions wrong, so keep Brain B running for teaching.
+  - Thinking is switched off for these calls. Thinking models (gemma4, qwen3.5) otherwise spent Mossy's whole answer allowance on hidden reasoning and replied with nothing; with it off they always answer and still use tools when asked.
+  - How the order was chosen: real beginner questions (ESL plugins, precombines and previs, quests on existing saves), each answered with Mossy's Brain B knowledge and checked against the correct answers, plus a plain question that must not trigger a tool and a request that must. **gemma4:12b** got the key ESL fact right (light plugins don't use one of the ~255 load-order slots) where qwen3.5:9b taught the opposite; both used tools correctly. Lemonade's Qwen3-4B was about twice as fast but confidently taught wrong facts. llama3.1:8b answered a plain question with a tool call and mistral:7b skipped a requested one, so both are last resorts.
+  - No model tested got all three questions right, even with Brain B's knowledge (none mentioned the SEQ file a Start Game Enabled quest needs, though Brain B supplied it). Without Brain B's knowledge every model got them wrong, so keep Brain B running for teaching.
 
 ## [6.0.0] — 2026-10-26 — GitHub-only release
 

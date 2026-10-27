@@ -21,20 +21,19 @@
 
 import { openAICompatChat, type OpenAICompatToolCall } from './openaiCompat'
 
-/** Models good enough to teach with, tried first. From a tutoring eval run
- *  2026-10-27 on Billy's PC (real beginner questions with Brain B's retrieved
- *  context, scored against known-correct answers; see CHANGELOG.md):
- *  qwen3.5:9b said plainly when Brain B's context didn't cover something
- *  instead of inventing an answer, never called a tool on a plain question,
- *  and called the right tool when asked. LocalAIEngine tries these BEFORE
- *  Lemonade's Qwen3-4B, which was faster but confidently taught wrong facts. */
-export const TOOL_MODEL_PREFERENCE = ['qwen3.5:9b', 'qwen3.5']
+/** Models good enough to teach with, tried first, in this order. From a
+ *  tutoring eval run 2026-10-27 on Billy's PC with thinking switched off (as
+ *  Mossy calls them): real beginner questions answered with Brain B's
+ *  retrieved context and scored against known-correct answers, plus a plain
+ *  question (must not trigger a tool) and a request that must (see
+ *  CHANGELOG.md). gemma4:12b got the core fact right where qwen3.5:9b taught
+ *  the opposite (ESL plugins); both used tools correctly. LocalAIEngine tries
+ *  these BEFORE Lemonade's Qwen3-4B, which confidently taught wrong facts. */
+export const TOOL_MODEL_PREFERENCE = ['gemma4:12b', 'gemma4', 'qwen3.5:9b', 'qwen3.5']
 
 /** Tool-capable but weaker in the same eval (llama3.1:8b answered a plain
  *  question with a tool call; mistral:7b skipped a requested tool call).
- *  Only used as a last resort, after Lemonade, so Mossy still answers.
- *  gemma4:12b is deliberately absent: inside openAICompatChat's 1024-token
- *  limit it spent the whole budget on hidden thinking and returned no text. */
+ *  Only used as a last resort, after Lemonade, so Mossy still answers. */
 export const LAST_RESORT_TOOL_MODELS = ['llama3.1:8b', 'llama3.1', 'mistral:7b', 'mistral', 'qwen2.5-coder:7b']
 
 type Capabilities = { at: number; baseUrl: string; byModel: Map<string, string[]> }
@@ -134,6 +133,11 @@ export async function ollamaToolChat(req: OllamaToolChatRequest): Promise<Ollama
     messages: req.messages,
     tools: req.tools,
     toolChoice: req.toolChoice,
+    // Thinking models (gemma4, qwen3.5) otherwise spend openAICompatChat's
+    // whole 1024-token budget on hidden reasoning and return EMPTY text --
+    // found 2026-10-27 in the real app: qwen3.5:9b answered "ok" with no text.
+    // 'none' measured: always an answer, tools still called when required.
+    extraBody: { reasoning_effort: 'none' },
     // A 9B model on first use has to load into VRAM; 30s (the client default)
     // is not enough for that, so allow longer unless the caller says otherwise.
     timeoutMs: req.timeoutMs ?? 180_000,

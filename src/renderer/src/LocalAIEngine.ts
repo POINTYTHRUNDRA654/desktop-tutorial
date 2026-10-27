@@ -2012,11 +2012,10 @@ export const LocalAIEngine = {
         return null;
       };
 
-      // 1. Ollama's best tutoring model first. A 2026-10-27 tutoring eval with
-      //    Brain B context (CHANGELOG.md) had qwen3.5:9b say plainly when the
-      //    context didn't cover something, where Lemonade's Qwen3-4B was ~2x
-      //    faster but confidently taught wrong facts. Mossy is a tutor, so
-      //    accuracy wins.
+      // 1. Ollama's best tutoring model first (gemma4:12b, then qwen3.5:9b;
+      //    see TOOL_MODEL_PREFERENCE). A 2026-10-27 tutoring eval with Brain B
+      //    context (CHANGELOG.md) had Lemonade's Qwen3-4B ~2x faster but
+      //    confidently teaching wrong facts. Mossy is a tutor, so accuracy wins.
       const ollamaBest = await tryOllamaTools(false);
       if (ollamaBest) return ollamaBest;
 
