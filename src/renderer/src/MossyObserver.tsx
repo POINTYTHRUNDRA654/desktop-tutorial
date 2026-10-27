@@ -316,7 +316,7 @@ const QUIPS: Record<string, string[]> = {
         "Dependencies show which master files your mod needs - Fallout4.esm is always required, DLCs are optional.",
         "Copy folder paths to quickly create your directory structure - consistency prevents asset loading failures.",
         "ArmorKeywords.esm (community mod) adds shared armor keywords - reference it to make armor work with other mods.",
-        "Script sources go in Data/Scripts/Source, compiled bytecode in Data/Seq Files - Papyrus needs both.",
+        "Script sources (.psc) go in Data/Scripts/Source/User; the compiled .pex files the game runs go in Data/Scripts. Ship the .pex files with your mod.",
         "Navmesh (NAVM) is critical for world/settlement expansions - without it, NPCs can't pathfind and get stuck."
     ],
     '/synapse': [

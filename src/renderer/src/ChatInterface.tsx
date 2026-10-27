@@ -263,7 +263,7 @@ const QUICK_PROMPTS: { label: string; prompt: string; emoji: string }[] = [
     { emoji: '📋', label: 'Sort my load order', prompt: 'What is the correct load order structure for a heavily modded Fallout 4? Walk me through it.' },
     { emoji: '🌿', label: 'Generate LOD', prompt: 'What are all the steps to generate LOD for a mod that adds outdoor objects — TexGen and xLODGen (FO4LODGen mode)?' },
     { emoji: '💥', label: 'Analyse a crash', prompt: 'My game crashed and X-Cell made a crash log. How do I read the call stack and use CLASSIC to figure out which mod caused it?' },
-    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits (0x800-0xFFF) and what happens if I go over them?' },
+    { emoji: '🎯', label: 'ESL-flag a plugin', prompt: 'How do I safely ESL-flag an ESP in xEdit? What are the FormID limits and what happens if I go over them?' },
     { emoji: '🏗️', label: 'Precombines explained', prompt: 'Why are precombines important and how do I avoid breaking them in my mod?' },
     { emoji: '🖼️', label: 'DDS texture formats', prompt: 'Which DDS format should I use for each texture type in Fallout 4 — diffuse, normal, specular (_s.dds channels), and height map?' },
     { emoji: '⚙️', label: 'xEdit conflict patch', prompt: 'Two mods conflict on the same NPC record. Walk me through creating a compatibility patch in xEdit.' },

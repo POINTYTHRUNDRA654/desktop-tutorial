@@ -390,7 +390,7 @@ const PluginInspectorPanel: React.FC = () => {
 
   // ── Plugin type label from flags ────────────────────────────────────────────
   const pluginTypeLabel = (r: PluginInspectorResult) => {
-    if (r.esmFlag && r.eslFlag) return 'ESM-as-ESL (2048 FormID cap)';
+    if (r.esmFlag && r.eslFlag) return 'ESM-as-ESL (light: new FormIDs up to 0xFFF)';
     if (r.eslFlag) return 'ESL-flagged ESP';
     if (r.esmFlag) return 'ESM (Master File)';
     const ext = pluginPath.split('.').pop()?.toLowerCase();
@@ -1515,7 +1515,7 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Compact FormIDs before releasing as ESL',
-    detail: 'ESL plugins can only use FormIDs 0x800–0xFFF (2,048 new records). Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
+    detail: 'New FormIDs in an ESL plugin must be no higher than 0xFFF: 0x001–0xFFF (4,095 new records) with header version 1.0, 0x800–0xFFF (2,048) with the old 0.95 header. Run xEdit → "Compact FormIDs for ESL" before flagging. This is a destructive operation — do it before distributing.',
   },
   {
     title: 'Script compilation: always check for stale PEX files',
@@ -1694,9 +1694,9 @@ const FO4CKGuide: React.FC = () => (
             {[
               { type: 'ESP (full)', range: '0x000800–0xFFFFF per mod', max: '16,776,704', notes: 'Standard plugin. Counts toward 254 plugin limit.' },
               { type: 'ESM (master)', range: 'Same as ESP but flags as master', max: '16,776,704', notes: 'Used by other plugins as dependency. Full range.' },
-              { type: 'ESL (light)', range: '0x800–0xFFF (2,048–4,095)', max: '2,048', notes: 'Does NOT count toward the 254-plugin limit. Shares the 2,048 new-record ceiling with ESL-flagged ESPs. Exceeding 0xFFF causes save corruption.' },
-              { type: 'ESL-flagged ESP', range: '0x800–0xFFF', max: '2,048', notes: 'Regular ESP with ESL flag. Shares the 2,048 ceiling with ESL files. Compact FormIDs first.' },
-              { type: 'ESM flagged as ESL', range: '0x800–0xFFF', max: '2,048', notes: 'Rare. Used for large content split across ESL-size chunks.' },
+              { type: 'ESL (light)', range: '0x001–0xFFF (header 1.0) / 0x800–0xFFF (header 0.95)', max: '4,095 / 2,048', notes: 'Does NOT count toward the 254-plugin limit. Same new-record ceiling as ESL-flagged ESPs. Exceeding 0xFFF causes save corruption.' },
+              { type: 'ESL-flagged ESP', range: '0x001–0xFFF (header 1.0) / 0x800–0xFFF (header 0.95)', max: '4,095 / 2,048', notes: 'Regular ESP with ESL flag. Same ceiling as .esl files. Compact FormIDs first.' },
+              { type: 'ESM flagged as ESL', range: '0x001–0xFFF (header 1.0) / 0x800–0xFFF (header 0.95)', max: '4,095 / 2,048', notes: 'Rare. Used for large content split across ESL-size chunks.' },
             ].map((row) => (
               <tr key={row.type} className="border-b border-slate-800/60">
                 <td className="py-2 pr-4 font-semibold text-white">{row.type}</td>

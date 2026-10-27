@@ -48,7 +48,7 @@ const XEDIT_WORKFLOW = [
   { step: '2. Clean ITMs (Identical to Master records)', detail: 'Right-click your plugin → Apply Filter for Cleaning. Then right-click → Remove Identical to Master Records. If the count is zero, no ITMs exist — move on.' },
   { step: '3. Clean UDRs (Undelete and Disable References)', detail: 'After ITM cleaning, right-click the plugin → Undelete and Disable References. This converts deleted placed references to the disabled+XDCR pattern, which is engine-safe.' },
   { step: '4. Check for errors', detail: 'Right-click plugin → Check for Errors. Most "could not be resolved" errors indicate broken FormID cross-references — fix or remove those records before distributing.' },
-  { step: '5. Compact FormIDs for ESL flag (if applicable)', detail: 'If you want to flag the plugin as ESL, right-click → Compact FormIDs for ESL. This reassigns all new FormIDs to the 0x800–0xFFF range. Do this ONLY before distributing and NEVER after a save-game has referenced this plugin.' },
+  { step: '5. Compact FormIDs for ESL flag (if applicable)', detail: 'If you want to flag the plugin as ESL, right-click → Compact FormIDs for ESL. This renumbers all new FormIDs into the light-plugin range (no higher than 0xFFF). Do this ONLY before distributing and NEVER after a save-game has referenced this plugin.' },
   { step: '6. Save', detail: 'Ctrl+S or close xEdit and confirm save. Always back up the original before cleaning.' },
 ];
 
@@ -65,16 +65,16 @@ const COMMON_MISTAKES = [
   { mistake: 'Skipping the ITM/UDR clean step', impact: 'high', fix: 'Clean with xEdit before every release. Dirty plugins cause save bloat and can silently override other mods\' changes.' },
   { mistake: 'Not regenerating Bashed Patch after load order change', impact: 'medium', fix: 'Regenerate the Bashed Patch in Wrye Bash every time mods are added, removed, or reordered. Stale Bashed Patches produce wrong leveled lists.' },
   { mistake: 'Editing exterior objects without regenerating precombines', impact: 'critical', fix: 'Any moved or deleted static in a precombined zone breaks precombines for that cell — major FPS drop and possible crash. Always regenerate precombine + previs after exterior edits.' },
-  { mistake: 'ESL flag without compacting FormIDs first', impact: 'critical', fix: 'ESL plugins MUST use FormIDs in 0x800–0xFFF. Compact with xEdit before flagging. Never compact after distributing — it breaks existing save games.' },
+  { mistake: 'ESL flag without compacting FormIDs first', impact: 'critical', fix: 'In an ESL plugin, the new records must have object IDs no higher than 0xFFF (0x001–0xFFF with header version 1.0, up to 4,095 records; 0x800–0xFFF with the old 0.95 header, up to 2,048). Compact with xEdit before flagging. Never compact after distributing — it breaks existing save games.' },
   { mistake: 'Loading more than 254 standard ESPs', impact: 'critical', fix: 'FO4 hard-caps at 254 standard ESPs (slot 0xFE is reserved for the ESL/light-plugin indicator, so only 0x00–0xFD are usable by full plugins). Convert small mods to ESL where possible. Wrye Bash can identify which mods qualify automatically.' },
   { mistake: 'Putting patch mods above the mods they patch', impact: 'medium', fix: 'A compatibility patch must load AFTER both mods it patches. If Patch_A_B.esp loads before A.esp, its overrides are immediately clobbered and it does nothing.' },
-  { mistake: 'No SEQ file for Start Game Enabled quests', impact: 'high', fix: 'Any quest with the Start Game Enabled flag requires a matching .seq file. Without it, the quest never starts on a loaded save. Generate the SEQ file via Creation Kit → Game → Create SEQ File.' },
+  { mistake: 'No SEQ file for Start Game Enabled quests', impact: 'high', fix: 'Any quest with the Start Game Enabled flag requires a matching .seq file. Without it, the quest never starts on a loaded save. Generate it in xEdit (right-click the plugin → Create SEQ File) or with the -GenerateSEQ command-line switch of the Creation Kit.' },
   { mistake: 'Navmesh edits without a compatibility patch', impact: 'high', fix: 'Navmesh records cannot be partially merged. Two mods editing the same navmesh will CTD. One must win; create a compatibility patch that contains only the winning navmesh.' },
 ];
 
 const SEQ_GUIDE = [
   { step: 'Identify affected quests', detail: 'In xEdit or CK, check every QUST record in your plugin. If the Start Game Enabled flag is set (bit 0x0001 of the QUST flags field), that quest requires a SEQ file.' },
-  { step: 'Generate the SEQ file via Creation Kit', detail: 'Open the CK with your plugin as the active file. Go to Game menu → Create SEQ File. The CK writes a .seq binary file that tells the engine to check this quest on every save load.' },
+  { step: 'Generate the SEQ file', detail: 'In xEdit (FO4Edit), load your plugin, right-click it and choose Create SEQ File. The Creation Kit can also write it with its -GenerateSEQ command-line switch. The .seq file lists the FormIDs of the new Start Game Enabled quests your plugin adds so the game can start them in existing saves.' },
   { step: 'Place the SEQ file correctly', detail: 'The file must be at: <mod folder>/SEQ/<PluginName>.seq. In MO2, this goes inside your mod\'s folder structure. If using loose files, place it in the FO4 Data/SEQ/ folder.' },
   { step: 'Pack into a BA2 (for distribution)', detail: 'Include the SEQ file in your mod\'s General BA2. If you forget the SEQ file, testers will report that your quest "doesn\'t start" — it\'s the most common quest mod bug.' },
 ];
@@ -158,7 +158,7 @@ const FO4PluginGuide: React.FC = () => (
             {[
               { type: 'ESP (full)', slot: '0x00–0xFD (254 total)', max: '16,776,704', loot: 'Full masterlist' },
               { type: 'ESM (master)', slot: '0x00–0xFD', max: '16,776,704', loot: 'Full masterlist' },
-              { type: 'ESL (light)', slot: 'FE000–FEFFF (4096 total)', max: '2,048 (0x800–0xFFF)', loot: 'Partial (position within FE range)' },
+              { type: 'ESL (light)', slot: 'FE000–FEFFF (4096 total)', max: '4,095 (0x001–0xFFF, header 1.0) / 2,048 (0x800–0xFFF, header 0.95)', loot: 'Partial (position within FE range)' },
               { type: 'ESP-FE (ESL-flagged ESP)', slot: 'FE000–FEFFF', max: '2,048', loot: 'Same as ESL' },
             ].map(r => (
               <tr key={r.type} className="border-b border-slate-800/60">

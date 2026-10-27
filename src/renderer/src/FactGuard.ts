@@ -63,7 +63,7 @@ const FACT_REGISTRY: FactGuardEntry[] = [
     topicPattern: /plugin|\besp\b|\besm\b|load order/i,
     wrongPattern: /255\s*(total\s*)?plugins?|0x01\s*[-–]\s*0xFE|\(0xFF\)\s*(is|as)?\s*(the\s*)?(dedicated\s*)?ESL|ESL[^.]{0,40}0xFF|0xFF[^.]{0,40}ESL/i,
     correctedResponse:
-      "Fallout 4 can load a maximum of **254 regular ESP/ESM plugins** (load-order slots 0x00-0xFD). Slot 0xFE is reserved as the ESL/light-plugin indicator, not a 255th regular slot - ESL-flagged plugins don't count against the 254 limit at all, they share a separate FormID range (0x800-0xFFF, up to 2,048 new records each) instead. Fallout4.esm plus the official DLCs already use 7 of those 254 slots, so a heavily-modded load order can hit this ceiling faster than it looks. If you're bumping up against it, ESL-flagging small patches (mods with few new records) is the usual fix - not deleting mods you want to keep.",
+      "Fallout 4 can load a maximum of **254 regular ESP/ESM plugins** (load-order slots 0x00-0xFD). Slot 0xFE is reserved as the ESL/light-plugin indicator, not a 255th regular slot - ESL-flagged plugins don't count against the 254 limit at all, they share a separate FormID range instead (new records no higher than 0xFFF: up to 4,095 per plugin with header version 1.0, 2,048 with the old 0.95 header). Fallout4.esm plus the official DLCs already use 7 of those 254 slots, so a heavily-modded load order can hit this ceiling faster than it looks. If you're bumping up against it, ESL-flagging small patches (mods with few new records) is the usual fix - not deleting mods you want to keep.",
   },
 ];
 

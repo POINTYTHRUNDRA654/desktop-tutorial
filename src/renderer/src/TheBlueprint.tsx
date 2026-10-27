@@ -726,7 +726,7 @@ const TheBlueprint: React.FC = () => {
                                     <div className="space-y-2">
                                         <div className="bg-[#252526] border border-emerald-700/40 rounded p-3">
                                             <div className="text-xs font-bold text-emerald-300 mb-1">ESL (Light Plugin)</div>
-                                            <p className="text-[10px] text-slate-400">≤2,048 new FormIDs (0x800–0xFFF). Does not consume an ESP slot in the 254-plugin limit. Ideal for small patches, weapon packs, texture mods with a plugin.</p>
+                                            <p className="text-[10px] text-slate-400">Up to 4,095 new FormIDs (0x001–0xFFF) with header 1.0, 2,048 (0x800–0xFFF) with the old 0.95 header. Does not consume an ESP slot in the 254-plugin limit. Ideal for small patches, weapon packs, texture mods with a plugin.</p>
                                         </div>
                                         <div className="bg-[#252526] border border-amber-700/40 rounded p-3">
                                             <div className="text-xs font-bold text-amber-300 mb-1">ESP (Standard Plugin)</div>
