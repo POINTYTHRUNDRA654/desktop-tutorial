@@ -367,9 +367,6 @@ const KritaAIDiffusion: React.FC = () => (
         Integrates Stable Diffusion / Flux directly into Krita for AI-assisted texture creation, inpainting, upscaling, and live painting.
         Ideal for generating and refining FO4 diffuse textures with precise selections and reference control.
       </p>
-      <div className="mt-3 text-xs font-mono text-purple-400 bg-purple-900/20 border border-purple-500/20 rounded px-3 py-1.5">
-        Cloned: D:\Projects\desktop-tutorial\krita-ai-diffusion
-      </div>
     </div>
 
     <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5">

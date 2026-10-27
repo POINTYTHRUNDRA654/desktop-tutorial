@@ -629,7 +629,7 @@ function PrivacySettings({ embedded = false }: PrivacySettingsProps) {
                 type="text"
                 value={settings.memoryStoragePath || ''}
                 onChange={(e) => saveSettings({ memoryStoragePath: e.target.value })}
-                placeholder="Absolute folder path, e.g. H:\Mossy Memory"
+                placeholder="Absolute folder path, e.g. D:\Mossy Memory"
                 className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-slate-100 font-mono text-sm"
               />
               <button

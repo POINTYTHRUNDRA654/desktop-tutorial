@@ -236,7 +236,7 @@ function ConversationsTab() {
       {result && (
         <div className="border border-slate-700 rounded-md overflow-hidden">
           <div className="px-3 py-2 bg-slate-800/60 text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-400"/>Generated conversation — saved to H:/F4AI/conversations/
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-400"/>Generated conversation — saved to the conversations folder of your NPC store
           </div>
           <div className="p-3 space-y-1 max-h-80 overflow-y-auto">
             {result.map((ex, i) => (
@@ -316,7 +316,7 @@ function LineWriterTab() {
       {lines.length > 0 && (
         <div className="border border-slate-700 rounded-md overflow-hidden">
           <div className="px-3 py-2 bg-slate-800/60 text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-400"/>{lines.length} lines — saved to H:/F4AI/catalogue/generated/{archetype}.json
+            <CheckCircle className="w-3.5 h-3.5 text-emerald-400"/>{lines.length} lines — saved to catalogue/generated/{archetype}.json in your NPC store
           </div>
           <div className="p-3 space-y-1 max-h-80 overflow-y-auto">
             {lines.map((line, i) => (
@@ -404,13 +404,13 @@ function CatalogueTab() {
 // ── Setup Tab ───────────────────────────────────────────────────────────────
 function SetupTab() {
   const [status, setStatus] = useState<StoreStatus | null>(null);
-  const [storePath, setStorePath] = useState('H:/F4AI');
+  const [storePath, setStorePath] = useState('');
   const [initializing, setInitializing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refreshStatus = useCallback(async () => {
     const r = await api?.f4aiStoreStatus?.();
-    if (r?.ok) { setStatus(r); setStorePath(r.configured_path || 'H:/F4AI'); }
+    if (r?.ok) { setStatus(r); setStorePath(r.configured_path || ''); }
     setLoading(false);
   }, []);
 
@@ -423,7 +423,7 @@ function SetupTab() {
       toast.success(`Store initialized at ${r.store_path}. Seeded ${r.npcs_seeded} NPCs.`);
       await refreshStatus();
     } else {
-      toast.error(r?.error || 'Initialization failed. Is H: drive connected?');
+      toast.error(r?.error || 'Initialization failed. Is the NPC store folder reachable?');
     }
     setInitializing(false);
   };
@@ -455,7 +455,7 @@ function SetupTab() {
               </>
             )}
             {!status.exists && (
-              <div className="text-amber-400/80 text-[11px]">H: drive not found. Connect H: drive or change the store path below to an existing location.</div>
+              <div className="text-amber-400/80 text-[11px]">NPC store folder not found. Connect its drive or change the store path below to an existing location.</div>
             )}
           </div>
         ) : null}
@@ -466,7 +466,7 @@ function SetupTab() {
         <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5"><Folder className="w-3.5 h-3.5"/>Store Path</label>
         <input value={storePath} onChange={e => setStorePath(e.target.value)}
           className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs font-mono text-slate-200 focus:border-emerald-600 outline-none"/>
-        <div className="text-[11px] text-slate-500">Default: H:/F4AI — NPC memories, conversations, and generated dialogue are stored here. Must be accessible when Mossy is running.</div>
+        <div className="text-[11px] text-slate-500">Default: the F4AI folder in Mossy's data folder — NPC memories, conversations, and generated dialogue are stored here. Must be accessible when Mossy is running.</div>
       </div>
 
       {/* Init Button */}

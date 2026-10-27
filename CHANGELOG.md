@@ -18,6 +18,7 @@ Mossy is now released only on GitHub. Everything in this release still runs on y
 - **Update notice** — Mossy tells you when a new version is on GitHub (checks the public Releases list at most once a day; switch off or check now in Settings > Updates). It links to the release page; nothing is downloaded or installed for you.
 - **Share with Mossy's learning** — Find Mods > Share with the Community now opens a ready-made GitHub issue on Mossy's repo (labelled for review) for your techniques, scripts and notes.
 - **Your own AI service** (optional, off by default) — connect your own OpenAI, Groq, OpenRouter or other OpenAI-compatible account. Your key is encrypted on your PC and only sent to the service you chose.
+- **Interface in 11 more languages** — buttons, labels, settings, messages and short help text across every platform are now translated into German, Spanish, French, Italian, Brazilian Portuguese, Polish, Russian, Turkish, Japanese, Korean and Simplified Chinese (about 6,200 phrases each). Pick the language in Settings. Long written guides and tutorials stay in English for now and follow in 6.1. Code, file paths, commands and Mossy's chat answers are not translated.
 
 ### Changed
 - **Find Mods** replaces the Mod Browser's Nexus sign-in (which never had a working connection): searches open Nexus Mods in your browser, alongside the install guide and community sharing.
@@ -26,7 +27,8 @@ Mossy is now released only on GitHub. Everything in this release still runs on y
 - Hardware detection used `wmic`, which current Windows 11 no longer has, and its video-memory field cannot report more than 4 GB. GPU, video memory, disk and motherboard detection now work on current Windows, and the INI Manager tunes for your dedicated graphics card instead of integrated graphics.
 - Creative Director's design tabs called routes their helper never had, so they always fell back to templates; the helpers now answer them. The helpers listen only on 127.0.0.1 (they listened on every network interface).
 - Creative Director's offline Papyrus check suggested `RegisterForSingleUpdate`, which does not exist in Fallout 4; it now flags it and points to `StartTimer` / `OnTimer`.
-- Game scanners and fine-tune scripts no longer default to a developer's drive letter.
+- Game scanners and fine-tune scripts no longer default to a developer's drive letter. The NPC Director's store now defaults to an F4AI folder in Mossy's data folder, and example paths in the interface no longer show a developer's own folders.
+- The Ollama settings said "Auto" used Groq by default; Auto uses your local Ollama and no cloud service. The donation page no longer mentions Claude API costs.
 
 ### Removed
 - Nexus-only build channel, Nexus sign-in and the Nexus release scripts.

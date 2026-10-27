@@ -371,7 +371,7 @@ ollama serve`}
         <div className="font-semibold text-slate-200 text-xs mb-2">Mossy Integration</div>
         <ul className="text-xs text-slate-300 space-y-1 list-disc list-inside">
           <li>Set AI Engine provider to <strong>Ollama (Local)</strong> to force Mossy to use your local model</li>
-          <li>Set to <strong>Auto</strong> and Mossy uses Groq by default but falls back to Ollama when offline</li>
+          <li>Set to <strong>Auto</strong> and Mossy uses your local Ollama whenever it is running — no cloud service is used</li>
           <li>All local processing happens on your machine — no data sent anywhere</li>
           <li>Response speed depends on model size and your GPU/CPU; smaller models are fastest</li>
           <li>Recommended for offline modding sessions or air-gapped systems</li>
