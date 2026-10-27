@@ -8,9 +8,13 @@
  * Mossy replied "Lemonade Server isn't running" even while Ollama was up with
  * several tool-capable models installed (seen 2026-10-27 on Billy's PC).
  *
- * Uses Ollama's OpenAI-compatible endpoint (<ollamaBaseUrl>/v1) through the
- * existing openAICompatChat client, so tool calls come back in exactly the
- * shape Lemonade's do (see lemonade.ts) and LocalAIEngine treats them the same.
+ * Uses Ollama's native /api/chat (not the OpenAI-compatible /v1): only the
+ * native API takes a context size per request (options.num_ctx) and a
+ * thinking switch (think: false). Without num_ctx the /v1 endpoint silently
+ * cut Mossy's prompt to its last ~4,096 tokens (Ollama log, 2026-10-27:
+ * "truncating input prompt limit=4099 prompt=73729"). Tool calls are reshaped
+ * to the same {id, name, args-as-JSON-string} form Lemonade's openaiCompat
+ * client returns, so LocalAIEngine treats both identically.
  *
  * Model choice is checked, not assumed: Ollama reports per model whether it
  * supports tools (/api/show -> capabilities). The user's chat model is used
@@ -19,7 +23,14 @@
  * llama3) cannot, and Ollama rejects a tools request for them outright.
  */
 
-import { openAICompatChat, type OpenAICompatToolCall } from './openaiCompat'
+import type { OpenAICompatToolCall } from './openaiCompat'
+
+/** Context size requested for every tool-chat call. 8192 matches the
+ *  OLLAMA_CONTEXT_LENGTH Mossy's setup uses, so Brain B's own calls to the same
+ *  model (which send no num_ctx) reuse the loaded model instead of reloading
+ *  it (measured 2026-10-27: no reload between the two). LocalAIEngine keeps
+ *  its local prompt inside this budget (see LOCAL_TOOL_PROMPT_BUDGET). */
+export const OLLAMA_TOOL_NUM_CTX = 8192
 
 /** Models good enough to teach with, tried first, in this order. From a
  *  tutoring eval run 2026-10-27 on Billy's PC with thinking switched off (as
@@ -125,23 +136,52 @@ export async function ollamaToolChat(req: OllamaToolChatRequest): Promise<Ollama
   const base = req.baseUrl.replace(/\/$/, '')
   const pick = await pickOllamaToolModel(base, req.chatModel, !!req.allowLastResort)
   if (!pick.ok) return pick
-  const resp = await openAICompatChat({
-    baseUrl: `${base}/v1`,
-    model: pick.model,
-    system: '', // unused -- messages always overrides system/user
-    user: '',
-    messages: req.messages,
-    tools: req.tools,
-    toolChoice: req.toolChoice,
-    // Thinking models (gemma4, qwen3.5) otherwise spend openAICompatChat's
-    // whole 1024-token budget on hidden reasoning and return EMPTY text --
-    // found 2026-10-27 in the real app: qwen3.5:9b answered "ok" with no text.
-    // 'none' measured: always an answer, tools still called when required.
-    extraBody: { reasoning_effort: 'none' },
-    // A 9B model on first use has to load into VRAM; 30s (the client default)
-    // is not enough for that, so allow longer unless the caller says otherwise.
-    timeoutMs: req.timeoutMs ?? 180_000,
-  })
-  if (!resp.ok) return { ok: false, error: `${pick.model}: ${resp.error}` }
-  return { ...resp, model: pick.model }
+  const controller = new AbortController()
+  // A 12B model on first use has to load into VRAM; allow for that.
+  const timeout = setTimeout(() => controller.abort(), req.timeoutMs ?? 180_000)
+  try {
+    const res = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: pick.model,
+        stream: false,
+        messages: req.messages,
+        ...(req.tools && req.tools.length > 0 ? { tools: req.tools } : {}),
+        // Thinking models (gemma4, qwen3.5) otherwise spend the whole answer
+        // budget on hidden reasoning and return EMPTY text -- found
+        // 2026-10-27 in the real app (qwen3.5:9b answered "ok" with no text).
+        think: false,
+        keep_alive: '30m',
+        options: { num_ctx: OLLAMA_TOOL_NUM_CTX, num_predict: 1024, temperature: 0.4 },
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      return { ok: false, error: `${pick.model}: HTTP ${res.status}${text ? `: ${text}` : ''}` }
+    }
+    const data = (await res.json()) as any
+    const message = data?.message ?? {}
+    const rawCalls = Array.isArray(message.tool_calls) ? message.tool_calls : []
+    // The native API has no tool_choice. 'required' turns (Brain B classified
+    // the turn as wanting an action) can still come back as plain text; the
+    // caller treats that like any other answer.
+    const toolCalls: OpenAICompatToolCall[] | undefined = rawCalls.length > 0
+      ? rawCalls.map((tc: any, i: number) => {
+          const args = tc?.function?.arguments
+          return {
+            id: String(tc?.id ?? `call_${i}`),
+            name: String(tc?.function?.name ?? ''),
+            args: typeof args === 'string' ? args : JSON.stringify(args ?? {}),
+          }
+        })
+      : undefined
+    return { ok: true, text: String(message.content ?? ''), toolCalls, model: pick.model }
+  } catch (err: any) {
+    const msg = String(err?.name === 'AbortError' ? 'timed out' : err?.message || err)
+    return { ok: false, error: `${pick.model}: ${msg}` }
+  } finally {
+    clearTimeout(timeout)
+  }
 }

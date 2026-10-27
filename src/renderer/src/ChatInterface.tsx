@@ -7,7 +7,7 @@ import { formatRelevantFO4KnowledgeBaseForAI } from '../../shared/FO4KnowledgeBa
 import { getCommunityLearningContextForModel } from './communityLearningProfile';
 import { getToolPermissionsContextForModel, mergeExistingCheckedState } from './toolPermissions';
 import { checkContentGuard } from './Fallout4Guard';
-import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, Cpu, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain, Download } from 'lucide-react';
+import { Send, Paperclip, Loader2, Bot, BotOff, Leaf, Search, FolderOpen, Save, Trash2, CheckCircle2, HelpCircle, PauseCircle, ChevronRight, FileText, X, CheckSquare, Globe, Mic, Volume2, VolumeX, StopCircle, Wifi, Gamepad2, Terminal, Box, Layout, ArrowUpRight, Wrench, Radio, Lock, Square, Map, Scroll, Flag, PenTool, Database, Activity, Clipboard, Brain, Download } from 'lucide-react';
 import { Message } from '../../shared/types';
 import { useLive } from './LiveContext';
 import { speakMossy, stopMossySpeech } from './mossyTts';
@@ -523,17 +523,10 @@ const MessageItem = React.memo(({ msg, onRate, onManualExecute }: { msg: ChatMes
                         <span>Mossy's knowledge/context service (Brain B) wasn't reachable for this answer — no citations or live scene data were used.</span>
                     </div>
                 )}
-                {/* Mossy's actual primary is cloud generation — this fires only when that
-                    was genuinely unavailable (no backend/API key, network failure) and a
-                    local model answered instead. Local models are meaningfully weaker at
-                    following a system prompt this large, so this is disclosed rather than
-                    passed off as a routine answer. */}
-                {msg.role === 'assistant' && msg.usedLocalFallback && (
-                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700/60 text-slate-400 text-xs">
-                        <Cpu className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>Mossy's main cloud service was unavailable, so this answer came from a local backup model — it may be less reliable than usual.</span>
-                    </div>
-                )}
+                {/* A "main cloud service was unavailable, local backup answered" notice
+                    used to sit here. Since 6.0.0 there is no cloud path: local models are
+                    how Mossy always answers, so that notice was false on every answer
+                    (removed in 6.0.1). */}
                 {/* ── Copy button + Training feedback row (assistant messages only) ── */}
                 {msg.role === 'assistant' && msg.content && !msg.content.startsWith('**[') && (
                     <div className="pt-1 flex items-center gap-1 flex-wrap">
