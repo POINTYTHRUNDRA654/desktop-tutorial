@@ -1,0 +1,45 @@
+/**
+ * KoboldCpp integration -- another local engine next to Lemonade and LM Studio.
+ * KoboldCpp serves an OpenAI-compatible API at http://127.0.0.1:5001/v1, so this
+ * is a thin wrapper over openaiCompat.ts (same pattern as lemonade.ts).
+ * It also offers text-to-speech, which can feed Runalip for lip-sync files.
+ */
+import { getOpenAICompatStatus, openAICompatChat, type OpenAICompatToolCall } from './openaiCompat'
+
+export const KOBOLDCPP_DEFAULT_BASE_URL = 'http://127.0.0.1:5001/v1'
+export const KOBOLDCPP_DEFAULT_MODEL = 'koboldcpp'
+
+export type KoboldcppStatus =
+  | { ok: true; baseUrl: string; models: string[] }
+  | { ok: false; baseUrl: string; error: string }
+
+export async function getKoboldcppStatus(baseUrl = KOBOLDCPP_DEFAULT_BASE_URL): Promise<KoboldcppStatus> {
+  const s = await getOpenAICompatStatus(baseUrl)
+  return s.ok ? { ok: true, baseUrl: s.baseUrl, models: s.models } : { ok: false, baseUrl: s.baseUrl, error: s.error }
+}
+
+export type KoboldcppChatRequest = {
+  baseUrl?: string
+  model?: string
+  messages: Array<{ role: string; content: string }>
+  tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>
+  toolChoice?: 'auto' | 'required'
+  timeoutMs?: number
+}
+
+export type KoboldcppChatResponse =
+  | { ok: true; text: string; toolCalls?: OpenAICompatToolCall[] }
+  | { ok: false; error: string }
+
+export async function koboldcppChat(req: KoboldcppChatRequest): Promise<KoboldcppChatResponse> {
+  return openAICompatChat({
+    baseUrl: req.baseUrl ?? KOBOLDCPP_DEFAULT_BASE_URL,
+    model: req.model || KOBOLDCPP_DEFAULT_MODEL,
+    system: '',
+    user: '',
+    messages: req.messages,
+    tools: req.tools,
+    toolChoice: req.toolChoice,
+    timeoutMs: req.timeoutMs ?? 120_000,
+  })
+}
