@@ -116,7 +116,7 @@ export const OpenAIVoiceProvider: React.FC<{ children: ReactNode }> = ({ childre
       console.log('[OpenAI] Connecting...');
       setStatus('Initializing...');
 
-      // Nexus release: cloud voice needs an API key, and this edition uses none.
+      // Cloud voice needs an API key, and Mossy uses none.
       setStatus('Cloud voice is not available in this edition');
       throw new Error('Cloud voice is not available in this edition of Mossy.');
       conversationRef.current = [];

@@ -6,15 +6,16 @@ type OpenAICompatModelsResponse = {
   data?: Array<{ id: string }>
 }
 
-export async function getOpenAICompatStatus(baseUrl = 'http://127.0.0.1:1234/v1'): Promise<OpenAICompatStatus> {
+/** apiKey: only for a cloud service the user connected themselves (see byoAi.ts); local servers need none. */
+export async function getOpenAICompatStatus(baseUrl = 'http://127.0.0.1:1234/v1', apiKey?: string): Promise<OpenAICompatStatus> {
   const base = baseUrl.replace(/\/$/, '')
   const url = `${base}/models`
 
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 1200)
+    const timeout = setTimeout(() => controller.abort(), apiKey ? 8000 : 1200)
 
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await fetch(url, { signal: controller.signal, headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined })
     clearTimeout(timeout)
 
     if (!res.ok) {
@@ -45,6 +46,8 @@ export type OpenAICompatToolCall = {
 
 export type OpenAICompatChatRequest = {
   baseUrl?: string
+  /** Bearer key for a cloud service the user connected themselves (byoAi.ts). */
+  apiKey?: string
   model: string
   system: string
   user: string
@@ -74,7 +77,7 @@ export async function openAICompatChat(req: OpenAICompatChatRequest): Promise<Op
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(req.apiKey ? { Authorization: `Bearer ${req.apiKey}` } : {}) },
       body: JSON.stringify({
         model: req.model,
         stream: false,

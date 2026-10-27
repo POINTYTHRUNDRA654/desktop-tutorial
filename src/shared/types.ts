@@ -1085,7 +1085,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scriptBundles: [],
 
   // Community Sharing
-  communityRepo: '',
+  communityRepo: 'POINTYTHRUNDRA654/desktop-tutorial',
   communityContributorName: '',
   communityContributorLink: '',
   listSyncEnabled: false,

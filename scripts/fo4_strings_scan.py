@@ -32,7 +32,7 @@ from pathlib import Path
 FO4_DATA      = Path(os.environ.get("MOSSY_FO4_DATA") or r"E:\Steam\steamapps\common\Fallout 4\Data")
 INTERFACE_BA2 = FO4_DATA / "Fallout4 - Interface.ba2"
 MAIN_ESM      = FO4_DATA / "Fallout4.esm"
-_OUT_DIR      = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or r"H:\Mossy Memory")
+_OUT_DIR      = Path(os.environ.get("MOSSY_SCAN_OUTPUT_DIR") or str(Path(os.environ.get("APPDATA") or Path.home()) / "mossy-desktop" / "game-scan-cache"))
 DEFAULT_OUT   = _OUT_DIR / "fo4_world_strings.json"
 VAULT_PATH    = _OUT_DIR / "knowledge-vault.json"
 

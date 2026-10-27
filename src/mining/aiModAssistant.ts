@@ -47,7 +47,7 @@ export class AIModAssistantEngine implements AIModAssistantEngineType {
   private detectConfig(): LLMConfig {
     // Check for environment variables (works in Electron main process)
     if (typeof process !== 'undefined' && process.env) {
-      // Nexus release: no cloud providers and no API keys; local Ollama only.
+      // No cloud providers and no API keys; local Ollama only.
       // Check for local Ollama
       if (process.env.OLLAMA_ENABLED === 'true') {
         return { provider: 'ollama', baseUrl: 'http://127.0.0.1:11434', model: 'mistral' };

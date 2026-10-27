@@ -11,7 +11,5 @@ flask>=3.0.0
 # STT: transcribes your mic after the push-to-talk press
 faster-whisper>=1.0.0
 sounddevice>=0.4.6
-# TTS: NPC voice output (edge-tts = neural, needs internet; pyttsx3 = offline fallback)
-edge-tts>=6.1.0
-pydub>=0.25.1
-pyttsx3>=2.90
+# TTS: NPC voice output is Piper (offline neural voice; installed by setup_piper.ps1, not a pip package)
+# with the built-in Windows voice as the fallback. scipy (above) resamples Piper output for the game.

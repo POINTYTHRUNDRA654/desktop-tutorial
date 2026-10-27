@@ -149,7 +149,7 @@ const GlowingSeaStudio: React.FC = () => {
             <Row ok={!!status.pipelineDir} label="Pipeline scripts" detail={status.pipelineDir || 'tools/glowing-sea-texture-pipeline not found'} />
             <Row ok={!!status.python} label="Python" detail={status.python || 'not on PATH -- install Python, then pip install -r requirements.txt'} />
             <Row ok={status.comfyOnline} label="ComfyUI" detail={status.comfyOnline ? `${status.comfyBase} (model ${status.comfyModel})` : `offline at ${status.comfyBase} -- stage 2 needs it running; the other stages do not`} />
-            <Row ok={status.texconvFound} label="texconv.exe (DDS output)" detail={status.texconvFound ? status.texconvPath : `not found at ${status.texconvPath || 'config.json texconv_path'}`} />
+            <Row ok={status.texconvFound} label="texconv.exe (DDS output)" detail={status.texconvFound ? status.texconvPath : 'not found -- set your Fallout 4 folder in Settings > External Tools (the Creation Kit installs Tools\\Elric\\texconv.exe there)'} />
             <Row ok={!!status.photocraftExe} label="PhotoCraft" detail={status.photocraftExe || 'not installed (optional, free: github.com/storytold/photocraft)'} />
           </>
         )}

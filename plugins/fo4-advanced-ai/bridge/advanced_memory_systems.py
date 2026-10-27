@@ -661,7 +661,7 @@ def build_rich_npc_context(npc_id: str, npc_name: str,
                             current_game_time: float = 0) -> str:
     """
     Build a complete natural language context string for an NPC.
-    This is sent to Mossy's AI (Ollama/Gemini) to generate realistic dialogue.
+    This is sent to Mossy's local AI (Ollama) to generate realistic dialogue.
     """
     from mossy_fo4_bridge import get_npc_memory  # imported here to avoid circular
 

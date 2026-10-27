@@ -2572,7 +2572,7 @@ const electronAPI = {
 
       // IPC handler is not registered – call the Render backend directly.
       // The preload runs in Node context so process.env is available.
-      const backendUrl = ''; // Nexus release: no cloud backend
+      const backendUrl = ''; // no cloud backend: Mossy is local-only
 
       if (!backendUrl) {
         console.warn('[Preload] aiChatGroq: no backend URL configured');
@@ -2887,30 +2887,6 @@ const electronAPI = {
    */
   getAppVersion: (): Promise<{ success: boolean; version?: string; error?: string }> => {
     return ipcRenderer.invoke('get-app-version');
-  },
-
-  /**
-   * Nexus Mods: Sign in via OAuth (PKCE) — opens the system browser to Nexus's
-   * consent screen. Fails with a clear error until Mossy has a registered
-   * client_id (see NEXUS_OAUTH_SETUP.md in the repo root).
-   */
-  nexusSignIn: (): Promise<{ success: boolean; identity?: any; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:sign-in');
-  },
-
-  /**
-   * Nexus Mods: Sign out and clear the stored token.
-   */
-  nexusSignOut: (): Promise<{ success: boolean; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:sign-out');
-  },
-
-  /**
-   * Nexus Mods: Get the current signed-in identity, if any (refreshes the
-   * token first if it's expired).
-   */
-  nexusGetIdentity: (): Promise<{ success: boolean; signedIn?: boolean; identity?: any; error?: string }> => {
-    return ipcRenderer.invoke('nexus-auth:get-identity');
   },
 
   /**
@@ -3587,28 +3563,56 @@ const electronAPI = {
     return () => ipcRenderer.off(IPC_CHANNELS.SYSTEM_METRICS_SUBSCRIBE, listener);
   },
 
+  // Optional: the user's own cloud AI service (byoAi.ts). The key is never returned to the renderer.
+  byoAi: {
+    get: (): Promise<any> => ipcRenderer.invoke('byo-ai:get'),
+    save: (input: { enabled: boolean; preset: string; baseUrl: string; model: string; apiKey?: string }): Promise<any> => ipcRenderer.invoke('byo-ai:save', input),
+    test: (params: { baseUrl: string; apiKey?: string }): Promise<any> => ipcRenderer.invoke('byo-ai:test', params),
+  },
+
+  // Update notice (shared/updateCheck.ts)
+  updates: {
+    check: (): Promise<any> => ipcRenderer.invoke('updates:check'),
+    startupCheck: (): Promise<any> => ipcRenderer.invoke('updates:startup-check'),
+    dismiss: (version: string): Promise<any> => ipcRenderer.invoke('updates:dismiss', version),
+  },
+
+  // Creative Director AI helpers (optional local services, see cdHelpers.ts)
+  cdHelpers: {
+    status: (): Promise<any> => ipcRenderer.invoke('cd-helpers:status'),
+    start: (): Promise<any> => ipcRenderer.invoke('cd-helpers:start'),
+    stop: (): Promise<any> => ipcRenderer.invoke('cd-helpers:stop'),
+  },
+
+  // Onboarding "Your PC" step: hardware check + Ollama model download (see main.ts setup:*)
+  setup: {
+    getHardwareProfile: (): Promise<any> => ipcRenderer.invoke('setup:hardware-profile'),
+    pullModel: (tag: string): Promise<any> => ipcRenderer.invoke('setup:pull-model', tag),
+    installDefaults: (): Promise<any> => ipcRenderer.invoke('setup:install-defaults'),
+    freeSpace: (dir: string): Promise<number | null> => ipcRenderer.invoke('setup:free-space', dir),
+    pickFolder: (params?: { defaultPath?: string; title?: string }): Promise<string | null> => ipcRenderer.invoke('setup:pick-folder', params),
+    installComponent: (params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack'; targetDir: string; modelsDir?: string }): Promise<any> => ipcRenderer.invoke('setup:install-component', params),
+    setOllamaModelsDir: (dir: string): Promise<any> => ipcRenderer.invoke('setup:set-ollama-models-dir', dir),
+    onInstallProgress: (callback: (p: any) => void) => {
+      const subscription = (_event: any, p: any) => callback(p);
+      ipcRenderer.on('setup:install-progress', subscription);
+      return () => ipcRenderer.removeListener('setup:install-progress', subscription);
+    },
+    onPullProgress: (callback: (p: any) => void) => {
+      const subscription = (_event: any, p: any) => callback(p);
+      ipcRenderer.on('setup:pull-progress', subscription);
+      return () => ipcRenderer.removeListener('setup:pull-progress', subscription);
+    },
+  },
+
   // Mod Browser
   modBrowser: {
-    searchMods: (query: string, filters?: any): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:search', query, filters),
-    getModDetails: (modId: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:get-details', modId),
-    downloadMod: (modId: string, destination: string): Promise<any> =>
-      ipcRenderer.invoke('mod-browser:download', modId, destination),
-    rateMod: (modId: string, rating: number, review: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:rate', modId, rating, review),
-    getModReviews: (modId: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:get-reviews', modId),
     createCollection: (name: string, items: any[], description?: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:create-collection', name, items, description),
     shareCollection: (collectionId: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:share-collection', collectionId),
     revealCollection: (exportPath: string): Promise<any> =>
       ipcRenderer.invoke('mod-browser:reveal-collection', exportPath),
-    endorseMod: (modId: string): Promise<void> =>
-      ipcRenderer.invoke('mod-browser:endorse-mod', modId),
-    getTrendingMods: (timeframe?: string): Promise<any[]> =>
-      ipcRenderer.invoke('mod-browser:trending', timeframe),
   },
 
   // Background Remover (BRIA RMBG-2.0) — CC BY-NC 4.0, gated HF model, see main.ts
@@ -4272,7 +4276,7 @@ const electronAPI = {
   stopKobold: (): Promise<any> => ipcRenderer.invoke('stop-kobold'),
   koboldStatus: (): Promise<any> => ipcRenderer.invoke('kobold-status'),
 
-  // Brain B (Nexus edition) — one-click install + lifecycle. CPU-only, offered
+  // Brain B (local edition) — one-click install + lifecycle. CPU-only, offered
   // identically on both Mossy editions.
   brainBScan: (): Promise<any> => ipcRenderer.invoke('brainb:scan'),
   brainBCheckLatest: (): Promise<any> => ipcRenderer.invoke('brainb:check-latest'),

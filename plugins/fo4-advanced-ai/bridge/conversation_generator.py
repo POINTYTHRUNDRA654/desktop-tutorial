@@ -3,7 +3,7 @@ conversation_generator.py
 Fallout 4 Advanced AI — NPC-to-NPC Conversation Generator
 ==========================================================
 
-Uses Mossy's AI engine (Ollama local or Gemini API) to generate
+Uses Mossy's local AI engine (Ollama) to generate
 realistic, context-aware conversations between NPCs.
 
 When the player enters a settlement, bar, or city:
@@ -56,7 +56,6 @@ CONVERSATION_FILE  = DOCUMENTS_PATH / "AdvancedAI_Conversations.json"
 
 OLLAMA_URL         = "http://localhost:11434/api/generate"
 OLLAMA_MODEL       = "llama3.1:8b"   # matches the model actually installed/pulled for this rig
-GEMINI_MODEL       = "gemini-2.0-flash"
 
 # Location type flavors — shapes the conversation topic pool
 LOCATION_FLAVORS = {
@@ -256,30 +255,6 @@ def generate_with_ollama(prompt: str, model: str = OLLAMA_MODEL) -> Optional[str
         print(f"[Conv] Ollama error: {e}")
         return None
 
-def generate_with_gemini(prompt: str, api_key: str) -> Optional[str]:
-    """Generate conversation using Gemini API."""
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
-        payload = json.dumps({
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.85,
-                "maxOutputTokens": 300,
-            }
-        }).encode()
-
-        req = urllib.request.Request(
-            url, data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except Exception as e:
-        print(f"[Conv] Gemini error: {e}")
-        return None
-
 def parse_conversation(raw: str, npc_a_name: str, npc_b_name: str) -> list[dict]:
     """Parse AI output into structured conversation lines."""
     lines = []
@@ -356,7 +331,6 @@ def get_fallback_conversation(npc_a_name: str, npc_b_name: str) -> list[dict]:
 def generate_location_conversations(location: str, location_type: str,
                                      npcs: list[dict], world_events: list,
                                      ai_engine: str = "ollama",
-                                     gemini_api_key: str = "",
                                      max_conversations: int = 3) -> dict:
     """
     Generate all conversations for a location when the player arrives.
@@ -380,8 +354,6 @@ def generate_location_conversations(location: str, location_type: str,
         raw = None
         if ai_engine == "ollama":
             raw = generate_with_ollama(prompt)
-        elif ai_engine == "gemini" and gemini_api_key:
-            raw = generate_with_gemini(prompt, gemini_api_key)
 
         if raw:
             lines = parse_conversation(raw, npc_a.get("npc_name","A"), npc_b.get("npc_name","B"))

@@ -36,7 +36,6 @@ import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
 import { autoUpdaterService } from './autoUpdater';
-import { nexusAuthService } from './nexusAuth';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
 import { trimMessagesToBudget } from './messageBudget';
@@ -126,9 +125,13 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-background-media-suspend');
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Keep dev and packaged builds using the same userData folder for consistent onboarding/memory.
+// Keep dev and packaged builds using the same userData folder for consistent onboarding/memory,
+// unless a separate profile was asked for at launch (--user-data-dir): portable copies and test
+// runs then get their own settings and memory instead of silently sharing the installed app's.
 app.setName('mossy-desktop');
-app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
+if (!app.commandLine.hasSwitch('user-data-dir')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'mossy-desktop'));
+}
 
 // Load environment variables.
 // process.cwd() is unreliable in packaged Electron apps (can be the system dir on Windows).
@@ -163,7 +166,7 @@ const result = envPath ? dotenv.config({ path: envPath, quiet: true }) : { parse
 console.log('[Main] dotenv result:', result);
 
 
-// Nexus release: Mossy is self-contained. There is no default cloud backend, no
+// Mossy is self-contained. There is no default cloud backend, no
 // API key of any kind, and nothing is contacted unless the user runs a local
 // service themselves (Ollama, Whisper, etc.).
 
@@ -1509,7 +1512,7 @@ const settingsPath = (() => {
   }
 })();
 
-/** Local-only chat via Ollama. The Nexus build has no cloud AI providers. Returns '' if Ollama isn't reachable. */
+/** Local-only chat via Ollama. Mossy has no cloud AI providers. Returns '' if Ollama isn't reachable. */
 async function localOllamaChat(
   messages: Array<{ role: string; content: string }>,
   opts: { maxTokens?: number; temperature?: number; timeoutMs?: number } = {},
@@ -1530,7 +1533,7 @@ async function localOllamaChat(
   } catch { return ''; }
 }
 
-// Nexus release: Mossy uses no API keys, tokens or cloud accounts. These legacy setting names
+// Mossy uses no API keys, tokens or cloud accounts. These legacy setting names
 // (written by older versions) are never read, never written, and never sent to the renderer.
 const LEGACY_SECRET_KEYS = [
   'openaiApiKey', 'groqApiKey', 'backendToken', 'githubToken', 'inklingApiKey', 'geminiApiKey',
@@ -1732,7 +1735,7 @@ const loadSettings = (): any => {
     loadOrderLabPreparedScriptPath: '',
 
     // Community Sharing
-    communityRepo: '',
+    communityRepo: 'POINTYTHRUNDRA654/desktop-tutorial',
     communityContributorName: '',
     communityContributorLink: '',
     listSyncEnabled: false,
@@ -4208,7 +4211,7 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get Friendly OS Name
       let osFriendly = `${platform} ${release}`;
       if (platform === 'win32') {
-        const osWmic = await safeExec('wmic os get Caption /value');
+        const osWmic = 'Caption=' + (await safeExec('powershell -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_OperatingSystem).Caption"', 10000)).trim();
         const osMatch = osWmic.match(/Caption=(.+)/);
         if (osMatch) {
           osFriendly = osMatch[1].trim();
@@ -4227,8 +4230,8 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get Motherboard info
       let motherboard = 'Unknown Motherboard';
       if (platform === 'win32') {
-        const mbWmic = await safeExec('wmic baseboard get product,manufacturer');
-        const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter((l: string) => l && !l.includes('Manufacturer') && !l.includes('Product'));
+        const mbWmic = await safeExec(`powershell -NoProfile -NonInteractive -Command "$b = Get-CimInstance Win32_BaseBoard; $b.Manufacturer + ' ' + $b.Product"`, 10000);
+        const mbLines = mbWmic.split('\n').map((l: string) => l.trim()).filter(Boolean);
         if (mbLines.length > 0) {
           motherboard = mbLines[0];
         }
@@ -4239,29 +4242,18 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       let allDetectedGPUs: string[] = [];
       let vramGB = 0;
       if (platform === 'win32') {
-        console.log('[Main] Attempting GPU detection via WMIC...');
-
-        // Get GPU names
-        const wmic = await safeExec('wmic path win32_VideoController get name');
-        allDetectedGPUs = wmic.split('\n')
-          .map((line: string) => line.trim())
-          .filter((line: string) => line && !line.includes('Name'));
-
+        // nvidia-smi + the driver's 64-bit registry value (hardwareProfile.ts): wmic is gone
+        // from current Windows 11 and its AdapterRAM field caps at 4 GB.
+        const { detectGpus } = require('./hardwareProfile');
+        const gpus: { name: string; vramMB: number | null }[] = await detectGpus();
+        allDetectedGPUs = gpus.map((g) => g.name);
         console.log('[Main] All detected GPUs:', allDetectedGPUs);
-
         if (allDetectedGPUs.length > 0) {
           gpuInfo = allDetectedGPUs.join(' + ');
         }
-
-        // Get VRAM (AdapterRAM is in bytes)
-        const vramWmic = await safeExec('wmic path win32_VideoController get AdapterRAM');
-        const vramLines = vramWmic.split('\n')
-          .map((line: string) => line.trim())
-          .filter((line: string) => line && !line.includes('AdapterRAM') && line !== '0');
-
-        if (vramLines.length > 0) {
-          const vramBytes = vramLines.reduce((acc: number, curr: string) => acc + parseInt(curr, 10), 0);
-          vramGB = Math.round(vramBytes / (1024 ** 3)); // Convert to GB
+        const vramMB = gpus.reduce((acc, g) => acc + (g.vramMB ?? 0), 0);
+        if (vramMB > 0) {
+          vramGB = Math.round(vramMB / 1024);
           console.log('[Main] Detected total VRAM:', vramGB, 'GB');
         }
       } else if (platform === 'darwin') {
@@ -4309,8 +4301,9 @@ Always provide practical, actionable advice focused on Fallout 4 compatibility a
       // Get ALL storage space
       const storageDrives: Array<{ device: string, free: number, total: number }> = [];
       if (platform === 'win32') {
-        const storageWmic = await safeExec('wmic logicaldisk get DeviceID,FreeSpace,Size');
-        const rows = storageWmic.split('\n').filter((l: string) => l.trim() && !l.includes('DeviceID'));
+        // Same "DeviceID FreeSpace Size" rows wmic used to print (wmic is gone from current Windows 11).
+        const storageWmic = await safeExec('powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_LogicalDisk | Where-Object { $_.Size } | ForEach-Object { \'{0} {1} {2}\' -f $_.DeviceID, $_.FreeSpace, $_.Size }"', 10000);
+        const rows = storageWmic.split('\n').filter((l: string) => l.trim());
         for (const row of rows) {
           const parts = row.trim().split(/\s+/);
           if (parts.length >= 3) {
@@ -8076,42 +8069,22 @@ end.
       const cpus = os.cpus();
       const totalMemGB = Math.round(os.totalmem() / (1024 ** 3));
 
-      // Get GPU info (Windows only via WMIC)
+      // The card the game renders on: the dedicated GPU with the most video memory,
+      // not the first adapter listed (often the CPU's integrated graphics).
       let gpuName = 'Unknown GPU';
       let vramMB = 0;
 
       if (process.platform === 'win32') {
         try {
-          const { exec } = require('child_process');
-          const wmicGpu = await new Promise<string>((resolve, reject) => {
-            exec('wmic path win32_VideoController get name', (err: any, stdout: string) => {
-              if (err) reject(err);
-              else resolve(stdout);
-            });
-          });
-
-          const lines = wmicGpu.split('\n').filter(l => l.trim() && !l.includes('Name'));
-          if (lines.length > 0) {
-            gpuName = lines[0].trim();
+          const { detectGpus } = require('./hardwareProfile');
+          const gpus: { name: string; vendor: string; vramMB: number | null }[] = await detectGpus();
+          const ranked = [...gpus].sort((a, b) => (a.vendor === 'intel' ? 1 : 0) - (b.vendor === 'intel' ? 1 : 0) || (b.vramMB ?? 0) - (a.vramMB ?? 0));
+          if (ranked[0]) {
+            gpuName = ranked[0].name;
+            vramMB = ranked[0].vramMB ?? 0;
           }
-
-          // Get VRAM
-          const wmicVram = await new Promise<string>((resolve, reject) => {
-            exec('wmic path win32_VideoController get AdapterRAM', (err: any, stdout: string) => {
-              if (err) reject(err);
-              else resolve(stdout);
-            });
-          });
-
-          const vramLines = wmicVram.split('\n').filter(l => l.trim() && !l.includes('AdapterRAM'));
-          if (vramLines.length > 0) {
-            const vramBytes = parseInt(vramLines[0].trim(), 10);
-            if (!isNaN(vramBytes) && vramBytes > 0) {
-              vramMB = Math.round(vramBytes / (1024 * 1024));
-            }
-          }
-        } catch (wmicErr) {
-          console.error('WMIC GPU detection failed:', wmicErr);
+        } catch (gpuErr) {
+          console.error('GPU detection failed:', gpuErr);
         }
       }
 
@@ -9178,7 +9151,8 @@ end.
   registerHandler(IPC_CHANNELS.ML_CAPS_STATUS, async () => {
     const s = loadSettings();
     const ollama = await getOllamaStatus(String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434')) as any;
-    const openaiCompat = await getOpenAICompatStatus(String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1')) as any;
+    const openaiCompatBase = String(s?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
+    const openaiCompat = await getOpenAICompatStatus(openaiCompatBase, require('./byoAi').byoKeyFor(openaiCompatBase, s)) as any;
     const cosmosBaseUrl = String(s?.cosmosBaseUrl || '').trim();
     const cosmos = cosmosBaseUrl
       ? await getOpenAICompatStatus(cosmosBaseUrl) as any
@@ -9229,10 +9203,15 @@ end.
           return { ok: true, text: (resp as any).text };
         }
 
+        const compatBase = req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1');
         const resp = await openAICompatChat({
-          baseUrl: req.baseUrl || String(loadSettings()?.openaiCompatBaseUrl || 'http://127.0.0.1:1234/v1'),
+          baseUrl: compatBase,
+          apiKey: require('./byoAi').byoKeyFor(compatBase, loadSettings()),
+          // Honour the caller's limit (chat asks for minutes); the module default is 30 s,
+          // which a cold model load or a busy cloud service easily exceeds.
+          timeoutMs: req.timeoutMs,
           model,
-          system: 'You are Mossy, a local model running in OpenAI-compatible mode. Follow the user prompt carefully.',
+          system: 'You are Mossy, an AI assistant for Fallout 4 modding running in OpenAI-compatible mode. Follow the user prompt carefully.',
           user: prompt,
         });
         if (!(resp as any).ok) return { ok: false, error: (resp as any).error };
@@ -9433,6 +9412,215 @@ end.
    * Returns 'nvidia' or 'universal' so the renderer can gate fine-tune UI.
    */
   registerHandler(IPC_CHANNELS.GET_MOSSY_EDITION, async () => MOSSY_EDITION);
+
+  // Update notice (shared/updateCheck.ts): reads the public GitHub Releases list only.
+  registerHandler('updates:check', async () => {
+    const r = await require('../shared/updateCheck').checkForAppUpdate(app.getVersion());
+    if (r.ok) { const s: any = loadSettings() || {}; saveSettings({ ...s, lastUpdateCheckAt: Date.now() }); }
+    return r;
+  });
+  registerHandler('updates:startup-check', async () => {
+    const s: any = loadSettings() || {};
+    if (s.updateCheckEnabled === false) return { ok: true, skipped: 'off' };
+    if (Date.now() - Number(s.lastUpdateCheckAt || 0) < 20 * 60 * 60 * 1000) return { ok: true, skipped: 'checked recently' };
+    const r = await require('../shared/updateCheck').checkForAppUpdate(app.getVersion());
+    saveSettings({ ...(loadSettings() as any), lastUpdateCheckAt: Date.now() });
+    if (r.ok && r.newer && r.latest && r.latest === s.dismissedUpdateVersion) return { ...r, newer: false, skipped: 'dismissed' };
+    return r;
+  });
+  registerHandler('updates:dismiss', async (_event, version: string) => {
+    const s: any = loadSettings() || {};
+    saveSettings({ ...s, dismissedUpdateVersion: String(version || '') });
+    return { success: true };
+  });
+
+  /**
+   * Handlers: setup:* -- the onboarding "Your PC" step.
+   * setup:hardware-profile measures this PC (hardwareProfile.ts) and returns what
+   * it can run (shared/hardwareCapabilities.ts). setup:pull-model downloads an
+   * Ollama model with streamed progress and no overall time limit (multi-GB
+   * downloads routinely take longer than ml:ollama-pull's 5-minute cap); only
+   * an Ollama-reported success saves the model as Mossy's chat model.
+   */
+  registerHandler('setup:hardware-profile', async () => {
+    try {
+      const { getHardwareProfile } = require('./hardwareProfile');
+      const { computeCapabilities, recommendOllamaModel } = require('../shared/hardwareCapabilities');
+      const scanCacheDir = String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache');
+      const profile = await getHardwareProfile({ edition: MOSSY_EDITION, settings: loadSettings() || {}, dataDir: app.getPath('userData'), scanCacheDir });
+      const capabilities = computeCapabilities(profile);
+      const recommendedModel = recommendOllamaModel(profile);
+      const s: any = loadSettings() || {};
+      saveSettings({ ...s, hardwareProfile: { measuredAt: profile.measuredAt, ramGB: profile.ramGB, gpus: profile.gpus, recommendedModel: recommendedModel.tag } });
+      return { success: true, profile, capabilities, recommendedModel };
+    } catch (error: any) {
+      console.error('[Main] setup:hardware-profile error:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+
+  // Opt-in "download and set up for me" installs + install locations (setupInstaller.ts).
+  // One install at a time; each verifies checksum/signature before running anything.
+  let setupInstallActive = false;
+  registerHandler('setup:install-defaults', async () => {
+    const { defaultLocations, freeSpaceGB } = require('./setupInstaller');
+    const locations = defaultLocations();
+    locations['memory-pack'] = String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache');
+    const free: Record<string, number | null> = {};
+    for (const [k, v] of Object.entries(locations)) free[k] = freeSpaceGB(String(v));
+    return { locations, free };
+  });
+
+  registerHandler('setup:free-space', async (_event, dir: string) => {
+    const { freeSpaceGB } = require('./setupInstaller');
+    return freeSpaceGB(String(dir || ''));
+  });
+
+  registerHandler('setup:pick-folder', async (_event, params?: { defaultPath?: string; title?: string }) => {
+    const r = await dialog.showOpenDialog(mainWindow!, {
+      title: params?.title || 'Choose a folder',
+      defaultPath: params?.defaultPath,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
+  });
+
+  registerHandler('setup:install-component', async (event, params: { id: 'ollama' | 'python' | 'photocraft' | 'cd-helpers' | 'memory-pack'; targetDir: string; modelsDir?: string }) => {
+    if (setupInstallActive) return { success: false, error: 'Another install is already running.' };
+    if (!['ollama', 'python', 'photocraft', 'cd-helpers', 'memory-pack'].includes(params?.id) || !params?.targetDir) return { success: false, error: 'Missing component or folder.' };
+    setupInstallActive = true;
+    try {
+      const { installComponent } = require('./setupInstaller');
+      const requirementsFile = [
+        path.join(process.resourcesPath || '', 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+        path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+        path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline', 'requirements.txt'),
+      ].find((p) => fs.existsSync(p)) || null;
+      const helpersSourceDir = [
+        path.join(process.resourcesPath || '', 'tools', 'creative-director-helpers'),
+        path.join(app.getAppPath(), 'tools', 'creative-director-helpers'),
+        path.join(process.cwd(), 'tools', 'creative-director-helpers'),
+      ].find((p) => fs.existsSync(path.join(p, 'creative_director.py'))) || null;
+      const ollamaModel = String((loadSettings() as any)?.ollamaModel || '') || null;
+      const result = await installComponent(params.id, { targetDir: params.targetDir, modelsDir: params.modelsDir, requirementsFile, helpersSourceDir, ollamaModel }, (p: unknown) => {
+        try { event.sender.send('setup:install-progress', p); } catch { /* window closed */ }
+      });
+      if (result.success && params.id === 'photocraft' && result.exe) {
+        const s: any = loadSettings() || {};
+        saveSettings({ ...s, photocraftPath: result.exe });
+      }
+      if (result.success && params.id === 'memory-pack' && result.exe) {
+        // Remember a folder the user moved off the default (e.g. to another drive).
+        const s: any = loadSettings() || {};
+        if (path.resolve(result.exe) !== path.resolve(path.join(app.getPath('userData'), 'game-scan-cache'))) saveSettings({ ...s, gameScanCacheDir: result.exe });
+      }
+      if (result.success && params.id === 'cd-helpers' && result.exe) {
+        const s: any = loadSettings() || {};
+        saveSettings({ ...s, cdHelpersPath: result.exe });
+      }
+      return result;
+    } finally {
+      setupInstallActive = false;
+    }
+  });
+
+  // Creative Director AI helpers (cdHelpers.ts): status / start / stop, stopped when Mossy quits.
+  registerHandler('cd-helpers:status', async () => {
+    const { cdHelpersStatus } = require('./cdHelpers');
+    return cdHelpersStatus(String((loadSettings() as any)?.cdHelpersPath || '') || null);
+  });
+  registerHandler('cd-helpers:start', async () => {
+    const { startCdHelpers } = require('./cdHelpers');
+    return startCdHelpers(String((loadSettings() as any)?.cdHelpersPath || ''), path.join(app.getPath('userData'), 'logs', 'cd-helpers'));
+  });
+  registerHandler('cd-helpers:stop', async () => {
+    const { stopCdHelpers } = require('./cdHelpers');
+    return { success: true, stopped: stopCdHelpers() };
+  });
+  app.on('will-quit', () => { try { require('./cdHelpers').stopCdHelpers(); } catch { /* nothing running */ } });
+
+  // Optional: the user's own cloud AI service (byoAi.ts). Off by default; key encrypted, never sent to the renderer.
+  registerHandler('byo-ai:get', async () => require('./byoAi').getByoConfig(loadSettings() as any));
+  registerHandler('byo-ai:save', async (_event, input: any) => {
+    try {
+      const current: any = loadSettings() || {};
+      const patch = require('./byoAi').buildByoPatch(current, input || {});
+      saveSettings({ ...current, ...patch });
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
+    }
+  });
+  registerHandler('byo-ai:test', async (_event, params: { baseUrl: string; apiKey?: string }) => {
+    const s: any = loadSettings() || {};
+    // A typed-in key is used once for the test and not stored; otherwise the saved key, only for the saved address.
+    const key = params?.apiKey || (s.byoAiBaseUrl && String(s.byoAiBaseUrl).replace(/\/+$/, '').toLowerCase() === String(params?.baseUrl || '').replace(/\/+$/, '').toLowerCase() ? (require('./byoAi').byoKeyFor(String(s.byoAiBaseUrl), { ...s, byoAiEnabled: true }) || undefined) : undefined);
+    return getOpenAICompatStatus(String(params?.baseUrl || ''), key);
+  });
+
+  registerHandler('setup:set-ollama-models-dir', async (_event, dir: string) => {
+    if (!dir) return { success: false, error: 'No folder chosen.' };
+    const { setOllamaModelsDir } = require('./setupInstaller');
+    return setOllamaModelsDir(String(dir));
+  });
+
+  let setupPullActive = false;
+  registerHandler('setup:pull-model', async (event, tag: string) => {
+    if (setupPullActive) return { success: false, error: 'A model download is already running.' };
+    if (!/^[a-z0-9._-]+(:[a-z0-9._-]+)?$/i.test(String(tag || ''))) return { success: false, error: 'Invalid model name.' };
+    setupPullActive = true;
+    const send = (p: Record<string, unknown>) => { try { event.sender.send('setup:pull-progress', { tag, ...p }); } catch { /* window closed */ } };
+    try {
+      const controller = new AbortController();
+      let idle: NodeJS.Timeout = setTimeout(() => controller.abort(), 120_000);
+      const res = await fetch('http://127.0.0.1:11434/api/pull', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: tag, stream: true }),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) {
+        clearTimeout(idle);
+        return { success: false, error: `Ollama answered HTTP ${res.status}. Is Ollama running?` };
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let lastStatus = '';
+      let ollamaError = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        clearTimeout(idle);
+        idle = setTimeout(() => controller.abort(), 120_000); // 2 minutes with no data = stalled
+        buf += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          if (!line) continue;
+          try {
+            const j = JSON.parse(line);
+            if (j.error) ollamaError = String(j.error);
+            if (j.status) lastStatus = String(j.status);
+            send({ status: lastStatus, completed: j.completed ?? null, total: j.total ?? null });
+          } catch { /* partial line */ }
+        }
+      }
+      clearTimeout(idle);
+      if (ollamaError) return { success: false, error: ollamaError };
+      if (lastStatus !== 'success') return { success: false, error: `Download ended without Ollama reporting success (last status: ${lastStatus || 'none'}).` };
+      const s: any = loadSettings() || {};
+      saveSettings({ ...s, ollamaModel: tag });
+      return { success: true, model: tag };
+    } catch (error: any) {
+      const msg = error?.name === 'AbortError' ? 'The download stalled (no data for 2 minutes). Check your connection and try again; Ollama keeps what it already downloaded.' : (error instanceof Error ? error.message : String(error));
+      return { success: false, error: msg };
+    } finally {
+      setupPullActive = false;
+    }
+  });
+
 
   /**
    * Handler: fine-tune-pick-dataset
@@ -12157,159 +12345,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     }
   });
 
-  // Mod Browser IPC handlers (renderer -> main)
-  // Nexus access is OAuth-only (see nexusAuth.ts). Mossy does not accept, store
-  // or send a personal Nexus API key. The engine asks nexusAuthService for the
-  // signed-in user's access token on each request; until the app is registered
-  // with Nexus and the user signs in, Mod Browser calls return a clear
-  // "sign in" error instead of making unauthenticated requests.
+  // Mod Browser IPC handlers (renderer -> main). Community sharing only: Mossy has no
+  // Nexus account link and never calls the Nexus API; finding mods happens on the
+  // Nexus Mods website in the user's browser.
   const modBrowserEngine: any = require('../mining/modBrowser').modBrowser;
-  modBrowserEngine.setAccessTokenProvider(() => nexusAuthService.getAccessToken());
-
-  registerHandler('mod-browser:search', async (_event, query: string, filters: any) => {
-    const startTime = Date.now();
-    try {
-      const results = await modBrowserEngine.searchMods(query, filters || { game: 'fallout4', sortBy: 'trending', nsfw: false });
-      auditLogger.log({
-        operation: 'mod-browser-search',
-        tool: 'mod-browser',
-        action: 'search',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { resultCount: Array.isArray(results) ? results.length : 0, query: query?.substring(0, 50) || '' }
-      });
-      return results;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:search error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-search',
-        tool: 'mod-browser',
-        action: 'search',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { query: query?.substring(0, 50) || '' }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:get-details', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const details = await modBrowserEngine.getModDetails(modId);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-details',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, modName: details?.name || '' }
-      });
-      return details;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:get-details error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-details',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:download', async (_event, modId: string, destination: string) => {
-    const startTime = Date.now();
-    try {
-      const result = await modBrowserEngine.downloadMod(modId, destination);
-      auditLogger.log({
-        operation: 'mod-browser-download',
-        tool: 'mod-browser',
-        action: 'download',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, success: result?.success, filePath: result?.filePath?.substring(0, 100) || '', sizeMB: ((result?.size || 0) / 1024 / 1024).toFixed(2) }
-      });
-      return result;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:download error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-download',
-        tool: 'mod-browser',
-        action: 'download',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId, destination: destination?.substring(0, 50) || '' }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:rate', async (_event, modId: string, rating: number, review: string) => {
-    const startTime = Date.now();
-    try {
-      await modBrowserEngine.rateMod(modId, rating, review);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'rate-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, rating, reviewLength: review?.length || 0 }
-      });
-      return { success: true };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:rate error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'rate-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId, rating }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:get-reviews', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      const reviews = await modBrowserEngine.getModReviews(modId);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-reviews',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId, reviewCount: Array.isArray(reviews) ? reviews.length : 0 }
-      });
-      return reviews;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:get-reviews error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-retrieval',
-        tool: 'mod-browser',
-        action: 'get-reviews',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
 
   registerHandler('mod-browser:create-collection', async (_event, name: string, items: any[], description?: string) => {
     const startTime = Date.now();
@@ -12381,64 +12420,6 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  registerHandler('mod-browser:endorse-mod', async (_event, modId: string) => {
-    const startTime = Date.now();
-    try {
-      await modBrowserEngine.endorseMod(modId);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'endorse-mod',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { modId }
-      });
-      return { success: true };
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:endorse-mod error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-interaction',
-        tool: 'mod-browser',
-        action: 'endorse-mod',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { modId }
-      });
-      return { success: false, error: errMsg };
-    }
-  });
-
-  registerHandler('mod-browser:trending', async (_event, timeframe?: string) => {
-    const startTime = Date.now();
-    try {
-      const results = await modBrowserEngine.getTrendingMods(timeframe || 'week');
-      auditLogger.log({
-        operation: 'mod-browser-discovery',
-        tool: 'mod-browser',
-        action: 'get-trending',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { timeframe: timeframe || 'week', modCount: Array.isArray(results) ? results.length : 0 }
-      });
-      return results;
-    } catch (error: any) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Main] mod-browser:trending error:', errMsg);
-      auditLogger.log({
-        operation: 'mod-browser-discovery',
-        tool: 'mod-browser',
-        action: 'get-trending',
-        status: 'error',
-        duration: Date.now() - startTime,
-        error: errMsg,
-        details: { timeframe: timeframe || 'week' }
-      });
-      return { success: false, error: errMsg };
     }
   });
 
@@ -16361,7 +16342,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         '• No invented FormIDs → builder uses "[GENERATE]"; you write "[VERIFY]" for uncertain vanilla refs\n' +
         '• EditorIDs → MI_ prefix, CamelCase/PascalCase, no spaces (e.g. MI_FactionMycel, MI_Q01_Awakening)\n' +
         '• No Mossy canon violations — no Blue Hills/SPORE resolution, no Dr. Moss fate revealed, no Cultivator identities named\n' +
-        '• All content Nexus-compliant (Creative Director is local-only and must never appear in the release build)\n' +
+        '• All content original and safe to share publicly (no ripped assets, no other authors\' work without permission)\n' +
         '• Mossy Industries aesthetic is organic/botanical — NOT chrome/mechanical/vault-tech\n\n' +
         'Output format (use these EXACT headings):\n\n' +
         '## DLC Concept\n' +
@@ -17755,7 +17736,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (text) sawRefusal = true;
       }
     } catch (err) {
-      console.warn('[CreativeDirector] Ollama unavailable, falling back to Groq cloud:', err);
+      console.warn('[CreativeDirector] Ollama unavailable, trying local KoboldCpp:', err);
     }
 
     // Fully local fallback: KoboldCpp's OpenAI-compatible endpoint (no internet required).
@@ -17823,7 +17804,7 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
         if (text && !cdIsLikelyRefusal(text)) return String(text);
       }
     } catch (err) {
-      console.warn('[CreativeDirector] Local specialist model unavailable, falling back to Groq:', err);
+      console.warn('[CreativeDirector] Local specialist model unavailable, falling back to the general local model:', err);
     }
 
     // FALLBACK: local Ollama (whatever model is configured) — cdCallAgent has its
@@ -21298,7 +21279,6 @@ Rules:
       path.join(app.getAppPath(), 'tools', 'glowing-sea-texture-pipeline'),
       path.join(__dirname, '..', 'tools', 'glowing-sea-texture-pipeline'),
       path.join(process.cwd(), 'tools', 'glowing-sea-texture-pipeline'),
-      'D:\\Projects\\desktop-tutorial\\tools\\glowing-sea-texture-pipeline',
     ].filter(Boolean);
     return candidates.find((c) => fs.existsSync(path.join(c, 'run_pipeline.bat'))) || null;
   }
@@ -21308,7 +21288,7 @@ Rules:
     const roots: string[] = [];
     const configured = String(s.photocraftPath || '').trim();
     if (configured) roots.push(configured);
-    for (const base of ['E:\\Tools\\PhotoCraft', 'C:\\Program Files\\PhotoCraft', path.join(process.env.LOCALAPPDATA || '', 'Programs', 'PhotoCraft')]) {
+    for (const base of ['C:\\Program Files\\PhotoCraft', path.join(process.env.LOCALAPPDATA || '', 'Programs', 'PhotoCraft')]) {
       try {
         if (!fs.existsSync(base)) continue;
         roots.push(base);
@@ -21326,6 +21306,23 @@ Rules:
     return { exe: null, cli: null, dir: null };
   }
 
+  /**
+   * texconv.exe for the pipeline's DDS output. The Creation Kit installs Elric's copy at
+   * <Fallout 4>\Tools\Elric\texconv.exe; config.json's own value is the original
+   * author's machine, used only if it happens to exist here too.
+   */
+  function findTexconv(pipelineDir: string | null): string | null {
+    const s: any = loadSettings() || {};
+    const candidates: string[] = [];
+    for (const root of [s.fallout4Path, s.creationKitPath && path.dirname(String(s.creationKitPath))]) {
+      if (root) candidates.push(path.join(String(root), 'Tools', 'Elric', 'texconv.exe'));
+    }
+    if (pipelineDir) {
+      try { candidates.push(String(JSON.parse(fs.readFileSync(path.join(pipelineDir, 'config.json'), 'utf-8')).texconv_path || '')); } catch { /* unreadable config */ }
+    }
+    return candidates.find((c) => c && fs.existsSync(c)) || null;
+  }
+
   type GlowingSeaJob = { running: boolean; stage: number; totalStages: number; log: string[]; exitCode: number | null; folder: string; startedAt: number; proc?: ReturnType<typeof spawn> };
   let glowingSeaJob: GlowingSeaJob | null = null;
   const pushGlowingSeaLog = (job: GlowingSeaJob, text: string) => {
@@ -21339,16 +21336,15 @@ Rules:
     // Seed the Settings field from a real detection (same idea as comfyuiPath's auto-seed) so it shows in External Tools.
     const current: any = loadSettings() || {};
     if (pc.exe && !String(current.photocraftPath || '').trim()) saveSettings({ ...current, photocraftPath: pc.exe });
-    let texconvPath = '';
+    const texconvPath = findTexconv(pipelineDir) || '';
     let comfyBase = 'http://127.0.0.1:8188';
     let model = '';
     if (pipelineDir) {
       try {
         const cfg = JSON.parse(fs.readFileSync(path.join(pipelineDir, 'config.json'), 'utf-8'));
-        texconvPath = String(cfg.texconv_path || '');
         comfyBase = String(cfg.comfyui_base || comfyBase);
         model = String(cfg.comfyui_model || '');
-      } catch { /* config unreadable -- reported below via empty texconvPath */ }
+      } catch { /* config unreadable -- defaults above */ }
     }
     const pythonOk = await new Promise<string | null>((resolve) => {
       exec('python --version', { timeout: 5000 }, (err, stdout, stderr) => resolve(err ? null : (stdout || stderr).trim()));
@@ -21362,7 +21358,7 @@ Rules:
       comfyOnline,
       comfyModel: model,
       texconvPath,
-      texconvFound: !!texconvPath && fs.existsSync(texconvPath),
+      texconvFound: !!texconvPath,
       photocraftExe: pc.exe,
       photocraftCli: pc.cli,
       job: glowingSeaJob ? { running: glowingSeaJob.running, stage: glowingSeaJob.stage, totalStages: glowingSeaJob.totalStages, exitCode: glowingSeaJob.exitCode, folder: glowingSeaJob.folder } : null,
@@ -21427,13 +21423,15 @@ Rules:
       { name: 'finalize', args: ['finalize.py', P('Input'), P('UV-Locked'), P('UV_Mask'), P('Output')] },
     ];
     const first = Math.min(Math.max(params.fromStage ?? 1, 1), 4);
+    const texconv = findTexconv(dir);
+    const stageEnv = { ...process.env, PYTHONIOENCODING: 'utf-8', ...(texconv ? { GLOWINGSEA_TEXCONV: texconv } : {}) };
     const job: GlowingSeaJob = { running: true, stage: first, totalStages: 4, log: [], exitCode: null, folder: root, startedAt: Date.now() };
     glowingSeaJob = job;
     const runStage = (i: number) => {
       if (i >= stages.length) { job.running = false; job.exitCode = 0; pushGlowingSeaLog(job, `Done. Output written to ${P('Output')}`); return; }
       job.stage = i + 1;
       pushGlowingSeaLog(job, `=== Stage ${i + 1}/4: ${stages[i].name} ===`);
-      const proc = spawn('python', ['-u', ...stages[i].args], { cwd: dir, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+      const proc = spawn('python', ['-u', ...stages[i].args], { cwd: dir, windowsHide: true, env: stageEnv });
       job.proc = proc;
       proc.stdout.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
       proc.stderr.on('data', (d) => pushGlowingSeaLog(job, d.toString()));
@@ -21465,7 +21463,7 @@ Rules:
 
   registerHandler('glowingsea:open-photocraft', async (_e, params?: { filePath?: string }) => {
     const pc = findPhotoCraft();
-    if (!pc.exe) return { success: false, error: 'PhotoCraft is not installed. Expected photocraft.exe under E:\\Tools\\PhotoCraft or the photocraftPath setting.' };
+    if (!pc.exe) return { success: false, error: 'PhotoCraft was not found. Install it (free, github.com/storytold/photocraft) or set its path in Settings > External Tools.' };
     try {
       const args = params?.filePath ? [params.filePath] : [];
       const child = spawn(pc.exe, args, { detached: true, stdio: 'ignore', cwd: pc.dir || undefined });
@@ -22306,7 +22304,9 @@ Rules:
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`${PERSONAL_RD_BASE}/status`, { signal: controller.signal });
+      // Probe the testing queue itself: the bundled Creative Director helpers also answer
+      // /status on this port but have no testing queue, and must not light up this tab.
+      const res = await fetch(`${PERSONAL_RD_BASE}/testing-queue`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!res.ok) return { success: false, reachable: false };
       const json = await res.json();
@@ -29652,40 +29652,6 @@ print(json.dumps({
     }
   });
 
-  // Nexus Mods OAuth (PKCE) IPC handlers.
-  // signIn() throws a clear error until Mossy has a real client_id from Nexus
-  // (see NEXUS_OAUTH_SETUP.md) — that's surfaced to the renderer as success:false.
-
-  registerHandler('nexus-auth:sign-in', async () => {
-    try {
-      const identity = await nexusAuthService.signIn();
-      return { success: true, identity };
-    } catch (error) {
-      console.error('[Main] nexus-auth:sign-in error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  registerHandler('nexus-auth:sign-out', async () => {
-    try {
-      nexusAuthService.signOut();
-      return { success: true };
-    } catch (error) {
-      console.error('[Main] nexus-auth:sign-out error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
-  forceHandle('nexus-auth:get-identity', async () => {
-    try {
-      const identity = await nexusAuthService.getIdentity();
-      return { success: true, signedIn: !!identity, identity };
-    } catch (error) {
-      console.error('[Main] nexus-auth:get-identity error:', error);
-      return { success: false, error: error instanceof Error ? error.message : String(error) };
-    }
-  });
-
   // =========================================================================
   // GAME LOG MONITOR HANDLERS (Feature 3)
   // =========================================================================
@@ -30401,7 +30367,9 @@ print(json.dumps({
    * (if present) so scans already run before this fix keep working without re-running.
    */
   function resolveScanCacheDir(): string {
-    const portable = path.join(app.getPath('userData'), 'game-scan-cache');
+    // A user-chosen folder (Your PC > starter memory lets people put it on another drive).
+    const chosen = String((loadSettings() as any)?.gameScanCacheDir || '').trim();
+    const portable = chosen || path.join(app.getPath('userData'), 'game-scan-cache');
     if (!fs.existsSync(portable)) {
       try { fs.mkdirSync(portable, { recursive: true }); } catch { /* best effort */ }
     }
@@ -35443,7 +35411,7 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
         // Inlined rather than calling resolveScanCacheDir() directly: that
         // function is scoped inside a different enclosing closure than this
         // one, not reachable from here.
-        GAME_SCAN_CACHE_PATH: path.join(app.getPath('userData'), 'game-scan-cache'),
+        GAME_SCAN_CACHE_PATH: String((loadSettings() as any)?.gameScanCacheDir || '').trim() || path.join(app.getPath('userData'), 'game-scan-cache'),
         // ChangeGate lessons (see brain-b/change_gate.py). Approved lessons
         // ship inside the package at knowledge/lessons; the review queue lives
         // in runtime-data. MOSSY_LESSONS_DIR can be pre-set in the environment
@@ -35660,13 +35628,11 @@ app.whenReady().then(() => {
     });
   }
 
-  // Optional local-only developer module (gitignored, never in a GitHub
-  // checkout or a release build). When it isn't present this is a no-op.
+  // Optional MCP bridge (Settings > Claude / MCP bridge; off by default).
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    require('./localDev/mcpBridge').start({ getWindow: () => mainWindow });
+    require('./mcpBridge').start({ getWindow: () => mainWindow, settings: loadSettings() as any });
   } catch (e: any) {
-    if (e?.code !== 'MODULE_NOT_FOUND') console.error('[Main] localDev module failed to start:', e?.message || e);
+    console.error('[Main] MCP bridge failed to start:', e?.message || e);
   }
 
   // ── Version Migration & Data Preservation ──────────────────────────────────
@@ -36945,7 +36911,7 @@ app.whenReady().then(() => {
     }
   });
 
-  // ── Brain B (Nexus edition) install + lifecycle ─────────────────────────
+  // ── Brain B (local edition) install + lifecycle ─────────────────────────
   // CPU-only, no GPU, edition-agnostic (unlike KoboldCPP's model download,
   // this is offered identically on Mossy NVIDIA and Mossy Universal). See
   // brain-b/nexus/ in the repo for what's actually in the downloaded package
@@ -36994,18 +36960,23 @@ app.whenReady().then(() => {
   // the UI can label this step honestly as "checks GitHub for the current
   // version" rather than folding it into the local-only claim above.
   lateHandle('brainb:check-latest', async () => {
-    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.manifest.json`;
     try {
       const manifest = await _brainBFetchJson(manifestUrl);
       return { ok: true, manifest };
     } catch (error: any) {
-      return { ok: false, error: error?.message || String(error) };
+      const msg = String(error?.message || error);
+      // A 404 here means this Mossy version points at a Brain B release that isn't public yet.
+      if (/\b404\b/.test(msg)) {
+        return { ok: false, error: `Brain B ${BRAINB_VERSION} isn't available for download yet. Nothing was changed; check again after the next Mossy update.` };
+      }
+      return { ok: false, error: msg };
     }
   });
 
   lateHandle('brainb:install', async (event) => {
-    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.manifest.json`;
-    const zipUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-nexus-v${BRAINB_VERSION}/brain-b-nexus-v${BRAINB_VERSION}.zip`;
+    const manifestUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.manifest.json`;
+    const zipUrl = `https://github.com/${BRAINB_RELEASE_REPO}/releases/download/brain-b-v${BRAINB_VERSION}/brain-b-v${BRAINB_VERSION}.zip`;
     const TIMEOUT_MS = 600_000;
 
     const destDir = BRAINB_DIR();

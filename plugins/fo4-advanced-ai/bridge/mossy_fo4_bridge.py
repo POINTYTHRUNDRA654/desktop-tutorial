@@ -16,6 +16,7 @@ Features:
 Requirements: Python 3.10+
 """
 
+import shutil
 import os
 import sys
 import json
@@ -1761,7 +1762,8 @@ def _record_player_speech(max_seconds: float = 6.0) -> str:
 # To enable:
 #   1. Set "enable_tts": 1 in config.json
 #   2. Set "tts_voice_path" to the WAV the CK Sound Descriptor references
-#   3. Install an engine:  pip install edge-tts pydub   OR  pip install pyttsx3
+#   3. Piper (offline neural voice) is the engine. Put piper.exe + a voice (.onnx/.onnx.json) under
+#      runtime/piper (see setup_piper.ps1). Without it the Windows built-in voice is used.
 #   4. Create the Sound Descriptor in the CK (see README / guide step 1-2)
 
 def _get_tts_wav_path() -> Path | None:
@@ -1781,11 +1783,10 @@ _tts_lock = threading.Lock()
 def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
     """Generate a WAV file from *text* and overwrite the TTS voice path.
 
-    Engine priority:
-      1. edge-tts  — free Microsoft neural voices, needs internet
-                     requires: pip install edge-tts pydub
-      2. pyttsx3   — offline Windows SAPI5, robotic but zero-dependency
-                     requires: pip install pyttsx3
+    Engine priority (everything runs on this PC, nothing is sent to the internet):
+      1. Piper     — offline neural voice (runtime/piper/piper.exe + a voice model)
+      2. Windows SAPI — the built-in System.Speech voice, robotic but needs nothing installed
+    A legacy tts_engine of "edge-tts" in config.json is treated as "piper": the cloud voice was removed.
     Returns True if the WAV was written successfully.
 
     voice_path is a single fixed file shared by every NPC (one Sound
@@ -1796,24 +1797,132 @@ def _generate_tts_wav(text: str, npc_race: str = "human") -> bool:
         return _generate_tts_wav_locked(text, npc_race)
 
 
-def _generate_tts_wav_locked(text: str, npc_race: str) -> bool:
-    voice_path = _get_tts_wav_path()
+# ── Piper: offline neural text-to-speech ─────────────────────────────────────────────
+# piper.exe is MIT-licensed (rhasspy/piper). Voices must be chosen for their dataset licence: the default
+# en_US-joe-medium is CC0 and en_US-ljspeech-high is public domain. Do not ship non-commercial voices.
+_PIPER_DEFAULT_VOICE = "en_US-joe-medium"
+# Speaking speed per race (Piper's length_scale: higher = slower) and expressiveness (noise_w)
+_PIPER_STYLE = {
+    "robot":        {"length_scale": 1.15, "noise_w": 0.2},
+    "synth":        {"length_scale": 1.05, "noise_w": 0.5},
+    "super mutant": {"length_scale": 1.2,  "noise_w": 0.9},
+    "ghoul":        {"length_scale": 1.1,  "noise_w": 0.9},
+    "default":      {"length_scale": 1.0,  "noise_w": 0.8},
+}
+_noted: set = set()
+
+
+def _note_once(key: str, message: str) -> None:
+    if key not in _noted:
+        _noted.add(key)
+        print(message)
+
+
+def _find_piper_exe(cfg: dict) -> Path | None:
+    """piper.exe from config (piper_path), then the usual F4AI locations; None if not installed."""
+    candidates = [cfg.get("piper_path", "").strip(),
+                  _F4AI_BASE / "runtime" / "piper" / "piper.exe",
+                  _MO2_MOD_F4AI / "piper" / "piper.exe",
+                  _MO2_MOD_F4AI / "piper.exe",
+                  FO4_GAME_PATH / "Data" / "F4AI" / "piper" / "piper.exe",
+                  FO4_GAME_PATH / "Data" / "F4AI" / "piper.exe"]
+    for c in candidates:
+        if c and Path(c).is_file():
+            return Path(c)
+    return None
+
+
+def _find_piper_voice(cfg: dict, exe: Path, name: str) -> Path | None:
+    dirs = [cfg.get("piper_voices_dir", "").strip(), exe.parent / "voices", exe.parent]
+    for d in dirs:
+        if d and (Path(d) / f"{name}.onnx").is_file() and (Path(d) / f"{name}.onnx.json").is_file():
+            return Path(d) / f"{name}.onnx"
+    return None
+
+
+def _wav_to_44k_mono16(src: Path, dst: Path) -> None:
+    """Rewrite *src* as 16-bit mono 44.1 kHz PCM (what the game's voice pipeline and xWMAEncode expect).
+    Uses numpy+scipy; without scipy the file is copied unchanged (22 kHz still plays, just not resampled)."""
+    import wave
+    with wave.open(str(src), "rb") as w:
+        rate, ch, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
+        frames = w.readframes(w.getnframes())
+    if width != 2:
+        raise RuntimeError(f"Piper wrote {width * 8}-bit audio; expected 16-bit")
+    try:
+        import numpy as np
+        from scipy.signal import resample_poly
+    except ImportError:
+        _note_once("tts_no_scipy", "[Bridge/TTS] scipy not installed — voice stays at the engine's native sample rate (pip install scipy)")
+        shutil.copyfile(src, dst)
+        return
+    data = np.frombuffer(frames, dtype="<i2").astype(np.float32)
+    if ch > 1:
+        data = data.reshape(-1, ch).mean(axis=1)
+    if rate != 44100:
+        from math import gcd
+        g = gcd(44100, rate)
+        data = resample_poly(data, 44100 // g, rate // g)
+    out = np.clip(data, -32768, 32767).astype("<i2")
+    with wave.open(str(dst), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        w.writeframes(out.tobytes())
+
+
+def _synth_piper(text: str, npc_race: str, cfg: dict, wav_path: Path) -> str | None:
+    """Speak *text* with Piper into *wav_path* (44.1 kHz mono 16-bit). Returns the voice name used, or None if
+    Piper or its voice is not installed or produced no audio. Text goes in on stdin so quotes can't break anything."""
+    exe = _find_piper_exe(cfg)
+    if exe is None:
+        _note_once("tts_no_piper", "[Bridge/TTS] piper.exe not found (run setup_piper.ps1, or set piper_path in config.json)")
+        return None
+    name = (cfg.get("tts_voice") or "").strip()
+    if not name or name.lower().endswith("neural"):      # empty, or a leftover edge-tts voice name
+        name = _PIPER_DEFAULT_VOICE
+    model = _find_piper_voice(cfg, exe, name)
+    if model is None:
+        _note_once(f"tts_no_voice_{name}", f"[Bridge/TTS] Piper voice '{name}' not found next to piper.exe (expected voices/{name}.onnx and .onnx.json)")
+        return None
+    style = _PIPER_STYLE.get((npc_race or "").lower(), _PIPER_STYLE["default"])
+    line = " ".join(text.split())
+    if not line:
+        return None
+    tmp = wav_path.with_name(wav_path.stem + ".piper.tmp.wav")
+    try:
+        tmp.unlink()
+    except FileNotFoundError:
+        pass
+    result = subprocess.run(
+        [str(exe), "--model", str(model), "--output_file", str(tmp),
+         "--length_scale", str(style["length_scale"]), "--noise_w", str(style["noise_w"]), "--sentence_silence", "0.15"],
+        input=line.encode("utf-8"), capture_output=True, timeout=25, cwd=str(exe.parent),
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if result.returncode != 0 or not tmp.exists() or tmp.stat().st_size < 1000:
+        err = (result.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        raise RuntimeError(f"piper exited {result.returncode}: {err[-1] if err else 'no output'}")
+    try:
+        _wav_to_44k_mono16(tmp, wav_path)
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+    return name
+
+
+def _generate_tts_wav_locked(text: str, npc_race: str, slot: str = "a") -> bool:
+    voice_path = _get_tts_wav_path()   # this older bridge has one voice file; the slot argument is accepted and ignored
     if voice_path is None:
         return False
 
     cfg = _load_f4ai_config()
-    engine_pref = cfg.get("tts_engine", "edge-tts").lower()
-
-    # Voice selection for edge-tts — choose based on NPC race for flavour
-    _EDGE_VOICES = {
-        "ghoul":        "en-US-ChristopherNeural",  # older, worn
-        "super mutant": "en-US-GuyNeural",
-        "robot":        "en-US-GuyNeural",
-        "synth":        "en-US-GuyNeural",
-        "default":      "en-US-GuyNeural",
-    }
-    voice_name = (cfg.get("tts_voice") or "").strip() or \
-                 _EDGE_VOICES.get(npc_race.lower(), _EDGE_VOICES["default"])
+    engine_pref = (cfg.get("tts_engine") or "piper").strip().lower()
+    if engine_pref in ("edge-tts", "edge"):
+        _note_once("tts_edge_removed", "[Bridge/TTS] tts_engine 'edge-tts' was a cloud voice and has been removed; using Piper (offline). "
+                                       "Set tts_engine to 'piper' (or 'sapi') in config.json to silence this message.")
+        engine_pref = "piper"
 
     voice_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1835,101 +1944,57 @@ def _generate_tts_wav_locked(text: str, npc_race: str) -> bool:
                 capture_output=True, timeout=15,
             )
             if xwm.exists():
-                # Also mirror to MO2 mod folder so VFS picks it up
-                mo2_xwm = (_MO2_MOD_F4AI.parent / "Sound" / "Voice" / "F4AI" / xwm.name)
-                try:
-                    mo2_xwm.parent.mkdir(parents=True, exist_ok=True)
-                    import shutil
-                    shutil.copy2(xwm, mo2_xwm)
-                except Exception:
-                    pass
+                # MO2 mod-folder copy happens in _mirror_voice_files (atomic swap)
                 print(f"[Bridge/TTS] XWM encoded → {xwm.name}")
                 return True
         except Exception as exc:
             print(f"[Bridge/TTS] xWMAEncode error: {exc}")
         return False
 
-    # ── edge-tts (primary) ────────────────────────────────────────────────────
-    if engine_pref in ("edge-tts", "edge"):
+    # ── Piper (primary): offline neural voice ────────────────────────────────
+    if engine_pref == "piper":
         try:
-            import asyncio
-            import edge_tts  # pip install edge-tts
-
-            async def _edge_run() -> Path:
-                communicate = edge_tts.Communicate(text, voice_name)
-                tmp = voice_path.with_suffix(".tmp.mp3")
-                await communicate.save(str(tmp))
-                return tmp
-
-            tmp_mp3 = asyncio.run(_edge_run())
-
-            # Convert MP3 → 16-bit PCM WAV (FO4-compatible).
-            # Prefer invoking ffmpeg directly: pydub's from_mp3() also shells
-            # out to ffprobe for media-info probing, and FO4 only bundles
-            # ffmpeg.exe (no ffprobe.exe) alongside its LipGen tools, so the
-            # pydub path fails on a machine with no system-wide ffmpeg install.
-            import shutil
-            ffmpeg_exe = shutil.which("ffmpeg")
-            if not ffmpeg_exe:
-                bundled_ffmpeg = FO4_GAME_PATH / "Tools" / "LipGen" / "LipGenerator" / "ffmpeg.exe"
-                if bundled_ffmpeg.exists():
-                    ffmpeg_exe = str(bundled_ffmpeg)
-
-            converted = False
-            if ffmpeg_exe:
-                try:
-                    result = subprocess.run(
-                        [ffmpeg_exe, "-y", "-i", str(tmp_mp3),
-                         "-ar", "44100", "-ac", "1", "-sample_fmt", "s16",
-                         str(wav_path)],
-                        capture_output=True, timeout=15,
-                    )
-                    converted = result.returncode == 0
-                except Exception:
-                    pass
-
-            if not converted:
-                try:
-                    from pydub import AudioSegment  # pip install pydub
-                    if ffmpeg_exe:
-                        AudioSegment.converter = ffmpeg_exe
-                    audio = AudioSegment.from_mp3(str(tmp_mp3))
-                    audio = audio.set_channels(1).set_frame_rate(44100).set_sample_width(2)
-                    audio.export(str(wav_path), format="wav")
-                    converted = True
-                except Exception:
-                    pass
-
-            if tmp_mp3.exists():
-                tmp_mp3.unlink(missing_ok=True)
-
-            if converted:
-                if target_is_xwm:
-                    _wav_to_xwm(wav_path, voice_path)
-                print(f"[Bridge/TTS] edge-tts ({voice_name}) → {voice_path.name}")
-                return True
-            print("[Bridge/TTS] edge-tts: MP3→WAV failed — install pydub (pip install pydub) or ffmpeg")
-        except ImportError:
-            print("[Bridge/TTS] edge-tts not installed — pip install edge-tts pydub")
+            voice_label = _synth_piper(text, npc_race, cfg, wav_path)
         except Exception as exc:
-            print(f"[Bridge/TTS] edge-tts error: {exc}")
+            voice_label = None
+            print(f"[Bridge/TTS] Piper error: {str(exc)[:200]}")
+        if voice_label:
+            if target_is_xwm:
+                _wav_to_xwm(wav_path, voice_path)
+            print(f"[Bridge/TTS] Piper ({voice_label}) → {voice_path.name}")
+            return True
+        print("[Bridge/TTS] Piper unavailable — falling back to the Windows built-in voice")
 
-    # ── pyttsx3 fallback (offline) ────────────────────────────────────────────
+    # ── Offline fallback: Windows' built-in System.Speech (via PowerShell) ─────
+    # Replaces pyttsx3, whose runAndWait() hung 20-35 s on repeat calls (even in a
+    # child process), so the game got text with the previous line's audio.
+    # Text goes in via an env var so quotes in the NPC line can't break the command.
     try:
-        import pyttsx3  # pip install pyttsx3
-        engine = pyttsx3.init()
         rate = 120 if "robot" in npc_race.lower() else 145
-        engine.setProperty("rate", rate)
-        engine.save_to_file(text, str(wav_path))
-        engine.runAndWait()
+        _ps = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            "$s.Rate = [int]$env:F4AI_TTS_RATE; "
+            "$s.SetOutputToWaveFile($env:F4AI_TTS_OUT); "
+            "$s.Speak($env:F4AI_TTS_TEXT); $s.Dispose()"
+        )
+        try:
+            wav_path.unlink()  # so a stale file can't pass the size check below
+        except FileNotFoundError:
+            pass
+        _env = dict(os.environ, F4AI_TTS_TEXT=text, F4AI_TTS_OUT=str(wav_path),
+                    F4AI_TTS_RATE=str(-2 if rate < 140 else 0))
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _ps],
+                       capture_output=True, timeout=15, env=_env,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if not wav_path.exists() or wav_path.stat().st_size < 1000:
+            raise RuntimeError("SAPI produced no audio")
         if target_is_xwm:
             _wav_to_xwm(wav_path, voice_path)
-        print(f"[Bridge/TTS] pyttsx3 → {voice_path.name}")
+        print(f"[Bridge/TTS] Windows SAPI → {voice_path.name}")
         return True
-    except ImportError:
-        print("[Bridge/TTS] No TTS engine available — pip install edge-tts pydub  OR  pip install pyttsx3")
     except Exception as exc:
-        print(f"[Bridge/TTS] pyttsx3 error: {exc}")
+        print(f"[Bridge/TTS] Windows SAPI fallback error: {str(exc)[:160]}")
 
     return False
 
@@ -2010,7 +2075,7 @@ def _handle_npc_request(found_path: Path):
     # Papyrus polls for 60s total (300×0.2s). STT recording, AI generation, and
     # TTS generation all now happen in this one request, and none of them knew
     # about the other two — a slow-but-real response (full 6s recording + a
-    # near-deadline AI call + a slow edge-tts round trip) could add up to well
+    # near-deadline AI call + a slow TTS step) could add up to well
     # over 60s, so text_out never gets written before Papyrus gives up and the
     # NPC just never answers. Track one wall-clock deadline for the whole
     # request and let each stage spend only what's left of it.
@@ -2098,7 +2163,7 @@ def _handle_npc_request(found_path: Path):
     # and subtitle in sync. _generate_tts_wav is best-effort and non-fatal.
     #
     # It only gets whatever's left of the request deadline, though: an NPC
-    # that never answers at all (because a slow edge-tts network round trip
+    # that never answers at all (because a slow TTS step
     # ran the whole request past Papyrus's 60s poll window) is worse than one
     # that answers with text a beat before its own audio catches up. If the
     # budget's already gone, skip TTS this turn rather than risk the response
@@ -3470,19 +3535,16 @@ def _print_pipeline_selfcheck():
 
     # TTS — without this, no voice audio is generated
     tts_ok = False
-    try:
-        import edge_tts  # noqa: F401
-        import pydub     # noqa: F401
-        print("  TTS edge-tts+pydub   : OK (neural voices, needs internet)")
+    _cfg = _load_f4ai_config()
+    _pexe = _find_piper_exe(_cfg)
+    if _pexe is not None and _find_piper_voice(_cfg, _pexe, (_cfg.get("tts_voice") or "").strip() or _PIPER_DEFAULT_VOICE):
+        print(f"  TTS Piper            : OK (offline neural voice, {_pexe})")
         tts_ok = True
-    except Exception:
-        print("  TTS edge-tts+pydub   : missing (pip install edge-tts pydub)")
-    try:
-        import pyttsx3  # noqa: F401
-        print("  TTS pyttsx3 fallback : OK (offline)")
+    else:
+        print("  TTS Piper            : not set up -> robotic Windows voice (run setup_piper.ps1)")
+    if os.name == "nt":
+        print("  TTS Windows fallback : OK (built-in System.Speech)")
         tts_ok = True
-    except Exception:
-        print("  TTS pyttsx3 fallback : missing (pip install pyttsx3)")
     if not tts_ok:
         print("  TTS                  : NO ENGINE -> NPCs will be silent!")
 

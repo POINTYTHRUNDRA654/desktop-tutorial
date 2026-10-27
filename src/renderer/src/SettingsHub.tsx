@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap,
+  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug, Cloud, Download,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -14,6 +14,10 @@ import ExternalToolsSettings from './ExternalToolsSettings';
 import AIEngineSettings from './AIEngineSettings';
 import OllamaSettings from './OllamaSettings';
 import BrainBSettings from './BrainBSettings';
+import HardwareCheck from './HardwareCheck';
+import McpBridgeSettings from './McpBridgeSettings';
+import ByoAiSettings from './ByoAiSettings';
+import { UpdateSettings } from './UpdateNotice';
 import ScreenAwarenessSettings from './ScreenAwarenessSettings';
 import LessonsReviewSettings from './LessonsReviewSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
@@ -393,6 +397,13 @@ const SettingsHub: React.FC = () => {
 
   const sections: HubSection[] = [
     {
+      id: 'your-pc',
+      title: t('settings.hub.yourPc.title', 'Your PC: what Mossy can run'),
+      description: t('settings.hub.yourPc.desc', 'Checks your graphics card, memory and disk, shows which AI features fit, and links what to install. Recheck after installing something.'),
+      icon: Cpu,
+      content: <HardwareCheck embedded />,
+    },
+    {
       id: 'privacy',
       title: t('settings.hub.step1.title', 'Step 1: Privacy & Security'),
       description: t('settings.hub.step1.desc', 'Control data collection, sharing, security rules, and memory storage.'),
@@ -453,6 +464,31 @@ const SettingsHub: React.FC = () => {
       description: t('settings.hub.step3c.desc', 'Vector-based document retrieval for Memory Vault and Knowledge Hub semantic search.'),
       icon: Database,
       content: <AnythingLLMSettings embedded />,
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+    },
+    {
+      id: 'updates',
+      title: t('settings.hub.updates.title', 'Updates'),
+      description: t('settings.hub.updates.desc', 'Get told when a new version of Mossy is on GitHub, or check now.'),
+      icon: Download,
+      content: <UpdateSettings />,
+    },
+    {
+      id: 'byo-ai',
+      title: t('settings.hub.byoAi.title', 'Your own AI service (optional)'),
+      description: t('settings.hub.byoAi.desc', 'Mossy runs on local AI. If you want, connect your own OpenAI, Groq, OpenRouter or other OpenAI-compatible account with your own key.'),
+      icon: Cloud,
+      content: <ByoAiSettings />,
+      badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
+      badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+    },
+    {
+      id: 'mcp-bridge',
+      title: t('settings.hub.mcpBridge.title', 'Claude / MCP bridge'),
+      description: t('settings.hub.mcpBridge.desc', 'Let Claude Code or another MCP client use Mossy\'s tools on this PC. Off by default.'),
+      icon: Plug,
+      content: <McpBridgeSettings />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
     },

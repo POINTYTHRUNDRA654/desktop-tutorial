@@ -1,0 +1,9 @@
+# Creative Director AI helpers (local only). Installed by Mossy into its own virtual environment.
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.5
+chromadb>=0.5
+ollama>=0.3
+httpx>=0.27
+websockets>=12
+rich>=13

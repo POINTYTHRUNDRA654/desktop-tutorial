@@ -105,9 +105,12 @@ export function buildGithubNewIssueUrl(params: {
   title: string;
   body: string;
   labels?: string[];
+  /** Issue template file name; GitHub applies its labels for every submitter (the labels= query only works for maintainers). */
+  template?: string;
 }): string {
   const base = `https://github.com/${params.repo}/issues/new`;
   const query = new URLSearchParams();
+  if (params.template) query.set('template', params.template);
   query.set('title', params.title);
   query.set('body', params.body);
   if (params.labels && params.labels.length > 0) {

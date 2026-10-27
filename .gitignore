@@ -17,9 +17,6 @@ act/
 gh-cli/
 desktop-tutorial/
 
-# Vault-Tec Creative Director panel — local-only UI, never pushed to the public repo
-src/renderer/src/plugin_creative_director/
-
 # SS2 plot/city-plan "Reality Check" grading engine — downloads and parses real
 # Nexus mods for local grading comparisons; local-only tooling, never pushed to the public repo
 src/mining/reference-corpus/
@@ -256,3 +253,14 @@ plugins/blender-mossy-link/
 localDev/
 src/electron/localDev/
 src/renderer/src/localDev/
+
+# Private working notes and local assistant config: stay on the dev machine, never published
+/CLAUDE.md
+/CLAUDE.local.md
+/Claude outputs/
+/.claude/
+
+
+# Third-party Papyrus library sources (Hydra): no verified licence to redistribute, kept on the dev machine only
+/plugins/fo4-advanced-ai/papyrus/Hydra_Stubs/
+

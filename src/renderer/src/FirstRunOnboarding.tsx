@@ -6,6 +6,7 @@ import TutorialVideoPanel from './components/TutorialVideoPanel';
 import { speakMossy } from './mossyTts';
 import { getBrowserTtsVoices, loadBrowserTtsSettings, saveBrowserTtsSettings, pickBrowserTtsVoice, ensureBrowserTtsSettingsStored } from './browserTts';
 import { openExternal } from './utils/openExternal';
+import HardwareCheck from './HardwareCheck';
 
 interface OnboardingProps {
     onComplete: () => void;
@@ -755,7 +756,7 @@ const SCAN_DETECTION_PROGRESS_TICK_MS = 150;
 
 export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     const { t, setUiLanguagePref } = useI18n();
-    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'credits' | 'lists' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'identity' | 'complete'>('edition');
+    const [step, setStep] = useState<'edition' | 'welcome' | 'version' | 'scanning' | 'hardware' | 'credits' | 'lists' | 'recommendations' | 'downloads' | 'spriggit-digest' | 'identity' | 'complete'>('edition');
     const [fo4Version, setFo4Version] = useState<string>(() => {
         try { return localStorage.getItem('mossy_fo4_version') || ''; } catch { return ''; }
     });
@@ -1461,7 +1462,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                 ...prev
             }));
             setScanRetryCount(0); // Reset retry count on success
-            setStep('credits');
+            setStep('hardware');
 
         } catch (error) {
             if (detectionProgressTimerRef.current !== null) {
@@ -2146,7 +2147,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                                                 type="button"
                                                 onClick={() => {
                                                     console.log('[FirstRunOnboarding] User chose to skip scan after error');
-                                                    setStep('credits');
+                                                    setStep('hardware');
                                                 }}
                                                 className="px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors"
                                             >
@@ -2190,6 +2191,10 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             />
                         </div>
                     </div>
+                )}
+
+                {step === 'hardware' && (
+                    <HardwareCheck onContinue={() => setStep('credits')} />
                 )}
 
                 {step === 'credits' && (
@@ -2237,7 +2242,7 @@ export const FirstRunOnboarding: React.FC<OnboardingProps> = ({ onComplete }) =>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setStep('scanning')}
+                                onClick={() => setStep('hardware')}
                                 className="text-sm text-slate-400 hover:text-slate-200 underline"
                             >
                                 ← Back
