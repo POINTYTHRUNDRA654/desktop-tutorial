@@ -866,14 +866,13 @@ export const LiveProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return;
       }
 
-      // Honest degradation disclosure -- see usedFallbackAnywhere's declaration
-      // above for why this exists. Short and appended once, after every other
-      // branch has finished, so it survives regardless of which path produced
-      // the final response.
+      // A spoken "my main cloud model was unreachable, a smaller local one
+      // filled in" note used to be appended here when usedFallbackAnywhere was
+      // set. Since 6.0.0 there is no cloud path -- local models always answer --
+      // so the note was false on every voice reply (removed in 6.0.1). The flag
+      // is still tracked and logged for diagnostics.
       if (usedFallbackAnywhere) {
-        const fallbackNotice = ' (Note: my main cloud model was unreachable for this answer, so a smaller local one filled in -- worth double-checking anything specific.)';
-        response += fallbackNotice;
-        displayResponse += fallbackNotice;
+        console.log('[LiveContext] answered by a local model (the only path since 6.0.0)');
       }
 
       // Add AI response to history

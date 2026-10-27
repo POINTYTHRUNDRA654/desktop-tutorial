@@ -740,6 +740,101 @@ function buildPromptForLocalModel(
   return `${getCoreIdentityBlock()}${sceneBlock}${extraDirective}${historyText}\nUser: ${query}\n\nMossy's Response:`;
 }
 
+/**
+ * Character budget for the system message sent to the local tool-capable
+ * models (Ollama via ollamaTools.ts, Lemonade). ~22K chars is ~5.5K tokens,
+ * leaving room for history and the answer inside the 8,192-token context
+ * ollamaTools.ts requests (OLLAMA_TOOL_NUM_CTX). Since 6.0.0 these models
+ * answer every turn, and before this they were sent the full cloud-sized
+ * prompt (180K-390K chars measured in ai-diagnostics.log, 2026-10-27);
+ * Ollama kept only its last ~4K tokens ("truncating input prompt
+ * limit=4099 prompt=73729"), so Mossy's rules and most of Brain B's
+ * retrieved knowledge never reached the model.
+ */
+const LOCAL_TOOL_PROMPT_BUDGET = 22_000;
+const LOCAL_TOOL_HISTORY_BUDGET = 4_000;
+
+const LOCAL_TUTOR_RULES =
+  '**HOW TO ANSWER (you are a Fallout 4 modding tutor):**\n' +
+  '- Teach at the user\'s level: plain words first, then the exact tool, menu, record type or file path.\n' +
+  '- Base facts on the KNOWLEDGE section below when it is present; it is more reliable than your own memory. If it does not cover something, say so plainly instead of guessing.\n' +
+  '- Workflows: one stage at a time, then offer the next step.\n' +
+  '- No filler openings ("Great question!") and no closing summary.\n' +
+  '- Use a tool only when the user asks you to do something in the app; for questions, answer in text.\n' +
+  '- You and all your models run locally on this PC. Never say you run in the cloud or mention cloud services.\n';
+
+const LOCAL_VOICE_RULES =
+  '- This reply is spoken aloud: 2-5 short sentences, no markdown, no lists, no code blocks.\n';
+
+const clipForLocal = (text: string, max: number): string =>
+  text.length <= max ? text : `${text.slice(0, max)}\n[...trimmed to fit the local model]`;
+
+/** Text of one "### HEADER" section of injectedContext, up to the next "### ". */
+function pickInjectedSection(injected: string, header: string): string {
+  const start = injected.indexOf(`### ${header}`);
+  if (start < 0) return '';
+  const bodyStart = injected.indexOf('\n', start);
+  if (bodyStart < 0) return '';
+  const next = injected.indexOf('\n### ', bodyStart);
+  return injected.slice(bodyStart + 1, next < 0 ? undefined : next).trim();
+}
+
+/**
+ * The system message for the local tool-capable models, built from the parts
+ * that matter for one answer, most important first, each capped so none can
+ * crowd out the others: who Mossy is and how she teaches, Brain B's retrieved
+ * knowledge for THIS question, live web results and Blender scene data when
+ * the turn has them, then a short summary of the user's setup and memory.
+ */
+function buildLocalToolSystemPrompt(p: {
+  groundingContext?: string;
+  brainBUnavailable?: boolean;
+  sceneContext?: Record<string, unknown> | null;
+  injectedContext: string;
+  voiceMode: boolean;
+}): string {
+  const parts: string[] = [getCoreIdentityBlock(), LOCAL_TUTOR_RULES + (p.voiceMode ? LOCAL_VOICE_RULES : '')];
+  if (p.groundingContext && p.groundingContext.trim()) {
+    parts.push(
+      "### KNOWLEDGE FOR THIS QUESTION (from Mossy's knowledge base; base your answer on this):\n" +
+      clipForLocal(p.groundingContext.trim(), 9_000),
+    );
+  } else if (p.brainBUnavailable) {
+    parts.push('### NOTE\nMossy\'s knowledge base (Brain B) is not running right now, so there is no retrieved documentation for this question. If the answer needs it, say so plainly.');
+  }
+  const web = pickInjectedSection(p.injectedContext, 'LIVE WEB SEARCH RESULTS');
+  if (web) parts.push(`### LIVE WEB SEARCH RESULTS\n${clipForLocal(web, 3_000)}`);
+  if (p.sceneContext) {
+    parts.push(
+      "### LIVE BLENDER SCENE (what's open in the user's Blender right now; answer scene questions from THIS)\n" +
+      clipForLocal(JSON.stringify(p.sceneContext, null, 1), 3_000),
+    );
+  }
+  const setup = pickInjectedSection(p.injectedContext, 'INSTALLED SOFTWARE & CREATIVE PIPELINE');
+  if (setup) parts.push(`### USER'S SETUP\n${clipForLocal(setup, 1_500)}`);
+  const memory = pickInjectedSection(p.injectedContext, 'WORKING MEMORY');
+  if (memory) parts.push(`### WORKING MEMORY\n${clipForLocal(memory, 1_000)}`);
+  const vault = pickInjectedSection(p.injectedContext, 'KNOWLEDGE VAULT');
+  if (vault) parts.push(`### USER'S KNOWLEDGE VAULT (relevant notes)\n${clipForLocal(vault, 1_500)}`);
+  return clipForLocal(parts.join('\n\n'), LOCAL_TOOL_PROMPT_BUDGET);
+}
+
+/** Most recent turns that fit the history budget, oldest first. */
+function trimHistoryForLocal(
+  history: Array<{ role: 'user' | 'assistant'; content: string }> | undefined,
+): Array<{ role: string; content: string }> {
+  const kept: Array<{ role: string; content: string }> = [];
+  let used = 0;
+  for (const m of [...(history ?? [])].reverse()) {
+    if (!m.content || !m.content.trim()) continue;
+    const content = clipForLocal(m.content.trim(), 1_500);
+    if (used + content.length > LOCAL_TOOL_HISTORY_BUDGET) break;
+    kept.unshift({ role: m.role, content });
+    used += content.length;
+  }
+  return kept;
+}
+
 export const LocalAIEngine = {
   /**
    * Loads persisted local AI settings (if available).
@@ -1035,6 +1130,15 @@ export const LocalAIEngine = {
         // true, so an unreachable Brain B degrades to the safe 'auto'
         // default rather than either always or never forcing.
         actionRelated: enrichment?.actionRelated,
+        // The local models get a compact prompt (buildLocalToolSystemPrompt)
+        // instead of effectiveSystemInstruction, so they need Brain B's
+        // retrieval (and the platform map, when relevant) handed over as its
+        // own piece rather than buried inside the full-size instruction.
+        groundingContext: [
+          enrichment?.retrievedContext || '',
+          enrichment?.appHelpRelated ? getPlatformMapBlockForPrompt() : '',
+        ].filter(Boolean).join('\n\n') || undefined,
+        brainBUnavailable: !enrichment,
       },
     );
     const generateMs = Date.now() - generateStart;
@@ -1042,7 +1146,7 @@ export const LocalAIEngine = {
     const sceneContextBytes = enrichment?.contextForGeneration
       ? JSON.stringify(enrichment.contextForGeneration).length : 0;
     const providerUsed = response.usedLocalFallback
-      ? 'local (fallback — cloud unavailable)'
+      ? 'local'
       : (localOptions?.preferCloud ? 'cloud (primary)' : 'local (primary)');
 
     if (!enrichment) {
@@ -1333,7 +1437,7 @@ export const LocalAIEngine = {
    * Pass `voiceMode: true` for voice queries — skips the response guard (which makes
    * a second API call) to keep voice latency from doubling to 100+ seconds.
    */
-  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean }): Promise<AIResponse> {
+  async _generateResponseCore(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean; groundingContext?: string; brainBUnavailable?: boolean }): Promise<AIResponse> {
     const localStatus = await this.getLocalProviderStatus();
     const localSettings = await this.getLocalAiSettings();
 
@@ -1966,13 +2070,21 @@ export const LocalAIEngine = {
       // against Qwen3-4B-Instruct-2507-GGUF (see src/electron/ml/lemonade.ts);
       // Ollama's model choice is checked per model (ollamaTools.ts). Each step
       // fails fast (1.5s probes) when its server isn't running.
+      // Compact, budgeted prompt -- never the full cloud-sized one (see
+      // LOCAL_TOOL_PROMPT_BUDGET for what that did).
+      const toolSystem = buildLocalToolSystemPrompt({
+        groundingContext: localOptions?.groundingContext,
+        brainBUnavailable: localOptions?.brainBUnavailable,
+        sceneContext: localOptions?.sceneContext,
+        injectedContext,
+        voiceMode,
+      });
       const toolMessages: Array<{ role: string; content: string }> = [
-        { role: 'system', content: enhancedSystemInstruction + localOverride + injectedContext },
-        ...(conversationHistory ?? [])
-          .filter(m => m.content && m.content.trim())
-          .map(m => ({ role: m.role, content: m.content })),
+        { role: 'system', content: toolSystem },
+        ...trimHistoryForLocal(conversationHistory),
         { role: 'user', content: query },
       ];
+      void api?.writeDiagnosticLog?.(`[local-prompt] voiceMode=${voiceMode} system=${toolSystem.length} grounding=${localOptions?.groundingContext?.length ?? 0} history=${toolMessages.length - 2}`);
       // Lemonade and Ollama tool calls share one shape (both go through
       // openaiCompat.ts). Groq's own toolCalls carry `args` as
       // parsed-JSON-with-string-fallback (see chat.ts's BackendToolCall) —
