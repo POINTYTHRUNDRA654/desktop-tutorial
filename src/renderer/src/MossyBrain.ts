@@ -1762,7 +1762,7 @@ export const getFullSystemInstruction = (contextStr?: string, lean = false): str
       '\n\n**CAO Best Practices:**' +
       '\n- Normal maps: always use BC5 (not BC3). BC5 stores only RG; the engine reconstructs Z — this is correct for FO4. BC3 normals cause "shimmering" at a distance.' +
       '\n- Diffuse maps: BC3 (has alpha channel for transparency). If no alpha needed, BC1 (smaller but no alpha).' +
-      '\n- Specular maps (_s.dds): BC3 linear (not sRGB). This preserves the RG=gloss channels correctly.' +
+      '\n- Specular maps (_s.dds): BC5 linear (not sRGB), as vanilla uses (2,722 of 2,730 vanilla _s maps). BC5 stores its two channels (specular and gloss) at full quality.' +
       '\n- Height/parallax maps (_h.dds): BC4 (single channel, R only). BC3 wastes 3 channels.' +
       '\n- 4K textures: only for player-visible hero assets (armor, weapons, player face). All landscape and generic textures: max 2K.' +
       '\n- Headpart meshes: enable "Head parts" option in CAO mesh settings — it applies FO4-specific NIF flags that prevent dark face bugs.' +
@@ -9409,13 +9409,13 @@ Archive2.exe YourMod - Sounds -create=YourMod - Sounds.ba2 -root="D:\\YourMod\\S
 2. Select format:
    - Diffuse: BC7 (best quality)
    - Normal: BC5 (optimal compression)
-   - Specular: BC1 or BC3
+   - Specular: BC5 (what vanilla uses for _s maps)
 3. Enable Mipmaps: Generate Mip Maps (checked)
 4. Save
 
 **GIMP (DDS Plugin):**
 1. File > Export As > .dds
-2. Compression: BC7 (diffuse), BC5 (normal), BC3 (specular)
+2. Compression: BC7 (diffuse; vanilla uses BC1, or BC3 with alpha), BC5 (normal), BC5 (specular)
 3. Mipmaps: Generate mipmaps (checked)
 4. Save
 
