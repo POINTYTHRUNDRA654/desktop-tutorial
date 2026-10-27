@@ -1,4 +1,5 @@
 import { loadBrowserTtsSettings, pickBrowserTtsVoice, uiLangToBcp47 } from './browserTts';
+import { sanitizeForSpeech } from './utils/sanitizeForSpeech';
 
 export interface VoiceServiceConfig {
   // 'local'   → faster-whisper running on the user's PC via whisper_service.py (preferred)
@@ -808,6 +809,12 @@ export class VoiceService {
   }
 
   async speak(text: string): Promise<void> {
+    // Every spoken answer passes through here (voice chat via LiveContext,
+    // text chat's read-aloud via mossyTts), so markdown, code, emoji and
+    // other symbols are stripped once, here. Text chat's read-aloud used to
+    // reach the speech engine raw and read the symbols out. Idempotent, so
+    // LiveContext's own earlier call to it is harmless.
+    text = sanitizeForSpeech(text);
     const speakStartTime = Date.now();
     console.log('[VoiceService] 🎙️ speak() called - text length:', text.length, 'chars');
     if (this.shouldStop) {

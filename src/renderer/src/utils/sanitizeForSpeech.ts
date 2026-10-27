@@ -27,16 +27,39 @@ export function sanitizeForSpeech(text: string): string {
   // (which a TTS engine has no sensible reading for) are gone.
   result = result.replace(/`([^`]+)`/g, '$1');
 
+  // Markdown links -> just the link text (before the URL rule below, which
+  // would otherwise leave "[text]( a link )").
+  result = result.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+
   // URLs and file paths -> a speakable placeholder rather than read out
   // character by character (protocol, slashes, dots, extension and all).
   result = result.replace(/https?:\/\/\S+/g, ' a link ');
   result = result.replace(/(?:[A-Za-z]:)?(?:[\\/][\w.\-]+){2,}/g, ' a file path ');
 
-  // Markdown structural markers: emphasis/heading/strikethrough characters,
-  // blockquote markers, and HTML/angle-bracket tags.
-  result = result.replace(/[*_#~]+/g, '');
+  // A lone tilde is the console key ("open the console with the ~ key"):
+  // say it rather than drop it.
+  result = result.replace(/(^|[\s(])~(?=[\s).,]|$)/gm, '$1tilde');
+
+  // Markdown structural markers: emphasis/heading/strikethrough characters
+  // and blockquote markers. Underscores become spaces so identifiers like
+  // MyMod_Patch don't run together into one word.
+  result = result.replace(/[*#~]+/g, '');
+  result = result.replace(/_+/g, ' ');
   result = result.replace(/^>+\s?/gm, '');
+
+  // HTML tags are dropped; angle-bracket placeholders such as
+  // "StartQuest <QuestEditorID>" keep their word so the sentence still makes sense.
+  result = result.replace(/<\/?(?:br|p|div|span|b|i|u|strong|em|ul|ol|li|code|pre|h[1-6]|table|tr|td|th|hr)\b[^>]*>/gi, ' ');
+  result = result.replace(/<([A-Za-z][\w ]{0,40})>/g, '$1');
   result = result.replace(/<\/?[^>]+>/g, '');
+
+  // Table bars, list bullets, check marks and emoji have no sensible
+  // spoken reading; arrows and ampersands do.
+  result = result.replace(/\s*\|\s*/g, ', ');
+  result = result.replace(/[•▪◦●■□✓✔✗✘★☆]/g, ' ');
+  result = result.replace(/[→⇒⟶➜]/g, ' to ');
+  result = result.replace(/\s&\s/g, ' and ');
+  result = result.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '');
 
   // Long separator runs (markdown horizontal rules, ASCII dividers).
   result = result.replace(/[-=_]{3,}/g, ' ');
@@ -68,7 +91,12 @@ export function sanitizeForSpeech(text: string): string {
   // natural pacing.
   result = result.replace(/([.!?,;:])\1+/g, '$1');
 
-  // Collapse whitespace left behind by all of the above.
+  // Collapse whitespace and stray commas left behind by all of the above
+  // (an emptied table cell or a removed bullet can leave ", ," or a
+  // leading comma on a line).
+  result = result.replace(/,(\s*,)+/g, ',');
+  result = result.replace(/^[ \t]*,\s*/gm, '');
+  result = result.replace(/,\s*$/gm, '');
   result = result.replace(/[ \t]{2,}/g, ' ').trim();
 
   return result;

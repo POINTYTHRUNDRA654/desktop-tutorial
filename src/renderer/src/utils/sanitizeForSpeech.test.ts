@@ -77,4 +77,43 @@ describe('sanitizeForSpeech', () => {
     const out = sanitizeForSpeech('Pages 10–20 cover it.');
     expect(out).not.toContain('–');
   });
+
+  // Symbols text chat's read-aloud used to speak (it bypassed this filter
+  // entirely until 6.0.1; voice-service.ts speak() now applies it to every
+  // spoken answer).
+  it('keeps the word of an angle-bracket placeholder', () => {
+    expect(sanitizeForSpeech('Type StartQuest <QuestEditorID> in the console.'))
+      .toBe('Type StartQuest QuestEditorID in the console.');
+  });
+
+  it('says "tilde" for the console key', () => {
+    expect(sanitizeForSpeech('Open the console with the ~ key.')).toBe('Open the console with the tilde key.');
+  });
+
+  it('reads markdown link text only', () => {
+    expect(sanitizeForSpeech('See [the CK wiki](https://falloutck.uesp.net/wiki/Quest) for more.'))
+      .toBe('See the CK wiki for more.');
+  });
+
+  it('removes headings, bullets, emoji and check marks', () => {
+    const out = sanitizeForSpeech('## How to fix it\n• Step one ✓\n🎯 Done');
+    expect(out).not.toMatch(/[#•✓🎯]/u);
+    expect(out).toContain('How to fix it');
+    expect(out).toContain('Step one');
+    expect(out).toContain('Done');
+  });
+
+  it('turns a markdown table row into a spoken list', () => {
+    const out = sanitizeForSpeech('| Map | Format |\n|---|---|\n| Normal | BC5 |');
+    expect(out).not.toContain('|');
+    expect(out).toContain('Normal, BC5');
+  });
+
+  it('speaks underscores as spaces and arrows as "to"', () => {
+    expect(sanitizeForSpeech('Rename MyMod_Patch → MyMod_Fix')).toBe('Rename MyMod Patch to MyMod Fix');
+  });
+
+  it('drops HTML tags', () => {
+    expect(sanitizeForSpeech('Line one<br>Line two')).toBe('Line one Line two');
+  });
 });
