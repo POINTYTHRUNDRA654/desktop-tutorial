@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowDownToLine, ChevronDown, ChevronUp, Heart, Lock, Map, RotateCcw,
   Settings as SettingsIcon, Wifi, Wrench, Check, Brain, Zap,
-  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug, Cloud,
+  Package, Palette, Shield, Coffee, Star, Database, Eye, GraduationCap, Cpu, Plug, Cloud, Download,
 } from 'lucide-react';
 import { openExternal } from './utils/openExternal';
 import type { ElectronAPI } from '../../electron/types';
@@ -17,6 +17,7 @@ import BrainBSettings from './BrainBSettings';
 import HardwareCheck from './HardwareCheck';
 import McpBridgeSettings from './McpBridgeSettings';
 import ByoAiSettings from './ByoAiSettings';
+import { UpdateSettings } from './UpdateNotice';
 import ScreenAwarenessSettings from './ScreenAwarenessSettings';
 import LessonsReviewSettings from './LessonsReviewSettings';
 import AnythingLLMSettings from './AnythingLLMSettings';
@@ -465,6 +466,13 @@ const SettingsHub: React.FC = () => {
       content: <AnythingLLMSettings embedded />,
       badge: t('settings.hub.step3b.badge', 'OPTIONAL'),
       badgeStyle: 'bg-cyan-900/40 border-cyan-700/40 text-cyan-300',
+    },
+    {
+      id: 'updates',
+      title: t('settings.hub.updates.title', 'Updates'),
+      description: t('settings.hub.updates.desc', 'Get told when a new version of Mossy is on GitHub, or check now.'),
+      icon: Download,
+      content: <UpdateSettings />,
     },
     {
       id: 'byo-ai',

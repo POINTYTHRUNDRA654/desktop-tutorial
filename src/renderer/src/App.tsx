@@ -11,6 +11,7 @@ import ErrorBoundary from './ErrorBoundary';
 import PipBoyFrame from './PipBoyFrame';
 import PipBoyStartup from './PipBoyStartup';
 import { FirstRunOnboarding } from './FirstRunOnboarding';
+import { UpdateNotice } from './UpdateNotice';
 import { VoiceSetupWizard } from './VoiceSetupWizard';
 import { AITextureToolsSetupWizard } from './AITextureToolsSetupWizard';
 import GuidedTour from './GuidedTour';
@@ -1341,6 +1342,7 @@ const App: React.FC = () => {
           <NeuralController />
           <WhatsNewRedirect enabled={showWhatsNew} />
           <CommandPalette />
+          <UpdateNotice active />
           <TutorialOverlay />
           <SystemBus />
 

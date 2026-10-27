@@ -2,7 +2,7 @@
 
 ## [6.0.0] — 2026-10-26 — GitHub-only release
 
-Mossy is now released only on GitHub. Everything in this release still runs on your own PC by default; nothing new talks to the internet unless you click for it.
+Mossy is now released only on GitHub. Everything in this release still runs on your own PC by default. The one automatic internet request is a daily read of the public GitHub Releases list for the update notice, which you can switch off; everything else waits for your click.
 
 ### Setup: your PC, your choices
 - **"What your PC can run"** — a new first-run step (also in Settings > Your PC) measures your graphics card, video memory, RAM and free disk, and shows each AI feature as Ready, Needs setup, Limited or Not on this PC. The chat model is picked to fit your hardware.
@@ -15,6 +15,8 @@ Mossy is now released only on GitHub. Everything in this release still runs on y
 - **Vault-Tec Creative Director** is now included for everyone, with optional local **AI helpers** that draft quests, dialogue, NPC backstories and world briefs with your own model, plus lore search and Papyrus checks. Generated scripts are marked as unverified drafts.
 - **Glowing Sea Studio** (Textures & Materials) — batch-enhance textures with the silhouette and alpha locked, plus the free PhotoCraft editor for hand edits and batch actions.
 - **Claude / MCP bridge** (optional, off by default) — lets Claude Code or another MCP client use Mossy's tools on your PC. Local-only, per-launch token, refuses browser requests.
+- **Update notice** — Mossy tells you when a new version is on GitHub (checks the public Releases list at most once a day; switch off or check now in Settings > Updates). It links to the release page; nothing is downloaded or installed for you.
+- **Share with Mossy's learning** — Find Mods > Share with the Community now opens a ready-made GitHub issue on Mossy's repo (labelled for review) for your techniques, scripts and notes.
 - **Your own AI service** (optional, off by default) — connect your own OpenAI, Groq, OpenRouter or other OpenAI-compatible account. Your key is encrypted on your PC and only sent to the service you chose.
 
 ### Changed

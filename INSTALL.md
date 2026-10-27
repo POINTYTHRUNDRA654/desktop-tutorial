@@ -2,7 +2,7 @@
 
 Mossy is a free Fallout 4 modding assistant for Windows. This guide takes you from download to a working setup, about 15 minutes plus any optional downloads you pick.
 
-Out of the box Mossy runs entirely on your own PC: no account, no API keys, nothing sent to the internet. Everything extra is optional, and Mossy asks before it downloads anything.
+Out of the box Mossy runs entirely on your own PC: no account, no API keys, and nothing about you is sent anywhere. The only thing Mossy reads from the internet by itself is the public GitHub Releases list, at most once a day, to tell you when a new version is out (you can switch that off in **Settings > Updates**). Everything extra is optional, and Mossy asks before it downloads anything.
 
 ---
 
@@ -97,7 +97,7 @@ When you click **Download and set up for me**, Mossy:
 - **Downloaded AI models:** the folder you chose. The Ollama default is `%USERPROFILE%\.ollama\models`.
 - **Installed extras:** the folders you chose. The defaults are under `%LOCALAPPDATA%\Programs\`.
 
-**Upgrading:** close Mossy, run the new installer over the old one, and your data is kept.
+**Upgrading:** when a new version is out, Mossy shows a notice with a link to the release page (or use **Settings > Updates > Check for updates now**). Download the installer for your edition, close Mossy, run the new installer over the old one, and your data is kept.
 
 **Removing Mossy:** uninstall from **Windows Settings > Apps**. Your data folder is left alone; delete `%APPDATA%\mossy-desktop\` yourself if you want a completely fresh start. Extras such as Ollama, Python and PhotoCraft are separate programs: uninstall them from **Windows Settings > Apps**, or delete their folders.
 

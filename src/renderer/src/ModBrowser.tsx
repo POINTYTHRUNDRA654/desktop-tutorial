@@ -56,7 +56,7 @@ const ModBrowser: React.FC = () => {
     (async () => {
       try {
         const s = await (window as any).electronAPI?.getSettings?.();
-        setCommunityRepo((s?.communityRepo || '').trim());
+        setCommunityRepo((s?.communityRepo || '').trim() || 'POINTYTHRUNDRA654/desktop-tutorial');
       } catch { /* repo stays unset */ }
     })();
   }, []);
@@ -115,6 +115,7 @@ const ModBrowser: React.FC = () => {
       title: `Community submission: ${shareTitle.trim()}`,
       body,
       labels: ['community-submission'],
+      template: 'community-submission.md',
     });
 
     try {

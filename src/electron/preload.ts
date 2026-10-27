@@ -3570,6 +3570,13 @@ const electronAPI = {
     test: (params: { baseUrl: string; apiKey?: string }): Promise<any> => ipcRenderer.invoke('byo-ai:test', params),
   },
 
+  // Update notice (shared/updateCheck.ts)
+  updates: {
+    check: (): Promise<any> => ipcRenderer.invoke('updates:check'),
+    startupCheck: (): Promise<any> => ipcRenderer.invoke('updates:startup-check'),
+    dismiss: (version: string): Promise<any> => ipcRenderer.invoke('updates:dismiss', version),
+  },
+
   // Creative Director AI helpers (optional local services, see cdHelpers.ts)
   cdHelpers: {
     status: (): Promise<any> => ipcRenderer.invoke('cd-helpers:status'),

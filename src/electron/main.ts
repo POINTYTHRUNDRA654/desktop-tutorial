@@ -1734,7 +1734,7 @@ const loadSettings = (): any => {
     loadOrderLabPreparedScriptPath: '',
 
     // Community Sharing
-    communityRepo: '',
+    communityRepo: 'POINTYTHRUNDRA654/desktop-tutorial',
     communityContributorName: '',
     communityContributorLink: '',
     listSyncEnabled: false,
@@ -9411,6 +9411,27 @@ end.
    * Returns 'nvidia' or 'universal' so the renderer can gate fine-tune UI.
    */
   registerHandler(IPC_CHANNELS.GET_MOSSY_EDITION, async () => MOSSY_EDITION);
+
+  // Update notice (shared/updateCheck.ts): reads the public GitHub Releases list only.
+  registerHandler('updates:check', async () => {
+    const r = await require('../shared/updateCheck').checkForAppUpdate(app.getVersion());
+    if (r.ok) { const s: any = loadSettings() || {}; saveSettings({ ...s, lastUpdateCheckAt: Date.now() }); }
+    return r;
+  });
+  registerHandler('updates:startup-check', async () => {
+    const s: any = loadSettings() || {};
+    if (s.updateCheckEnabled === false) return { ok: true, skipped: 'off' };
+    if (Date.now() - Number(s.lastUpdateCheckAt || 0) < 20 * 60 * 60 * 1000) return { ok: true, skipped: 'checked recently' };
+    const r = await require('../shared/updateCheck').checkForAppUpdate(app.getVersion());
+    saveSettings({ ...(loadSettings() as any), lastUpdateCheckAt: Date.now() });
+    if (r.ok && r.newer && r.latest && r.latest === s.dismissedUpdateVersion) return { ...r, newer: false, skipped: 'dismissed' };
+    return r;
+  });
+  registerHandler('updates:dismiss', async (_event, version: string) => {
+    const s: any = loadSettings() || {};
+    saveSettings({ ...s, dismissedUpdateVersion: String(version || '') });
+    return { success: true };
+  });
 
   /**
    * Handlers: setup:* -- the onboarding "Your PC" step.
