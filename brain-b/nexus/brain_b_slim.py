@@ -193,7 +193,7 @@ OLLAMA_MODEL = os.environ.get("MOSSY_OLLAMA_MODEL", "gemma2:9b")
 # A version string plus the route list below turns that into an immediate,
 # legible "running, v1.0.0, /enrich missing" instead of a silent failure that
 # took hours to trace.
-NEXUS_BUILD_VERSION = "1.2.0"
+NEXUS_BUILD_VERSION = "1.2.1"
 BACKEND_UNAVAILABLE_MESSAGE = (
     "I can't reach your local AI (Ollama) right now, so I can't generate a full answer. "
     "Start Ollama and make sure a model is installed. Retrieval and citations below still "
