@@ -1,5 +1,20 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.2] — 2026-10-29
+
+### Fixed
+- **Mossy said CKPE was not installed when it was.** The Creation Kit environment check looked for CreationKitPlatformExtended.dll and .ini, which CKPE 0.6 and later no longer ship (they install ckpe_loader.exe, CKPE.dll, CKPE.Fallout4.dll and CreationKitPlatformExtended.toml), so a current CKPE showed as missing.
+- **Corrected CKPE advice, checked against CKPE's own source code** (github.com/Perchik71/Creation-Kit-Platform-Extended):
+  - One current CKPE build supports every Fallout 4 Creation Kit: 1.10.162 (OG), 1.10.943, 1.10.982 (NG), 1.11.137, 1.11.240 and 1.11.246. Mossy taught "0.3 for OG, 0.5 for NG, 0.7 for 1.11"; there is no 0.7.
+  - CKPE has no navmesh crash fix and no "5-second save lag" fix. Its memory work replaces the Creation Kit's memory manager rather than "patching leaks".
+  - Settings Mossy recommended that do not exist were removed: [Main] bLogFile, [Rendering] bFixRenderWindowCrash, [Papyrus] bExternalEditor and iMaxUmbraBakeThreads. "Ran out of Reference Handles" points to CKPE's real bBSPointerHandleExtremly setting instead.
+  - The CKPE log is Fallout 4\Logs\CKPE\CreationKitPlatformExtended.log (and ckpe.log when enabled), not %LocalAppData%.
+
+### Added
+- **CKPE Setup in CK Tools Hub > CKPE Diagnostics.** Reads your installed CKPE: its version, your Creation Kit version (from CreationKit.exe), whether CKPE's address library for that version is in CKPEBins (without it CKPE cannot patch the CK), and every setting in CreationKitPlatformExtended.toml with what it does and its default. Problems are listed in plain words, for example a missing address library, CKPE's log file output being off, or the precombine patch being forced on (CKPE says it harms previs).
+- When you ask Mossy about the Creation Kit, she now gets this setup as context and can answer about your own install.
+- **Brain B 1.2.2**: 9 new verified entries on CKPE (installing it, which version, the address library, logs and crash dumps, precombines and previs, saving .esm masters, faster loading, which crashes it fixes, the reference limit). Each records the CKPE source file it was checked against.
+
 ## [6.0.1] — 2026-10-27
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.1** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.2** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,10 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.1 (Latest):**
+**New in v6.0.2 (Latest):**
+- ✅ **CKPE Diagnostics reads your real CKPE setup** (CK Tools Hub) - detects current CKPE 0.6 installs, checks the address library for your Creation Kit version, shows every CKPE setting with what it does, and corrects Mossy's CKPE advice against CKPE's own source
+
+**From v6.0.1:**
 - ✅ **Background Remover** (Textures & Materials Hub) - AI background removal: a standalone local RMBG-2.0 GPU install, or a ComfyUI-RMBG backend with permissively-licensed BEN2/InSPyReNet/BEN models
 - ✅ **AI Post-Processing Pipeline** (Textures & Materials Hub) - Layer Effects, Face Detailer, Relight, and Upscale (SUPIR or UltimateSDUpscale), all running through your own local ComfyUI
 - ✅ **AI Image Studio: Transparency & Inpaint** - "Generate with transparency" toggle (LayerDiffuse, real alpha channel) plus a brush-based mask editor for crop-and-stitch inpainting
@@ -84,7 +87,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.1)
+- Version is auto-set from `package.json` (currently 6.0.2)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -563,7 +566,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.1.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.2.exe`).
 
 ---
 
