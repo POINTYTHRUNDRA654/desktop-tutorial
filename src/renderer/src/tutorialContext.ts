@@ -1752,7 +1752,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       {
         name: 'FO4 CK Guide Tab',
         type: 'button',
-        description: 'In-app CK reference: crash pitfalls, NG/AE version matrix (OG CK vs NG CK, CKPE 0.3.x vs 0.5+), deprecated framework warnings, Papyrus tips, ESL/FormID rules, essential tool list',
+        description: 'In-app CK reference: crash pitfalls, NG/AE version matrix (OG CK vs NG CK; one current CKPE covers both), deprecated framework warnings, Papyrus tips, ESL/FormID rules, essential tool list',
         whenToUse: 'Use before any release, when checking NG/AE compatibility, or looking up ESL limits and deprecated mods',
       },
       {
@@ -1807,7 +1807,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     commonMistakes: [
       'Editing CK data without running plugin validation in the CK Safety tab first',
       'Relying on the auto-save timer in CK Extension to protect CK work — it logs timestamps only; use File > Save in CK manually',
-      'Using CKPE 0.3.x on NG/AE (1.10.982+) — install CKPE 0.5+ for NG/AE; 0.3.x is OG (1.10.163) only',
+      'Using an old CKPE build, or missing its address library — current CKPE supports every CK from 1.10.162 to 1.11.246 but needs Fallout 4\\CKPEBins\\version-<CK version>.bin',
       'Distributing a mod built with the NG CK to OG users without warning about BA2 V7/V8 incompatibility',
       'Installing AWKCR, Armorsmith Extended, or DEF_UI/DEF_HUD in any NG/AE mod — these are deprecated; see FO4 CK Guide tab',
       'Installing standalone Buffout 4 NG alongside Addictol — Addictol already includes it; installing both causes crashes',
@@ -1857,7 +1857,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     ],
     suggestedQuestions: [
       'When should I use CK Safety versus CK Extension?',
-      'Which CKPE version do I need for NG (1.10.982+) vs OG (1.10.163)?',
+      'Which CKPE do I need for my Creation Kit version, and is my setup right?',
       'Why does auto-save in CK Extension not actually save my CK file?',
       'What deprecated frameworks should I avoid on NG/AE mods?',
       'What is the ESL FormID limit and what happens if I exceed 0xFFF?',
@@ -3270,7 +3270,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'Editing exterior cells without running precombines afterward',
       'Confusing the Animation tab with the LOD tab when looking for Havok vs xLODGen guides',
       'Using RegisterForUpdate() as a polling loop in Papyrus — use event-driven handlers (RegisterForRemoteEvent, RegisterForCustomEvent) instead',
-      'Using the OG Creation Kit (1.10.163 build) on a NG/AE installation — install the NG CK + CKPE 0.5+ for 1.10.980+/1.11.x',
+      'Using the OG Creation Kit (1.10.163 build) on a NG/AE installation — install the NG CK + current CKPE for 1.10.980+/1.11.x',
       'Installing standalone Buffout 4 on NG/AE — use Addictol (Nexus #84214) which bundles Buffout 4, X-Cell, and Papyrus VM patches',
       'Not specifying runtime target (OG 1.10.163 / NG 1.10.980-984 / AE 1.11.x) before writing F4SE scripts or DLL plugins',
     ],
@@ -3298,7 +3298,7 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
       'How do I start a quest smoke test in the CK?',
       'What is the correct order for LOD generation and PRP precombine rebuilds?',
       'How do I switch between guide tabs without losing my place?',
-      'What version of CKPE do I need for NG (1.10.980+) vs OG (1.10.163)?',
+      'Which CKPE do I need for my Creation Kit version?',
       'Why should I avoid RegisterForUpdate() in Papyrus scripts?',
       'Do I need Addictol or standalone Buffout 4 for NG/AE?',
       'What PRP version supports NG/AE precombine rebuilds?',

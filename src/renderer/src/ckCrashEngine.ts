@@ -217,7 +217,7 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
         '🔄 Restart CK every 30–45 minutes to reclaim memory',
         '🛑 Disable precombines before editing large exterior cells',
         '⚙️ Close all other applications before opening CK',
-        '📦 Use CKPE (Nexus #51165) — it patches several CK memory leaks',
+        '📦 Use CKPE (Nexus #51165) — it replaces the CK memory manager and scrap heap',
         '🔧 For game crashes: ensure Addictol (Nexus #84214) is installed; includes memory fixes',
       ],
       preventable: true,
@@ -247,7 +247,7 @@ export function analyzeCrashLogText(logContent: string): CrashDiagnosis {
         '✂️ Use the navmesh Cut tool instead of deleting triangles directly',
         '🔄 Regenerate navmesh in the affected cell if corruption is suspected (CK: Navmesh → Finalize Cell)',
         '🔍 Open the plugin in xEdit and check for deleted NAVM records (UDR) — undelete them',
-        '🛡️ Install CKPE (Nexus #51165) — it patches the navmesh crash on large cells',
+        '🛡️ Install CKPE (Nexus #51165) for its general CK crash fixes (it has no navmesh-specific crash fix, so also check the steps above)',
       ],
       preventable: true,
       relatedIssues: [
@@ -862,7 +862,7 @@ function labelCrashType(t: CrashType): string {
 
 function crashTypeMitigation(t: CrashType): string {
   const m: Partial<Record<CrashType, string>> = {
-    memory_overflow: 'Save more frequently, restart CK every 30 min, install CKPE memory patches',
+    memory_overflow: 'Save more frequently, restart CK every 30 min, install CKPE (replaces the CK memory manager)',
     access_violation: 'Identify faulting DLL in call stack, update to NG/AE build, check Address Library version',
     navmesh_conflict: 'Save before navmesh edits, use Cut tool not Delete, run xEdit UDR check',
     precombine_corrupt: 'Install PRP v81.5+, regenerate precombines after cell edits',

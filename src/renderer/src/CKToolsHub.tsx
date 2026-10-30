@@ -245,6 +245,7 @@ const PluginInspectorPanel: React.FC = () => {
   // crash folder via the Bridge, never synthesized) ──────────────────────────
   const [ckpeStatus, setCkpeStatus] = useState<any>(null);
   const [ckpeCrash, setCkpeCrash] = useState<any>(null);
+  const [ckpeSetup, setCkpeSetup] = useState<any>(null);
   const [ckpeBusy, setCkpeBusy] = useState(false);
   const [logPatterns, setLogPatterns] = useState<any>(null);
   const [ckpeErr, setCkpeErr] = useState('');
@@ -255,13 +256,16 @@ const PluginInspectorPanel: React.FC = () => {
   const runCkpeCheck = useCallback(async () => {
     setCkpeBusy(true); setCkpeErr('');
     try {
-      const [logRes, crashRes] = await Promise.all([
+      const [logRes, crashRes, setupRes] = await Promise.all([
         bridgeFetch('/ck/precombine-status', { method: 'GET' }),
         bridgeFetch('/ck/crash-status', { method: 'GET' }),
+        bridgeFetch('/ck/ckpe-setup', { method: 'GET' }),
       ]);
       const status = await logRes.json();
       setCkpeStatus(status);
       setCkpeCrash(await crashRes.json());
+      // An older Bridge has no /ck/ckpe-setup; the rest of the check still works.
+      setCkpeSetup(setupRes.ok ? await setupRes.json() : null);
       // Group the CKPE log into repeating patterns (Brain B, local). Optional: the check still works without it.
       setLogPatterns(null);
       if (status?.detected && status?.logPath) {
@@ -761,7 +765,11 @@ const PluginInspectorPanel: React.FC = () => {
                 {Object.entries(envResult).filter(([k]) => !['success', 'fo4Dir', 'error'].includes(k)).map(([key, val]: [string, any]) => {
                   const found = typeof val === 'object' ? val?.found : !!val;
                   const label = { ck: 'Creation Kit', ckpe: 'CKPE', xedit: 'FO4Edit / xEdit', pjmScripts: 'PJM Scripts', prp: 'PRP (Nexus)', steamAppId: 'steam_appid.txt', archive2: 'Archive2' }[key] ?? key;
-                  const detail = typeof val === 'object' ? (val?.path ?? '') : '';
+                  const detail = typeof val === 'object'
+                    ? (val?.path ?? (key === 'ckpe' && val?.detected
+                        ? [val.ckpeVersion && `CKPE ${val.ckpeVersion}`, val.ckVersion && `CK ${val.ckVersion}`, val.addressLibrary && (val.addressLibrary.found ? 'address library OK' : 'address library MISSING')].filter(Boolean).join(' · ')
+                        : ''))
+                    : '';
                   return (
                     <div key={key} className={`rounded-lg border p-2.5 flex items-start gap-2 ${found ? 'border-emerald-600/30 bg-emerald-950/20' : 'border-red-600/30 bg-red-950/20'}`}>
                       {found ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />}
@@ -879,7 +887,7 @@ const PluginInspectorPanel: React.FC = () => {
             <div className="p-2.5 rounded-lg border border-amber-500/20 bg-amber-950/10 text-[11px] text-amber-300/80 space-y-1">
               <p className="font-semibold text-amber-300">Before generating:</p>
               <p>• MO2 must be closed (USVFS causes flickering artefacts in output)</p>
-              <p>• CKPE must be installed (v0.3 for OG CK, v0.5 for NG CK)</p>
+              <p>• CKPE must be installed, with its address library for your CK version (CKPEBins) — the CKPE Diagnostics tab checks both</p>
               <p>• steam_appid.txt must contain "1946160" in FO4 root — use Environment Check above</p>
               <p>• Estimated time: ~15 min for small mods, 60+ min for large worldspace edits</p>
             </div>
@@ -977,9 +985,61 @@ const PluginInspectorPanel: React.FC = () => {
 
           <button onClick={runCkpeCheck} disabled={ckpeBusy}
             className="w-full rounded-lg bg-orange-600 py-2 font-bold text-white hover:bg-orange-500 disabled:opacity-60 transition-colors flex items-center justify-center gap-2 text-xs">
-            {ckpeBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking…</> : <><RefreshCw className="h-3.5 w-3.5" />Check CKPE Log &amp; Crash Folder</>}
+            {ckpeBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Checking…</> : <><RefreshCw className="h-3.5 w-3.5" />Check CKPE Setup, Log &amp; Crash Folder</>}
           </button>
           {ckpeErr && <p className="text-xs text-red-400 flex items-center gap-1"><XCircle className="h-3 w-3" />{ckpeErr}</p>}
+
+          {/* CKPE setup — what is installed and how it is configured, read from disk */}
+          {ckpeSetup && (
+            <div className={`rounded-xl border p-4 ${
+              !ckpeSetup.configured || !ckpeSetup.detected ? 'border-slate-700 bg-slate-900/40' :
+              ckpeSetup.issues?.some((i: any) => i.level === 'error') ? 'border-red-600/40 bg-red-950/20' :
+              'border-emerald-600/30 bg-emerald-950/10'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Settings className="h-4 w-4 text-slate-400" />
+                <p className="text-xs font-bold text-slate-200">CKPE Setup</p>
+              </div>
+              {!ckpeSetup.configured ? (
+                <p className="text-xs text-slate-400">{ckpeSetup.reason}</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-300">
+                    {ckpeSetup.detected ? `CKPE installed${ckpeSetup.ckpeVersion ? ` (runtime ${ckpeSetup.ckpeVersion})` : ''}` : 'CKPE not installed'}
+                    {' · '}Creation Kit {ckpeSetup.ckVersion ?? 'version unknown'}
+                    {ckpeSetup.ckSupported === true ? ' (supported)' : ckpeSetup.ckSupported === false ? ' (not in the known supported list)' : ''}
+                    {ckpeSetup.addressLibrary ? ` · address library ${ckpeSetup.addressLibrary.found ? 'present' : 'missing'}` : ''}
+                  </p>
+                  {ckpeSetup.issues?.length > 0 && (
+                    <ul className="space-y-1">
+                      {ckpeSetup.issues.map((i: any, n: number) => (
+                        <li key={n} className={`text-[11px] flex items-start gap-1.5 ${i.level === 'error' ? 'text-red-300' : i.level === 'warning' ? 'text-amber-300' : 'text-slate-400'}`}>
+                          {i.level === 'error' ? <XCircle className="h-3 w-3 shrink-0 mt-0.5" /> : i.level === 'warning' ? <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" /> : <Info className="h-3 w-3 shrink-0 mt-0.5" />}
+                          <span>{i.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {ckpeSetup.settings?.length > 0 && (
+                    <details className="text-[11px]">
+                      <summary className="cursor-pointer text-slate-400 hover:text-slate-200">Settings ({ckpeSetup.configPath ? 'from CreationKitPlatformExtended.toml' : 'CKPE defaults'})</summary>
+                      <table className="mt-2 w-full">
+                        <tbody>
+                          {ckpeSetup.settings.map((s: any) => (
+                            <tr key={s.key} className="border-t border-slate-800 align-top">
+                              <td className="py-1 pr-2 font-mono text-sky-300 whitespace-nowrap">{s.key.split(':')[1]}</td>
+                              <td className="py-1 pr-2 font-mono text-slate-200 whitespace-nowrap">{s.value ?? <span className="text-slate-500">{s.defaultValue} (default)</span>}</td>
+                              <td className="py-1 text-slate-400">{s.meaning}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Crash status — surfaced first and prominently per spec */}
           {ckpeCrash && (
@@ -1507,7 +1567,7 @@ const BEST_PRACTICES = [
   },
   {
     title: 'Use F4CK Fixes / CK Platform Extended',
-    detail: 'CK Platform Extended (Nexus #51165) patches dozens of CK bugs including the 5-second save lag, navmesh crash on large cells, and memory leaks. Essential for stable CK work. Use CKPE 0.3.x for OG (1.10.163) and CKPE 0.5+ for NG/AE/1.11.x — both on the same Nexus page.',
+    detail: 'CK Platform Extended (Nexus #51165) patches dozens of CK bugs (Papyrus compile-dialog loop, plugins.txt crash, PreVis and Havok crashes), replaces the CK memory manager and speeds up loading. One current CKPE build supports every CK from 1.10.162 (OG) to 1.11.246, as long as its address library for your CK version is in CKPEBins. The CKPE Diagnostics tab checks your setup.',
   },
   {
     title: 'Disable DistantLOD checkbox for new exterior cells',
@@ -1532,7 +1592,7 @@ const BEST_PRACTICES = [
 ];
 
 const CK_TOOLS_REF = [
-  { name: 'CK Platform Extended (CKPE)', desc: 'CK bug fixes, memory patches, extra dialogs, navmesh crash fix, 5-second save lag fix. Use CKPE 0.3.x for OG CK, CKPE 0.5.6+ for NG CK / 1.11.x. Essential for any serious CK work.', nexus: '51165' },
+  { name: 'CK Platform Extended (CKPE)', desc: 'CK crash fixes, replacement memory manager, faster loading, extra windows and options. One current build covers every CK from 1.10.162 to 1.11.246 (needs the matching CKPEBins address library). Essential for any serious CK work.', nexus: '51165' },
   { name: 'Addictol', desc: 'All-in-one stability stack for OG/NG/1.11.x. Bundles: Buffout 4 NG, X-Cell, BakaMaxPapyrusOps, Faster Workshop, Long Loading Times Fix, and more. ⚠ Do NOT install standalone Buffout 4 NG alongside it — duplicate DLL = CTD at startup.', nexus: '84214' },
   { name: 'CLASSIC (Crash Log Auto Scanner)', desc: 'Auto-parses Addictol/Buffout 4 crash logs, matches FormIDs to plugin records, and cross-references 250+ known crash patterns. Run this before any crash investigation.', nexus: '56255' },
   { name: 'xEdit (FO4Edit)', desc: 'Plugin editor and validator. Use for: Compact FormIDs for ESL, Quick Auto Clean (ITMs/UDRs), conflict resolution, LVLN analysis, record diffing. Version 4.1.5+ supports 1.11.x.', nexus: '2737' },
@@ -1582,10 +1642,10 @@ const FO4CKGuide: React.FC = () => (
       </h3>
       <div className="space-y-2 text-xs text-slate-200">
         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-          <span className="font-bold text-white">OG (1.10.163.0): </span>Use CK 1.10.130.0 + CKPE 0.3.x (Nexus #51165). F4SE 0.6.x. Address Library "OG" build. BA2 archives are Header V1. Addictol #84214 (OG channel).
+          <span className="font-bold text-white">OG (1.10.163.0): </span>Use CK 1.10.162.0 + current CKPE (Nexus #51165). F4SE 0.6.x. Address Library "OG" build. BA2 archives are Header V1. Addictol #84214 (OG channel).
         </div>
         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-          <span className="font-bold text-white">NG/AE (1.10.982 – 1.10.984): </span>Use the NG CK (Steam depot 1091810) + CKPE 0.5+. F4SE 0.7.x. Address Library "All In One (Anniversary Edition)" build. BA2 archives default to V7 (General) / V8 (Textures). Addictol #84214 (NG channel).
+          <span className="font-bold text-white">NG/AE (1.10.982 – 1.10.984): </span>Use the NG CK (Steam depot 1091810) + current CKPE. F4SE 0.7.x. Address Library "All In One (Anniversary Edition)" build. BA2 archives default to V7 (General) / V8 (Textures). Addictol #84214 (NG channel).
         </div>
         <div className="rounded-lg border border-amber-700/40 bg-amber-950/20 p-3">
           <span className="font-bold text-amber-200">1.11.x — Creations Menu Update (Nov 2025+): </span>Bethesda's largest engine update since AE. F4SE <span className="text-red-300 font-bold">0.7.7+ required</span> — earlier F4SE versions will crash silently. Address Library: use the "All In One (Anniversary Edition)" build from Nexus #47327. CKPE: use 0.5.6+ for 1.11.x. <span className="text-amber-300">Every F4SE DLL plugin in your load order must be rebuilt for this runtime</span> — check each mod's Nexus page for a "1.11.x compatibility update." If a DLL plugin has no 1.11.x update, disable it until the author publishes one.
