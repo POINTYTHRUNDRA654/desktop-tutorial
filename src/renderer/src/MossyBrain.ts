@@ -1776,36 +1776,34 @@ export const getFullSystemInstruction = (contextStr?: string, lean = false): str
       '\n\n**═══════════════════════════════════════════════════════════**' +
       '\n**🛠️ CKPE — CREATION KIT PLATFORM EXTENDED (REQUIRED FOR STABLE CK)**' +
       '\n**═══════════════════════════════════════════════════════════**' +
-      '\nCKPE by Perchik71 patches the Creation Kit at runtime to fix crashes, add features, and stabilize CK on modern Windows 10/11. Without CKPE, the Creation Kit crashes frequently — on startup, on worldspace open, on render window focus, and more.' +
-      '\n\n**Version Matrix:**' +
-      '\n- CKPE 0.3.x → OG CK (targets Fallout 4 1.10.163)' +
-      '\n- CKPE 0.5+ → NG CK (targets Fallout 4 1.10.982+)' +
-      '\n- CKPE 0.7+ → 1.11.x CK (targets Fallout 4 1.11.x)' +
-      '\n- ALWAYS match CKPE version to CK version — a mismatched CKPE will crash on CK launch.' +
-      '\n\n**Installation:**' +
-      '\n1. Download from GitHub: search "Perchik71 Creation Kit Platform Extended" on GitHub.' +
-      '\n2. Install Microsoft Visual C++ 2022 Redistributable (x64) if not already installed.' +
-      '\n3. Drop all CKPE DLL and ini files into the Creation Kit root folder (same folder as CreationKit.exe).' +
-      '\n4. Run CreationKit.exe as Administrator (right-click → Run as administrator).' +
-      '\n5. Check %LocalAppData%\\CreationKit_CKPE.log to confirm CKPE loaded successfully.' +
-      '\n\n**What CKPE Fixes:**' +
-      '\n- CK startup crash on modern CPUs (CPUID instruction fix)' +
-      '\n- Render window crash on focus/resize' +
-      '\n- Navmesh compile crash on large worldspaces' +
-      '\n- 32-bit address space exhaustion (CKPE expands available address space)' +
-      '\n- Papyrus compiler integration (Papyrus compiles inside CK instead of requiring external compiler)' +
-      '\n- Plugin loading order display (correctly sorts masters vs patches)' +
-      '\n- RTTI crash fix (prevents crash when CK introspects certain actor-related records)' +
-      '\n- String table / response text editing on NG CK (fixes blank dialogue editor)' +
-      '\n\n**CKPE Configuration (CreationKitPlatformExtended.ini):**' +
-      '\n- `[Main] bLogFile=0` → set to `1` for debugging startup issues' +
-      '\n- `[Rendering] bFixRenderWindowCrash=1` → always leave enabled' +
-      '\n- `[Papyrus] bExternalEditor=0` → use CKPE internal Papyrus compiler' +
+      '\n(Checked against CKPE\'s own source, github.com/Perchik71/Creation-Kit-Platform-Extended, LGPL-3.0, 2026-10.)' +
+      '\nCKPE by perchik71 patches the Creation Kit at runtime: crash fixes, faster loading, a replacement memory manager, extra windows and options. It is the successor of the older "FO4 CKFixes". Nexus #51165; the CKPE README directs downloads to its GitHub releases page.' +
+      '\n\n**Versions:** one current CKPE build (0.6) supports every Fallout 4 CK: 1.10.162.0 (OG), 1.10.943.1, 1.10.982.3 (NG), 1.11.137.0, 1.11.240.0 and 1.11.246.0. There is no separate CKPE per CK version any more; just use the latest.' +
+      '\n\n**Installation (from the CKPE README):**' +
+      '\n1. Pick the build for your CPU: Regular (AVX2) or "No AVX2". Steam → Help → System Information → Processor Information shows whether AVX2 is supported.' +
+      '\n2. Extract all files into the Fallout 4 root folder, next to CreationKit.exe. ckpe_loader.exe, CKPE.dll and CKPE.Fallout4.dll should end up there, plus CreationKitPlatformExtended.toml (the settings file; older CKPE used an .ini).' +
+      '\n3. CKPE needs its address library for your exact CK version: Fallout 4\\CKPEBins\\version-<CK version with dashes>.bin, e.g. version-1-11-246-0.bin. It comes with the CKPE download (Vortex installs it automatically). If it is missing CKPE logs: IDDatabase::Load file "...version-....bin" no found.' +
+      '\n4. Logs: Fallout 4\\Logs\\CKPE\\CreationKitPlatformExtended.log, plus Fallout 4\\ckpe.log when [Log] sOutputFile = "ckpe.log". The log header shows the CK and CKPE versions. Crash dumps (bGenerateCrashdumps) go to Logs\\CKPE\\Crashes.' +
+      '\n\n**Some of what CKPE fixes in the Fallout 4 CK (patch names from the source):**' +
+      '\n- Infinite loop in the Compile Papyrus Scripts dialog (FixInfiniteLoopPapyrusCompile)' +
+      '\n- Crash when a plugins.txt is in the game root folder (FixPluginTXT)' +
+      '\n- PreVis crash when the visibility function returns a form that is not a cell (PreVis)' +
+      '\n- Havok rigid body crash, sort crash in combined lists, invalid-strings crash, map marker command line crash, missing root material crash, spell effect duration crash' +
+      '\n- SNAM chunk size raised from 512 to 2048 (IncreaseChunkSizeForSNAM), Papyrus editor size limit, the Response window and LIP generation settings' +
+      '\n- Replaces CK\'s memory manager and scrap heap (MemoryManager), faster plugin loading (OptimizationLoad)' +
+      '\n- CKPE does NOT include a navmesh crash fix: its NavMesh Window patch only changes the window.' +
+      '\n\n**Key settings (CreationKitPlatformExtended.toml; default in brackets):**' +
+      '\n- `[CreationKit] bAllowSaveESM` [false]: save .esm masters directly / make them the Active File (destroys version control info; only when CK version control is off). `bAllowMasterESP` [false]: ESPs can be masters.' +
+      '\n- `bSkipTopicInfoValidation`: skip dialogue Topic Info validation on load (faster; CKPE recommends it to avoid load crashes).' +
+      '\n- `bDisableAssertions` [false]: hides error pop-ups, not recommended. `bGenerateCrashdumps` [true]: crash dumps.' +
+      '\n- `bBSPointerHandleExtremly` [false]: experimental, raises the reference limit to 67,108,864.' +
+      '\n- `[Animation] bSkipAnimationBuildData` [false]: much faster loading, but turn it off when working with animation.' +
+      '\n- `[PreCombined] bInstallOnlyModeCLI` [true]: CKPE\'s precombine patch is harmful to previs, so it only installs when CK runs with -GeneratePreCombined. `bGenerateForPC` [true]: PC Havok collision in precombines. A -GeneratePreVisData run skips loading textures.' +
+      '\n- `[Log] sOutputFile`: set to "ckpe.log" to copy the log to Fallout 4\\ckpe.log (Mossy\'s precombine-conflict check reads it).' +
       '\n\n**Troubleshooting CKPE:**' +
-      '\n- CK still crashes immediately: wrong CKPE version for your CK build; VC++ 2022 not installed; try Run as Admin.' +
-      '\n- CKPE log shows DLL load error: check antivirus is not blocking the DLL.' +
-      '\n- Papyrus compile fails inside CK: set `bExternalEditor=0` and ensure Papyrus compiler is in CK folder.' +
-      '\n- CK crashes on worldspace open: navmesh issue in the plugin — open xEdit and check for deleted navmesh records.' +
+      '\n- CKPE not loading at all: check the address library file for your CK version exists in CKPEBins, and that you installed the AVX2 / No AVX2 build that matches your CPU.' +
+      '\n- Read the CKPE log first: it names the CK and CKPE versions and the patches applied.' +
+      '\n- Mossy can read the user\'s own CKPE setup (versions, address library, settings): CK Tools Hub → CKPE Diagnostics.' +
 
       '\n\n**═══════════════════════════════════════════════════════════**' +
       '\n**🎨 COMMUNITY SHADERS & ENB — MODERN FO4 VISUAL ENHANCEMENT**' +
@@ -13248,7 +13246,7 @@ This section gives you fast, accurate answers to the questions modders ask most 
 - "How big can a Papyrus script be?" -> No hard line limit, but compiled .pex has a ~64KB limit. If you hit it, split into two scripts. LPE and GEPSE add 180+ and 1150+ extra native functions.
 
 **CREATION KIT COMMON ISSUES:**
-- "CK crashes on startup" -> Run as administrator. Install CKPE (Creation Kit Platform Extended) -- it fixes most startup crashes. Check %LocalAppData%\Creationkit.log.
+- "CK crashes on startup" -> Install CKPE (Creation Kit Platform Extended, Nexus #51165) with the address library for your CK version (Fallout 4\CKPEBins). Read Fallout 4\Logs\CKPE\CreationKitPlatformExtended.log; CK Tools Hub -> CKPE Diagnostics checks the setup.
 - "CK crashes when I try to render a cell" -> Disable precombined geometry display for editing. Try disabling distant LOD in CK preferences.
 - "My script wont compile in the CK" -> Check: Papyrus compiler path set in CK preferences? Import paths include Fallout4\Data\Scripts\Source\User and \Base? Any syntax errors in log? Missing import statements for F4SE functions?
 - "I deleted a navmesh record and now the game crashes" -> Navmesh deletion = CTD. Fix in xEdit: find the [D] NAVM record, right-click, Change FormID to a new valid FormID. Or run the Undelete and Disable References script.

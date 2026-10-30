@@ -114,6 +114,7 @@ import sharp from 'sharp';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
 import { rmbgServer } from './rmbgServerManager';
+import { readCkpeSetup } from './ckpeSetup';
 
 // ── Chromium background-throttling prevention ────────────────────────────────
 // These flags must be set BEFORE app.whenReady(). They prevent Chromium from
@@ -32849,16 +32850,11 @@ end.
       const ckExe = path.join(fo4Dir, 'CreationKit.exe');
       result['ck'] = { found: fs.existsSync(ckExe), path: ckExe };
 
-      // CKPE (Creation Kit Platform Extended)
-      const ckpeDll  = path.join(fo4Dir, 'CreationKitPlatformExtended.dll');
-      const ckpeIni  = path.join(fo4Dir, 'CreationKitPlatformExtended.ini');
-      result['ckpe'] = { found: fs.existsSync(ckpeDll), iniFound: fs.existsSync(ckpeIni) };
-      // Read CKPE INI for bOwnArchiveLoader setting (needed for OG CK)
-      if (fs.existsSync(ckpeIni)) {
-        const iniText = fs.readFileSync(ckpeIni, 'utf-8');
-        result['ckpe'].ownArchiveLoader = /bOwnArchiveLoader\s*=\s*false/i.test(iniText);
-        result['ckpe'].pointerHandle    = /bBSPointerHandleExtremly\s*=\s*true/i.test(iniText);
-      }
+      // CKPE (Creation Kit Platform Extended). This used to look only for
+      // CreationKitPlatformExtended.dll/.ini, which CKPE 0.6+ no longer ships
+      // (it installs ckpe_loader.exe + CKPE*.dll and a .toml), so a current
+      // CKPE install was reported as missing. See ckpeSetup.ts.
+      result['ckpe'] = readCkpeSetup(fo4Dir);
 
       // FO4Edit / xEdit
       const xeditCandidates = [

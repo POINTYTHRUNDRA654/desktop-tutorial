@@ -9,6 +9,7 @@ import fs from 'fs';
 import { clipboard, nativeImage, screen, app, BrowserWindow } from 'electron';
 import AdmZip from 'adm-zip';
 import { extractFormIDs } from './espParser';
+import { readCkpeSetup, summarizeCkpeSetup } from './ckpeSetup';
 
 /**
  * Result of reading CKPE's (Creation Kit Platform Extended) log for real
@@ -1773,6 +1774,17 @@ export class BridgeServer {
                     const status = this._getCKPEPrecombineStatus();
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify(status));
+                }
+
+                // GET /ck/ckpe-setup — the user's real CKPE install: version, CK
+                // version, address library, settings and problems (ckpeSetup.ts).
+                else if (url === '/ck/ckpe-setup' && method === 'GET') {
+                    const fallout4Path = String(this._readSettings()?.fallout4Path || '').trim();
+                    const body = fallout4Path
+                        ? (() => { const s = readCkpeSetup(fallout4Path); return { configured: true, ...s, summary: summarizeCkpeSetup(s) }; })()
+                        : { configured: false, reason: 'Fallout 4 install path is not configured in Mossy Settings, so Mossy cannot look for CKPE yet.' };
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(body));
                 }
 
                 // GET /ck/crash-status — real CreationKit.exe crash dumps from CKPE's own

@@ -840,7 +840,7 @@ export const InstallWizard: React.FC<InstallWizardProps> = ({ embedded = false }
             {
               id: 'bat-error-ref',
               title: 'GeneratePrevisibines.bat error message reference',
-              details: <>Key error messages: <b>FO4Edit.exe cannot be found</b> — run FO4Edit once or place the bat in its directory. <b>CreationKit.exe cannot be found</b> — CK must be in the same folder as Fallout4.exe. <b>GeneratePrecombined ran out of Reference Handles</b> — set <code>iMaxUmbraBakeThreads</code> in CKPE .ini. <b>Archive2 failed</b> — too many files; use BSArchPro manually. Full error reference is in <b>PJM_PREVIS_PATCHING_FAQ.md</b> and on Nexus #69978.</>,
+              details: <>Key error messages: <b>FO4Edit.exe cannot be found</b> — run FO4Edit once or place the bat in its directory. <b>CreationKit.exe cannot be found</b> — CK must be in the same folder as Fallout4.exe. <b>GeneratePrecombined ran out of Reference Handles</b> — CKPE can raise the reference limit: <code>bBSPointerHandleExtremly = true</code> in <code>CreationKitPlatformExtended.toml</code> (experimental, per CKPE). <b>Archive2 failed</b> — too many files; use BSArchPro manually. Full error reference is in <b>PJM_PREVIS_PATCHING_FAQ.md</b> and on Nexus #69978.</>,
             },
             {
               id: 'ck-crash-access-violation',

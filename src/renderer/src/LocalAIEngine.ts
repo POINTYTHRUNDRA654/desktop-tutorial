@@ -316,6 +316,25 @@ async function fetchCKPrecombineStatus(): Promise<Record<string, unknown> | null
   }
 }
 
+/**
+ * The user's real CKPE setup (installed?, CKPE and CK versions, address
+ * library, settings, problems), read from disk by the Bridge (ckpeSetup.ts).
+ * Only fetched for Creation Kit questions. Returns null when the Bridge is
+ * unreachable or the Fallout 4 path isn't set, so nothing is claimed then.
+ */
+const CK_QUESTION_RE = /\b(ckpe|creation\s*kit|platform\s+extended|\bck\b|precombin|previs|address\s+library|ckpebins)/i;
+async function fetchCkpeSetupSummary(query: string): Promise<string | null> {
+  if (!CK_QUESTION_RE.test(query)) return null;
+  try {
+    const response = await bridgeFetch('/ck/ckpe-setup', { method: 'GET', signal: AbortSignal.timeout(2500) });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.configured && typeof data.summary === 'string' ? data.summary : null;
+  } catch {
+    return null;
+  }
+}
+
 let _cachedUserId: string | null = null;
 async function getOrCreateUserId(): Promise<string> {
   if (_cachedUserId) return _cachedUserId;
@@ -1128,6 +1147,8 @@ export const LocalAIEngine = {
       if (scan?.success && scan.block) gameScanContext = String(scan.block);
     } catch { /* scan data is optional; answer without it */ }
 
+    const ckpeSetup = await fetchCkpeSetupSummary(query);
+
     const generateStart = Date.now();
     const response = await this._generateResponseCore(
       query, effectiveSystemInstruction, conversationHistory, voiceMode, signal,
@@ -1154,6 +1175,7 @@ export const LocalAIEngine = {
         groundingContext: [
           enrichment?.retrievedContext || '',
           enrichment?.appHelpRelated ? getPlatformMapBlockForPrompt() : '',
+          ckpeSetup || '',
         ].filter(Boolean).join('\n\n') || undefined,
         brainBUnavailable: !enrichment,
         gameScanContext,

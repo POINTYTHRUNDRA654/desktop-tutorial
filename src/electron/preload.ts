@@ -1425,7 +1425,7 @@ const electronAPI = {
     success: boolean; error?: string;
     fo4Dir?: string;
     ck?: { found: boolean; path: string };
-    ckpe?: { found: boolean; iniFound: boolean; ownArchiveLoader?: boolean; pointerHandle?: boolean };
+    ckpe?: { found: boolean; iniFound: boolean; ownArchiveLoader?: boolean; pointerHandle?: boolean; [key: string]: any };
     xedit?: { found: boolean; path: string };
     pjmScripts?: { found: boolean; scripts: string[]; batPath: string };
     prp?: { found: boolean; path: string; name: string };
