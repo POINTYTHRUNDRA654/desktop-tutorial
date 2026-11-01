@@ -1,5 +1,13 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.3] — 2026-11-01
+
+### Fixed
+- **Brain B 1.2.3: two questions Mossy could not answer now have verified entries.** "How do I get the name of an actor or object in Papyrus?" and "How do I make an object disappear without deleting it?" failed in every retrieval test, including trials of a different embedding model (nomic-embed-text, tested and not adopted: it scored the same, 43 of 45) and the reranker, because the answers were never among the candidates.
+  - Names: vanilla Fallout 4 Papyrus cannot return a name as text. GetName, SetName and GetDisplayName are F4SE additions (checked in the game's own script sources), so using them makes a mod require F4SE. Without F4SE, a name can be shown with an `<Alias=...>` tag in a Message whose owner quest has that alias, as 50 of the 51 vanilla messages that use alias tags do.
+  - Disable(abFadeOut) and Enable(abFadeIn) hide and restore an object; IsDisabled() checks it; Delete() only flags a reference for deletion; DisableLinkChain/EnableLinkChain work on a linked set. From the vanilla ObjectReference script source.
+  - Brain B's 45-question check now passes 45 of 45 (43 before).
+
 ## [6.0.2] — 2026-10-29
 
 ### Fixed
