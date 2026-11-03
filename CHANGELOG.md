@@ -1,5 +1,17 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.4] — 2026-11-03
+
+### Added
+- **Brain B 1.2.4: seven verified entries on Blender assets for Fallout 4**, from work on the Blender add-on (5.4.5) and checked against the game files, real exports and Creation Kit tests:
+  - Distant LOD: how LOD meshes are named and stored, vanilla triangle budgets (measured across 900 vanilla LOD meshes), attaching them with Has Distant LOD, and why a copied vanilla LOD STAT shows an empty preview (Is Marker).
+  - Why decimated LODs of many-piece plants and buildings fall apart, and the solid-shell method that keeps the shape.
+  - texconv makes PNG/TGA textures darker when converting to DDS unless `-srgb` is used.
+  - Leaf cards: alpha cutout and two-sided in the NIF, the .bgsm and Blender (PyNifly's material layout).
+  - Two collision exports that crash the Creation Kit, and the fixes.
+  - The add-on's start-up panel error, and recovering textures that older add-on versions unplugged.
+  - Brain B's check now passes 53 of 53 (the 45 earlier questions plus 8 new ones).
+
 ## [6.0.3] — 2026-11-01
 
 ### Fixed

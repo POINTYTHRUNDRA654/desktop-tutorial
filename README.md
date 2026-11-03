@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.3** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.4** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,10 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.3 (Latest):**
+**New in v6.0.4 (Latest):**
+- ✅ **Brain B 1.2.4** - Mossy now answers Blender asset questions checked against the game files and real Creation Kit tests: setting up distant LOD, LODs that fall apart, leaf-card transparency, collision that crashes the Creation Kit, and textures darkened by DDS conversion
+
+**From v6.0.3:**
 - ✅ **Brain B 1.2.3** - Mossy now answers "how do I get an actor's name in Papyrus" (F4SE GetDisplayName/GetName, or the no-F4SE Message alias method) and "how do I make an object disappear" (Disable/Enable), both checked against the game's own script sources
 
 **From v6.0.2:**
@@ -90,7 +93,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.3)
+- Version is auto-set from `package.json` (currently 6.0.4)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -569,7 +572,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.3.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.4.exe`).
 
 ---
 
