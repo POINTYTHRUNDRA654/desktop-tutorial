@@ -28,9 +28,9 @@ const profile = (over: Partial<HardwareProfile> = {}, pre: Partial<HardwareProfi
 const cap = (caps: ReturnType<typeof computeCapabilities>, id: string) => caps.find((c) => c.id === id)!;
 
 describe('recommendOllamaModel', () => {
-  it('this PC: two 8 GB RTX 2070s pick the largest model that fits one card with 1 GB spare', () => {
+  it('this PC: two 8 GB RTX 2070s pick the best model that fits one card with 1 GB spare', () => {
     const r = recommendOllamaModel({ ramGB: 64, gpus: [gpu('NVIDIA GeForce RTX 2070', 'nvidia', 8192), gpu('Intel(R) UHD Graphics 630', 'intel', 1024)] });
-    expect(r.tag).toBe('gemma4:12b');
+    expect(r.tag).toBe('qwen3.5:9b');
     expect(r.onGpu).toBe(true);
   });
 
@@ -65,9 +65,9 @@ describe('computeCapabilities', () => {
     expect(cap(computeCapabilities(installed), 'local-chat').summary).toMatch(/not running/);
 
     const running = profile({ gpus: p.gpus }, { ollama: { installed: true, running: true, version: '0.12', models: ['llama3:latest'] } });
-    expect(cap(computeCapabilities(running), 'local-chat').actions[0]).toMatchObject({ kind: 'pull-model', target: 'gemma4:12b' });
+    expect(cap(computeCapabilities(running), 'local-chat').actions[0]).toMatchObject({ kind: 'pull-model', target: 'qwen3.5:9b' });
 
-    const ready = profile({ gpus: p.gpus }, { ollama: { installed: true, running: true, version: '0.12', models: ['gemma4:12b'] } });
+    const ready = profile({ gpus: p.gpus }, { ollama: { installed: true, running: true, version: '0.12', models: ['qwen3.5:9b'] } });
     expect(cap(computeCapabilities(ready), 'local-chat').state).toBe('ready');
   });
 

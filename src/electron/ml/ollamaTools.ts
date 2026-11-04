@@ -32,15 +32,28 @@ import type { OpenAICompatToolCall } from './openaiCompat'
  *  its local prompt inside this budget (see LOCAL_TOOL_PROMPT_BUDGET). */
 export const OLLAMA_TOOL_NUM_CTX = 8192
 
-/** Models good enough to teach with, tried first, in this order. From a
- *  tutoring eval run 2026-10-27 on Billy's PC with thinking switched off (as
- *  Mossy calls them): real beginner questions answered with Brain B's
- *  retrieved context and scored against known-correct answers, plus a plain
- *  question (must not trigger a tool) and a request that must (see
- *  CHANGELOG.md). gemma4:12b got the core fact right where qwen3.5:9b taught
- *  the opposite (ESL plugins); both used tools correctly. LocalAIEngine tries
- *  these BEFORE Lemonade's Qwen3-4B, which confidently taught wrong facts. */
-export const TOOL_MODEL_PREFERENCE = ['gemma4:12b', 'gemma4', 'qwen3.5:9b', 'qwen3.5']
+/** Models good enough to teach with, tried first, in this order. Evals on
+ *  Billy's PC with thinking switched off (as Mossy calls them), scored
+ *  against known-correct answers:
+ *  - 2026-10-27: gemma4:12b got the ESL fact right where qwen3.5:9b taught
+ *    the opposite; both used tools correctly.
+ *  - 2026-11-04, with today's Brain B entries (SEQ, ESL limits, Papyrus
+ *    timers) as context: both 9/9 on teaching. Tools through this native
+ *    API: qwen3.5:9b 12/12, gemma4:12b 8/12 (it made only the first of three
+ *    requested calls, every time). Screenshots (see ollamaVisionChat):
+ *    qwen3.5:9b 17/22, gemma4:12b 14/22. qwen3.5:9b is also about half the
+ *    size, so chat, Brain B and Screen Awareness share one loaded model.
+ *  LocalAIEngine tries these BEFORE Lemonade's Qwen3-4B, which confidently
+ *  taught wrong facts. */
+export const TOOL_MODEL_PREFERENCE = ['qwen3.5:9b', 'qwen3.5', 'gemma4:12b', 'gemma4']
+
+/** Models that can read screenshots, best first (2026-11-04 eval on three of
+ *  Billy's real screenshots: Blender, the Creation Kit, Mossy's own hubs).
+ *  qwen3.5:9b read Blender's version, mode and selected object where
+ *  gemma4:12b sees images at much lower detail (it named the Creation Kit
+ *  "Mod Organizer 2"). Any other installed model that reports "vision" is
+ *  used only when none of these is installed. */
+export const VISION_MODEL_PREFERENCE = ['qwen3.5:9b', 'qwen3.5', 'gemma4:12b', 'gemma4']
 
 /** Tool-capable but weaker in the same eval (llama3.1:8b answered a plain
  *  question with a tool call; mistral:7b skipped a requested tool call).
@@ -65,9 +78,9 @@ async function fetchJson(url: string, init: RequestInit | undefined, timeoutMs: 
 
 /** Installed models and what each one says it can do. Cached for 5 minutes
  *  so a normal chat turn costs no extra round trips. */
-async function getCapabilities(baseUrl: string): Promise<Map<string, string[]>> {
+async function getCapabilities(baseUrl: string, tagsTimeoutMs = 1500): Promise<Map<string, string[]>> {
   if (capCache && capCache.baseUrl === baseUrl && Date.now() - capCache.at < CAP_CACHE_MS) return capCache.byModel
-  const tags = await fetchJson(`${baseUrl}/api/tags`, undefined, 1500)
+  const tags = await fetchJson(`${baseUrl}/api/tags`, undefined, tagsTimeoutMs)
   const names: string[] = (tags?.models ?? []).map((m: any) => String(m?.name ?? '')).filter(Boolean)
   const byModel = new Map<string, string[]>()
   await Promise.all(names.map(async (name) => {
@@ -178,6 +191,101 @@ export async function ollamaToolChat(req: OllamaToolChatRequest): Promise<Ollama
         })
       : undefined
     return { ok: true, text: String(message.content ?? ''), toolCalls, model: pick.model }
+  } catch (err: any) {
+    const msg = String(err?.name === 'AbortError' ? 'timed out' : err?.message || err)
+    return { ok: false, error: `${pick.model}: ${msg}` }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export type OllamaVisionModelPick =
+  | { ok: true; model: string; reason: 'chat-model' | 'preferred' | 'any-vision' }
+  | { ok: false; error: string }
+
+/** The user's chat model when it can see images (so Screen Awareness reuses
+ *  the model already loaded for chat), else the best installed one. */
+export async function pickOllamaVisionModel(baseUrl: string, chatModel?: string): Promise<OllamaVisionModelPick> {
+  const base = baseUrl.replace(/\/$/, '')
+  let caps: Map<string, string[]>
+  try {
+    // 5 s, not chat's 1.5 s: a screen check is not waiting on a person, and
+    // right after Mossy starts Ollama answered too late for 1.5 s although
+    // it was running (packaged-build test, 2026-11-04).
+    caps = await getCapabilities(base, 5000)
+  } catch (err: any) {
+    return { ok: false, error: `Ollama is not reachable at ${base} (${String(err?.name === 'AbortError' ? 'no answer within 5s' : err?.message || err)})` }
+  }
+  const canSee = (name: string) => (caps.get(name) ?? []).includes('vision')
+  const installed = [...caps.keys()]
+  if (chatModel) {
+    const match = installed.find((n) => sameModel(n, chatModel))
+    if (match && canSee(match)) return { ok: true, model: match, reason: 'chat-model' }
+  }
+  for (const want of VISION_MODEL_PREFERENCE) {
+    const match = installed.find((n) => sameModel(n, want))
+    if (match && canSee(match)) return { ok: true, model: match, reason: 'preferred' }
+  }
+  const any = installed.find(canSee)
+  if (any) return { ok: true, model: any, reason: 'any-vision' }
+  return {
+    ok: false,
+    error: installed.length
+      ? `None of the installed Ollama models can read images (installed: ${installed.join(', ')}). Install one with "ollama pull ${VISION_MODEL_PREFERENCE[0]}".`
+      : `Ollama is running but has no models installed. Install one that can read images with "ollama pull ${VISION_MODEL_PREFERENCE[0]}".`,
+  }
+}
+
+export type OllamaVisionChatRequest = {
+  baseUrl: string
+  chatModel?: string
+  /** data:image/...;base64,... as captured by Screen Awareness, or bare base64. */
+  imageDataUrl: string
+  textPrompt: string
+  systemPrompt?: string
+  timeoutMs?: number
+}
+
+export type OllamaVisionChatResponse =
+  | { ok: true; text: string; model: string }
+  | { ok: false; error: string }
+
+/** One screenshot + prompt through Ollama's native /api/chat (images field).
+ *  Same think/keep_alive/num_ctx as ollamaToolChat, so a model shared with
+ *  chat stays loaded instead of reloading for every screen check. */
+export async function ollamaVisionChat(req: OllamaVisionChatRequest): Promise<OllamaVisionChatResponse> {
+  const base = req.baseUrl.replace(/\/$/, '')
+  const image = String(req.imageDataUrl || '').replace(/^data:[^;,]+;base64,/, '')
+  if (!image) return { ok: false, error: 'No image was given to the vision check.' }
+  const pick = await pickOllamaVisionModel(base, req.chatModel)
+  if (!pick.ok) return pick
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), req.timeoutMs ?? 180_000)
+  try {
+    const messages: Array<Record<string, unknown>> = []
+    if (req.systemPrompt) messages.push({ role: 'system', content: req.systemPrompt })
+    messages.push({ role: 'user', content: req.textPrompt, images: [image] })
+    const res = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: pick.model,
+        stream: false,
+        messages,
+        think: false,
+        keep_alive: '30m',
+        options: { num_ctx: OLLAMA_TOOL_NUM_CTX, num_predict: 1024, temperature: 0.2 },
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      return { ok: false, error: `${pick.model}: HTTP ${res.status}${text ? `: ${text}` : ''}` }
+    }
+    const data = (await res.json()) as any
+    const text = String(data?.message?.content ?? '')
+    if (!text.trim()) return { ok: false, error: `${pick.model} returned an empty answer for the screenshot.` }
+    return { ok: true, text, model: pick.model }
   } catch (err: any) {
     const msg = String(err?.name === 'AbortError' ? 'timed out' : err?.message || err)
     return { ok: false, error: `${pick.model}: ${msg}` }

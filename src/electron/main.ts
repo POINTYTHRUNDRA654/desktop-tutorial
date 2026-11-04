@@ -35,7 +35,7 @@ import { buildSemanticIndex, getSemanticIndexStatus, querySemanticIndex } from '
 import { getOllamaStatus, ollamaGenerate } from './ml/ollama';
 import { getOpenAICompatStatus, openAICompatChat } from './ml/openaiCompat';
 import { getLemonadeStatus, lemonadeChat, LEMONADE_DEFAULT_BASE_URL, LEMONADE_DEFAULT_MODEL } from './ml/lemonade';
-import { ollamaToolChat } from './ml/ollamaTools';
+import { ollamaToolChat, ollamaVisionChat } from './ml/ollamaTools';
 import { autoUpdaterService } from './autoUpdater';
 import { detectAndHandleVersionUpdate, markFreshInstallProcessed } from './dataMigration';
 import { filterPluginsForSpriggit, buildNoPluginsError, filterVanillaPluginsOnly, buildNoVanillaPluginsError } from './spriggitPluginFilter';
@@ -1676,7 +1676,9 @@ const loadSettings = (): any => {
     // Local AI defaults
     localAiPreferredProvider: 'auto',
     ollamaBaseUrl: 'http://127.0.0.1:11434',
-    ollamaModel: 'gemma4:12b',
+    // qwen3.5:9b: tutors as well as gemma4:12b, uses tools and reads screenshots
+    // better, and is half the size (eval 2026-11-04, see ollamaTools.ts).
+    ollamaModel: 'qwen3.5:9b',
     openaiCompatBaseUrl: 'http://127.0.0.1:1234/v1',
     openaiCompatModel: '',
     cosmosBaseUrl: '',
@@ -9894,7 +9896,29 @@ end.
   // existing renderer calls fail gracefully and fall back to local AI.
   forceHandle('ai-chat-openai', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
   forceHandle('ai-chat-groq', async () => ({ success: false, error: 'Cloud AI is not available in this version of Mossy. Use local AI (Ollama) instead.' }));
-  forceHandle('ai-vision-groq', async () => ({ success: false, error: 'Vision recognition needs a cloud model, which is not available in this version of Mossy.' }));
+  // Screen Awareness's vision pass (ScreenAwareness.ts runRecognitionPass). The
+  // channel keeps its old name so the renderer API is unchanged, but the call
+  // is local: a screenshot to the user's Ollama model that can read images
+  // (see ollamaVisionChat). The screenshot never leaves this computer.
+  forceHandle('ai-vision-groq', async (_event: any, req: any) => {
+    const imageDataUrl = String(req?.imageDataUrl || '');
+    const textPrompt = String(req?.textPrompt || '');
+    if (!imageDataUrl.replace(/^data:[^;,]+;base64,/, '') || !textPrompt) {
+      return { success: false, error: 'The vision check needs a screenshot and a question.' };
+    }
+    const s = loadSettings() as any;
+    const resp = await ollamaVisionChat({
+      baseUrl: String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434'),
+      chatModel: String(req?.model || s?.ollamaModel || ''),
+      imageDataUrl,
+      textPrompt,
+      systemPrompt: req?.systemPrompt ? String(req.systemPrompt) : undefined,
+    });
+    if (!resp.ok) {
+      return { success: false, error: `Screen check did not run: ${resp.error} Start Ollama with a model that can read images (for example qwen3.5:9b).` };
+    }
+    return { success: true, content: resp.text, model: resp.model };
+  });
 
   /**
    * AI Script Generation Handler
@@ -17746,11 +17770,11 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     // Ollama (127.0.0.1) and local KoboldCpp further below still work when disabled.
     const networkAllowed = s?.privacySettings?.allowNetworkAccess !== false;
 
-    // SECONDARY: Local Ollama (Gemma 4) — on-device, no cloud needed.
+    // SECONDARY: Local Ollama (the user's chat model) — on-device, no cloud needed.
     // Falls through to Groq only if Ollama is offline or returns nothing.
     try {
       const ollamaBase = String(s?.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/$/, '');
-      const ollamaModel = String(s?.ollamaModel || 'gemma4:12b');
+      const ollamaModel = String(s?.ollamaModel || 'qwen3.5:9b');
       const ollamaRes = await fetch(`${ollamaBase}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35428,7 +35452,7 @@ let _koboldProcess: import('child_process').ChildProcess | null = null;
 let _brainBProcess: import('child_process').ChildProcess | null = null;
 const BRAINB_PORT = 8766; // matches BrainBSettings.tsx's default base URL and brain_b_slim.py's MOSSY_PORT default
 const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
-const BRAINB_VERSION = '1.2.4'; // bump when a new Nexus package version is released (1.2.4 = verified Blender/FO4 asset entries: LOD, leaf cards, collision crashes, texconv; 1.2.3 = verified Papyrus entries for names and Disable(); 1.2.2 = 9 verified CKPE knowledge entries; 1.2.1 = no hidden thinking on Ollama calls + 22 verified FO4 knowledge entries; 1.2.0 = local screen-text reading for Screen Awareness; 1.1.0 = local Ollama generation, no cloud backend)
+const BRAINB_VERSION = '1.2.5'; // bump when a new Nexus package version is released (1.2.5 = verified Papyrus timer entry: StartTimer/OnTimer, not RegisterForSingleUpdate; 1.2.4 = verified Blender/FO4 asset entries: LOD, leaf cards, collision crashes, texconv; 1.2.3 = verified Papyrus entries for names and Disable(); 1.2.2 = 9 verified CKPE knowledge entries; 1.2.1 = no hidden thinking on Ollama calls + 22 verified FO4 knowledge entries; 1.2.0 = local screen-text reading for Screen Awareness; 1.1.0 = local Ollama generation, no cloud backend)
 const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
 const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
 

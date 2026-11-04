@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.4** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.5** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,12 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.4 (Latest):**
+**New in v6.0.5 (Latest):**
+- ✅ **Screen Awareness sees locally** - the screen check now runs on your own Ollama model that can read images (qwen3.5:9b recommended) instead of saying it needs a cloud model; the screenshot never leaves your PC
+- ✅ **qwen3.5:9b is the recommended local model** - it tutors as well as gemma4:12b with Brain B's facts, uses tools more reliably and reads screenshots better, at about half the size, so chat, Brain B and Screen Awareness share one model
+- ✅ **Brain B 1.2.5** - Mossy now answers "how do I run Papyrus code after a few seconds" with StartTimer/OnTimer (checked against the game's script sources and the real Papyrus compiler)
+
+**From v6.0.4:**
 - ✅ **Brain B 1.2.4** - Mossy now answers Blender asset questions checked against the game files and real Creation Kit tests: setting up distant LOD, LODs that fall apart, leaf-card transparency, collision that crashes the Creation Kit, and textures darkened by DDS conversion
 
 **From v6.0.3:**
@@ -93,7 +98,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.4)
+- Version is auto-set from `package.json` (currently 6.0.5)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -572,7 +577,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.4.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.5.exe`).
 
 ---
 

@@ -1,5 +1,21 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.5] — 2026-11-04
+
+### Added
+- **Screen Awareness works locally.** Its vision check used to stop with "Vision recognition needs a cloud model". It now sends the screenshot to your own Ollama model that can read images: your chat model if it can, otherwise the best one installed (qwen3.5:9b first). Nothing leaves your PC. If Ollama is not running or no installed model can read images, the check says so and names the model to install.
+  - The model is told which program is in front (for example "the Fallout 4 Creation Kit") instead of guessing. Every local model tested misnamed the Creation Kit at least once (as FOMOD or Mod Organizer 2) when asked to identify it.
+  - Creation Kit screenshots come with a note that the flat coloured triangles over the ground are navmesh: no local model tested recognised navmesh on its own, even when told it was the Creation Kit.
+- **Brain B 1.2.5:** a verified entry on running Papyrus code after a delay: StartTimer/OnTimer (and the game-time versions, and CancelTimer), with a working example. It also says that Skyrim's RegisterForSingleUpdate does not exist in Fallout 4. Checked against the game's own ScriptObject.psc and the real Papyrus compiler; Brain B's check passes 55 of 55 (the 53 earlier questions plus 2 timer questions).
+
+### Changed
+- **qwen3.5:9b is now the recommended and default local model** (new installs, the hardware check, and the order Mossy tries models), ahead of gemma4:12b. Tested on 2026-11-04 on a PC with two 8 GB RTX 2070s, thinking off as Mossy calls them:
+  - Teaching with Brain B's facts (SEQ files, ESL limits, Papyrus timers): both 9 of 9.
+  - Tool calls through Ollama: qwen3.5:9b 12 of 12, gemma4:12b 8 of 12 (asked for three actions at once, it did only the first).
+  - Reading three real screenshots (Blender, the Creation Kit, Mossy's own hubs): qwen3.5:9b 17 of 22, gemma4:12b 14 of 22. Also tested and not chosen: Qwen3-VL 8B (13), Ministral 3 14B (15), GLM-4.6V-Flash (13), GUI-Owl 1.5 8B (11), NVIDIA Nemotron 3 Nano Omni (6; llama.cpp gives it too few image tokens to read on-screen text).
+  - qwen3.5:9b is about 6.6 GB against about 12.5 GB, so one copy serves chat, Brain B and Screen Awareness without Ollama swapping models.
+  - If you already use gemma4:12b, Mossy keeps using it until you change the Ollama chat model in Settings (`ollama pull qwen3.5:9b` first).
+
 ## [6.0.4] — 2026-11-03
 
 ### Added

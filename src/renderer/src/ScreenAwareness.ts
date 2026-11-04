@@ -173,6 +173,31 @@ async function proposeChange(program: string, observation: string, correction: s
   }
 }
 
+/** Full names for BridgeServer.KNOWN_MODDING_TOOLS keys: the vision model is
+ *  told which program it is looking at instead of guessing from the pixels
+ *  (2026-11-04: every local model tested misnamed the Creation Kit at least
+ *  once, as FOMOD or Mod Organizer 2, when asked to identify it). */
+const PROGRAM_LABELS: Record<string, string> = {
+  blender: 'Blender',
+  xedit: 'xEdit (FO4Edit)',
+  creationkit: 'the Fallout 4 Creation Kit',
+  nifskope: 'NifSkope',
+  archive2: 'Archive2 (BA2 archive tool)',
+  modorganizer: 'Mod Organizer 2',
+  gimp: 'GIMP',
+  bae: 'BAE (BA2 Extractor)',
+  meshlab: 'MeshLab',
+  packerio: 'Packer-IO (UV packing)',
+};
+
+/** What a program's screen shows that a general vision model cannot know.
+ *  Only verified facts: no local model recognised navmesh on a real CK
+ *  navmesh screenshot, even when told it was the Creation Kit (2026-11-04). */
+const PROGRAM_SCREEN_NOTES: Record<string, string> = {
+  creationkit: 'In the Creation Kit render window, flat coloured triangles drawn over the ground and floors are navmesh ' +
+    '(how NPCs find their way), not meshes, textures or selection highlights.',
+};
+
 /**
  * Real vision recognition pass. Deliberately strict about the response
  * shape: the model must return exactly one JSON object naming either a
@@ -193,8 +218,11 @@ async function runRecognitionPass(program: string, dataUrl: string, patterns: Kn
     'Be conservative: only claim a match if you are genuinely confident it\'s the same real issue, ' +
     'and only report an observation if something is actually notable -- guessing wrong erodes trust. ' +
     'Most screenshots show normal work in progress; for those, report nothing.';
+  const notes = PROGRAM_SCREEN_NOTES[program];
   const textPrompt =
-    `Program in focus: ${program}\n\n` +
+    `Program in focus: ${PROGRAM_LABELS[program] || program}\n` +
+    (notes ? `About this program's screen: ${notes}\n` : '') +
+    '\n' +
     `Known mistake patterns for this program (match one of these exact IDs only if what you see genuinely matches):\n${patternsText}\n\n` +
     'Look at this screenshot. Respond with ONLY one JSON object, nothing else:\n' +
     '{"matched": true, "patternId": "<the matching id from the list above>"}\n' +

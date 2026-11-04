@@ -87,10 +87,13 @@ export const LINKS = {
   mossyReleases: 'https://github.com/POINTYTHRUNDRA654/desktop-tutorial/releases',
 } as const;
 
-/** Chat model ladder, largest first. sizeGB = download / approximate memory need (q4). */
+/** Chat model ladder, best first; the first one that fits is picked.
+ *  sizeGB = download / approximate memory need (q4). Qwen 3.5 9B leads
+ *  although Gemma 4 12B is larger: it tutors as well, uses tools and reads
+ *  screenshots better (eval 2026-11-04, see src/electron/ml/ollamaTools.ts). */
 export const OLLAMA_MODEL_LADDER: { tag: string; sizeGB: number; label: string }[] = [
-  { tag: 'gemma4:12b', sizeGB: 7.0, label: 'Gemma 4 12B' },
   { tag: 'qwen3.5:9b', sizeGB: 6.1, label: 'Qwen 3.5 9B' },
+  { tag: 'gemma4:12b', sizeGB: 7.0, label: 'Gemma 4 12B' },
   { tag: 'gemma2:9b', sizeGB: 5.1, label: 'Gemma 2 9B' },
   { tag: 'llama3.2:3b', sizeGB: 2.0, label: 'Llama 3.2 3B' },
   { tag: 'llama3.2:1b', sizeGB: 1.3, label: 'Llama 3.2 1B' },
