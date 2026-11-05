@@ -35452,7 +35452,7 @@ let _koboldProcess: import('child_process').ChildProcess | null = null;
 let _brainBProcess: import('child_process').ChildProcess | null = null;
 const BRAINB_PORT = 8766; // matches BrainBSettings.tsx's default base URL and brain_b_slim.py's MOSSY_PORT default
 const BRAINB_RELEASE_REPO = 'POINTYTHRUNDRA654/desktop-tutorial';
-const BRAINB_VERSION = '1.2.5'; // bump when a new Nexus package version is released (1.2.5 = verified Papyrus timer entry: StartTimer/OnTimer, not RegisterForSingleUpdate; 1.2.4 = verified Blender/FO4 asset entries: LOD, leaf cards, collision crashes, texconv; 1.2.3 = verified Papyrus entries for names and Disable(); 1.2.2 = 9 verified CKPE knowledge entries; 1.2.1 = no hidden thinking on Ollama calls + 22 verified FO4 knowledge entries; 1.2.0 = local screen-text reading for Screen Awareness; 1.1.0 = local Ollama generation, no cloud backend)
+const BRAINB_VERSION = '1.2.6'; // bump when a new Nexus package version is released (1.2.6 = verified FO4 mesh/UV entries: Havok materials, NIF basics, DirectX normals, hard edges, texel density, AI-mesh retopo; 1.2.5 = verified Papyrus timer entry: StartTimer/OnTimer, not RegisterForSingleUpdate; 1.2.4 = verified Blender/FO4 asset entries: LOD, leaf cards, collision crashes, texconv; 1.2.3 = verified Papyrus entries for names and Disable(); 1.2.2 = 9 verified CKPE knowledge entries; 1.2.1 = no hidden thinking on Ollama calls + 22 verified FO4 knowledge entries; 1.2.0 = local screen-text reading for Screen Awareness; 1.1.0 = local Ollama generation, no cloud backend)
 const BRAINB_DIR = () => path.join(app.getPath('userData'), 'brain-b');
 const BRAINB_INSTALL_RECORD = () => path.join(BRAINB_DIR(), 'brainb-installed.json');
 

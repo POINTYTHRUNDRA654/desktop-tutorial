@@ -1,5 +1,18 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.6] — 2026-11-05
+
+### Added
+- **Brain B 1.2.6: ten verified entries on Fallout 4 meshes and UVs**, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
+  - Havok collision materials: the ID is a CRC32 of the MATT record name (Stone, Metal, Wood...), where it sits in the NIF, and why PyNifly exports sound like plastic.
+  - Fallout 4 NIF basics that differ from Skyrim: header 20.2.0.7 / 12 / 130, NiNode root, BSXFlags 130 with collision, the 65,535-vertex limit per shape.
+  - Normal maps are DirectX style (green down): fixing bumps that look like dents.
+  - Hard edges that come out rounded in game (one normal per NIF vertex), and the SSF segment path that must be Data-relative.
+  - Vanilla texel density per category (weapons 4,323 px/m down to rocks 358 px/m).
+  - Turning AI-generated or high-detail meshes into game meshes, unwrapping with the fewest UV islands for repainting, re-baking after the UVs change, and QuadriFlow's script traps.
+  - The add-on's new Mesh Shaper tools, and where to get RetopoFlow safely.
+  - Brain B's check now passes 66 of 66 (the 55 earlier questions plus 11 new ones, all answered confidently).
+
 ## [6.0.5] — 2026-11-04
 
 ### Added
