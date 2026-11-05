@@ -3,7 +3,7 @@
 ## [6.0.6] — 2026-11-05
 
 ### Added
-- **Brain B 1.2.6: ten verified entries on Fallout 4 meshes and UVs**, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
+- **Brain B 1.2.6: fourteen verified entries on Fallout 4 meshes, UVs, textures and console Creations.** Ten on meshes and UVs, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
   - Havok collision materials: the ID is a CRC32 of the MATT record name (Stone, Metal, Wood...), where it sits in the NIF, and why PyNifly exports sound like plastic.
   - Fallout 4 NIF basics that differ from Skyrim: header 20.2.0.7 / 12 / 130, NiNode root, BSXFlags 130 with collision, the 65,535-vertex limit per shape.
   - Normal maps are DirectX style (green down): fixing bumps that look like dents.
@@ -11,7 +11,12 @@
   - Vanilla texel density per category (weapons 4,323 px/m down to rocks 358 px/m).
   - Turning AI-generated or high-detail meshes into game meshes, unwrapping with the fewest UV islands for repainting, re-baking after the UVs change, and QuadriFlow's script traps.
   - The add-on's new Mesh Shaper tools, and where to get RetopoFlow safely.
-  - Brain B's check now passes 66 of 66 (the 55 earlier questions plus 11 new ones, all answered confidently).
+- **Four verified entries on textures and console Creations:**
+  - The 2026 console rules: PlayStation Creations accept custom .nif/.dds and archives since August 18, 2026; Xbox uploads up to 2 GB; Creations storage of about 15-16 GB on Xbox One, PS4 and PS5 and up to 100 GB on Xbox Series X|S (from Bethesda's patch notes).
+  - Texture memory at 4K, 2K and 1K for BC1/BC5/BC7, and what vanilla uses (scan of all 48,852 vanilla DDS files).
+  - Making 1K and 2K textures look close to 4K: texel density, BGSM tiling (UV scale and offset), trim sheets, BC5 normal and specular maps, downscaling and mipmaps.
+  - Specular map channels: red is specular strength, green is gloss, blue and alpha unused, checked by disassembling the game's own shaders.
+  - Brain B's check now passes 72 of 72 (the 55 earlier questions plus 17 new ones, all answered confidently).
 
 ## [6.0.5] — 2026-11-04
 
