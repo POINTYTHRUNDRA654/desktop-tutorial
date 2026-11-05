@@ -3,7 +3,7 @@
 ## [6.0.6] — 2026-11-05
 
 ### Added
-- **Brain B 1.2.6: fourteen verified entries on Fallout 4 meshes, UVs, textures and console Creations.** Ten on meshes and UVs, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
+- **Brain B 1.2.6: eighteen verified entries on Fallout 4 meshes, UVs, textures and console Creations.** Ten on meshes and UVs, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
   - Havok collision materials: the ID is a CRC32 of the MATT record name (Stone, Metal, Wood...), where it sits in the NIF, and why PyNifly exports sound like plastic.
   - Fallout 4 NIF basics that differ from Skyrim: header 20.2.0.7 / 12 / 130, NiNode root, BSXFlags 130 with collision, the 65,535-vertex limit per shape.
   - Normal maps are DirectX style (green down): fixing bumps that look like dents.
@@ -11,12 +11,16 @@
   - Vanilla texel density per category (weapons 4,323 px/m down to rocks 358 px/m).
   - Turning AI-generated or high-detail meshes into game meshes, unwrapping with the fewest UV islands for repainting, re-baking after the UVs change, and QuadriFlow's script traps.
   - The add-on's new Mesh Shaper tools, and where to get RetopoFlow safely.
-- **Four verified entries on textures and console Creations:**
+- **Eight verified entries on textures and console Creations:**
   - The 2026 console rules: PlayStation Creations accept custom .nif/.dds and archives since August 18, 2026; Xbox uploads up to 2 GB; Creations storage of about 15-16 GB on Xbox One, PS4 and PS5 and up to 100 GB on Xbox Series X|S (from Bethesda's patch notes).
   - Texture memory at 4K, 2K and 1K for BC1/BC5/BC7, and what vanilla uses (scan of all 48,852 vanilla DDS files).
   - Making 1K and 2K textures look close to 4K: texel density, BGSM tiling (UV scale and offset), trim sheets, BC5 normal and specular maps, downscaling and mipmaps.
   - Specular map channels: red is specular strength, green is gloss, blue and alpha unused, checked by disassembling the game's own shaders.
-  - Brain B's check now passes 72 of 72 (the 55 earlier questions plus 17 new ones, all answered confidently).
+  - Good specular and gloss values per surface type (plants, creatures, rock, wood, metal, cloth), measured from vanilla _s maps.
+  - texconv settings for Fallout 4 DDS: formats, full mipmaps, sRGB handling, and keeping alpha edges on cutout leaves.
+  - The Blender add-on's Texture Helpers (5.4.9): upscaling and enhancing textures that exist only inside Blender, and the Real-ESRGAN "models" folder error and fix.
+  - Making a mesh's texture photo-realistic in a chosen style with local AI (multi-view ComfyUI with ControlNet and IP-Adapter, projected back onto the UVs), and what does not work.
+  - Brain B's check now passes 77 of 77 (the 55 earlier questions plus 22 new ones, all answered confidently).
 
 ## [6.0.5] — 2026-11-04
 
