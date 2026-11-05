@@ -3,7 +3,8 @@
 ## [6.0.6] — 2026-11-05
 
 ### Added
-- **Brain B 1.2.6: eighteen verified entries on Fallout 4 meshes, UVs, textures and console Creations.** Ten on meshes and UVs, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
+- **Crash Log Analyzer reads CEF (Commonwealth Engine Fixes) crash logs** (CEF-Crash-<date>_<time>.log): game version, exception, crash location, thread and memory, flags crashes inside CEF's FCStruct2/FCShadow2 or in game functions CEF hooks (with how to test with it switched off), and warns when two crash loggers are loaded (CEF only steps aside for Buffout4.dll, not Addictol's crash logger). Format taken from CEF's published source; 5 unit tests.
+- **Brain B 1.2.6: nineteen verified entries on Fallout 4 meshes, UVs, textures, console Creations and CEF.** Ten on meshes and UVs, from the Blender add-on 5.4.8 work and checked against the game files and real Blender runs:
   - Havok collision materials: the ID is a CRC32 of the MATT record name (Stone, Metal, Wood...), where it sits in the NIF, and why PyNifly exports sound like plastic.
   - Fallout 4 NIF basics that differ from Skyrim: header 20.2.0.7 / 12 / 130, NiNode root, BSXFlags 130 with collision, the 65,535-vertex limit per shape.
   - Normal maps are DirectX style (green down): fixing bumps that look like dents.
@@ -20,7 +21,8 @@
   - texconv settings for Fallout 4 DDS: formats, full mipmaps, sRGB handling, and keeping alpha edges on cutout leaves.
   - The Blender add-on's Texture Helpers (5.4.9): upscaling and enhancing textures that exist only inside Blender, and the Real-ESRGAN "models" folder error and fix.
   - Making a mesh's texture photo-realistic in a chosen style with local AI (multi-view ComfyUI with ControlNet and IP-Adapter, projected back onto the UVs), and what does not work.
-  - Brain B's check now passes 77 of 77 (the 55 earlier questions plus 22 new ones, all answered confidently).
+  - Commonwealth Engine Fixes (CEF): what its plugins do, the exact game version they patch, the F6/F7 toggles, what "unexpected bytes ... not installing" means, and using it with Addictol or Buffout 4 (from its source code).
+  - Brain B's check now passes 79 of 79 (the 55 earlier questions plus 24 new ones, all answered confidently).
 
 ## [6.0.5] — 2026-11-04
 

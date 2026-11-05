@@ -1,7 +1,8 @@
 /**
  * Crash Log Analyzer — FO4 Asset Analysis Hub
  *
- * Parses Buffout 4 / Buffout 4 NG / CLASSIC-style crash logs.
+ * Parses Buffout 4 / Buffout 4 NG / CLASSIC-style crash logs, and CEF
+ * (Commonwealth Engine Fixes) crash logs (CEF-Crash-<date>_<time>.log).
  * Identifies probable culprits: FormIDs, plugins, script stack frames,
  * engine modules, and provides actionable fix recommendations.
  */
@@ -133,20 +134,35 @@ const BUFFOUT_EXCEPTION_REGEX = /Unhandled exception ".+?" at .+\n(.+)/;
 const GAME_VER_REGEX = /Fallout4(?:\.exe)?\s+([\d.]+)/i;
 const BUFFOUT_VER_REGEX = /Buffout\s*4(?:\s+NG)?\s+v?([\d.]+)/i;
 const TIMESTAMP_REGEX = /(\d{4}[-/]\d{2}[-/]\d{2}[\sT]\d{2}:\d{2}:\d{2})/;
+// CEF (Commonwealth Engine Fixes) crash log format, from CEFCrashLog.cpp (CEF 1.0.5a source):
+// header "CEF crash log 1.0 (CEFCrashLog.dll)", then "game: runtime 1.11.240, exe stamp ...",
+// "exception: C0000005 (EXCEPTION_ACCESS_VIOLATION)", "access: read of address 0x...",
+// "at: Module.dll+0x...", "thread: N (main thread)", "call stack (innermost first):", "modules (N):".
+const CEF_HEADER_REGEX = /^CEF crash log ([\d.]+)/m;
+const CEF_GAME_REGEX = /^game: runtime ([\d.]+)/m;
+const CEF_PLUGIN_DLL_REGEX = /\b(FCStruct2|FCShadow2|FCRender2)\.dll\+0x/i;
+const CEF_HOOKED_FN_REGEX = /\(FCStruct2 hooks (?:calls to it|one call in it)\)/;
 
 // ─── Parser ───────────────────────────────────────────────────────────────────
 
-function parseCrashLog(raw: string): ParsedCrashLog {
+export function parseCrashLog(raw: string): ParsedCrashLog {
   const lines = raw.split(/\r?\n/);
+  const cefMatch = raw.match(CEF_HEADER_REGEX);
 
   // Version / game version
-  const gameVerMatch = raw.match(GAME_VER_REGEX);
+  const gameVerMatch = cefMatch ? raw.match(CEF_GAME_REGEX) : raw.match(GAME_VER_REGEX);
   const buffoutVerMatch = raw.match(BUFFOUT_VER_REGEX);
   const timestampMatch = raw.match(TIMESTAMP_REGEX);
 
   // Exception
   const exceptionLine = lines.find(l => l.includes('Unhandled exception') || l.includes('EXCEPTION_'));
-  const exception = exceptionLine?.trim() ?? 'Unknown exception';
+  let exception = exceptionLine?.trim() ?? 'Unknown exception';
+  if (cefMatch) {
+    // CEF splits the exception over several lines: code, access, location, thread
+    const pick = (key: string) => lines.find(l => l.startsWith(key + ':'))?.slice(key.length + 1).trim();
+    exception = [pick('exception'), pick('access'), pick('at') && `at ${pick('at')}`, pick('thread') && `thread ${pick('thread')}`]
+      .filter(Boolean).join(' | ') || exception;
+  }
 
   // Call stack
   const callstackStart = lines.findIndex(l => /CALL STACK|callstack|backtrace/i.test(l));
@@ -199,6 +215,35 @@ function parseCrashLog(raw: string): ParsedCrashLog {
       });
     }
   }
+  // CEF-specific causes (CEF logs only)
+  if (cefMatch) {
+    const atLine = lines.find(l => l.startsWith('at:')) ?? '';
+    const stackText = callstack.join('\n');
+    if (CEF_PLUGIN_DLL_REGEX.test(atLine) || CEF_PLUGIN_DLL_REGEX.test(stackText)) {
+      const which = (atLine.match(CEF_PLUGIN_DLL_REGEX) ?? stackText.match(CEF_PLUGIN_DLL_REGEX))?.[1] ?? 'a CEF plugin';
+      probableCauses.unshift({
+        description: `Crash inside ${which}.dll (Commonwealth Engine Fixes)`,
+        severity: 'critical',
+        module: `${which}.dll`,
+        fix: `Switch ${which} off (bEnable=0 in ${which}.ini in Data\\F4SE\\Plugins; in game F6 toggles FCStruct2 and F7 toggles FCShadow2) and play the same spot again. If the crash stops, report this log on the CEF Nexus page.`,
+      });
+    } else if (CEF_HOOKED_FN_REGEX.test(stackText)) {
+      probableCauses.unshift({
+        description: 'Crash in a game function that CEF\'s FCStruct2 (FaceGen optimizer) hooks',
+        severity: 'high',
+        module: 'FCStruct2.dll',
+        fix: 'The crash is in game code, but CEF changes how it is called. Test with FCStruct2 off (F6 in game, or bEnable=0 in FCStruct2.ini). If it still crashes, CEF is not the cause.',
+      });
+    }
+    if (/^\s+(AddictolCrashLogger|Buffout4|CrashLogger)\.dll\s/im.test(raw)) {
+      probableCauses.push({
+        description: 'Two crash loggers are loaded (CEF and another crash logger)',
+        severity: 'low',
+        fix: 'Keep one. CEF only steps aside for Buffout4.dll; with Addictol\'s crash logger, set bEnable=0 in CEFCrashLog.ini.',
+      });
+    }
+  }
+
   // Always include generic access violation if nothing else matched
   if (probableCauses.length === 0) {
     probableCauses.push({
@@ -209,7 +254,7 @@ function parseCrashLog(raw: string): ParsedCrashLog {
   }
 
   return {
-    version:     buffoutVerMatch?.[1] ?? 'Unknown',
+    version:     cefMatch ? `CEF ${cefMatch[1]}` : (buffoutVerMatch?.[1] ? `Buffout ${buffoutVerMatch[1]}` : 'Unknown'),
     gameVersion: gameVerMatch?.[1] ?? 'Unknown',
     crashTime:   timestampMatch?.[1] ?? 'Unknown',
     exception,
@@ -309,7 +354,7 @@ export const CrashLogAnalyzer: React.FC = () => {
     if (!parsed) return;
     const lines = [
       `FO4 Crash Log Analysis — ${parsed.crashTime}`,
-      `Game: ${parsed.gameVersion}  Buffout: ${parsed.version}`,
+      `Game: ${parsed.gameVersion}  Crash logger: ${parsed.version}`,
       '',
       '=== PROBABLE CAUSES ===',
       ...parsed.probableCauses.map(c => `[${c.severity.toUpperCase()}] ${c.description}\n  Fix: ${c.fix}`),
@@ -342,7 +387,7 @@ export const CrashLogAnalyzer: React.FC = () => {
           Crash Log Analyzer
         </h2>
         <p className="text-[11px] text-slate-400">
-          Parses Buffout 4 / Buffout 4 NG crash logs. Identifies probable culprits via FormIDs,
+          Parses Buffout 4 / Buffout 4 NG and CEF (Commonwealth Engine Fixes) crash logs. Identifies probable culprits via FormIDs,
           call-stack patterns, plugin mapping, and 13 known crash signatures. For generation of crash
           logs, install <span className="text-emerald-400 font-semibold">Buffout 4 NG</span> (Nexus #47359)
           and optionally <span className="text-emerald-400 font-semibold">CLASSIC</span> (Nexus #56255).
@@ -400,7 +445,7 @@ export const CrashLogAnalyzer: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               {[
                 { label: 'Game',     value: parsed.gameVersion },
-                { label: 'Buffout',  value: `v${parsed.version}` },
+                { label: 'Crash logger', value: parsed.version },
                 { label: 'Plugins',  value: parsed.plugins.length },
                 { label: 'FormIDs',  value: parsed.formIdHits.length },
               ].map(s => (
