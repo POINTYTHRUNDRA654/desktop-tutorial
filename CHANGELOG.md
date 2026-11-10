@@ -1,5 +1,18 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.7] — 2026-11-09
+
+### Added
+- **Brain B 1.2.7: twelve new verified entries**, each checked against the game files, real logs or real runs:
+  - Realistic NPCs: reading f4se.log to see which plugins really load (and "no version data"), which mods work on game 1.11.240, LooksMenu BodyGen templates and their syntax (including random slider ranges), Diverse Bodies Redux's requirements, tint sizes, and Mod Organizer priority.
+  - LooksMenu tattoos: body tattoo packs versus face tattoos (and why a face-tattoo mod can override LooksMenu Customization Compendium), and adding a tattoo overlay to an NPC from Papyrus with the LooksMenu Overlays API.
+  - The Creation Kit crashing at startup with "Bad inflate 4294967293" / "inflate ... -3" / "Not a NIF file": caused by Faster Archives' LZ4-repacked archives; untick "Faster Archives - Repacked" (not only Faster Archives) for the Creation Kit.
+  - How Faster Archives works and how to read its log to see whether it speeds anything up; Faster Decompression standing down next to Addictol.
+  - f4se.log "couldn't load plugin 1114" on many plugins at once (game closing on start): reinstall Address Library.
+  - Plants that show only their top half (or a wireframe bottom) after adding wind: vertex alpha without the material's Tree flag and the NIF's Tree_Anim flag, with the vanilla flag survey and the NifSkope fix.
+  - Fallout 4 object LODs: vanilla naming and folders, no wind or glow on LOD materials, one LOD set per model, and the Blender add-on's "LODs for Each Selected Mesh" / "One LOD for Selected (Merged Model)" buttons.
+  - Brain B's check now passes 94 of 94 (the 79 earlier questions plus 15 new ones).
+
 ## [6.0.6] — 2026-11-05
 
 ### Added

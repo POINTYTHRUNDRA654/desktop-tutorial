@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.6** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.7** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,10 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.6 (Latest):**
+**New in v6.0.7 (Latest):**
+- ✅ **Brain B 1.2.7** - Mossy now answers questions on realistic NPCs (LooksMenu BodyGen, tattoo packs, the F4SE log), the Creation Kit crash caused by Faster Archives' repacked archives, the f4se.log error 1114, plants that show only half after adding wind, and making object LODs, all checked against the game files and real logs
+
+**From v6.0.6:**
 - ✅ **Brain B 1.2.6** - Mossy now answers Fallout 4 mesh questions checked against the game files: Havok collision materials, NIF header and BSXFlags, DirectX normal maps, hard edges that come out rounded, vanilla texture sharpness, and turning AI-generated meshes into game meshes with clean UVs
 
 **From v6.0.5:**
@@ -101,7 +104,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.6)
+- Version is auto-set from `package.json` (currently 6.0.7)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -580,7 +583,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.6.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.7.exe`).
 
 ---
 
