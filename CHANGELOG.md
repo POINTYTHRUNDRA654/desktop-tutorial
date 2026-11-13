@@ -1,5 +1,18 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.9] — 2026-11-12
+
+### Changed
+- **Installer 37% smaller** (NVIDIA edition about 184 MB instead of 293 MB; installed app about 190 MB smaller). Nothing Mossy uses was removed:
+  - an unused 26.7 MB avatar picture that was packed three times, and an unused JPG copy;
+  - the `public` folder, which was packed into the app a second time (the app reads its own built copy) and a third time beside it (the guide screenshots and avatars are no longer duplicated there; the knowledge files, icons and helper pages stay);
+  - the raw packages of the interface (icons, 3D, charts, page router and others), which were shipped next to the interface code that already contains them, plus packages nothing in Mossy loads (browser automation, a database driver, web-server packages).
+  - Checked by opening all 194 pages of the new build and of 6.0.8 with an empty profile: same content, no errors in either; the Blender add-on download, PDF reading, the guide screenshots and the ENB Specular Fix work the same.
+- **Bundled Blender add-on is 5.5.2** (the in-app add-on download now gets the latest release).
+
+### Fixed
+- The installers' Windows file description said "Mossy Universal v6.0.0" (also on the NVIDIA installer); it no longer names a version or edition.
+
 ## [6.0.8] — 2026-11-12
 
 ### Added
