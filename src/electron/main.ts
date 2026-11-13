@@ -115,6 +115,7 @@ import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
 import { rmbgServer } from './rmbgServerManager';
 import { readCkpeSetup } from './ckpeSetup';
+import { registerEnbSpecularFix } from './enbSpecularFix';
 
 // ── Chromium background-throttling prevention ────────────────────────────────
 // These flags must be set BEFORE app.whenReady(). They prevent Chromium from
@@ -21383,7 +21384,15 @@ Rules:
     return candidates.find((c) => c && fs.existsSync(c)) || null;
   }
 
-  type GlowingSeaJob = { running: boolean; stage: number; totalStages: number; log: string[]; exitCode: number | null; folder: string; startedAt: number; proc?: ReturnType<typeof spawn> };
+  // Textures & Materials > ENB Specular Fix: re-save old mods' _s maps as BC5 (no alpha)
+  // so ENB Complex Parallax stops smearing. See enbSpecularFix.ts.
+  registerEnbSpecularFix(registerHandler, {
+    getWindow: () => mainWindow,
+    loadSettings: () => loadSettings(),
+    findCkTexconv: () => findTexconv(null),
+  });
+
+  type GlowingSeaJob ={ running: boolean; stage: number; totalStages: number; log: string[]; exitCode: number | null; folder: string; startedAt: number; proc?: ReturnType<typeof spawn> };
   let glowingSeaJob: GlowingSeaJob | null = null;
   const pushGlowingSeaLog = (job: GlowingSeaJob, text: string) => {
     for (const line of text.split(/\r?\n/)) if (line.trim()) job.log.push(line);

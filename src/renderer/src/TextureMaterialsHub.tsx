@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette, Camera, Scissors, Aperture } from 'lucide-react';
+import { Image, Layers, Wand2, BookOpen, AlertCircle, ChevronRight, Zap, Sparkles, FileCode2, SlidersHorizontal, Package, Palette, Camera, Scissors, Aperture, Wrench } from 'lucide-react';
 
 // Lazy-load tool panels — hub stays lightweight
 const DDSConverter = React.lazy(() =>
@@ -33,8 +33,9 @@ const AIImageStudio = React.lazy(() => import('./AIImageStudio'));
 const BackgroundRemover = React.lazy(() => import('./BackgroundRemover'));
 const PostProcessingPipeline = React.lazy(() => import('./PostProcessingPipeline'));
 const GlowingSeaStudio = React.lazy(() => import('./GlowingSeaStudio'));
+const EnbSpecularFix = React.lazy(() => import('./EnbSpecularFix'));
 
-type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio' | 'bgremover' | 'postprocess' | 'glowingsea';
+type HubTab = 'dds' | 'generator' | 'images' | 'guide' | 'bgsm' | 'materials' | 'matdefs' | 'optimizer' | 'enhancer' | 'krita' | 'aistudio' | 'bgremover' | 'postprocess' | 'glowingsea' | 'enbfix';
 
 const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>; label: string; sublabel: string }[] = [
   { id: 'dds',       icon: Image,             label: 'DDS Converter',     sublabel: 'BC1·BC3·BC4·BC5·BC7' },
@@ -51,6 +52,7 @@ const TAB_DEFS: { id: HubTab; icon: React.ComponentType<{ className?: string }>;
   { id: 'bgremover', icon: Scissors,          label: 'Background Remover', sublabel: 'AI isolation · RMBG-2.0' },
   { id: 'postprocess', icon: Aperture,        label: 'Post-Processing',   sublabel: 'Layer FX · Face · Relight · Upscale' },
   { id: 'glowingsea', icon: Layers,           label: 'Glowing Sea Studio', sublabel: 'Batch enhance · PhotoCraft' },
+  { id: 'enbfix',    icon: Wrench,            label: 'ENB Specular Fix',  sublabel: 'Old mods · parallax smearing' },
 ];
 
 // ============================================================================
@@ -69,18 +71,18 @@ const FO4_CHANNEL_TABLE = [
   {
     suffix: '_n.dds',
     type: 'Normal Map',
-    format: 'BC5 (recommended) · DXT5nm',
-    channels: 'R = X tangent, G = Y tangent, B/A unused',
+    format: 'BC5 (vanilla: 7,022 of 7,066)',
+    channels: 'R = X tangent, G = Y tangent; blue is rebuilt by the game, no alpha',
     notes:
-      'BC5 is a two-channel format ideal for normals. Vanilla FO4 uses DXT5nm (normals packed in RG+alpha). Community Shaders or ENB Extender require BC5 for correct PBR normals.',
+      'Vanilla FO4 and its DLC store normal maps as BC5 (counted in the unpacked game files). DirectX convention: green points down.',
   },
   {
     suffix: '_s.dds',
-    type: 'Specular / PBR Pack',
-    format: 'BC7 (PBR) · DXT5 (vanilla)',
-    channels: 'Vanilla: R=spec intensity, G=gloss, B=AO hint | CShaders PBR: R=spec, G=1−roughness, B=AO, A=metalness',
+    type: 'Specular / Smoothness',
+    format: 'BC5 (vanilla: 8,709 of 8,772)',
+    channels: 'R = specular intensity, G = smoothness (gloss); no alpha',
     notes:
-      'With Community Shaders PBR, this becomes an RMAOS pack. Use BC7 at highest quality. Vanilla mods use DXT5.',
+      'Keep it BC5 like vanilla. ENB Complex Parallax reads a height map from the ALPHA of this map (only exactly 255 = off), so an old BC1/BC3/BC7 _s with a mask in its alpha makes surfaces smear with ENB. The "ENB Specular Fix" tab repairs whole mods.',
   },
   {
     suffix: '_g.dds',
@@ -96,7 +98,7 @@ const FO4_CHANNEL_TABLE = [
     format: 'BC4 (1-channel greyscale)',
     channels: 'R = surface height (0 = deep, 1 = raised)',
     notes:
-      'Required for POM (Parallax Occlusion Mapping) via ENB or Community Shaders. BC4 is single-channel for efficiency. Enable SF2_PARALLAX_OCCLUSION in BGSM flags.',
+      'Not used by vanilla Fallout 4. ENB Complex Parallax does NOT read a separate _h file: in FO4 it takes the height from the alpha of the _s map (127 = surface, darker = deeper, 255 = off).',
   },
   {
     suffix: '_rmaos.dds',
@@ -139,21 +141,21 @@ const FORMAT_ADVICE = [
   },
   {
     use: 'Normal maps',
-    recommended: 'BC5 (preferred) or DXT5nm',
+    recommended: 'BC5 (as vanilla)',
     ratio: '4:1 (2-ch)',
-    notes: 'BC5 gives best precision on RG channels. Reconstruct Z in shader.',
+    notes: 'BC5 gives best precision on RG channels; the game rebuilds Z. Vanilla uses BC5.',
   },
   {
-    use: 'Specular / PBR pack',
-    recommended: 'BC7 (PBR) or DXT5 (vanilla)',
-    ratio: '4–8:1',
-    notes: 'BC7 is slow to encode but best quality. Use for hero assets.',
+    use: 'Specular (_s)',
+    recommended: 'BC5 (as vanilla)',
+    ratio: '4:1 (2-ch)',
+    notes: 'Red = specular, green = smoothness, no alpha. A BC1/BC3/BC7 _s carries an alpha that ENB Complex Parallax reads as height and smears.',
   },
   {
-    use: 'Height / Parallax',
-    recommended: 'BC4',
-    ratio: '8:1 (1-ch)',
-    notes: '1-channel format. BC4 is ideal for POM height maps.',
+    use: 'ENB parallax height',
+    recommended: 'Alpha of the _s map',
+    ratio: '-',
+    notes: 'Only for mods made for ENB Complex Parallax: 127 = surface, darker = deeper, exactly 255 = off. Compression can turn 255 into 251-254, which is still "on".',
   },
   {
     use: 'Emission / Glow',
@@ -564,6 +566,11 @@ const TextureMaterialsHub: React.FC<{ embedded?: boolean }> = ({ embedded = fals
         {activeTab === 'glowingsea' && (
           <PanelLoader>
             <GlowingSeaStudio />
+          </PanelLoader>
+        )}
+        {activeTab === 'enbfix' && (
+          <PanelLoader>
+            <EnbSpecularFix />
           </PanelLoader>
         )}
       </div>
