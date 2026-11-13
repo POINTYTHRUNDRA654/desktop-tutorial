@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.7** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.8** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,12 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.7 (Latest):**
+**New in v6.0.8 (Latest):**
+- ✅ **ENB Specular Fix** (Textures & Materials) - repairs old texture mods whose surfaces smear and stretch with ENB parallax: re-saves their specular maps like the vanilla game, for one mod or every mod in your Mod Organizer folder, including textures inside BA2 archives, without touching the original mods
+- ✅ **Brain B 1.2.8** - Mossy now answers questions on particle effects, cube maps and reflections, animations and creatures, traps, Survival diseases, wind and material rules, old texture mods and ENB parallax smearing, collision and wind for one-piece trees, and many Blender export problems, all checked against the game files
+- ✅ **Texture Guide corrected** - vanilla normal and specular maps are BC5 (counted in the game files)
+
+**From v6.0.7:**
 - ✅ **Brain B 1.2.7** - Mossy now answers questions on realistic NPCs (LooksMenu BodyGen, tattoo packs, the F4SE log), the Creation Kit crash caused by Faster Archives' repacked archives, the f4se.log error 1114, plants that show only half after adding wind, and making object LODs, all checked against the game files and real logs
 
 **From v6.0.6:**
@@ -104,7 +109,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.7)
+- Version is auto-set from `package.json` (currently 6.0.8)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -583,7 +588,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.7.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.8.exe`).
 
 ---
 

@@ -1,5 +1,27 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.8] — 2026-11-12
+
+### Added
+- **ENB Specular Fix** (Textures & Materials). Older texture mods often saved their specular maps (_s) with a cut-out mask in the alpha channel. ENB Complex Parallax reads that alpha as a height map (only exactly 255 means off), so surfaces smear and stretch toward the camera. The new tab:
+  - scans one mod, or every mod in a Mod Organizer mods folder, and lists every specular map that is not BC5;
+  - re-saves them as BC5 like the vanilla game (shine and smoothness kept, no alpha), including the ones inside texture BA2 archives (only the specular maps are pulled out, with BSArch from xEdit);
+  - writes the copies to a new folder "<mod> - ENB Specular Fix" next to each mod, with a log and install notes; the original mod is never changed;
+  - checks every output (BC5, same size). Tested on a 3.9 GB texture archive from 2021: 952 of 952 maps in about 2 minutes, shine and smoothness changed by about 1/255.
+- **Brain B 1.2.8: new verified entries**, each checked against the game files, real logs or real runs:
+  - Particle effects (how vanilla systems are built, recipes for fire, smoke, sparks, steam, blood, dust and energy), the 72 cube maps and reflections, and effect records.
+  - The animation system (race to behavior graph to clips), a creature reference (bones, speeds, attack events) and a checklist for custom animations.
+  - Traps: how triggers and traps work, the model contract, and every vanilla trap type with its numbers.
+  - Survival diseases: the risk pool, every source, the six diseases and their cures.
+  - The wind format per plant type, game material and texture rules per slot, and the 0-byte NIF from a full drive.
+  - Old texture mods: what to check, upscaling without damaging normal and specular maps, and fixing ENB parallax smearing by removing the specular alpha.
+  - Trees whose leaves are part of the trunk mesh: vanilla-style collision (hulls on the trunk only) and wind (by distance from the trunk).
+  - Blender export lessons: collision on plants inside a model that already has collision, collision landing beside the mesh, squeezed or lost UVs, decal fade edges, emissive colour with a BGSM, plants vanishing after adding wind, export dropping pieces, the glow texture path, loose LOD pieces and the cliff vanishing from LODs.
+  - Brain B's check now passes 135 of 135.
+
+### Fixed
+- **Texture Guide**: vanilla normal (_n) and specular (_s) maps are BC5 (7,022 of 7,066 and 8,709 of 8,772 in the game plus DLC), not DXT5; ENB parallax height lives in the specular map's alpha, not in a separate _h file.
+
 ## [6.0.7] — 2026-11-09
 
 ### Added
