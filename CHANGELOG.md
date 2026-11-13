@@ -1,9 +1,14 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.10] — 2026-11-12
+
+### Fixed
+- **Universal edition: the Blender add-on download works again.** The 6.0.9 Universal installer was built without the bundled add-on zip ("Blender add-on ZIP not found"). The Universal build now rebuilds the app after the add-on zip is made, the same way the NVIDIA build always did, so the zip is packed into the app itself.
+
 ## [6.0.9] — 2026-11-12
 
 ### Changed
-- **Installer 37% smaller** (NVIDIA edition about 184 MB instead of 293 MB; installed app about 190 MB smaller). Nothing Mossy uses was removed:
+- **Installers about 40% smaller** (NVIDIA 177 MB instead of 293 MB, Universal 172 MB instead of 290 MB; installed app 600 MB instead of 826 MB). Nothing Mossy uses was removed:
   - an unused 26.7 MB avatar picture that was packed three times, and an unused JPG copy;
   - the `public` folder, which was packed into the app a second time (the app reads its own built copy) and a third time beside it (the guide screenshots and avatars are no longer duplicated there; the knowledge files, icons and helper pages stay);
   - the raw packages of the interface (icons, 3D, charts, page router and others), which were shipped next to the interface code that already contains them, plus packages nothing in Mossy loads (browser automation, a database driver, web-server packages).

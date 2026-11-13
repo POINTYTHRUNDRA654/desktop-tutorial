@@ -147,7 +147,10 @@ jobs:
         continue-on-error: true
 
       - name: Package Universal Edition
-        run: npx electron-builder --win --publish never
+        # Same as NVIDIA: rebuild after prepackage so files it creates in public/
+        # (mossy-blender-addons.zip) are copied into dist/ and packed into the app.
+        # 6.0.9 Universal shipped without the add-on zip when it packaged directly.
+        run: npm run package:win -- --publish never
         timeout-minutes: 30
         env:
           ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
