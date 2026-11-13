@@ -3,6 +3,7 @@ import { ModProjectStorage } from './services/ModProjectStorage';
 import { isDuplicateVaultEntry, pruneAutoFetchedVaultItems } from './knowledgeRetrieval';
 import { bridgeFetch } from './lib/bridgeClient';
 import { getApprovedToolsFromStorage } from './toolPermissions';
+import { userAskedToGoOnline, WEB_SEARCH_OFFER } from './webConsent';
 
 export const sanitizeBlenderScript = (rawScript: string): string => {
     let safeScript = rawScript;
@@ -21,7 +22,10 @@ export const executeMossyTool = async (name: string, args: any, context: {
     setProfile: (p: any) => void,
     setProjectData: (p: any) => void,
     setProjectContext: (c: any) => void,
-    setShowProjectPanel: (s: boolean) => void
+    setShowProjectPanel: (s: boolean) => void,
+    // Callers acting for the user directly (the MCP bridge) may search without a
+    // chat message; chat and voice follow webConsent.ts.
+    allowWeb?: boolean
 }) => {
     const api = (window as any).electronAPI || (window as any).electron?.api;
     const settings = await api?.getSettings?.().catch(() => null);
@@ -1685,6 +1689,11 @@ Check your Downloads folder or the location where files are saved.`;
         result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't read what's currently selected in its render window. Check the Creation Kit window directly.`;
     } else if (name === 'ck_set_render_mode') {
         result = `**Not available:** Creation Kit has no scripting interface Mossy can connect to, so I can't change its render mode automatically. Set it directly from the Creation Kit's render window toolbar.`;
+    } else if ((name === 'search_fallout4_wiki' || name === 'scan_fallout4_live') && !context.allowWeb && !userAskedToGoOnline()) {
+        // The AI may call these on any turn; the search only runs when the user's own
+        // message asked to go online (webConsent.ts), because it sends their words
+        // to the wikis / Wikipedia / DuckDuckGo.
+        result = `**Not searched:** the user did not ask to go online. ${WEB_SEARCH_OFFER}`;
     } else if (name === 'search_fallout4_wiki') {
         try {
             const query: string = String(args.query || '').trim();

@@ -1,5 +1,14 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.11] — 2026-11-12
+
+### Changed
+- **Web search only when you ask.** Searching the Fallout wikis, Wikipedia or DuckDuckGo sends your question to those sites, so Mossy now does it only when your message asks to go online (for example "search online", "look it up online", "check the web"). Before, she also searched on her own when the local AI said it could not go online, and the AI could call its search tools on any question. Now she answers from what she knows and offers: say "search online" and she checks. The AI's instructions were updated to match, and it is told never to claim it searched when it did not.
+
+### Removed
+- **Cloud Sync page.** It was a demo filled with invented collaborators, changes, conflicts and versions and an invite link that did not exist; nothing behind it worked.
+- **Plugin Manager's invented parts.** The marketplace listed two plugins that do not exist (with made-up downloads and ratings), "installing" one only recorded it without downloading anything, "Update" only changed the version number, and a telemetry switch claimed to send usage analytics although nothing was ever sent. The marketplace tab, the update button, the marketplace sources and the telemetry switch are gone; installing a plugin from its folder, enabling, disabling and uninstalling work as before.
+
 ## [6.0.10] — 2026-11-12
 
 ### Fixed

@@ -124,7 +124,6 @@ const AutomationManager = React.lazy(() => import('./AutomationManager'));
 // AI & Intelligence Features
 const AIAssistant = React.lazy(() => import('./AIAssistant'));
 const AIModAssistant = React.lazy(() => import('./AIModAssistant'));
-const CloudSync = React.lazy(() => import('./CloudSync'));
 const WorkflowRecorder = React.lazy(() => import('./WorkflowRecorder').then(module => ({ default: module.WorkflowRecorder })));
 const PluginManager = React.lazy(() => import('./PluginManager').then(module => ({ default: module.PluginManager })));
 const RoadmapPanel = React.lazy(() => import('./RoadmapPanel'));
@@ -221,7 +220,7 @@ const NeuralController: React.FC = () => {
  * uses this to distinguish "panel not yet visible" from "truly unknown route".
  */
 const KEEP_ALIVE_PATHS = new Set([
-  '/', '/chat', '/ai-assistant', '/ai-mod-assistant', '/cloud-sync', '/first-success',
+  '/', '/chat', '/ai-assistant', '/ai-mod-assistant', '/first-success',
   '/roadmap', '/live', '/tools', '/tools/ini-config', '/tools/asset-deduplicator',
   '/tools/log-monitor', '/tools/xedit', '/tools/ck-extension', '/tools/project-templates',
   '/tools/formid-remapper', '/tools/precombine-generator', '/tools/voice-commands',
@@ -1594,7 +1593,6 @@ const App: React.FC = () => {
               <KeepAlivePanel path="/chat"><ErrorBoundary><ChatInterface /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/ai-assistant"><ErrorBoundary><AIAssistant /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/ai-mod-assistant"><ErrorBoundary><AIModAssistant /></ErrorBoundary></KeepAlivePanel>
-              <KeepAlivePanel path="/cloud-sync"><ErrorBoundary><CloudSync /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/first-success"><ErrorBoundary><FirstSuccessWizard /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/roadmap"><ErrorBoundary><RoadmapPanel /></ErrorBoundary></KeepAlivePanel>
               <KeepAlivePanel path="/live"><ErrorBoundary><VoiceChat /></ErrorBoundary></KeepAlivePanel>

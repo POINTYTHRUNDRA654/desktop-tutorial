@@ -13022,7 +13022,8 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
 
   // Platform 11: Plugin Manager IPC Handlers
   const pluginStorage = new Map<string, any>();
-  const pluginManagerSettings = { autoUpdate: true, marketplaceSources: [], installDirectory: '~/.mossy/plugins', allowUnsigned: false, enableTelemetry: true };
+  // No marketplace and no telemetry exist; both stay off (fields kept for saved settings).
+  const pluginManagerSettings = { autoUpdate: false, marketplaceSources: [], installDirectory: '~/.mossy/plugins', allowUnsigned: false, enableTelemetry: false };
 
   const expandUserPath = (rawPath: string): string => {
     if (!rawPath || typeof rawPath !== 'string') return '';
@@ -13251,10 +13252,10 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('plugin-manager:list-marketplace', async (_event) => {
     const startTime = Date.now();
     try {
-      const marketplacePlugins = [
-        { id: 'com.mossy.texture-tools', name: 'Texture Tools Pro', version: '3.2.1', author: 'Graphics Lab', description: 'Complete texture editing suite', downloads: 15420, rating: 4.8, tags: ['textures', 'editing'] },
-        { id: 'com.mossy.script-editor', name: 'Script Editor Plus', version: '2.0.0', author: 'Script Dev', description: 'Advanced script editing with debugger', downloads: 8932, rating: 4.6, tags: ['scripting'] }
-      ];
+      // There is no online plugin marketplace. This used to return two invented
+      // plugins ("Texture Tools Pro", "Script Editor Plus") with made-up download
+      // counts and ratings; plugins are installed from a folder instead.
+      const marketplacePlugins: any[] = [];
       auditLogger.log({
         operation: 'marketplace-listing',
         tool: 'plugin-manager',
@@ -13282,31 +13283,18 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
   registerHandler('plugin-manager:install', async (_event, pluginId: string, version: string) => {
     const startTime = Date.now();
     try {
-      const plugin = {
-        id: pluginId,
-        name: pluginId.split('.').pop() || 'Unknown',
-        version,
-        description: 'Plugin installed from marketplace',
-        author: 'Unknown',
-        path: `${pluginManagerSettings.installDirectory}/${pluginId}`,
-        enabled: true,
-        installed: true,
-        permissions: [],
-        dependencies: [],
-        created: Date.now(),
-        modified: Date.now()
-      };
-      pluginStorage.set(pluginId, plugin);
-      savePluginsToDisk();
+      // Used to record a plugin as "installed from marketplace" without downloading
+      // anything. There is no marketplace to download from, so say so.
       auditLogger.log({
         operation: 'plugin-installation',
         tool: 'plugin-manager',
         action: 'install',
-        status: 'success',
+        status: 'error',
         duration: Date.now() - startTime,
-        result: { pluginId, version, installPath: plugin.path }
+        error: 'no marketplace',
+        details: { pluginId, version }
       });
-      return { success: true, plugin };
+      return { success: false, error: 'Mossy has no online plugin marketplace. Download the plugin yourself and use "Install from Folder".' };
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] plugin-manager:install error:', errMsg);
@@ -13392,20 +13380,9 @@ Respond ONLY with the code block, wrapped in triple backticks with the language 
     try {
       const plugin = pluginStorage.get(pluginId);
       if (!plugin) throw new Error('Plugin not found');
-      const oldVersion = plugin.version;
-      plugin.version = newVersion;
-      plugin.modified = Date.now();
-      pluginStorage.set(pluginId, plugin);
-      savePluginsToDisk();
-      auditLogger.log({
-        operation: 'plugin-update',
-        tool: 'plugin-manager',
-        action: 'update',
-        status: 'success',
-        duration: Date.now() - startTime,
-        result: { pluginId, oldVersion, newVersion }
-      });
-      return { success: true, plugin };
+      // Used to change only the version number and report an update. There is no
+      // update source; a new version is installed from its folder over the old one.
+      throw new Error(`No update source for "${plugin.name || pluginId}". Download the new version and use "Install from Folder"; it replaces the installed one.`);
     } catch (error: any) {
       const errMsg = error instanceof Error ? error.message : String(error);
       console.error('[Main] plugin-manager:update error:', errMsg);

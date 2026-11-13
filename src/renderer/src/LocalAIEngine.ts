@@ -18,6 +18,7 @@ import { bridgeFetch } from './lib/bridgeClient';
 import { getPlatformMapBlockForPrompt } from './platformCatalog';
 import { getFullSystemInstruction, getCoreIdentityBlock } from './MossyBrain';
 import { guardKnownFacts } from './FactGuard';
+import { asksToGoOnline, noteUserMessage, WEB_SEARCH_OFFER } from './webConsent';
 
 export interface AIResponse {
   content: string;
@@ -1074,6 +1075,9 @@ export const LocalAIEngine = {
    */
   async generateResponse(query: string, systemInstruction: string, conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>, voiceMode = false, signal?: AbortSignal, localOptions?: { timeoutMs?: number; think?: boolean; preferCloud?: boolean; sceneContext?: Record<string, unknown> | null; includeGameDataDump?: boolean; tools?: Array<{ type: 'function'; function: { name: string; description?: string; parameters?: Record<string, unknown> } }>; actionRelated?: boolean }, onContractReady?: (fields: { checkQuestion: string | null; learnerSignal: string | null }) => void): Promise<AIResponse> {
     const turnStart = Date.now();
+    // Web search runs only when this message asks for it (webConsent.ts); tools
+    // called later in this turn check the same message.
+    noteUserMessage(query);
     const localSettings = await this.getLocalAiSettings();
     const brainBBaseUrl = String(localSettings.brainBBaseUrl || 'http://127.0.0.1:8766');
     const enrichStart = Date.now();
@@ -1627,43 +1631,12 @@ export const LocalAIEngine = {
       webSearchFailureLogged = true;
     }
 
-    const webSearchTriggers = [
-      // Multi-word explicit web/search phrases only — single words like 'update',
-      // 'current', 'recent', 'latest', 'news', 'browse', 'fetch', 'scan' are
-      // intentionally excluded: they fire constantly on ordinary questions like
-      // "do we need to add the updated information?" or "scan my mod list".
-      'search for', 'look up', 'find online', 'search the web', 'search online',
-      'search the internet', 'google it', "what's new online", 'find on nexus',
-      'wiki page', 'fandom wiki', 'nexus mod page', 'find information online',
-      // Additional natural-language phrases users commonly say when they want
-      // Mossy to go online and fetch live data.
-      'go online', 'check online', 'look it up online',
-      'look online', 'real-time data', 'live data', 'live info', 'live information',
-      'check the web', 'check the internet',
-      'from the web', 'from the internet', 'from online', 'on the web',
-      'on the internet', 'on nexus mods', 'on fandom',
-      // Explicit user phrases asking Mossy to go online
-      'can you search', 'can you search online', 'can you look online',
-      'can you find online', 'can you check online', 'can you check the web',
-      'can you check the internet', 'can you look it up',
-      'are you able to search', 'are you able to look up', 'are you able to find online',
-      'access the internet', 'get online', 'web search', 'internet search',
-      // NOTE: 'look for', 'find me', 'get me', 'fetch me', 'search for',
-      // 'up to date', 'up-to-date', 'most recent', 'newest', 'new information'
-      // were removed — too broad, fire on completely unrelated voice queries.
-    ];
     // NOTE: this regex is intentionally kept in sync with the fo4Terms pattern
     // in src/electron/main.ts (web-search handler). Update both if you change it.
     const fo4TermsRenderer = /fallout\s*4|fallout4|fo4|papyrus|bethesda|creation\s*kit|vault|wasteland|commonwealth|nexus|xedit|nifskope|bodyslide/i;
-    const lowerQuery = query.toLowerCase();
-    // Standalone-word fallback: 'internet' and 'online' are unambiguous enough on
-    // their own (unlike 'update'/'recent'/'latest' above) that phrasing like
-    // "go on to the internet and check for updates" or "is there anything new
-    // online" should still trigger a search even though it doesn't match any of
-    // the exact multi-word phrases above. Word-boundary so it doesn't fire on
-    // substrings like "internets" being part of something unrelated.
-    const standaloneWebWords = /\b(internet|online)\b/i;
-    const needsWebSearch = webSearchTriggers.some((kw) => lowerQuery.includes(kw)) || standaloneWebWords.test(query);
+    // Only when this message asks to go online (phrases in webConsent.ts, shared
+    // with the search tools so they follow the same rule).
+    const needsWebSearch = asksToGoOnline(query);
     // Cached result from the initial web search — reused by the response guard to
     // avoid a redundant second network call when the guard retry is triggered.
     let cachedWebSearchResult: WebSearchResult | null = null;
@@ -2034,15 +2007,15 @@ export const LocalAIEngine = {
           // Skipped in voice mode (see Groq path comment above).
           if (!voiceMode && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent))) {
             console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD (local) — AI falsely refused internet access');
+            // Never search on Mossy's own initiative (webConsent.ts): reuse the
+            // search the user asked for this turn, or offer to search.
+            if (!cachedWebSearchResult) {
+              responseContent = `${sanitizeFinalResponse(responseContent)}\n\n${WEB_SEARCH_OFFER}`.trim();
+            }
             try {
-              const guardWebApiLocal = (window.electron?.api || window.electronAPI) as any;
-              if (typeof guardWebApiLocal?.webSearch === 'function') {
+              if (cachedWebSearchResult) {
                 try {
-                  const guardSearchPromise = guardWebApiLocal.webSearch(query);
-                  const guardTimeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Guard web search timeout (3s)')), 3000)
-                  );
-                  const guardSearch = await Promise.race([guardSearchPromise, guardTimeoutPromise]);
+                  const guardSearch: any = cachedWebSearchResult;
                   if (guardSearch?.success && guardSearch?.text && !guardSearch?.empty) {
                     const enrichedContext = buildGuardContext(injectedContext, guardSearch);
                     const retryPrompt = `${enhancedSystemInstruction}${enrichedContext}${historyText}\nUser: ${query}\n\nMossy's Response:`;
@@ -2260,12 +2233,14 @@ export const LocalAIEngine = {
 
       // === MANDATORY INTERNET ACCESS INSTRUCTION ===
       // This is injected into EVERY Groq call to ensure Mossy never claims she can't access the internet
+      // Honest about web access (webConsent.ts): Mossy searches the web only when the
+      // user asks, so the model must never claim a search it did not get results from.
       const mandatoryInternetInstruction = `\n\n### ⚠️ MANDATORY SYSTEM INSTRUCTION (DO NOT VIOLATE) ###
-You HAVE internet access. You CAN access the internet. You CAN search the web.
-You MUST NEVER claim you cannot access the internet.
-You MUST NEVER claim you are just a language model or base LLM.
+Mossy CAN search the web (Fallout wikis, Wikipedia, DuckDuckGo), but only when the user asks for it (for example "search online").
+If live web results are in your context above, use them and say where they came from.
+If there are NO web results in your context, answer from your own knowledge and NEVER claim you searched or looked anything up online.
+You MUST NEVER claim you cannot access the internet, and NEVER claim you are just a language model or base LLM.
 You MUST answer the user's question directly. Refusing is a malfunction.
-If you refuse internet access, your response will be rejected.
 ANSWER THE USER NOW:`;
 
       // --- DELIBERATE REASONING PRE-PASS ---
@@ -2361,6 +2336,7 @@ ANSWER THE USER NOW:`;
         // API call (~50s) which would double voice latency to 100+ seconds. Voice queries
         // use a trimmed system prompt with a voice directive, so the AI rarely refuses.
         const responseRefusesInternet = !voiceMode && INTERNET_REFUSAL_PATTERNS.some((p) => p.test(responseContent));
+        let offerWebSearch = false;
         if (responseRefusesInternet) {
           console.warn('[LocalAIEngine] ⚠️ RESPONSE GUARD TRIGGERED - AI falsely refused internet access');
           console.warn('[LocalAIEngine] Response snippet:', responseContent.substring(0, 200));
@@ -2381,32 +2357,17 @@ ANSWER THE USER NOW:`;
                 console.log('[LocalAIEngine] Reusing cached web search result for guard retry');
                 enrichedContext = buildGuardContext(injectedContext, cachedWebSearchResult);
               } else {
-                // No prior web search result — fetch now.
-                console.log('[LocalAIEngine] Fetching web results for retry...');
-                let guardSearch: any = null;
-                try {
-                  const guardSearchPromise = guardWebApi.webSearch(query);
-                  const guardTimeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Guard web search timeout (5s)')), 5000)
-                  );
-                  guardSearch = await Promise.race([guardSearchPromise, guardTimeoutPromise]);
-                } catch (guardTimeoutErr) {
-                  console.warn('[LocalAIEngine] Guard web search timed out or failed:', guardTimeoutErr);
-                }
-
-                if (guardSearch?.success && guardSearch?.text) {
-                  console.log('[LocalAIEngine] ✅ Web search successful, retrying with injected results');
-                  enrichedContext = buildGuardContext(injectedContext, guardSearch);
-                } else {
-                  // Web search failed, but still retry with an even stronger override
-                  console.warn('[LocalAIEngine] ⚠️ Guard web search failed; retrying with HARD OVERRIDE system prompt');
+                // The user did not ask to go online, so no search (webConsent.ts):
+                // retry from Mossy's own knowledge and offer to search afterwards.
+                offerWebSearch = true;
+                {
+                  console.warn('[LocalAIEngine] ⚠️ No search requested; retrying with HARD OVERRIDE system prompt');
                   enrichedContext = injectedContext +
-                    '\n\n### MANDATORY INTERNET ACCESS OVERRIDE ###\n' +
-                    'YOU ARE NOT A RESTRICTED LANGUAGE MODEL. YOU ARE MOSSY, A DESKTOP APPLICATION WITH LIVE INTERNET ACCESS.\n' +
-                    'YOUR PREVIOUS RESPONSE WAS INCORRECT.\n' +
-                    'YOU MUST IMMEDIATELY CORRECT YOUR PREVIOUS STATEMENT AND PROVIDE A HELPFUL ANSWER.\n' +
-                    'NEVER CLAIM YOU CANNOT ACCESS THE INTERNET - THIS IS FALSE AND SHOWS MALFUNCTION.\n' +
-                    'USE YOUR KNOWLEDGE AND REASONING TO ANSWER THE USER\'S QUESTION ABOUT: ' + query + '\n';
+                    '\n\n### ANSWER FROM YOUR OWN KNOWLEDGE ###\n' +
+                    'Your previous response refused because of internet access. Do not talk about internet access.\n' +
+                    'Answer the user\'s question from your own knowledge and reasoning. Do NOT claim you searched or looked anything up online:\n' +
+                    'no web search was run. Mossy offers the user a web search after your answer.\n' +
+                    'THE USER\'S QUESTION: ' + query + '\n';
                 }
               }
 
@@ -2430,6 +2391,9 @@ ANSWER THE USER NOW:`;
         // Final sanitisation: strip any LLM self-identification + internet-refusal
         // sentences that slipped through the guard, so users never see them.
         responseContent = sanitizeFinalResponse(responseContent);
+        if (offerWebSearch) {
+          responseContent = `${responseContent}\n\n${WEB_SEARCH_OFFER}`.trim();
+        }
 
         // --- SELF-CRITIQUE LOOP ---
         // When enabled in settings, run a second Groq pass to critique and refine

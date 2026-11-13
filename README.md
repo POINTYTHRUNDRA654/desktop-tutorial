@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.10** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.11** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,11 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.10 (Latest):**
+**New in v6.0.11 (Latest):**
+- ✅ **Web search only when you ask** - Mossy no longer searches the web on her own; she offers to, and searches when you say "search online"
+- ✅ **No made-up screens** - the demo Cloud Sync page is removed, and the Plugin Manager no longer lists invented marketplace plugins or a telemetry switch that did nothing
+
+**From v6.0.10:**
 - ✅ **Universal edition: Blender add-on download fixed** - the Universal installer of 6.0.9 was missing the bundled add-on zip
 - ✅ **About 40% smaller installers** (NVIDIA about 177 MB instead of 293 MB, Universal about 172 MB instead of 290 MB; installed about 226 MB smaller) - unused files and duplicate copies removed; everything works as before
 - ✅ **Bundled Blender add-on 5.5.2** - the add-on Mossy hands out is the latest release
@@ -114,7 +118,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.10)
+- Version is auto-set from `package.json` (currently 6.0.11)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -593,7 +597,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.10.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.11.exe`).
 
 ---
 

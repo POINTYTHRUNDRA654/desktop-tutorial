@@ -3954,17 +3954,17 @@ export const tutorialContexts: Record<string, TutorialPageContext> = {
     route: '/dev/plugin-manager',
     purpose: 'Manage and configure plugins that extend Mossy functionality',
     features: [
-      'Plugin installation and removal',
+      'Plugin installation from a downloaded folder, and removal',
       'Plugin configuration',
       'Extension management',
       'Compatibility checking',
-      'Plugin updates',
+      'Updating a plugin by installing its new version from its folder (there is no online plugin marketplace)',
     ],
     controls: [
       {
         name: 'Install Plugin Button',
         type: 'button',
-        description: 'Add new plugins to extend functionality',
+        description: 'Add a plugin you downloaded, from its folder',
         whenToUse: 'When you want to add new features',
       },
       {

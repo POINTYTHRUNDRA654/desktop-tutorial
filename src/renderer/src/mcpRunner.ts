@@ -115,6 +115,8 @@ async function handle(req: McpRequest): Promise<unknown> {
     setProjectData: () => {},
     setProjectContext: () => {},
     setShowProjectPanel: () => {},
+    // The user's own agent asked for this tool directly (no chat message to check).
+    allowWeb: true,
   });
 }
 

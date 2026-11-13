@@ -49,12 +49,14 @@ export const PluginManager: React.FC = () => {
     error: null,
   });
 
+  // There is no online marketplace, update source or telemetry (main.ts plugin-manager
+  // handlers); those settings stay off and are not shown. Plugins install from a folder.
   const [settings, setSettings] = useState<PluginSettings>({
-    autoUpdate: true,
-    marketplaceSources: ['https://marketplace.mossy.dev', 'https://community.mossy.dev'],
+    autoUpdate: false,
+    marketplaceSources: [],
     installDirectory: '~/.mossy/plugins',
     allowUnsigned: false,
-    enableTelemetry: true,
+    enableTelemetry: false,
   });
 
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
@@ -303,12 +305,12 @@ export const PluginManager: React.FC = () => {
         <div className="plugin-empty-state">
           <div className="empty-icon">📦</div>
           <h3>No Plugins Installed</h3>
-          <p>Explore the marketplace to find and install plugins</p>
+          <p>Download a Mossy plugin, then install it from its folder.</p>
           <button
             className="btn btn-primary"
-            onClick={() => setState(s => ({ ...s, activeTab: 'marketplace' }))}
+            onClick={() => void handleInstallFromFolder()}
           >
-            Browse Marketplace
+            Install a Plugin from Its Folder
           </button>
         </div>
       );
@@ -348,12 +350,6 @@ export const PluginManager: React.FC = () => {
                 onClick={() => handleShowDetails(plugin)}
               >
                 Details
-              </button>
-              <button
-                className="btn btn-sm btn-link"
-                onClick={() => handleUpdatePlugin(plugin.id)}
-              >
-                Update
               </button>
               <button
                 className="btn btn-sm btn-link text-danger"
@@ -557,41 +553,6 @@ export const PluginManager: React.FC = () => {
     return (
       <div className="settings-section">
         <div className="settings-form">
-          {/* Auto-update */}
-          <div className="setting-group">
-            <h3>🔄 Automatic Updates</h3>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={settings.autoUpdate}
-                onChange={e =>
-                  setSettings({ ...settings, autoUpdate: e.target.checked })
-                }
-              />
-              <span>Automatically update plugins when new versions are available</span>
-            </label>
-            <p className="setting-description">
-              Plugins will be updated in the background without interrupting your workflow
-            </p>
-          </div>
-
-          {/* Marketplace Sources */}
-          <div className="setting-group">
-            <h3>🏪 Marketplace Sources</h3>
-            <p className="setting-description">
-              Configure where plugins are sourced from
-            </p>
-            <div className="sources-list">
-              {settings.marketplaceSources.map((source, idx) => (
-                <div key={idx} className="source-item">
-                  <input type="text" value={source} readOnly className="source-input" />
-                  <button className="btn btn-sm btn-link text-danger">Remove</button>
-                </div>
-              ))}
-            </div>
-            <button className="btn btn-sm btn-secondary">Add Source</button>
-          </div>
-
           {/* Install Directory */}
           <div className="setting-group">
             <h3>📁 Plugin Directory</h3>
@@ -629,24 +590,6 @@ export const PluginManager: React.FC = () => {
             </p>
           </div>
 
-          {/* Telemetry & Analytics */}
-          <div className="setting-group">
-            <h3>📊 Telemetry</h3>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={settings.enableTelemetry}
-                onChange={e =>
-                  setSettings({ ...settings, enableTelemetry: e.target.checked })
-                }
-              />
-              <span>Send plugin usage analytics</span>
-            </label>
-            <p className="setting-description">
-              Helps us understand which plugins are most useful and improve them
-            </p>
-          </div>
-
           {/* Action Buttons */}
           <div className="settings-footer">
             <button className="btn btn-primary" onClick={handleSaveSettings}>
@@ -656,11 +599,11 @@ export const PluginManager: React.FC = () => {
               className="btn btn-secondary"
               onClick={() =>
                 setSettings({
-                  autoUpdate: true,
-                  marketplaceSources: ['https://marketplace.mossy.dev'],
+                  autoUpdate: false,
+                  marketplaceSources: [],
                   installDirectory: '~/.mossy/plugins',
                   allowUnsigned: false,
-                  enableTelemetry: true,
+                  enableTelemetry: false,
                 })
               }
             >
@@ -944,7 +887,7 @@ export const PluginManager: React.FC = () => {
 
       {/* Tab Navigation */}
       <div className="tab-navigation">
-        {['installed', 'marketplace', 'developer', 'settings'].map(tab => (
+        {['installed', 'developer', 'settings'].map(tab => (
           <button
             key={tab}
             className={`tab-btn ${state.activeTab === tab ? 'active' : ''}`}
@@ -970,7 +913,6 @@ export const PluginManager: React.FC = () => {
       {!state.loading && (
         <div className="tab-content">
           {state.activeTab === 'installed' && renderInstalledPlugins()}
-          {state.activeTab === 'marketplace' && renderMarketplace()}
           {state.activeTab === 'developer' && renderDeveloperTools()}
           {state.activeTab === 'settings' && renderSettings()}
         </div>
