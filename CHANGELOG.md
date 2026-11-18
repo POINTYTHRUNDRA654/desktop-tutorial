@@ -1,5 +1,13 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.12] — 2026-11-17
+
+### Added
+- **Brain B 1.2.9: 30 new verified Blender and Fallout 4 entries** (2 more reworded). Wind on plants and trees: in the vanilla game 3D parts stay still and only flat leaves move (measured on all 325 vanilla wind models); thin 3D stalks may bend like the vanilla kelp; plants that go invisible or black after wind is added; a retextured vanilla bush whose pieces come apart in the wind gets the vanilla wind back; small pieces that "breathe". Collision: one hull per plant and never on leaves, mushroom stems and caps, collision on scaled nodes, hulls with missing sides, doubled collision after re-export, roots that block the path, AI skins over buildings with clear doorways, duplicate NavCut names. Also tree LODs like the pre-war trees, leaf cards, texture holes along painted edges, and the Blender add-on's Skin Builder, Tree Tools and Auto-Repair.
+
+### Changed
+- **Bundled Blender add-on is 5.5.3** (Skin Builder, Tree Tools, wind and collision fixes).
+
 ## [6.0.11] — 2026-11-12
 
 ### Changed

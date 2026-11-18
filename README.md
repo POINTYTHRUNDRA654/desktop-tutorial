@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.11** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.12** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,11 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.11 (Latest):**
+**New in v6.0.12 (Latest):**
+- ✅ **Brain B 1.2.9** - Mossy now answers questions on wind for plants and trees (what stays still and what moves, measured on every vanilla wind model), plants that turn black or invisible after wind, retextured DLC bushes coming apart in the wind, collision for trees, roots, mushrooms and AI skins over buildings, doorways, texture-edge holes and the Blender add-on's new Skin Builder and Tree Tools, all checked against the game files
+- ✅ **Bundled Blender add-on 5.5.3** - the add-on Mossy hands out is the latest release
+
+**From v6.0.11:**
 - ✅ **Web search only when you ask** - Mossy no longer searches the web on her own; she offers to, and searches when you say "search online"
 - ✅ **No made-up screens** - the demo Cloud Sync page is removed, and the Plugin Manager no longer lists invented marketplace plugins or a telemetry switch that did nothing
 
@@ -118,7 +122,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.11)
+- Version is auto-set from `package.json` (currently 6.0.12)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -597,7 +601,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.11.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.12.exe`).
 
 ---
 

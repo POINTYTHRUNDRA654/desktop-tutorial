@@ -193,7 +193,7 @@ OLLAMA_MODEL = os.environ.get("MOSSY_OLLAMA_MODEL", "gemma2:9b")
 # A version string plus the route list below turns that into an immediate,
 # legible "running, v1.0.0, /enrich missing" instead of a silent failure that
 # took hours to trace.
-NEXUS_BUILD_VERSION = "1.2.8"
+NEXUS_BUILD_VERSION = "1.2.9"
 BACKEND_UNAVAILABLE_MESSAGE = (
     "I can't reach your local AI (Ollama) right now, so I can't generate a full answer. "
     "Start Ollama and make sure a model is installed. Retrieval and citations below still "
@@ -599,6 +599,33 @@ def _citation_from_result(r: dict) -> dict:
         "source_url": meta.get("source_url") or None,
         "license": meta.get("license") or None,
     }
+
+
+# HyDE (Gao et al. 2022, "Precise Zero-Shot Dense Retrieval without Relevance Labels"): the local model first writes
+# a short guessed answer, and retrieval searches with question + guess, so a vaguely worded question ("why would the
+# tree cause a freeze") can still reach the entry written in modding terms. OFF by default; an A/B experiment switch,
+# like the reranker. MOSSY_BRAINB_HYDE = "content" uses the guess only for the context sent to generation (the
+# abstain/hedge/confident gate keeps the plain question its thresholds were measured on); "both" also feeds it to
+# the gate (its BM25 margin then is NOT comparable to retrieval_tuning.py's thresholds). The guess itself is never
+# shown or used as an answer, only as search text. Decision record: see the A/B write-up in project memory.
+HYDE_MODE = os.environ.get("MOSSY_BRAINB_HYDE", "").strip().lower()
+
+
+def hyde_query(question: str) -> tuple[str, str]:
+    """(search text, the guess). Falls back to the plain question when HyDE is off or the model is unavailable."""
+    if HYDE_MODE not in ("content", "both"):
+        return question, ""
+    prompt = ("You are an expert Fallout 4 modder. Write a short, plain answer (3 sentences at most) to this question, "
+              "naming the likely cause and the Fallout 4 / Creation Kit / NIF / Blender terms involved. "
+              "Do not add a preamble.\n\nQuestion: " + question)
+    try:
+        guess = generate_text_backend(prompt, max_new_tokens=160, temperature=0.2)
+    except Exception as exc:
+        log.warning("HyDE guess failed, using the plain question: %s", exc)
+        return question, ""
+    if not guess:
+        return question, ""
+    return question + "\n" + guess, guess
 
 
 def hybrid_retrieve(query: str, top_k: int = 10, probe_k: int | None = None,
@@ -1913,8 +1940,12 @@ def enrich():
 
     episodes = search_episodes(question, limit=3)
 
+    # HyDE experiment switch (off by default; see hyde_query()).
+    search_text, hyde_guess = hyde_query(question)
+
     # Abstention gate — identical logic to /infer's, moved here unchanged.
-    probe, _retrieval_diag = hybrid_retrieve(question, top_k=6, probe_k=30, return_diagnostics=True)
+    probe, _retrieval_diag = hybrid_retrieve(search_text if HYDE_MODE == "both" else question,
+                                             top_k=6, probe_k=30, return_diagnostics=True)
     agreement = sum(1 for r in probe if r["source"] == "vector+bm25")
     bm25_scores = _retrieval_diag["bm25_scores"]
     bm25_margin = (bm25_scores[0] - bm25_scores[-1]) if len(bm25_scores) >= 2 else None
@@ -2031,7 +2062,7 @@ def enrich():
     # (probe_k=30) for agreement scoring, not for content; this mirrors what
     # infer_answer() already did as two separate retrieval calls before this
     # split, so total retrieval-call count is unchanged, just relocated.
-    results = hybrid_retrieve(question, top_k=6)
+    results = hybrid_retrieve(search_text, top_k=6)
     ctx = "\n\n".join(expand_to_parent(results))
     sources = [_citation_from_result(r) for r in results]
     used_web = False
@@ -2153,6 +2184,7 @@ def enrich():
         "retrieval_agreement": agreement, "retrieval_margin": bm25_margin,
         "retrieval_tier": retrieval_tier,
         "learned_lessons_used": [l.get("id") for l in learned_lessons],
+        **({"hyde_guess": hyde_guess} if hyde_guess else {}),
     })
 
 
