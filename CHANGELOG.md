@@ -1,5 +1,16 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.13] — 2026-11-19
+
+### Added
+- **Brain B 1.2.10: Mossy knows the Creation Kit editor itself.** Every main-menu command and its keyboard shortcut (File, Edit, View, World, NavMesh, Visibility, Character, Gameplay, Help), the Render Window keys and right-click menu, and the full list of windows, read from the Creation Kit program itself, plus 205 more Creation Kit wiki pages about the editor (Render Window, Object Window, Cell View, every record's editor window, Landscape Edit, navmesh, tutorials). Short checked how-tos: light master (ESL) conversion and compacting, collision view, precombines and previs, packing an archive, navmesh, layers, terrain, compiling scripts.
+- **xEdit (FO4Edit):** loading plugins and reading the window, conflicts and the colour legend, building a patch by hand, Quick Auto Clean, Check for Errors and masters, FormIDs, ESL compacting and its dangers, merging, splitting and comparing plugins, ModGroups, every command-line switch, how scripts run and which script functions really exist (several are missing or wrong in the bundled xEditAPI.pas), and building a whole mod as one ESP from vanilla assets. Checked against xEdit 4.1.5f's own source and help, and tested by building a small mod with xEdit scripts.
+- **Navmesh after terrain edits** (floating or buried navmesh, how to rebuild without deleting vanilla navmesh records, navmesh on river beds), **rigid idle-loop sway** for 3D plant parts that "breathe" in the wind, the Creation Kit crash **"Sequence already has an owner"**, and **Nexus Mods' AI disclosure** rules.
+- **AI disclosure reminder:** when Mossy helps you make something with AI (AI meshes, textures, upscales, voices, or code and text written with her help), she reminds you once to list it on your mod page, explains the Nexus Mods labels (AI-Generated Content, AI Media, AI Assisted) and offers to draft the statement.
+
+### Changed
+- **Bundled Blender add-on is 5.5.4** (Build Game-Ready (Vanilla Style), tree-shape LODs, LOD and export fixes).
+
 ## [6.0.12] — 2026-11-17
 
 ### Added

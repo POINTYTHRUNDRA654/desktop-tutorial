@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.12** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.13** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,12 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.12 (Latest):**
+**New in v6.0.13 (Latest):**
+- ✅ **Brain B 1.2.10** - Mossy knows the Creation Kit editor itself (every menu, window and shortcut, 205 more editor wiki pages) and xEdit (conflicts, patches, cleaning, masters, ESL, scripting, building a mod as one ESP), plus navmesh after terrain edits, idle-loop sway for plants and Nexus Mods' AI disclosure rules
+- ✅ **AI disclosure reminder** - when Mossy helps you make something with AI, she reminds you to list it on your mod page and offers to write the statement
+- ✅ **Bundled Blender add-on 5.5.4** - adds Build Game-Ready (Vanilla Style) and tree-shape LODs
+
+**From v6.0.12:**
 - ✅ **Brain B 1.2.9** - Mossy now answers questions on wind for plants and trees (what stays still and what moves, measured on every vanilla wind model), plants that turn black or invisible after wind, retextured DLC bushes coming apart in the wind, collision for trees, roots, mushrooms and AI skins over buildings, doorways, texture-edge holes and the Blender add-on's new Skin Builder and Tree Tools, all checked against the game files
 - ✅ **Bundled Blender add-on 5.5.3** - the add-on Mossy hands out is the latest release
 
@@ -122,7 +127,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.12)
+- Version is auto-set from `package.json` (currently 6.0.13)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -601,7 +606,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.12.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.13.exe`).
 
 ---
 
