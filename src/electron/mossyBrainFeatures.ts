@@ -462,6 +462,7 @@ export async function systemMetricsPoll(): Promise<{ ok: boolean; metrics?: Syst
 }
 
 export function systemMetricsGet(): { ok: boolean; metrics?: SystemMetrics; error?: string } {
+    startSystemMetricsPoller(); // lazy (2026-11-20): only runs once something actually asks for metrics
     try {
         return { ok: true, metrics: lastMetrics };
     } catch (err: any) {
@@ -533,6 +534,7 @@ async function collectSystemMetrics(): Promise<SystemMetrics> {
 export function initMossyBrainFeatures() {
     initSessionJournal();
     initContextBus();
-    startSystemMetricsPoller();
+    // startSystemMetricsPoller() is no longer started here (2026-11-20): it ran nvidia-smi/wmic every 5 s for the
+    // whole session although no screen reads it. It starts on the first systemMetricsGet()/poll/subscribe instead.
     console.log('[MossyBrain] All features initialized');
 }

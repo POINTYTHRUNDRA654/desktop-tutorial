@@ -1,6 +1,7 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { probeProcessList } from './systemProbe';
 
 const execAsync = promisify(exec);
 
@@ -58,9 +59,33 @@ const MODDING_TOOLS = [
  * Get a list of running processes that match our modding tools list
  */
 export async function getRunningModdingTools(): Promise<RunningProcess[]> {
+  // Shared 3 s cache (2026-11-20): MO2's bridge polls every 5 s, CK Crash Prevention every 3 s and chat on
+  // demand; they all get the same answer instead of each starting a process list.
+  if (lastResult && Date.now() - lastResult.at < RESULT_CACHE_MS) return lastResult.tools;
   if (inFlight) return inFlight;
-  inFlight = runTasklist().finally(() => { inFlight = null; });
+  inFlight = listViaProbeOrTasklist()
+    .then(tools => { lastResult = { at: Date.now(), tools }; return tools; })
+    .finally(() => { inFlight = null; });
   return inFlight;
+}
+
+const RESULT_CACHE_MS = 3000;
+let lastResult: { at: number; tools: RunningProcess[] } | null = null;
+
+const isModdingTool = (name: string, windowTitle: string) => MODDING_TOOLS.some(tool =>
+  name.toLowerCase().includes(tool.toLowerCase()) ||
+  windowTitle.toLowerCase().includes(tool.toLowerCase())
+);
+
+/** The long-lived probe helper first (~100 ms, no new process); `tasklist /V` only if the helper isn't available.
+ *  Measured 2026-11-20: tasklist /V took 34 s on a busy PC and was killed by its own 8 s timeout every time. */
+async function listViaProbeOrTasklist(): Promise<RunningProcess[]> {
+  const all = await probeProcessList();
+  if (all) {
+    return all.filter(p => isModdingTool(p.name, p.windowTitle))
+      .map(p => ({ name: p.name, pid: p.pid, memory: p.memory, windowTitle: p.windowTitle }));
+  }
+  return runTasklist();
 }
 
 async function runTasklist(): Promise<RunningProcess[]> {

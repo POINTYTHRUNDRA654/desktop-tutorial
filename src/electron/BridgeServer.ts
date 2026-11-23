@@ -10,6 +10,7 @@ import { clipboard, nativeImage, screen, app, BrowserWindow } from 'electron';
 import AdmZip from 'adm-zip';
 import { extractFormIDs } from './espParser';
 import { readCkpeSetup, summarizeCkpeSetup } from './ckpeSetup';
+import { probeForegroundProcess, probeScreenshot } from './systemProbe';
 
 /**
  * Result of reading CKPE's (Creation Kit Platform Extended) log for real
@@ -469,6 +470,10 @@ export class BridgeServer {
      * doesn't get logged as a real absence.
      */
     private async _getForegroundProcessName(): Promise<string | null> {
+        // Long-lived helper first (2026-11-20): ~7 ms instead of a new powershell.exe + C# compile every 5 s
+        // (measured 0.56 s CPU / 0.72 s each, ~400 CPU-s an hour). The code below is the fallback.
+        const fast = await probeForegroundProcess();
+        if (fast !== null) return fast || null;
         const script = [
             'Add-Type @"',
             'using System;',
@@ -504,7 +509,9 @@ export class BridgeServer {
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width, height } = primaryDisplay.size;
         const tmpPath = path.join(os.tmpdir(), `mossy_capture_${Date.now()}.png`);
-        await new Promise<void>((resolve, reject) => {
+        // Same System.Drawing capture through the long-lived helper (2026-11-20) -- no new PowerShell per shot.
+        const viaProbe = await probeScreenshot(width, height, tmpPath);
+        if (!viaProbe) await new Promise<void>((resolve, reject) => {
             const psScript = [
                 `Add-Type -AssemblyName System.Windows.Forms`,
                 `$bmp = New-Object System.Drawing.Bitmap(${width},${height})`,

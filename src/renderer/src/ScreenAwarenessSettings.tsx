@@ -135,8 +135,9 @@ export const ScreenAwarenessSettings: React.FC<{ embedded?: boolean }> = ({ embe
         <div className="text-[11px] text-slate-500">
           Every pass (matched, proposed, or nothing notable) logs to
           %APPDATA%/.mossy-desktop/ai-diagnostics.log under [screen-awareness].
-          This setting is remembered — leaving it on restarts watching automatically
-          the next time Mossy launches.
+          It is off every time Mossy starts and only runs after you press Turn on: while a
+          watched tool is in front it takes a screenshot every 5 seconds and reads it, which
+          uses a lot of your PC.
         </div>
       </div>
     </div>

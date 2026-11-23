@@ -1,5 +1,19 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.14] — 2026-11-20
+
+### Added
+- **AI Image Studio: two new local image engines.** Z-Image-Turbo (spells text right; posters, signs, concept art) and FLUX.2 [klein] 4B (most realistic surfaces), both Apache-2.0 and free for any use. Generate offers SDXL, Z-Image or FLUX.2 klein; the Models tab downloads their files.
+- **Make Seamless:** turns a texture into one that tiles. Only the seams are repainted; every other pixel stays exactly yours. Shows the seam strength before and after and a 2x2 tiled preview.
+- **Edit texture:** describe a material change (wetter, older, mossier) and FLUX.2 klein keeps the layout. "Keep real photo detail" puts the photo's own grain and scratches back at 2048 or full size.
+- **My texture library:** add your texture folders (photo libraries, your own mods, the textures you unpacked from Fallout 4) and pick from them in Edit and Seamless, DDS included. Every texture is sorted by what may be shipped (CC0, your own work, Fallout 4 game files, check licence, unknown), with a warning on anything that is not safe to put in a released mod, and a "not for shipping" list you can save. Nothing in your folders is changed.
+
+### Changed
+- **Mossy no longer slows your PC down.** While idle, Mossy used to start dozens of small programs every minute (a PowerShell plus a C# compile every 5 seconds, tasklist and nvidia-smi checks). One helper that stays running now answers those questions in milliseconds, tool checks share one answer, the unused system-metrics poller only starts when something asks for it, and Brain B runs at below-normal priority.
+- **Mod Organizer is now really detected as running** (the old check timed out before it answered).
+- **Screen Awareness is off every time Mossy starts** and only runs after you press Turn on in Settings.
+- **Bundled Blender add-on is 5.5.5** (Blender 5.3 fixes).
+
 ## [6.0.13] — 2026-11-19
 
 ### Added

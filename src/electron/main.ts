@@ -111,6 +111,8 @@ import { formatFO4KnowledgeBaseForAI } from '../shared/FO4KnowledgeBase';
 import { writeBgsmFile, BgsmWriteInput } from './bgsmWriter';
 import { recordOutcome as recordEnhancerOutcome, getLearnedStats as getEnhancerLearnedStats, resetLearning as resetEnhancerLearning } from './textureEnhancerLearning';
 import sharp from 'sharp';
+import { registerModernImagingHandlers } from './comfyModernImaging';
+import { registerTextureLibraryHandlers } from './textureLibrary';
 import { DataSource, MiningResult } from '../shared/types';
 import { whisperServer } from './whisperServerManager';
 import { rmbgServer } from './rmbgServerManager';
@@ -21115,6 +21117,15 @@ Rules:
     }
   });
 
+  // Z-Image-Turbo + FLUX.2 klein 4B (both Apache-2.0): text-to-image, klein texture edit, and Make Seamless.
+  // Separate module, added alongside the SDXL checkpoint handlers above (which are unchanged).
+  registerModernImagingHandlers(registerHandler, COMFYUI_BASE);
+  // The user's own photo-texture library, sorted by what may be shipped (see textureLibrary.ts).
+  registerTextureLibraryHandlers(registerHandler, {
+    userDataDir: app.getPath('userData'), downloadsDir: app.getPath('downloads'),
+    findTexconv: () => findTexconv(null),   // the Creation Kit's own texconv (Tools\Elric), for DDS textures
+  });
+
   // ── ComfyUI-RMBG background removal (second backend) ────────────────────────
   // Uses the user's own separately-installed ComfyUI + 1038lab/ComfyUI-RMBG custom
   // node (GPL-3.0 wrapper) over HTTP — MOSSY.SPACE never bundles/links this code,
@@ -35511,6 +35522,9 @@ async function startBrainBProcess(onStatus?: (status: { phase: 'starting' | 'rea
     });
     _brainBProcess.on('exit', () => { _brainBProcess = null; });
     _brainBProcess.on('error', () => { _brainBProcess = null; });
+    // Below-normal priority (2026-11-20): Brain B's OCR/embedding uses every CPU core in bursts (137 threads,
+    // ~3,500 CPU-s in its first 40 min on a test PC); the program the user is working in should always win.
+    try { if (_brainBProcess.pid) os.setPriority(_brainBProcess.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* best effort */ }
     // Poll /health until it responds (up to 60s — mostly ChromaDB/fastembed cold start)
     for (let i = 0; i < 60; i++) {
       await new Promise(r => setTimeout(r, 1000));
@@ -37371,12 +37385,14 @@ app.whenReady().then(() => {
     }
   });
 
-  // Same precedent as Brain B above: if the user left Screen Awareness on
-  // last session (screen-awareness:start persists this), restore it now
-  // instead of requiring another click in Settings every launch.
+  // Screen Awareness is NOT restored at launch any more (2026-11-20: off until the user switches it on).
+  // While a watched tool is in front it takes a screenshot every 5 s and Brain B reads it with OCR -- the
+  // heaviest thing Mossy does -- so every session starts with it off until the user presses Turn on in
+  // Settings. The old restore below only runs if screenAwarenessRestoreOnLaunch is set explicitly
+  // (no UI sets it; kept so the earlier behaviour can be brought back without rewriting this).
   try {
     const startupSettings = loadSettings();
-    if (startupSettings?.screenAwarenessAutoStart) {
+    if (startupSettings?.screenAwarenessAutoStart && (startupSettings as any)?.screenAwarenessRestoreOnLaunch === true) {
       const savedTools = Array.isArray(startupSettings.screenAwarenessTools)
         ? startupSettings.screenAwarenessTools as string[]
         : undefined; // undefined -> startScreenAwareness() defaults to watching all known tools
