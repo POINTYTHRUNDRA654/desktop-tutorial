@@ -1,5 +1,20 @@
 # MOSSY.SPACE Changelog
 
+## [6.0.15] — 2026-11-26
+
+### Added
+- **Brain B 1.2.11: 12 new checked answers.**
+  - **Grass models that crash the game** when you get near a region (a bush or other nested object inside a grass NIF; what vanilla grass models look like).
+  - **Collision in the wrong place** (hulls built from a shape's raw vertices instead of its world position) and collision copied from a bigger model.
+  - **Dark texture bakes** of imported Fallout 4 meshes in Blender (PyNifly's material feeds the specular map into Metallic), and **merging several meshes into one texture** by baking.
+  - **Which UV unwrap tool to use**, measured on a real mesh (UVReady, UVgami, Smart UV Project and the add-on's UV Kit).
+  - **Texture paths in NIF vs BGSM files** (checked on every vanilla NIF), **raw NIF UV direction**, and **which NIF tangent field holds which direction** (checked on vanilla meshes).
+  - **Single-triangle grass cards** that show cut-off or repeated plants.
+  - The Blender add-on's **Build Game-Ready** and **Hunyuan3D Image to Mesh** (which picture to use, how long it takes, why only the front gets a texture), and Mossy's **AI Image Studio**.
+
+### Changed
+- **Bundled Blender add-on is 5.5.6.** Hunyuan3D Image to Mesh finishes with a texture and runs on your spare graphics card; optional MeshLab simplifier for LODs; re-exported NIFs keep their shader animations.
+
 ## [6.0.14] — 2026-11-20
 
 ### Added

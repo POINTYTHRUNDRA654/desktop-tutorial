@@ -1,6 +1,6 @@
 # Mossy - The Fallout 4 Modding Assistant
 
-**Mossy v6.0.14** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
+**Mossy v6.0.15** - A production-ready Electron desktop application for Fallout 4 modding with AI assistance, real-time analysis, direct-write scripting, and professional asset optimization.
 
 ## Support the Developer
 
@@ -19,7 +19,11 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 ## 🚀 Onboarding & Installer Notes
 
-**New in v6.0.14 (Latest):**
+**New in v6.0.15 (Latest):**
+- ✅ **Brain B 1.2.11** - 12 new checked answers: grass models that crash the game near a region, collision that sits in the wrong place, dark texture bakes in Blender, merging meshes into one texture, which UV unwrap tool to use, texture paths in NIF vs BGSM, NIF UV direction and tangents, single-triangle grass cards, Build Game-Ready, AI Image Studio and Hunyuan3D Image to Mesh
+- ✅ **Bundled Blender add-on 5.5.6** - Hunyuan3D Image to Mesh finishes with a texture and uses your spare graphics card, MeshLab simplifier for LODs, re-export keeps shader animations
+
+**From v6.0.14:**
 - ✅ **AI Image Studio** - Z-Image-Turbo and FLUX.2 klein engines, Make Seamless for tiling textures, Edit texture with real photo detail kept, and your own texture library sorted by what is safe to ship
 - ✅ **Mossy no longer slows your PC down** - background checks that started dozens of programs a minute are replaced by one helper; Screen Awareness starts off until you turn it on
 - ✅ **Bundled Blender add-on 5.5.5** - Blender 5.3 fixes
@@ -132,7 +136,7 @@ If Mossy.Space has helped your modding workflow, consider supporting continued d
 
 **Packaging:**
 - Windows installer is generated via NSIS (`npm run package:win`)
-- Version is auto-set from `package.json` (currently 6.0.14)
+- Version is auto-set from `package.json` (currently 6.0.15)
 - See **[PACKAGING_GUIDE.md](PACKAGING_GUIDE.md)** for complete packaging instructions
 
 **Onboarding:**
@@ -611,7 +615,7 @@ npm run build        # Build all
 npm run package:win  # Windows installer
 ```
 
-Installer output goes to `release/` (for example: `Mossy Setup 6.0.14.exe`).
+Installer output goes to `release/` (for example: `Mossy Setup 6.0.15.exe`).
 
 ---
 
